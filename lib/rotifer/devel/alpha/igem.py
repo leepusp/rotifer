@@ -87,7 +87,7 @@ pipeline.
     render_neighborhood_svgs_by_block  one SVG per block (per-result views)
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
-    build_folder_and_panels_html  folder sidebar + per-block panels
+    build_tabs_and_panels_html    tabs + per-block panels (figure + table)
     build_html_report             combine everything into one HTML page
 
 How the drawing actually works (no GUI toolkit involved)
@@ -721,7 +721,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
                         output_file='operon_fig_out.svg', max_colors=5,
                         highlight_query=True, font_size=10, ignore_domains=None,
                         custom_colors=None, rename_map=None, normalize_orientation=True,
-                        align_query_center=True, collapse_opposite_strand=False,
+                        align_query_center=False, collapse_opposite_strand=False,
                         spacer_width=0.6, color_map=None, collect_node_meta=False):
     """
     Draw a gene-neighborhood ("operon") figure, one row per block, and
@@ -772,12 +772,13 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         mirrored so every reference query is drawn pointing the same
         way (strand +1). Set to False to draw every block in its
         original orientation.
-    align_query_center : bool, default True
+    align_query_center : bool, default False
         If True, pad each row with invisible spacer nodes (and an extra
         alignment edge) so the reference query gene falls in roughly
-        the same column on every row, instead of each row simply
-        starting flush left. See `add_block_to_graph` and
-        `chain_align_nodes` for the mechanics and its limits.
+        the same column on every row. The default is False: each row
+        simply starts flush left (rows are not centered on the query).
+        See `add_block_to_graph` and `chain_align_nodes` for the
+        mechanics and its limits.
     collapse_opposite_strand : bool, default False
         If True, neighbors on the strand opposite the reference query
         are drawn as small unlabeled grey triangles pointing left,
@@ -1445,8 +1446,8 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
     Render one neighborhood figure per block and return their SVGs.
 
     Each block is rendered on its own (the df filtered to just that
-    block), so it can be viewed independently in the report's
-    "folders"/sidebar navigation. A shared `color_map` is passed to
+    block), so it can be viewed independently in the report's tabbed
+    neighborhoods section. A shared `color_map` is passed to
     every render so the same domain is the same color in every block's
     figure (and in the genome overview).
 
@@ -1489,7 +1490,7 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
     return svgs
 
 
-def render_dataframe_html(df, table_id='data-table', max_rows=None):
+def render_dataframe_html(df, table_id='data-table', max_rows=None, css_class=None):
     """
     Render `df` as a plain HTML `<table>` (every value HTML-escaped),
     suitable for dropping into a larger page.
@@ -1497,14 +1498,18 @@ def render_dataframe_html(df, table_id='data-table', max_rows=None):
     Parameters
     ----------
     df : pandas.DataFrame
-    table_id : str
+    table_id : str or None
         `id` attribute on the `<table>`, so the rest of a page (CSS, a
-        search box's JS) can target it. `build_html_report`'s search
-        box expects the default, 'data-table'.
+        search box's JS) can target it. `build_html_report`'s main
+        search box expects the default, 'data-table'. Pass None to omit
+        the id (used for the per-neighborhood sub-tables, so they don't
+        collide with the main table's id).
     max_rows : int or None
         If given, only the first `max_rows` rows are rendered, with a
         note below the table saying how many were left out. `None`
         (the default) renders every row.
+    css_class : str or None
+        Optional `class` attribute on the `<table>`.
 
     Returns
     -------
@@ -1520,8 +1525,13 @@ def render_dataframe_html(df, table_id='data-table', max_rows=None):
         for row in shown.itertuples(index=False, name=None)
     )
 
+    attrs = ''
+    if table_id:
+        attrs += f' id="{table_id}"'
+    if css_class:
+        attrs += f' class="{css_class}"'
     table_html = (
-        f'<table id="{table_id}">'
+        f'<table{attrs}>'
         f'<thead><tr>{header_cells}</tr></thead>'
         f'<tbody>{"".join(body_rows)}</tbody>'
         f'</table>'
@@ -1631,45 +1641,75 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-gene:hover { filter: brightness(0.92); }
   .nb-gene:hover polygon, .nb-gene:hover ellipse { stroke-width: 2.4px; }
 
-  /* ---- neighborhoods: folders + content ---- */
-  .nb-layout { display: grid; grid-template-columns: 270px 1fr; gap: 18px; align-items: start; }
-  .nb-folders {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 8px; max-height: 620px; overflow-y: auto; position: sticky; top: 16px;
+  /* ---- neighborhoods: toolbar + tabs + full-width figure ---- */
+  .nb-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .nb-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; line-height: 1;
   }
-  .folder-search { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
-    font-size: 12.5px; font-family: Consolas, "SF Mono", Menlo, monospace; margin-bottom: 8px; }
-  .folder-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .folder-group-header {
-    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
-    padding: 7px 8px; font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 12.5px;
-    color: #222; border-radius: 6px;
+  .nb-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .nb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .nb-zoom { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .nb-zoom button {
+    border: 1px solid var(--line); background: #fff; border-radius: 6px;
+    padding: 4px 10px; font-size: 14px; cursor: pointer; line-height: 1;
   }
-  .folder-group-header:hover { background: var(--accent-soft); }
-  .folder-group-header .twist { transition: transform 0.15s ease; color: var(--accent); }
-  .folder-group.collapsed .twist { transform: rotate(-90deg); }
-  .folder-group.collapsed .folder-items { display: none; }
-  .folder-group-header .grp-count { color: var(--muted); margin-left: auto; font-size: 11px; }
-  .folder-items { padding: 2px 0 6px; }
-  .folder-item {
-    padding: 6px 10px 6px 26px; font-size: 12.5px; cursor: pointer; border-radius: 6px;
-    font-family: Consolas, "SF Mono", Menlo, monospace; color: #333;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .folder-item:hover { background: var(--accent-soft); }
-  .folder-item.selected { background: var(--selected); box-shadow: inset 2px 0 0 var(--selected-line); color: #7a3b12; }
-  .folder-item.hidden-row { display: none; }
-  .folder-item .fi-sub { color: var(--muted); font-size: 11px; margin-left: 6px; }
-  .folder-item-all { font-weight: bold; color: var(--accent); margin-bottom: 4px; padding-left: 10px; }
+  .nb-zoom button:hover { background: var(--accent-soft); border-color: var(--accent); }
+  #nb-zoom-val { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 13px; min-width: 46px; text-align: center; }
 
-  .nb-content { min-width: 0; }
+  .nb-tabs {
+    display: flex; gap: 4px; overflow-x: auto; border-bottom: 2px solid var(--line);
+    margin-bottom: 14px; padding-bottom: 0;
+  }
+  .nb-tab {
+    border: 1px solid var(--line); border-bottom: none; background: #f4f2ec; color: #555;
+    border-radius: 7px 7px 0 0; padding: 7px 14px; font-size: 12.5px; cursor: pointer;
+    white-space: nowrap; font-family: Consolas, "SF Mono", Menlo, monospace;
+    margin-bottom: -2px; transition: background 0.1s ease;
+  }
+  .nb-tab:hover { background: var(--accent-soft); }
+  .nb-tab.active { background: #fff; color: var(--accent); border-color: var(--line); border-bottom: 2px solid #fff; font-weight: bold; }
+  .nb-tab.nb-tab-all { color: var(--accent); }
+  .nb-tab.nb-hidden { display: none; }
+
   .nb-panel { display: none; }
   .nb-panel.active { display: block; }
   .nb-panel-head { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
   .nb-panel-head b { color: var(--ink); }
-  .nb-scroll { overflow-x: auto; }
-  .nb-panel svg { display: block; max-width: none; height: auto; }
+  /* the figure occupies the full window width and does NOT shrink with
+     gene count; the zoom controls stretch .nb-fig beyond 100% */
+  .nb-fig-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: var(--panel); }
+  .nb-fig { width: 100%; }
+  .nb-fig svg { display: block; width: 100%; height: auto; }
+  .nb-subtable-wrap { margin-top: 16px; }
+  .nb-subtable-title { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .nb-subtable { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
   .nb-empty { color: var(--muted); font-size: 13px; padding: 20px; }
+
+  /* ---- filter pop-up ---- */
+  .nb-modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(20,24,32,0.42);
+    z-index: 900; align-items: center; justify-content: center;
+  }
+  .nb-modal-backdrop.open { display: flex; }
+  .nb-modal {
+    background: #fff; border-radius: 12px; width: min(460px, 92vw); max-height: 78vh;
+    display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(0,0,0,0.3); overflow: hidden;
+  }
+  .nb-modal header { display: flex; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+  .nb-modal header h3 { margin: 0; font-size: 15px; }
+  .nb-modal header button { margin-left: auto; border: none; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
+  .nb-modal-search { margin: 12px 18px 0; padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-family: Consolas, "SF Mono", Menlo, monospace; }
+  .nb-modal-actions { display: flex; gap: 8px; padding: 10px 18px; }
+  .nb-modal-actions button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer; }
+  .nb-modal-actions button:hover { background: var(--accent-soft); }
+  .nb-modal-list { overflow-y: auto; padding: 4px 18px 18px; }
+  .nb-filter-group-title { font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--accent); margin: 12px 0 4px; }
+  .nb-filter-count { color: var(--muted); }
+  .nb-filter-item { display: flex; align-items: center; gap: 8px; padding: 5px 4px; font-size: 12.5px; font-family: Consolas, "SF Mono", Menlo, monospace; cursor: pointer; border-radius: 5px; }
+  .nb-filter-item:hover { background: var(--accent-soft); }
+  .nb-filter-item.hidden-row { display: none; }
+  .nb-filter-item .nb-filter-sub { color: var(--muted); font-size: 11px; margin-left: auto; }
 
   /* ---- data table ---- */
   .search-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -1692,9 +1732,8 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0 48px; }
 
   @media (max-width: 820px) {
-    .nb-layout { grid-template-columns: 1fr; }
-    .nb-folders { position: static; max-height: 320px; }
     .go-track { grid-template-columns: 110px 1fr; }
+    .nb-zoom { margin-left: 0; width: 100%; }
   }
 </style>
 </head>
@@ -1717,15 +1756,22 @@ $genome_overview
   <section>
     <p class="eyebrow">02 &middot; NEIGHBORHOODS</p>
     <h2>Gene neighborhood detail</h2>
-    <p class="desc">Open "All neighborhoods" to see every block at once, or pick a single result on the left. Hover any protein for its info window (id, coordinates, strand, length); the query protein is flagged as such. Query genes are outlined in red, neighbors always point right, and opposite-strand neighbors collapse to small triangles.</p>
-    <div class="nb-layout">
-      <div class="nb-folders">
-        <input type="text" id="folder-search" class="folder-search" placeholder="Filter results...">
-$folders
+    <p class="desc">Each figure spans the full width of the panel. Use <b>Filter neighborhoods</b> to choose which results appear as tabs, switch tabs to inspect one at a time (its figure and the input rows that built it), and zoom the figure as needed. Hover any protein for its info window; the query protein is flagged as such. Query genes are outlined in red, neighbors always point right, and opposite-strand neighbors collapse to small triangles.</p>
+    <div class="nb-toolbar">
+      <button type="button" class="nb-btn" id="nb-filter-open">&#9776;&nbsp;Filter neighborhoods</button>
+      <div class="nb-zoom">
+        <button type="button" id="nb-zoom-out" title="Zoom out">&minus;</button>
+        <span id="nb-zoom-val">100%</span>
+        <button type="button" id="nb-zoom-in" title="Zoom in">+</button>
+        <button type="button" id="nb-zoom-reset" title="Reset zoom">reset</button>
+        <button type="button" id="nb-zoom-fit" title="Fit to width">fit width</button>
       </div>
-      <div class="nb-content">
-$panels
-      </div>
+    </div>
+    <div class="nb-tabs">
+$nb_tabs
+    </div>
+    <div class="nb-content">
+$nb_panels
     </div>
   </section>
 
@@ -1743,7 +1789,22 @@ $table_html
   </section>
 
 </main>
-<footer>Generated by operon_fig.py</footer>
+
+<div class="nb-modal-backdrop" id="nb-modal">
+  <div class="nb-modal">
+    <header><h3>Show neighborhoods</h3><button type="button" id="nb-modal-close" title="Close">&times;</button></header>
+    <input type="text" class="nb-modal-search" id="nb-modal-search" placeholder="Search...">
+    <div class="nb-modal-actions">
+      <button type="button" id="nb-check-all">Select all</button>
+      <button type="button" id="nb-check-none">Clear</button>
+    </div>
+    <div class="nb-modal-list">
+$nb_filter_items
+    </div>
+  </div>
+</div>
+
+<footer>Made by <b>$software_name</b> &middot; gene-neighborhood analysis</footer>
 <script>
 (function () {
   // ---------- genome overview: zoom / pan / tooltip ----------
@@ -1853,35 +1914,81 @@ $table_html
   // per-protein info windows inside the neighborhood figures
   Array.prototype.slice.call(document.querySelectorAll('.nb-gene')).forEach(attachTip);
 
-  // ---------- neighborhoods: folder navigation ----------
+  // ---------- neighborhoods: tabs, zoom, filter pop-up ----------
   var panels = Array.prototype.slice.call(document.querySelectorAll('.nb-panel'));
-  var items = Array.prototype.slice.call(document.querySelectorAll('.folder-item'));
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.nb-tab'));
 
   function selectBlock(slug) {
+    var tab = tabs.filter(function (t) { return t.dataset.block === slug; })[0];
+    if (tab && tab.classList.contains('nb-hidden')) {
+      // a marker click can target a filtered-out neighborhood: reveal it
+      tab.classList.remove('nb-hidden');
+      var cb = document.querySelector('.nb-filter-item input[data-block="' + slug + '"]');
+      if (cb) cb.checked = true;
+    }
     panels.forEach(function (p) { p.classList.toggle('active', p.dataset.block === slug); });
-    items.forEach(function (it) { it.classList.toggle('selected', it.dataset.block === slug); });
+    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.block === slug); });
     markers.forEach(function (m) { m.classList.toggle('selected', m.dataset.block === slug); });
-    var active = document.querySelector('.nb-panel.active');
-    if (active && active.scrollIntoView) active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   window._selectBlock = selectBlock;
 
-  items.forEach(function (it) {
-    it.addEventListener('click', function () { selectBlock(it.dataset.block); });
-  });
-  Array.prototype.slice.call(document.querySelectorAll('.folder-group-header')).forEach(function (h) {
-    h.addEventListener('click', function () { h.parentElement.classList.toggle('collapsed'); });
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { selectBlock(t.dataset.block); });
   });
 
-  var folderSearch = document.getElementById('folder-search');
-  if (folderSearch) {
-    folderSearch.addEventListener('input', function () {
-      var term = folderSearch.value.toLowerCase();
-      items.forEach(function (it) {
-        it.classList.toggle('hidden-row', it.textContent.toLowerCase().indexOf(term) === -1);
-      });
-    });
+  // neighborhood figure zoom: figures always fill the panel width (they
+  // don't shrink with gene count); zoom stretches the figure wrapper and
+  // the panel scrolls horizontally.
+  var nbZoom = 1;
+  var nbZoomVal = document.getElementById('nb-zoom-val');
+  function nbLayout() {
+    document.querySelectorAll('.nb-fig').forEach(function (f) { f.style.width = (nbZoom * 100) + '%'; });
+    if (nbZoomVal) nbZoomVal.textContent = Math.round(nbZoom * 100) + '%';
   }
+  function nbSetZoom(z) { nbZoom = Math.min(8, Math.max(1, z)); nbLayout(); }
+  var b;
+  if ((b = document.getElementById('nb-zoom-in'))) b.addEventListener('click', function () { nbSetZoom(nbZoom * 1.3); });
+  if ((b = document.getElementById('nb-zoom-out'))) b.addEventListener('click', function () { nbSetZoom(nbZoom / 1.3); });
+  if ((b = document.getElementById('nb-zoom-reset'))) b.addEventListener('click', function () { nbSetZoom(1); });
+  if ((b = document.getElementById('nb-zoom-fit'))) b.addEventListener('click', function () { nbSetZoom(1); });
+
+  // filter pop-up
+  var modal = document.getElementById('nb-modal');
+  var filterInputs = Array.prototype.slice.call(document.querySelectorAll('.nb-filter-item input'));
+  function openModal() { if (modal) modal.classList.add('open'); }
+  function closeModal() { if (modal) modal.classList.remove('open'); }
+  if ((b = document.getElementById('nb-filter-open'))) b.addEventListener('click', openModal);
+  if ((b = document.getElementById('nb-modal-close'))) b.addEventListener('click', closeModal);
+  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+  function applyFilter() {
+    filterInputs.forEach(function (cb) {
+      var slug = cb.dataset.block;
+      var tab = tabs.filter(function (t) { return t.dataset.block === slug; })[0];
+      if (tab) tab.classList.toggle('nb-hidden', !cb.checked);
+    });
+    // if the active tab was hidden, jump to the first visible one
+    var active = tabs.filter(function (t) { return t.classList.contains('active'); })[0];
+    if (!active || active.classList.contains('nb-hidden')) {
+      var firstVisible = tabs.filter(function (t) { return !t.classList.contains('nb-hidden'); })[0];
+      if (firstVisible) selectBlock(firstVisible.dataset.block);
+    }
+  }
+  filterInputs.forEach(function (cb) { cb.addEventListener('change', applyFilter); });
+  if ((b = document.getElementById('nb-check-all'))) b.addEventListener('click', function () {
+    filterInputs.forEach(function (cb) { cb.checked = true; }); applyFilter();
+  });
+  if ((b = document.getElementById('nb-check-none'))) b.addEventListener('click', function () {
+    filterInputs.forEach(function (cb) { cb.checked = false; }); applyFilter();
+  });
+  var modalSearch = document.getElementById('nb-modal-search');
+  if (modalSearch) modalSearch.addEventListener('input', function () {
+    var term = modalSearch.value.toLowerCase();
+    Array.prototype.slice.call(document.querySelectorAll('.nb-filter-item')).forEach(function (it) {
+      it.classList.toggle('hidden-row', it.textContent.toLowerCase().indexOf(term) === -1);
+    });
+  });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
 
   // ---------- data table filter ----------
   var input = document.getElementById('table-search');
@@ -1906,6 +2013,7 @@ $table_html
   // ---------- init ----------
   initBases();
   setZoom(1);
+  nbLayout();
   window.addEventListener('resize', function () { initBases(); layout(); });
 })();
 </script>
@@ -1914,93 +2022,111 @@ $table_html
 """)
 
 
-def build_folder_and_panels_html(extents, block_svgs, combined_svg=None, default_view='all'):
+def build_tabs_and_panels_html(extents, block_svgs, block_tables=None,
+                                combined_svg=None, default_view='all'):
     """
-    Build the two coupled HTML fragments the neighborhoods section needs:
-    the left "folders" navigation (results grouped by contig, each item
-    a clickable block) and the right stack of panels (one SVG each, only
-    the selected one shown).
+    Build the fragments the (sidebar-free) neighborhoods section needs:
+    a single horizontal row of tabs, the stack of panels (only the
+    active one shown), and the checklist that populates the "filter"
+    pop-up. Selecting a tab shows that neighborhood's figure *and* the
+    slice of the input table used to draw it.
 
     Parameters
     ----------
     extents : pandas.DataFrame
-        Output of `compute_block_extents`; drives order, grouping and
-        the per-item labels.
+        Output of `compute_block_extents`; drives order and labels.
     block_svgs : dict[str, str]
         Slug -> annotated SVG markup, from
         `render_neighborhood_svgs_by_block`.
+    block_tables : dict[str, str] or None
+        Slug -> HTML `<table>` of that block's input rows. Shown under
+        the figure in each per-block panel.
     combined_svg : str or None
-        If given, an extra "All neighborhoods" entry (data-block
-        `__all__`) is added at the top showing every block at once.
+        If given, an extra "All neighborhoods" tab (data-block
+        `__all__`) is added first, showing every block at once.
     default_view : str
-        Which panel is selected on load: 'all' (the combined view, if
-        present) or 'first' (the first block). Falls back to the first
-        block when 'all' is requested but no `combined_svg` was given.
+        Which tab is active on load: 'all' (the combined tab, if present)
+        or 'first' (the first block).
 
     Returns
     -------
-    (str, str)
-        (folders_html, panels_html).
+    (str, str, str)
+        (tabs_html, panels_html, filter_items_html).
     """
     if extents.empty:
-        return '<div class="nb-empty">No blocks.</div>', '<div class="nb-empty">No blocks to show.</div>'
+        empty = '<div class="nb-empty">No blocks to show.</div>'
+        return '', empty, ''
 
+    block_tables = block_tables or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide']))
     has_combined = combined_svg is not None
     selected = '__all__' if (default_view == 'all' and has_combined) else _slug(extents.iloc[0]['ID'])
 
-    folder_groups = []
+    tabs = []
     panels = []
+    filter_items = []
+
+    def fig_block(svg):
+        # The figure fills the full width of the panel (it does NOT scale
+        # with the number of neighbors); the inner wrapper's width is
+        # what the neighborhood zoom controls stretch.
+        return f'<div class="nb-fig-scroll"><div class="nb-fig">{svg}</div></div>'
 
     if has_combined:
-        sel = ' selected' if selected == '__all__' else ''
         act = ' active' if selected == '__all__' else ''
-        folder_groups.append(
-            f'<div class="folder-item folder-item-all{sel}" data-block="__all__">'
-            f'&#9776;&nbsp;All neighborhoods'
-            f'<span class="fi-sub">{len(extents)} blocks</span></div>'
+        tabs.append(
+            f'<button type="button" class="nb-tab nb-tab-all{act}" data-block="__all__">'
+            f'&#9776; All neighborhoods</button>'
         )
         panels.append(
             f'<div class="nb-panel{act}" data-block="__all__">'
-            f'<div class="nb-panel-head"><b>All neighborhoods</b> &middot; every block stacked</div>'
-            f'<div class="nb-scroll">{combined_svg}</div></div>'
+            f'<div class="nb-panel-head"><b>All neighborhoods</b> &middot; {len(extents)} blocks, every block stacked</div>'
+            f'{fig_block(combined_svg)}</div>'
         )
 
     for nucleotide in nucleotides:
         rows = extents[extents['nucleotide'] == nucleotide]
-        items = []
+        filter_group = [
+            f'<div class="nb-filter-group-title">{html.escape(str(nucleotide))} '
+            f'<span class="nb-filter-count">{len(rows)}</span></div>'
+        ]
         for _, block in rows.iterrows():
             slug = _slug(block['ID'])
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
-            sel = ' selected' if slug == selected else ''
-            items.append(
-                f'<div class="folder-item{sel}" data-block="{slug}">'
-                f'{html.escape(str(label))}'
-                f'<span class="fi-sub">{int(block["n_genes"])} genes</span></div>'
-            )
-
             domain = block['query_domain'] if block['query_domain'] is not None else '-'
             act = ' active' if slug == selected else ''
+
+            tabs.append(
+                f'<button type="button" class="nb-tab{act}" data-block="{slug}" '
+                f'title="{html.escape(str(block["ID"]))}">{html.escape(str(label))}</button>'
+            )
+
             head = (
                 f'<div class="nb-panel-head"><b>{html.escape(str(label))}</b> &middot; '
                 f'{html.escape(str(block["ID"]))} &middot; {html.escape(str(domain))} &middot; '
                 f'{html.escape(str(block["org_name"]))} &middot; '
-                f'{block["block_start"]:,.0f}&ndash;{block["block_end"]:,.0f} bp</div>'
+                f'{block["block_start"]:,.0f}&ndash;{block["block_end"]:,.0f} bp &middot; '
+                f'{int(block["n_genes"])} genes</div>'
             )
+            table_html = block_tables.get(slug, '')
+            table_block = (
+                f'<div class="nb-subtable-wrap"><div class="nb-subtable-title">Input rows for this neighborhood</div>'
+                f'<div class="nb-subtable">{table_html}</div></div>'
+            ) if table_html else ''
             panels.append(
                 f'<div class="nb-panel{act}" data-block="{slug}">{head}'
-                f'<div class="nb-scroll">{block_svgs.get(slug, "")}</div></div>'
+                f'{fig_block(block_svgs.get(slug, ""))}{table_block}</div>'
             )
 
-        folder_groups.append(
-            '<div class="folder-group">'
-            f'<div class="folder-group-header"><span class="twist">&#9662;</span>'
-            f'<span>{html.escape(str(nucleotide))}</span>'
-            f'<span class="grp-count">{len(rows)}</span></div>'
-            f'<div class="folder-items">{"".join(items)}</div></div>'
-        )
+            checked = ' checked' if slug != '__never__' else ''
+            filter_group.append(
+                f'<label class="nb-filter-item"><input type="checkbox" data-block="{slug}"{checked}> '
+                f'<span>{html.escape(str(label))}</span>'
+                f'<span class="nb-filter-sub">{int(block["n_genes"])} genes</span></label>'
+            )
+        filter_items.append(f'<div class="nb-filter-group">{"".join(filter_group)}</div>')
 
-    return ''.join(folder_groups), ''.join(panels)
+    return ''.join(tabs), ''.join(panels), ''.join(filter_items)
 
 
 def build_html_report(df, output_file='operon_report.html', title='Gene Neighborhood Report',
@@ -2008,17 +2134,26 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', operon_kwargs=None, max_table_rows=2000,
-                       work_dir=None, include_combined=True, default_view='all'):
+                       work_dir=None, include_combined=True, default_view='all',
+                       software_name='SHARP'):
     """
     Build one self-contained, interactive HTML page for a single input
     table: a zoomable genome-wide overview with hover tooltips, a
-    "folders" sidebar that opens each neighborhood on its own (plus an
-    "All neighborhoods" view showing every block at once), and the raw
-    data table with a filter box.
+    tabbed, sidebar-free neighborhoods section (one tab per result, plus
+    an "All neighborhoods" tab), and the raw data table with a filter
+    box.
 
-    Every protein in every neighborhood figure also gets a hover info
-    window (protein id, coordinates, strand, length, product; the query
-    gene is flagged as the query in place of a domain line).
+    Neighborhoods section behavior:
+
+      * each figure spans the full width of the panel and does NOT shrink
+        with the number of neighbors; its own zoom controls stretch it;
+      * a "Filter neighborhoods" pop-up lets the user mark/unmark which
+        results appear as tabs;
+      * selecting a tab shows that neighborhood's figure together with the
+        slice of the input table used to draw it;
+      * every protein has a hover info window (id, coordinates, strand,
+        length, product; the query protein is flagged as the query in
+        place of a domain line).
 
     A single shared domain -> color map is computed once (from the whole
     table, honoring `rename_map`/`custom_colors`/`max_colors`/
@@ -2028,7 +2163,8 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     Parameters
     ----------
     df : pandas.DataFrame
-        Raw input table; shown as-is in the data section.
+        Raw input table; shown as-is in the data section and, per block,
+        under each neighborhood figure.
     output_file : str
         Path to write the HTML report to.
     title : str
@@ -2042,21 +2178,25 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         `compute_block_extents`).
     operon_kwargs : dict or None
         Extra per-figure options forwarded to `neighborhood_figure` for
-        each block (e.g. `collapse_opposite_strand=True`, `font_size`).
-        Color/label and `group_col`/`org_col`/`label_col` are handled
-        centrally here, so don't pass those inside `operon_kwargs`.
+        each block (e.g. `collapse_opposite_strand=True`, `font_size`,
+        or `align_query_center=True` to re-enable centering, which is
+        off by default). Color/label and `group_col`/`org_col`/
+        `label_col` are handled centrally here, so don't pass those.
     max_table_rows : int or None
-        Row cap for the embedded table; `None` embeds every row.
+        Row cap for the main embedded table; `None` embeds every row.
+        (Per-neighborhood sub-tables are never capped.)
     work_dir : str or None
         Where intermediate SVGs are written. If None, a temporary
         directory is used and cleaned up afterwards.
     include_combined : bool, default True
-        Add the "All neighborhoods" view (every block stacked in one
+        Add the "All neighborhoods" tab (every block stacked in one
         figure). Turning this off saves time/size on very large inputs.
     default_view : str, default 'all'
-        Which neighborhoods panel is open on load: 'all' (the combined
-        view) or 'first' (the first block). Ignored toward 'first' if
+        Which neighborhoods tab is open on load: 'all' (the combined
+        tab) or 'first' (the first block). Ignored toward 'first' if
         `include_combined` is False.
+    software_name : str, default 'SHARP'
+        Name shown in the report footer ("Made by ...").
 
     Returns
     -------
@@ -2076,6 +2216,12 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     )
 
     genome_overview = build_genome_overview_interactive_html(extents, color_map=color_map)
+
+    # One input-table slice per block, shown under its figure.
+    block_tables = {
+        _slug(block_id): render_dataframe_html(block_df, table_id=None, css_class='nb-subtable-table')
+        for block_id, block_df in df.groupby(group_col, sort=False)
+    }
 
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
@@ -2102,8 +2248,9 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         if own_tmp:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    folders_html, panels_html = build_folder_and_panels_html(
-        extents, block_svgs, combined_svg=combined_svg, default_view=default_view
+    nb_tabs, nb_panels, nb_filter_items = build_tabs_and_panels_html(
+        extents, block_svgs, block_tables=block_tables,
+        combined_svg=combined_svg, default_view=default_view,
     )
 
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
@@ -2112,9 +2259,11 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         n_genes=f'{len(df):,}',
         n_blocks=n_blocks,
         genome_overview=genome_overview,
-        folders=folders_html,
-        panels=panels_html,
+        nb_tabs=nb_tabs,
+        nb_panels=nb_panels,
+        nb_filter_items=nb_filter_items,
         table_html=render_dataframe_html(df, max_rows=max_table_rows),
+        software_name=html.escape(software_name),
     )
 
     with open(output_file, 'w') as f:
