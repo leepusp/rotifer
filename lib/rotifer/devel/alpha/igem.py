@@ -2872,7 +2872,8 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
         # visible block -- see the .nb-window wrapper in the template), so
         # panels don't carry their own sub-tabs.
         fig = f'<div class="nb-view nb-view-figure"><div class="nb-fig-scroll"><div class="nb-fig">{svg}</div></div></div>'
-        tab = f'<div class="nb-view nb-view-table">{table_card or "<p class=\'nb-empty\'>No table.</p>"}</div>'
+        table_fallback = "<p class='nb-empty'>No table.</p>"
+        tab = f'<div class="nb-view nb-view-table">{table_card or table_fallback}</div>'
         return (
             f'<div class="nb-panel" data-block="{slug}" data-label="{html.escape(str(label))}">'
             f'{head}{fig}{tab}</div>'
