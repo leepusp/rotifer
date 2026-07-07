@@ -91,8 +91,8 @@ pipeline.
     render_table_card             sortable/filterable/downloadable table widget
     render_neighborhood_table_card single merged, block-tagged table (all blocks)
     compute_domain_stats          reference-query + full-architecture domain counts
-    build_bar_chart_svg           horizontal bar chart SVG from a counts table
-    build_stats_section_html      toggleable statistics section HTML
+    build_bar_list_html           interactive HTML/CSS bar list (all domains, filterable/sortable)
+    build_stats_section_html      granularity x scope toggleable statistics section HTML
     build_html_report             combine everything into one HTML page
 
 How the drawing actually works (no GUI toolkit involved)
@@ -1588,18 +1588,33 @@ def render_table_card(df, filename='table.csv', max_rows=None):
     )
 
 
-def compute_domain_stats(working, extents=None, ignore_domains=None):
+def compute_domain_stats(working, scope='all', ignore_domains=None):
     """
-    Count how often domains appear across all proteins, two ways:
+    Count how often domains appear, two ways, over a chosen subset of
+    proteins:
 
       * "domains" -- unique ATOMIC domains: every '+'-joined architecture
         is split into its individual components, so `GntR+FCD` contributes
         one count each to `GntR` and to `FCD`. This answers "how often does
-        this single domain occur anywhere in the data".
+        this single domain occur".
       * "architectures" -- the full COMPOSITE domain string counted as one
         unit, so `GntR+FCD` is its own category distinct from `GntR` or
         `FCD` alone. This answers "how often does this exact domain
         combination occur".
+
+    Both are computed over whichever `scope` is requested:
+
+      * 'all'       -- every protein (query genes and neighbors alike).
+      * 'query'     -- only each block's reference query gene. Since every
+        block contributes exactly one query, this is the count "how many
+        neighborhoods are built around this domain" -- and keeping it
+        separate matters, because query genes are often deliberately
+        similar (that's how the neighborhoods were assembled), so mixing
+        them into 'all' can make a domain look far more common in the
+        data than it actually is among the neighbors.
+      * 'neighbors' -- every protein EXCEPT the query genes -- what
+        actually surrounds the queries, with the query's own domain
+        removed from the count entirely.
 
     Generic/uninformative values (`ignore_domains`, plus 'unk'/'-'/'?' and
     anything containing "hypothetical") are dropped. For architectures a
@@ -1609,10 +1624,10 @@ def compute_domain_stats(working, extents=None, ignore_domains=None):
     Parameters
     ----------
     working : pandas.DataFrame
-        Prepared table (needs the 'domain' column); see
+        Prepared table (needs the 'domain' and 'is_query' columns); see
         `prepare_dataframe`.
-    extents : pandas.DataFrame, optional
-        Unused; kept for backward compatibility.
+    scope : str
+        'all', 'query', or 'neighbors' (see above).
     ignore_domains : list[str] or None
         Extra values to drop. Defaults to `DEFAULT_IGNORE_DOMAINS`.
 
@@ -1625,6 +1640,13 @@ def compute_domain_stats(working, extents=None, ignore_domains=None):
     """
     ignore = {d.lower() for d in (ignore_domains or DEFAULT_IGNORE_DOMAINS)} | {'unk', '-', '?', ''}
 
+    if scope == 'query' and 'is_query' in working.columns:
+        subset = working[working['is_query']]
+    elif scope == 'neighbors' and 'is_query' in working.columns:
+        subset = working[~working['is_query']]
+    else:
+        subset = working
+
     def keep(value):
         if value is None or (isinstance(value, float) and pd.isna(value)):
             return False
@@ -1633,7 +1655,7 @@ def compute_domain_stats(working, extents=None, ignore_domains=None):
 
     atomic = []        # individual domains (split on '+')
     architectures = []  # full composite strings, kept intact
-    for value in working['domain'].tolist():
+    for value in subset['domain'].tolist():
         if value is None or (isinstance(value, float) and pd.isna(value)):
             continue
         parts = [p for p in str(value).split('+') if keep(p)]
@@ -1656,89 +1678,166 @@ def compute_domain_stats(working, extents=None, ignore_domains=None):
     return domain_counts, arch_counts
 
 
-def build_bar_chart_svg(counts_df, color_map=None, top=15, marker_color='#2a6f77',
-                         width=680, label_w=210, row_h=26, pad=14, font_size=12):
-    """
-    Render a horizontal bar chart (SVG) of the `top` most frequent
-    domains in a `{domain, count}` table, colored to match the figures.
 
-    Returns a self-contained `<svg>` string (or a small "nothing to
-    show" message if the table is empty).
+def build_bar_list_html(counts_df, color_map=None, marker_color='#2a6f77'):
+    """
+    Render an interactive HTML/CSS horizontal bar list for a
+    `{domain, count}` table, colored to match the figures.
+
+    Unlike a static image, this shows EVERY row (not just a top-N slice)
+    inside a scrollable container, and each row carries a `data-domain`
+    attribute so the report's JS can filter (search box) and re-sort
+    (by count or alphabetically) it client-side without re-rendering --
+    hidden rows simply drop out of the flex flow, so the remaining bars
+    reflow with no gaps.
+
+    Parameters
+    ----------
+    counts_df : pandas.DataFrame
+        Columns 'domain' and 'count', as returned by `compute_domain_stats`.
+    color_map : dict[str, str] or None
+        Domain -> color, to match the neighborhood figures. Domains not
+        in the map fall back to `marker_color`.
+    marker_color : str
+        Fallback bar color.
+
+    Returns
+    -------
+    str
+        HTML for one `.bar-list` (or a "nothing to show" message).
     """
     color_map = color_map or {}
     if counts_df.empty:
         return '<p class="nb-empty">No domains to summarize.</p>'
 
-    shown = counts_df.head(top)
-    max_count = int(shown['count'].max())
-    bar_area = width - label_w - 64
-    height = pad * 2 + len(shown) * row_h
-
-    parts = [
-        f'<svg viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" '
-        f'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="{font_size}">'
-    ]
-    for i, (_, row) in enumerate(shown.iterrows()):
-        y = pad + i * row_h
-        cy = y + row_h / 2
+    max_count = int(counts_df['count'].max()) if len(counts_df) else 0
+    rows = []
+    for _, row in counts_df.iterrows():
         domain = str(row['domain'])
         count = int(row['count'])
-        w = (count / max_count) * bar_area if max_count else 0
+        pct = (count / max_count * 100) if max_count else 0
         fill = color_map.get(domain, marker_color)
-
-        shown_label = domain if len(domain) <= 26 else domain[:24] + '\u2026'
-        parts.append(
-            f'<text x="{label_w - 8:.0f}" y="{cy + 4:.0f}" text-anchor="end" fill="#222">'
-            f'{html.escape(shown_label)}</text>'
+        rows.append(
+            '<div class="bar-row" data-domain="' + html.escape(domain.lower()) + '" '
+            'data-count="' + str(count) + '" data-name="' + html.escape(domain) + '">'
+            '<span class="bar-label" title="' + html.escape(domain) + '">' + html.escape(domain) + '</span>'
+            '<span class="bar-track"><span class="bar-fill" style="width:' + f'{pct:.1f}' + '%;'
+            'background:' + fill + ';"></span></span>'
+            '<span class="bar-count">' + str(count) + '</span>'
+            '</div>'
         )
-        parts.append(
-            f'<rect x="{label_w:.0f}" y="{y + 4:.0f}" width="{max(w, 1):.1f}" height="{row_h - 10:.0f}" '
-            f'fill="{fill}" stroke="#c0392b" stroke-width="0.6" rx="2"/>'
-        )
-        parts.append(
-            f'<text x="{label_w + w + 8:.0f}" y="{cy + 4:.0f}" fill="#555">{count}</text>'
-        )
-    parts.append('</svg>')
-    return '\n'.join(parts)
+    return '<div class="bar-list">' + ''.join(rows) + '</div>'
 
 
-def build_stats_section_html(ref_counts, arch_counts, color_map=None):
+def build_stats_section_html(working, color_map=None, ignore_domains=None):
     """
-    Build the statistics section's inner HTML: a toggle between
-    "Reference domains" and "Architectures", each showing a bar chart of
-    the most frequent domains plus a full sortable/downloadable table.
+    Build the statistics section's inner HTML.
+
+    Two independent toggles combine (2 x 3 = 6 panels, one shown at a
+    time), plus a shared search box and a sort toggle that apply to
+    whichever panel is visible:
+
+      * granularity -- "Domains" (atomic, split on '+') vs
+        "Architectures" (full composite string kept intact);
+      * scope -- "All proteins", "Query only" (one count per
+        neighborhood, from its reference query gene), or "Neighbors
+        only" (every protein except the queries). Keeping query and
+        neighbor counts separate matters: query genes are often
+        deliberately similar to each other (that's how the neighborhoods
+        were assembled in the first place), so folding them into "All"
+        can make a domain look far more common among the neighbors than
+        it actually is.
+
+    Each panel shows an interactive bar list (every domain, not just a
+    top-N slice -- scrollable, filterable, re-sortable) plus the same
+    data as a full sortable/filterable/downloadable table.
 
     Parameters
     ----------
-    ref_counts, arch_counts : pandas.DataFrame
-        From `compute_domain_stats`.
+    working : pandas.DataFrame
+        Prepared table (needs 'domain' and 'is_query'); see
+        `prepare_dataframe`.
     color_map : dict[str, str] or None
         Domain -> color, to match the figures.
+    ignore_domains : list[str] or None
+        Forwarded to `compute_domain_stats`.
 
     Returns
     -------
     str
         HTML fragment for the statistics section body.
     """
-    ref_chart = build_bar_chart_svg(ref_counts, color_map=color_map)
-    arch_chart = build_bar_chart_svg(arch_counts, color_map=color_map)
-    ref_card = render_table_card(ref_counts, filename='domain_counts.csv')
-    arch_card = render_table_card(arch_counts, filename='architecture_counts.csv')
+    scopes = [
+        ('all', 'All proteins'),
+        ('query', 'Query only'),
+        ('neighbors', 'Neighbors only'),
+    ]
+    granularities = [
+        ('domain', 'Domains'),
+        ('arch', 'Architectures'),
+    ]
+    notes = {
+        'domain': (
+            'Each unique single domain &mdash; a composite like <code>GntR+FCD</code> '
+            'adds one to <code>GntR</code> and one to <code>FCD</code>.'
+        ),
+        'arch': (
+            'Each full domain architecture counted as one unit &mdash; '
+            '<code>GntR+FCD</code> is its own category, separate from '
+            '<code>GntR</code> or <code>FCD</code> alone.'
+        ),
+    }
+    scope_notes = {
+        'all': 'Counts every protein in the data, query genes and neighbors alike.',
+        'query': (
+            'Counts only each neighborhood\'s reference query gene &mdash; one per '
+            'neighborhood, i.e. how many neighborhoods are built around each domain.'
+        ),
+        'neighbors': 'Counts every protein EXCEPT the query genes -- what actually surrounds the queries.',
+    }
 
-    n_ref = len(ref_counts)
-    n_arch = len(arch_counts)
+    panels = []
+    toggle_gran = ''.join(
+        f'<button type="button" class="stats-btn{" active" if i == 0 else ""}" '
+        f'data-gran="{key}">{label}</button>'
+        for i, (key, label) in enumerate(granularities)
+    )
+    toggle_scope = ''.join(
+        f'<button type="button" class="stats-btn{" active" if i == 0 else ""}" '
+        f'data-scope="{key}">{label}</button>'
+        for i, (key, label) in enumerate(scopes)
+    )
+
+    for scope_key, scope_label in scopes:
+        domain_counts, arch_counts = compute_domain_stats(
+            working, scope=scope_key, ignore_domains=ignore_domains,
+        )
+        for gran_key, counts in (('domain', domain_counts), ('arch', arch_counts)):
+            bar_list = build_bar_list_html(counts, color_map=color_map)
+            table_card = render_table_card(
+                counts, filename=f'{gran_key}_counts_{scope_key}.csv',
+            )
+            active = ' active' if (scope_key == 'all' and gran_key == 'domain') else ''
+            panels.append(
+                f'<div class="stats-block{active}" data-gran="{gran_key}" data-scope="{scope_key}">'
+                f'<p class="stats-note">{notes[gran_key]} {scope_notes[scope_key]} '
+                f'{len(counts)} distinct {"domains" if gran_key == "domain" else "architectures"}.</p>'
+                f'<div class="stats-chart">{bar_list}</div>{table_card}</div>'
+            )
 
     return (
-        '<div class="stats-toggle">'
-        '<button type="button" class="stats-btn active" data-stats="ref">Domains</button>'
-        '<button type="button" class="stats-btn" data-stats="arch">Architectures</button>'
+        '<div class="stats-controls">'
+        f'<div class="stats-toggle" id="stats-gran-toggle">{toggle_gran}</div>'
+        f'<div class="stats-toggle" id="stats-scope-toggle">{toggle_scope}</div>'
         '</div>'
-        '<div class="stats-block active" data-stats="ref">'
-        f'<p class="stats-note">Each unique single domain, counted across every protein &mdash; a composite like <code>GntR+FCD</code> adds one to <code>GntR</code> and one to <code>FCD</code>. {n_ref} distinct domains.</p>'
-        f'<div class="stats-chart">{ref_chart}</div>{ref_card}</div>'
-        '<div class="stats-block" data-stats="arch">'
-        f'<p class="stats-note">Each full domain architecture counted as one unit &mdash; <code>GntR+FCD</code> is its own category, separate from <code>GntR</code> or <code>FCD</code> alone. {n_arch} distinct architectures.</p>'
-        f'<div class="stats-chart">{arch_chart}</div>{arch_card}</div>'
+        '<div class="stats-explore">'
+        '<input type="text" id="stats-search" placeholder="Filter domains...">'
+        '<div class="stats-sort-group" id="stats-sort-toggle">'
+        '<button type="button" class="stats-btn active" data-sort="count">Sort: count</button>'
+        '<button type="button" class="stats-btn" data-sort="alpha">Sort: A&rarr;Z</button>'
+        '</div>'
+        '</div>'
+        f'<div id="stats-panels">{"".join(panels)}</div>'
     )
 
 
@@ -2047,19 +2146,40 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     border-radius:10px;padding:1px 8px;font-weight:600;}
 
   /* ---- stats section ---- */
-  .stats-toggle{display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:18px;}
+  .stats-controls{display:flex;flex-wrap:wrap;gap:10px 24px;margin-bottom:14px;}
+  .stats-toggle{display:flex;gap:0;border-bottom:2px solid var(--line);}
   .stats-btn{
-    padding:9px 22px;font-size:13px;cursor:pointer;
+    padding:9px 18px;font-size:13px;cursor:pointer;
     border:none;background:none;color:var(--muted);
-    border-bottom:3px solid transparent;margin-bottom:-2px;
+    border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;
   }
   .stats-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
   .stats-btn:hover{color:var(--ink);}
+  .stats-explore{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  #stats-search{
+    flex:1 1 220px;padding:7px 11px;border:1px solid var(--line);border-radius:6px;
+    font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;
+  }
+  #stats-search:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .stats-sort-group{display:flex;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+  .stats-sort-group .stats-btn{padding:6px 12px;border-bottom:none;margin-bottom:0;}
+  .stats-sort-group .stats-btn.active{background:var(--accent-soft);}
   .stats-block{display:none;}
   .stats-block.active{display:block;}
   .stats-note{color:var(--muted);font-size:13px;margin:0 0 16px;}
-  .stats-chart{margin-bottom:20px;overflow-x:auto;}
-  .stats-chart svg{display:block;max-width:100%;height:auto;}
+  .stats-chart{margin-bottom:20px;}
+
+  /* interactive HTML/CSS bar list (replaces the old static top-15 SVG) */
+  .bar-list{display:flex;flex-direction:column;gap:3px;max-height:480px;overflow-y:auto;padding-right:6px;}
+  .bar-row{
+    display:grid;grid-template-columns:190px 1fr 48px;align-items:center;gap:10px;
+    font-size:12px;font-family:Consolas,"SF Mono",Menlo,monospace;
+  }
+  .bar-row.hidden-row{display:none;}
+  .bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:#222;}
+  .bar-track{background:#eee;border-radius:3px;height:16px;overflow:hidden;}
+  .bar-fill{display:block;height:100%;border-radius:3px 0 0 3px;}
+  .bar-count{color:var(--muted);font-size:11px;}
 
   /* ---- column filter popup ---- */
   .cfp-backdrop{
@@ -2190,6 +2310,10 @@ $genome_overview
       <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="19" x2="19" y2="19"/></svg>
       Select
     </button>
+    <button type="button" class="nb-icon-btn" id="nb-svg-download" title="Download the currently selected neighborhoods as one SVG file">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
+      Download SVG
+    </button>
 
     <div class="nb-zoom-group">
       <button type="button" id="nb-zoom-out" title="Zoom out">&minus;</button>
@@ -2232,7 +2356,7 @@ $nb_table_card
 <div class="page-section" data-page="statistics">
 <div class="sec-inner">
   <h1 class="sec-title">Domain statistics</h1>
-  <p class="sec-desc">How often each domain appears. <b>Reference domains</b> counts one per neighborhood (the reference query gene's domain). <b>Architectures</b> counts every occurrence across all proteins, splitting &lsquo;+&rsquo;-joined strings.</p>
+  <p class="sec-desc">How often each domain appears. Toggle <b>Domains</b> (atomic, split on &lsquo;+&rsquo;) vs <b>Architectures</b> (full composite string) and <b>All proteins</b> / <b>Query only</b> / <b>Neighbors only</b> to change scope. Every domain is listed (scroll for more) &mdash; use the search box to filter and the sort toggle to reorder.</p>
   <div class="panel">
 $stats_html
   </div>
@@ -2483,6 +2607,48 @@ $nb_selector
   on(qs('#nb-zoom-50'),    'click', function(){ nbSetZoom(.5); });
   on(qs('#nb-zoom-200'),   'click', function(){ nbSetZoom(2); });
   on(qs('#nb-zoom-fit'),   'click', function(){ nbSetZoom(1); });
+
+  // ── download the current selection as one combined SVG ────────────────
+  function svgEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function downloadSelectedSVG() {
+    var blocks = qsa('.nb-fig-block.active');
+    if (!blocks.length) return;
+    var gap = 26, pad = 12, labelH = 20;
+    var maxW = 0, y = pad;
+    var parts = [];
+    blocks.forEach(function (b) {
+      var svg = b.querySelector('svg');
+      if (!svg) return;
+      var vb = (svg.getAttribute('viewBox') || '').trim().split(/[ ,]+/).map(Number);
+      var w = (vb.length === 4 && vb[2]) ? vb[2] : (svg.getBoundingClientRect().width || 600);
+      var h = (vb.length === 4 && vb[3]) ? vb[3] : (svg.getBoundingClientRect().height || 200);
+      var labelEl = b.querySelector('.nb-fig-block-label');
+      var label = labelEl ? labelEl.textContent.replace(/\s+/g, ' ').trim() : '';
+      parts.push(
+        '<text x="' + pad + '" y="' + (y + 13) + '" font-family="Consolas,\'SF Mono\',Menlo,monospace" font-size="12" fill="#555">' +
+          svgEsc(label) + '</text>' +
+        '<svg x="' + pad + '" y="' + (y + labelH) + '" width="' + w + '" height="' + h +
+          '" viewBox="0 0 ' + w + ' ' + h + '">' + svg.innerHTML + '</svg>'
+      );
+      y += labelH + h + gap;
+      if (w + pad * 2 > maxW) maxW = w + pad * 2;
+    });
+    y += pad - gap;
+    var out = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + maxW + '" height="' + y +
+      '" viewBox="0 0 ' + maxW + ' ' + y + '">' +
+      '<rect x="0" y="0" width="' + maxW + '" height="' + y + '" fill="#ffffff"/>' +
+      parts.join('') + '</svg>';
+    var blob = new Blob([out], { type: 'image/svg+xml' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    var n = blocks.length;
+    a.download = 'neighborhoods_' + n + (n === 1 ? '_block' : '_blocks') + '.svg';
+    a.click();
+  }
+  on(qs('#nb-svg-download'), 'click', downloadSelectedSVG);
 
   // ── selector modal ────────────────────────────────────────────────────
   var selModal = qs('#nb-sel-modal');
@@ -2804,14 +2970,66 @@ $nb_selector
   }
   qsa('.tbl-card').forEach(initTableCard);
 
-  // ── statistics toggle ─────────────────────────────────────────────────
-  qsa('.stats-btn').forEach(function(btn){
-    on(btn,'click',function(){
-      var key=btn.dataset.stats;
-      qsa('.stats-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.stats===key); });
-      qsa('.stats-block').forEach(function(b){ b.classList.toggle('active', b.dataset.stats===key); });
+  // ── statistics: granularity x scope toggle + search + sort ─────────────
+  var statsGran = 'domain', statsScope = 'all', statsSort = 'count';
+
+  function applyStatsSearch() {
+    var term = (qs('#stats-search') || {}).value || '';
+    term = term.toLowerCase();
+    var active = qs('.stats-block.active');
+    if (!active) return;
+    qsa('.bar-row', active).forEach(function (r) {
+      r.classList.toggle('hidden-row', !!term && r.dataset.domain.indexOf(term) === -1);
+    });
+    // mirror into that panel's own table-card filter box, reusing its existing JS
+    var filterInput = active.querySelector('.tbl-filter');
+    if (filterInput) {
+      filterInput.value = term;
+      filterInput.dispatchEvent(new Event('input'));
+    }
+  }
+  function applyStatsSort() {
+    var active = qs('.stats-block.active');
+    if (!active) return;
+    var list = active.querySelector('.bar-list');
+    if (!list) return;
+    var rows = qsa('.bar-row', list);
+    rows.sort(function (a, b) {
+      if (statsSort === 'alpha') return a.dataset.name.localeCompare(b.dataset.name);
+      return parseFloat(b.dataset.count) - parseFloat(a.dataset.count);
+    });
+    rows.forEach(function (r) { list.appendChild(r); });
+  }
+  function showStatsPanel() {
+    qsa('.stats-block').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.gran === statsGran && b.dataset.scope === statsScope);
+    });
+    applyStatsSearch();
+    applyStatsSort();
+  }
+  qsa('#stats-gran-toggle .stats-btn').forEach(function (btn) {
+    on(btn, 'click', function () {
+      statsGran = btn.dataset.gran;
+      qsa('#stats-gran-toggle .stats-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      showStatsPanel();
     });
   });
+  qsa('#stats-scope-toggle .stats-btn').forEach(function (btn) {
+    on(btn, 'click', function () {
+      statsScope = btn.dataset.scope;
+      qsa('#stats-scope-toggle .stats-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      showStatsPanel();
+    });
+  });
+  qsa('#stats-sort-toggle .stats-btn').forEach(function (btn) {
+    on(btn, 'click', function () {
+      statsSort = btn.dataset.sort;
+      qsa('#stats-sort-toggle .stats-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      applyStatsSort();
+    });
+  });
+  on(qs('#stats-search'), 'input', applyStatsSearch);
+  showStatsPanel();
 
 
   // ── init ──────────────────────────────────────────────────────────────
@@ -3122,9 +3340,8 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         extents, block_svgs, nb_table_card, default_view=default_view,
     )
 
-    # Statistics
-    ref_counts, arch_counts = compute_domain_stats(working, ignore_domains=ignore_domains)
-    stats_html = build_stats_section_html(ref_counts, arch_counts, color_map=color_map)
+    # Statistics (granularity x scope, all computed inside build_stats_section_html)
+    stats_html = build_stats_section_html(working, color_map=color_map, ignore_domains=ignore_domains)
 
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
     html_doc = HTML_REPORT_TEMPLATE.substitute(
