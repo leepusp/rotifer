@@ -87,9 +87,9 @@ pipeline.
     render_neighborhood_svgs_by_block  one SVG per block (per-result views)
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
-    build_tabs_and_panels_html    (removed; replaced by build_neighborhood_panels)
-    build_neighborhood_panels     pop-up selector + per-block figure/table panels
+    build_neighborhood_panels     pop-up selector + single merged figure stack
     render_table_card             sortable/filterable/downloadable table widget
+    render_neighborhood_table_card single merged, block-tagged table (all blocks)
     compute_domain_stats          reference-query + full-architecture domain counts
     build_bar_chart_svg           horizontal bar chart SVG from a counts table
     build_stats_section_html      toggleable statistics section HTML
@@ -1912,27 +1912,29 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-window{
     border:1px solid var(--line);border-radius:10px;background:#fff;padding:20px;
   }
-  .nb-panel{display:none;}
-  .nb-panel.active{display:block;}
-  .nb-panel.active ~ .nb-panel.active{margin-top:22px;padding-top:22px;border-top:2px solid var(--line);}
   .nb-view{display:none;}
   /* which sub-view shows is controlled centrally via a class on .nb-window,
-     so every visible block follows the same Figure/Table mode */
+     so figure vs table applies to the whole merged selection at once */
   .nb-window.view-figure .nb-view-figure{display:block;}
   .nb-window.view-table  .nb-view-table{display:block;}
-  .nb-panel-head{
+
+  /* one block's row inside the single merged figure stack */
+  .nb-fig-block{display:none;}
+  .nb-fig-block.active{display:block;}
+  .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;padding-top:22px;border-top:2px solid var(--line);}
+  .nb-fig-block-label{
     font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
     color:var(--muted);margin-bottom:10px;
   }
-  .nb-panel-head b{color:var(--ink);}
+  .nb-fig-block-label b{color:var(--ink);}
 
   /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
   .nb-fig-scroll{overflow-x:auto;}
-  /* figure at natural size, capped to the panel width; zoom scales it */
-  .nb-fig{display:inline-block;width:auto;max-width:100%;}
-  .nb-fig svg{display:block;width:auto;max-width:100%;height:auto;}
+  /* figure at natural size; zoom scales it via JS-driven inline width */
+  .nb-fig{display:inline-block;width:auto;}
+  .nb-fig svg{display:block;width:100%;height:auto;}
   .nb-empty{color:var(--muted);font-size:13px;padding:20px;}
-  /* table cards nested in the shared window don't need their own border */
+  /* the merged table nested in the shared window doesn't need its own border */
   .nb-window .tbl-card{border:none;border-radius:0;}
   .nb-window .nb-view-table+.nb-view-table,
   .nb-window .tbl-card+.tbl-card{margin-top:12px;}
@@ -1992,7 +1994,6 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-sel-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
   .nb-sel-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .nb-sel-sub{font-size:11px;color:var(--muted);}
-  .nb-sel-all{font-weight:600;color:var(--accent);}
 
   /* ---- table cards (shared for all sortable/filterable tables) ---- */
   .tbl-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
@@ -2216,8 +2217,11 @@ $genome_overview
   </div>
 
   <div class="nb-window view-figure" id="nb-window">
-    <div id="nb-panels">
-$nb_panels
+    <div class="nb-view nb-view-figure">
+$nb_fig_stack
+    </div>
+    <div class="nb-view nb-view-table">
+$nb_table_card
     </div>
   </div>
 
@@ -2376,16 +2380,16 @@ $nb_selector
     });
   });
 
-  // ── neighborhood panels (multi-select) ───────────────────────────────
-  var nbPanels = qsa('.nb-panel');
-  var selItems = qsa('.nb-sel-item');
+  // ── neighborhood selection (single merged figure + single merged table) ──
+  var figBlocks = qsa('.nb-fig-block');
+  var selItems  = qsa('.nb-sel-item');
+  var allSlugs  = figBlocks.map(function(f){ return f.dataset.block; });
 
   // Which slugs are currently shown (set by applySelection)
   var activeSet = {};
 
-  // Single global Figure/Table toggle -- applies to every visible block at
-  // once via a class on the shared .nb-window (so newly-selected blocks
-  // automatically follow whichever mode is currently active).
+  // Single global Figure/Table toggle -- applies to the whole merged
+  // window at once via a class on .nb-window.
   var nbWindowEl = qs('#nb-window');
   function setNbView(name) {
     if (nbWindowEl) nbWindowEl.className = 'nb-window ' + (name === 'nb-view-table' ? 'view-table' : 'view-figure');
@@ -2396,7 +2400,7 @@ $nb_selector
   });
 
   function updateCrumb() {
-    var n = nbPanels.filter(function(p){ return p.classList.contains('active'); }).length;
+    var n = Object.keys(activeSet).length;
     var el = qs('#nb-crumb-count');
     if (el) {
       el.innerHTML = n > 0 ?
@@ -2407,7 +2411,7 @@ $nb_selector
   function applySelection(slugs) {
     activeSet = {};
     slugs.forEach(function(s){ activeSet[s]=true; });
-    nbPanels.forEach(function(p){ p.classList.toggle('active', !!activeSet[p.dataset.block]); });
+    figBlocks.forEach(function(f){ f.classList.toggle('active', !!activeSet[f.dataset.block]); });
     selItems.forEach(function(i){
       i.classList.toggle('active', !!activeSet[i.dataset.block]);
       var cb = i.querySelector('input[type=checkbox]');
@@ -2415,6 +2419,9 @@ $nb_selector
     });
     goMarkers.forEach(function(m){ m.classList.toggle('selected', !!activeSet[m.dataset.block]); });
     updateCrumb();
+    // re-filter the merged table's rows to match the new selection
+    var nbTable = qs('#nb-table-card');
+    if (nbTable && nbTable._applyFilter) nbTable._applyFilter();
   }
 
   function selectBlock(slug) {
@@ -2436,8 +2443,7 @@ $nb_selector
     i.appendChild(cb);
   });
 
-  // prev / next (cycle through *all* panels, show only that one)
-  var allSlugs = nbPanels.map(function(p){ return p.dataset.block; });
+  // prev / next (cycle through *all* blocks, showing only that one)
   function navigate(dir) {
     var activeSlugs = Object.keys(activeSet);
     var ref = activeSlugs[0] || allSlugs[0];
@@ -2463,7 +2469,7 @@ $nb_selector
     return fig._natW;
   }
   function nbLayout() {
-    qsa('.nb-fig').forEach(function(f){
+    qsa('.nb-fig-block .nb-fig').forEach(function(f){
       var w = nbNaturalWidth(f) * nbZoom;
       f.style.width = Math.max(60, Math.round(w)) + 'px';
     });
@@ -2729,11 +2735,16 @@ $nb_selector
           if (f.type === 'text') return !f.selected[v] && !(v==='' && f.selected['']);
           return false;
         });
-        r.classList.toggle('hidden-row', failG || failC);
+        // rows in the merged neighborhoods table carry data-block; only
+        // show rows whose block is currently selected (other tables, e.g.
+        // statistics, don't set data-block so this check is a no-op there)
+        var failB = r.dataset.block && typeof activeSet !== 'undefined' && !activeSet[r.dataset.block];
+        r.classList.toggle('hidden-row', failG || failC || failB);
       });
       updateCount();
     }
     on(globalFilter, 'input', applyFilter);
+    card._applyFilter = applyFilter;
 
     // ── sort ──────────────────────────────────────────────────────────
     function sortBy(col) {
@@ -2807,8 +2818,13 @@ $nb_selector
   initBases();
   goLayout();
   nbLayout();
-  // show the first panel by default
-  if (allSlugs.length > 0) applySelection([allSlugs[0]]);
+  // Respect whichever blocks the report was built with as active
+  // (default_view='all' bakes every block active, 'first' bakes just one).
+  var initialSlugs = figBlocks
+    .filter(function (f) { return f.classList.contains('active'); })
+    .map(function (f) { return f.dataset.block; });
+  if (initialSlugs.length === 0 && allSlugs.length > 0) initialSlugs = [allSlugs[0]];
+  applySelection(initialSlugs);
   on(window,'resize', function(){ initBases(); goLayout(); });
 })();
 </script>
@@ -2817,19 +2833,83 @@ $nb_selector
 """)
 
 
-def build_neighborhood_panels(extents, block_svgs, block_tables=None,
-                               combined_svg=None, combined_table=None, default_view='all'):
+def render_neighborhood_table_card(df, group_col='block_id', filename='neighborhoods.csv',
+                                    max_rows=None):
+    """
+    Build ONE sortable/filterable/downloadable table-card containing every
+    row of `df`, with each `<tr>` tagged `data-block="<slug>"` (see
+    `_slug`). This is the single merged table shown in the Neighborhoods
+    section's Table view: the report's JS shows/hides rows to match
+    whichever neighborhoods are currently selected, on top of the table's
+    own text/column filters, rather than swapping between separate
+    per-block tables.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Full input table (all blocks).
+    group_col : str
+        Column identifying each block; used to compute each row's slug.
+    filename : str
+        Suggested name for downloads.
+    max_rows : int or None
+        Optional row cap. `None` (the default) embeds every row.
+
+    Returns
+    -------
+    str
+        HTML for one `.tbl-card`, id'd `nb-table-card` so the report's JS
+        can target it directly.
+    """
+    shown = df if max_rows is None else df.head(max_rows)
+    slugs = shown[group_col].map(_slug) if group_col in shown.columns else [''] * len(shown)
+
+    header_cells = ''.join(f'<th>{html.escape(str(c))}</th>' for c in shown.columns)
+    body_rows = []
+    for slug, row in zip(slugs, shown.itertuples(index=False, name=None)):
+        cells = ''.join('<td>' + ('' if pd.isna(v) else html.escape(str(v))) + '</td>' for v in row)
+        body_rows.append(f'<tr data-block="{slug}">{cells}</tr>')
+
+    table_html = (
+        '<table class="data-tbl">'
+        f'<thead><tr>{header_cells}</tr></thead>'
+        f'<tbody>{"".join(body_rows)}</tbody>'
+        '</table>'
+    )
+    note = ''
+    if max_rows is not None and len(df) > max_rows:
+        note = f'<p class="table-note">Showing the first {max_rows:,} of {len(df):,} rows.</p>'
+
+    return (
+        f'<div class="tbl-card" id="nb-table-card" data-filename="{html.escape(filename)}">'
+        '<div class="tbl-controls">'
+        '<input type="text" class="tbl-filter" placeholder="Filter rows...">'
+        '<span class="tbl-count"></span>'
+        '<div class="tbl-dl-wrap">'
+        '<button type="button" class="tbl-dl-btn" data-fmt="csv">&#8681; CSV</button>'
+        '<button type="button" class="tbl-dl-btn" data-fmt="tsv">TSV</button>'
+        '<button type="button" class="tbl-dl-btn" data-fmt="json">JSON</button>'
+        '</div></div>'
+        f'<div class="tbl-scroll">{table_html}{note}</div>'
+        '</div>'
+    )
+
+
+def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all'):
     """
     Build the neighborhoods section's inner fragments for the pop-up
-    (icon) selection model -- there is no scrollable tab strip.
+    (icon) multi-select model.
 
-    Each neighborhood is one hidden panel containing two sub-views: its
-    figure and its input-rows table (as a sortable/downloadable table
-    card). All currently-selected panels render together inside one
-    shared, bordered "window" (see the report template's `.nb-window`)
-    rather than as separate boxed panels; a single Figure/Table toggle
-    switches every visible panel's sub-view at once. The pop-up (and the
-    prev/next arrows) choose which panel(s) are active.
+    Every currently-selected neighborhood renders together inside ONE
+    shared window: a single merged figure stack (each selected block's
+    SVG, one below another, all inside one bordered/scrollable box) and
+    ONE merged, sortable/filterable/downloadable table (every row of the
+    full input table, tagged by block; the report's JS shows only the
+    rows belonging to selected blocks). A single Figure/Table toggle
+    switches the whole window's sub-view at once. There's no separate
+    "All neighborhoods" entry -- checking every box in the pop-up (via
+    its "All" button) achieves the same result through the same
+    mechanism.
 
     Parameters
     ----------
@@ -2837,60 +2917,26 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
         Output of `compute_block_extents`; drives order and labels.
     block_svgs : dict[str, str]
         Slug -> annotated SVG markup.
-    block_tables : dict[str, str] or None
-        Slug -> table-card HTML for that block's input rows.
-    combined_svg : str or None
-        If given, an "All neighborhoods" panel (data-block `__all__`) is
-        added first, showing every block at once.
-    combined_table : str or None
-        Table-card HTML for the full input table, shown in the "All"
-        panel's table sub-view (this is what lets the standalone data
-        section be dropped -- the full table lives here instead).
+    table_card : str
+        The single merged table-card HTML, from
+        `render_neighborhood_table_card`.
     default_view : str
-        Which panel is active on load: 'all' (the combined panel, if
-        present) or 'first' (the first block).
+        Which blocks are active on load: 'all' (every block) or 'first'
+        (just the first block).
 
     Returns
     -------
     (str, str)
-        (panels_html, selector_items_html).
+        (fig_stack_html, selector_items_html).
     """
     if extents.empty:
         return '<div class="nb-empty">No blocks to show.</div>', ''
 
-    block_tables = block_tables or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide']))
-    has_combined = combined_svg is not None
-    selected = '__all__' if (default_view == 'all' and has_combined) else _slug(extents.iloc[0]['ID'])
+    first_slug = _slug(extents.iloc[0]['ID'])
 
-    panels = []
+    fig_blocks = []
     selector_items = []
-
-    def panel(slug, label, head, svg, table_card):
-        # Every panel starts hidden; JS shows the selected set on load.
-        # Figure/Table mode is controlled centrally (one toggle for every
-        # visible block -- see the .nb-window wrapper in the template), so
-        # panels don't carry their own sub-tabs.
-        fig = f'<div class="nb-view nb-view-figure"><div class="nb-fig-scroll"><div class="nb-fig">{svg}</div></div></div>'
-        table_fallback = "<p class='nb-empty'>No table.</p>"
-        tab = f'<div class="nb-view nb-view-table">{table_card or table_fallback}</div>'
-        return (
-            f'<div class="nb-panel" data-block="{slug}" data-label="{html.escape(str(label))}">'
-            f'{head}{fig}{tab}</div>'
-        )
-
-    if has_combined:
-        head = (
-            f'<div class="nb-panel-head"><b>All neighborhoods</b> &middot; '
-            f'{len(extents)} blocks, every block stacked</div>'
-        )
-        panels.append(panel('__all__', 'All neighborhoods', head, combined_svg, combined_table))
-        selector_items.append(
-            '<div class="nb-sel-item nb-sel-all" data-block="__all__" role="button" tabindex="0">'
-            '<span class="nb-sel-icon">&#9776;</span>'
-            '<span class="nb-sel-name">All neighborhoods</span>'
-            f'<span class="nb-sel-sub">{len(extents)} blocks</span></div>'
-        )
 
     for nucleotide in nucleotides:
         rows = extents[extents['nucleotide'] == nucleotide]
@@ -2902,14 +2948,19 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
             slug = _slug(block['ID'])
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
             domain = block['query_domain'] if block['query_domain'] is not None else '-'
-            head = (
-                f'<div class="nb-panel-head"><b>{html.escape(str(label))}</b> &middot; '
+            active = ' active' if (default_view == 'all' or slug == first_slug) else ''
+
+            fig_label = (
+                f'<div class="nb-fig-block-label"><b>{html.escape(str(label))}</b> &middot; '
                 f'{html.escape(str(block["ID"]))} &middot; {html.escape(str(domain))} &middot; '
                 f'{html.escape(str(block["org_name"]))} &middot; '
                 f'{block["block_start"]:,.0f}&ndash;{block["block_end"]:,.0f} bp &middot; '
                 f'{int(block["n_genes"])} genes</div>'
             )
-            panels.append(panel(slug, label, head, block_svgs.get(slug, ''), block_tables.get(slug, '')))
+            fig_blocks.append(
+                f'<div class="nb-fig-block{active}" data-block="{slug}">'
+                f'{fig_label}<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
+            )
             selector_items.append(
                 f'<div class="nb-sel-item" data-block="{slug}" role="button" tabindex="0" '
                 f'title="{html.escape(str(block["ID"]))}">'
@@ -2918,8 +2969,10 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
                 f'<span class="nb-sel-sub">{int(block["n_genes"])} genes</span></div>'
             )
 
-    return ''.join(panels), ''.join(selector_items)
-
+    fig_stack = (
+        f'<div class="nb-fig-scroll"><div id="nb-fig-stack">{"".join(fig_blocks)}</div></div>'
+    )
+    return fig_stack, ''.join(selector_items)
 
 def read_svg_logo(path):
     """
@@ -2953,25 +3006,28 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        group_col='block_id', org_col='organism', label_col='pfam',
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
-                       length_col='nlen', operon_kwargs=None, max_table_rows=2000,
-                       work_dir=None, include_combined=True, default_view='all',
+                       length_col='nlen', operon_kwargs=None, max_table_rows=None,
+                       work_dir=None, default_view='all',
                        software_name='S(H)ARP',
                        header_logo=SHARP_HEADER_LOGO, footer_logo=None):
     """
     Build one self-contained, interactive HTML page for a single input
     table: a zoomable genome-wide overview with hover tooltips, a
-    tabbed, sidebar-free neighborhoods section (one tab per result, plus
-    an "All neighborhoods" tab), and the raw data table with a filter
-    box.
+    multi-select neighborhoods section, and a statistics section.
 
     Neighborhoods section behavior:
 
+      * a "Select" pop-up lets the user check any number of neighborhoods
+        (with "All"/"None" bulk buttons); every checked one renders
+        together in a single window;
+      * that window holds ONE merged figure (each selected block's SVG
+        stacked in one bordered/scrollable box, not separate boxes per
+        block) and ONE merged, sortable/filterable/downloadable table
+        (every row of the full input table, restricted to the rows of
+        whichever blocks are selected); a single Figure/Table toggle
+        switches the whole window's sub-view at once;
       * each figure spans the full width of the panel and does NOT shrink
-        with the number of neighbors; its own zoom controls stretch it;
-      * a "Filter neighborhoods" pop-up lets the user mark/unmark which
-        results appear as tabs;
-      * selecting a tab shows that neighborhood's figure together with the
-        slice of the input table used to draw it;
+        with the number of neighbors in it; the zoom controls stretch it;
       * every protein has a hover info window (id, coordinates, strand,
         length, product; the query protein is flagged as the query in
         place of a domain line).
@@ -2984,8 +3040,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     Parameters
     ----------
     df : pandas.DataFrame
-        Raw input table; shown as-is in the data section and, per block,
-        under each neighborhood figure.
+        Raw input table.
     output_file : str
         Path to write the HTML report to.
     title : str
@@ -3004,20 +3059,14 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         off by default). Color/label and `group_col`/`org_col`/
         `label_col` are handled centrally here, so don't pass those.
     max_table_rows : int or None
-        Row cap applied to the full input table shown in the "All
-        neighborhoods" panel's Table view (the only place the complete
-        table is browsable/downloadable from). `None` embeds every row.
-        Per-block sub-tables are never capped.
+        Row cap for the merged neighborhoods table. `None` (the default)
+        embeds every row -- unrestricted.
     work_dir : str or None
         Where intermediate SVGs are written. If None, a temporary
         directory is used and cleaned up afterwards.
-    include_combined : bool, default True
-        Add the "All neighborhoods" tab (every block stacked in one
-        figure). Turning this off saves time/size on very large inputs.
     default_view : str, default 'all'
-        Which neighborhoods tab is open on load: 'all' (the combined
-        tab) or 'first' (the first block). Ignored toward 'first' if
-        `include_combined` is False.
+        Which neighborhoods are selected on load: 'all' (every block) or
+        'first' (just the first one).
     software_name : str, default 'S(H)ARP'
         Name shown in the report footer ("Made by ...").
     header_logo : str or None
@@ -3048,14 +3097,6 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
 
     genome_overview = build_genome_overview_interactive_html(extents, color_map=color_map)
 
-    # Per-block table cards (figure sub-tab in each neighborhood panel)
-    block_tables = {
-        _slug(block_id): render_table_card(
-            block_df, filename=f'{_slug(block_id)}.csv',
-        )
-        for block_id, block_df in df.groupby(group_col, sort=False)
-    }
-
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
     try:
@@ -3067,32 +3108,18 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
             df, group_col=group_col, color_map=color_map,
             operon_kwargs=per_block_operon_kwargs, tmp_dir=tmp_dir,
         )
-
-        combined_svg = None
-        if include_combined:
-            combined_path = os.path.join(tmp_dir, 'combined.svg')
-            _working, combined_meta = neighborhood_figure(
-                df, group_col=group_col, output_file=combined_path,
-                color_map=color_map, collect_node_meta=True, **per_block_operon_kwargs,
-            )
-            with open(combined_path) as f:
-                combined_svg = annotate_neighborhood_svg(_strip_svg_prolog(f.read()), combined_meta)
     finally:
         if own_tmp:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # Combined table card lives in the "All neighborhoods" table sub-view --
-    # since the standalone Data tab is gone, this is now the only place to
-    # browse/download the full input table, so it gets the same row cap.
-    combined_table = (
-        render_table_card(df, filename='all_neighborhoods.csv', max_rows=max_table_rows)
-        if include_combined else None
+    # ONE merged table for every block, tagged per row by block -- the
+    # report's JS shows only the rows for whichever blocks are selected.
+    nb_table_card = render_neighborhood_table_card(
+        df, group_col=group_col, filename='neighborhoods.csv', max_rows=max_table_rows,
     )
 
-    nb_panels, nb_selector = build_neighborhood_panels(
-        extents, block_svgs, block_tables=block_tables,
-        combined_svg=combined_svg, combined_table=combined_table,
-        default_view=default_view,
+    nb_fig_stack, nb_selector = build_neighborhood_panels(
+        extents, block_svgs, nb_table_card, default_view=default_view,
     )
 
     # Statistics
@@ -3105,7 +3132,8 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         n_genes=f'{len(df):,}',
         n_blocks=n_blocks,
         genome_overview=genome_overview,
-        nb_panels=nb_panels,
+        nb_fig_stack=nb_fig_stack,
+        nb_table_card=nb_table_card,
         nb_selector=nb_selector,
         stats_html=stats_html,
         software_name=html.escape(software_name),
