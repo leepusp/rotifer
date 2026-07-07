@@ -1248,7 +1248,10 @@ def build_genome_overview_interactive_html(extents, color_map=None,
         '</div>'
     )
 
-    return f'<div class="go-wrap">{controls}{"".join(rows)}</div><div id="go-tooltip" class="go-tooltip"></div>'
+    # NOTE: the shared tooltip div lives once at <body> level in the report
+    # template (outside every page-section), not here -- a page-section is
+    # display:none when inactive, which would hide an embedded tooltip too.
+    return f'<div class="go-wrap">{controls}{"".join(rows)}</div>'
 
 
 def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col='pfam',
@@ -1578,7 +1581,7 @@ def render_table_card(df, filename='table.csv', max_rows=None):
         '<div class="tbl-controls">'
         '<input type="text" class="tbl-filter" placeholder="Filter rows...">'
         '<span class="tbl-count"></span>'
-        '<div class="tbl-dl-wrap">''<button type="button" class="tbl-download tbl-dl-btn" data-fmt="csv">&#8681; CSV</button>''<button type="button" class="tbl-download tbl-dl-btn" data-fmt="tsv">TSV</button>''<button type="button" class="tbl-download tbl-dl-btn" data-fmt="json">JSON</button>''</div>'
+        '<div class="tbl-dl-wrap">''<button type="button" class="tbl-dl-btn" data-fmt="csv">&#8681; CSV</button>''<button type="button" class="tbl-dl-btn" data-fmt="tsv">TSV</button>''<button type="button" class="tbl-dl-btn" data-fmt="json">JSON</button>''</div>'
         '</div>'
         f'<div class="tbl-scroll">{table}</div>'
         '</div>'
@@ -1811,7 +1814,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .page-section.active{display:block;}
 
   /* ---- shared layout ---- */
-  .sec-inner{max-width:1280px;margin:0 auto;padding:28px 36px 72px;}
+  .sec-inner{max-width:none;margin:0;padding:28px 40px 72px;}
   .sec-title{font-size:22px;font-weight:700;margin:0 0 4px;}
   .sec-desc{color:var(--muted);font-size:14px;margin:0 0 22px;max-width:780px;}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;}
@@ -1895,35 +1898,44 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-crumb .nb-nav-arrows button:hover{background:var(--accent-soft);}
 
-  /* sub-tabs inside each panel (Figure / Table) */
-  /* per-panel Figure/Table sub-tabs */
-  .nb-panel-subtabs{display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:14px;}
+  /* single global Figure/Table toggle (shared across every selected block) */
+  .nb-view-tabs{display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:14px;}
   .nb-subtab{
     padding:6px 16px;font-size:13px;cursor:pointer;border:none;background:none;
     color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;
   }
   .nb-subtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
   .nb-subtab:hover{color:var(--ink);}
-  /* multiple active panels stack with a divider */
-  .nb-panel.active+.nb-panel.active{margin-top:20px;padding-top:20px;border-top:2px solid var(--line);}
 
-  /* panels */
+  /* ONE window holds every currently-selected neighborhood -- no separate
+     boxed "windows" per block, just a divider between stacked blocks */
+  .nb-window{
+    border:1px solid var(--line);border-radius:10px;background:#fff;padding:20px;
+  }
   .nb-panel{display:none;}
   .nb-panel.active{display:block;}
+  .nb-panel.active ~ .nb-panel.active{margin-top:22px;padding-top:22px;border-top:2px solid var(--line);}
   .nb-view{display:none;}
-  .nb-view.active{display:block;}
+  /* which sub-view shows is controlled centrally via a class on .nb-window,
+     so every visible block follows the same Figure/Table mode */
+  .nb-window.view-figure .nb-view-figure{display:block;}
+  .nb-window.view-table  .nb-view-table{display:block;}
   .nb-panel-head{
     font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
     color:var(--muted);margin-bottom:10px;
   }
   .nb-panel-head b{color:var(--ink);}
 
-  /* figure wrapper: full width, zoom stretches it */
-  .nb-fig-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;padding:16px;background:#fff;}
+  /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
+  .nb-fig-scroll{overflow-x:auto;}
   /* figure at natural size, capped to the panel width; zoom scales it */
   .nb-fig{display:inline-block;width:auto;max-width:100%;}
   .nb-fig svg{display:block;width:auto;max-width:100%;height:auto;}
   .nb-empty{color:var(--muted);font-size:13px;padding:20px;}
+  /* table cards nested in the shared window don't need their own border */
+  .nb-window .tbl-card{border:none;border-radius:0;}
+  .nb-window .nb-view-table+.nb-view-table,
+  .nb-window .tbl-card+.tbl-card{margin-top:12px;}
 
   /* ---- selector pop-up ---- */
   .nb-sel-backdrop{
@@ -2002,8 +2014,6 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .tbl-dl-btn:first-child{border-radius:6px 0 0 6px;}
   .tbl-dl-btn:last-child{border-radius:0 6px 6px 0;}
   .tbl-dl-btn:hover{opacity:.88;}
-  /* "download" alias kept so Python helper still works */
-  .tbl-download{display:none;}
   .tbl-scroll{max-height:420px;overflow:auto;}
   table{border-collapse:collapse;width:100%;
     font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;}
@@ -2153,10 +2163,6 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     <button type="button" class="top-tab" data-page="statistics">
       <span class="tab-icon">&#9638;</span> Statistics
     </button>
-    <button type="button" class="top-tab" data-page="data">
-      <span class="tab-icon">&#9776;</span> Data
-      <span class="tab-badge">$n_genes</span>
-    </button>
   </div>
   <div class="top-meta"><b>$n_genes</b> genes &middot; <b>$n_blocks</b> neighborhoods</div>
 </nav>
@@ -2176,7 +2182,7 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view. The <b>Figure</b> tab shows the gene map; the <b>Table</b> tab shows the input rows for that block. Hover any gene arrow for its info window.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>Table</b> toggle switches every visible block at once. Hover any gene arrow for its info window.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
@@ -2204,8 +2210,15 @@ $genome_overview
     </div>
   </div>
 
-  <div id="nb-panels">
+  <div class="nb-view-tabs" id="nb-view-tabs">
+    <button type="button" class="nb-subtab active" data-view="nb-view-figure">&#9654; Figure</button>
+    <button type="button" class="nb-subtab" data-view="nb-view-table">&#9776; Table</button>
+  </div>
+
+  <div class="nb-window view-figure" id="nb-window">
+    <div id="nb-panels">
 $nb_panels
+    </div>
   </div>
 
 </div>
@@ -2219,15 +2232,6 @@ $nb_panels
   <div class="panel">
 $stats_html
   </div>
-</div>
-</div>
-
-<!-- ===================== 04 DATA ===================== -->
-<div class="page-section" data-page="data">
-<div class="sec-inner">
-  <h1 class="sec-title">Input data</h1>
-  <p class="sec-desc">All rows used to build this report. Filter, sort, and download as CSV.</p>
-$data_card
 </div>
 </div>
 
@@ -2248,12 +2252,6 @@ $data_card
 $nb_selector
     </div>
   </div>
-</div>
-
-<!-- sticky per-protein info popup -->
-<div class="prot-popup" id="prot-popup">
-  <div class="prot-popup-bar"><b id="prot-popup-title"></b><button type="button" class="prot-popup-close" id="prot-popup-close">&times;</button></div>
-  <div id="prot-popup-body"></div>
 </div>
 
 <div class="go-tooltip" id="go-tooltip"></div>
@@ -2367,67 +2365,14 @@ $nb_selector
   }
   var goMarkers = qsa('.go-marker');
   goMarkers.forEach(function(m){ attachTip(m); on(m,'click',function(){ openNeighborhood(m.dataset.block); }); });
-  // ── sticky per-protein popup ──────────────────────────────────────────────
-  var protPopup        = qs('#prot-popup');
-  var protPopupTitle   = qs('#prot-popup-title');
-  var protPopupBody    = qs('#prot-popup-body');
-  var protPopupLastEl  = null;
-
-  function closeProtPopup() {
-    if (protPopup) { protPopup.classList.remove('open'); protPopupLastEl = null; }
-  }
-  // ensure the popup is a direct child of <body> so position:fixed is
-  // relative to the viewport (a transformed ancestor would trap it)
-  if (protPopup && protPopup.parentNode !== document.body) document.body.appendChild(protPopup);
-
-  function openProtPopup(el, e) {
-    if (!el.dataset.tip) return;
-    // parse: <b>TITLE</b><span...> body
-    var raw = el.dataset.tip;
-    var bm  = raw.match(/^<b>([^<]*)<\/b>/);
-    var title = bm ? bm[1] : '';
-    var body  = bm ? raw.slice(bm[0].length) : raw;
-    if (protPopupTitle) protPopupTitle.textContent = title;
-    if (protPopupBody)  protPopupBody.innerHTML = body;
-
-    // Anchor to the clicked gene's on-screen box (robust to zoom & scroll),
-    // falling back to the click point if a rect isn't available.
-    var rect = el.getBoundingClientRect();
-    var ax = (rect && rect.width)  ? rect.left + rect.width / 2 : (e ? e.clientX : 100);
-    var ay = (rect && rect.height) ? rect.bottom + 8            : (e ? e.clientY : 100);
-
-    protPopup.style.left = ax + 'px';
-    protPopup.style.top  = ay + 'px';
-    protPopup.classList.add('open');
-
-    // keep inside the viewport
-    requestAnimationFrame(function () {
-      var r = protPopup.getBoundingClientRect();
-      var left = ax, top = ay;
-      if (r.right  > window.innerWidth  - 8) left = Math.max(8, window.innerWidth  - r.width  - 8);
-      if (left < 8) left = 8;
-      if (r.bottom > window.innerHeight - 8) {
-        // flip above the gene if there's no room below
-        top = (rect && rect.height) ? Math.max(8, rect.top - r.height - 8)
-                                     : Math.max(8, window.innerHeight - r.height - 8);
-      }
-      protPopup.style.left = left + 'px';
-      protPopup.style.top  = top  + 'px';
-    });
-    protPopupLastEl = el;
-  }
-  on(qs('#prot-popup-close'), 'click', function (e) { e.stopPropagation(); closeProtPopup(); });
-  on(document, 'click', function (e) {
-    if (protPopup && protPopup.classList.contains('open') && !protPopup.contains(e.target)) {
-      closeProtPopup();
-    }
-  });
-  // wire click on every nb-gene; clicking the same one again toggles it off
+  // ── per-protein tooltip (same hover card as the genome overview) ────────────
+  // Hover  → show the go-tooltip following the mouse (identical to genome overview).
+  // Click  → immediately hide the tooltip.
   qsa('.nb-gene').forEach(function (el) {
+    attachTip(el);
     on(el, 'click', function (e) {
       e.stopPropagation();
-      if (protPopupLastEl === el) { closeProtPopup(); }
-      else                        { openProtPopup(el, e); }
+      tip.style.display = 'none';
     });
   });
 
@@ -2438,14 +2383,16 @@ $nb_selector
   // Which slugs are currently shown (set by applySelection)
   var activeSet = {};
 
-  // Per-panel sub-tab wiring (each panel has its own Figure/Table buttons)
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest && e.target.closest('.nb-panel-subtabs .nb-subtab');
-    if (!btn) return;
-    var panel = btn.closest('.nb-panel');
-    if (!panel) return;
-    qsa('.nb-subtab', panel).forEach(function(t){ t.classList.toggle('active', t===btn); });
-    qsa('.nb-view',   panel).forEach(function(v){ v.classList.toggle('active', v.classList.contains(btn.dataset.view)); });
+  // Single global Figure/Table toggle -- applies to every visible block at
+  // once via a class on the shared .nb-window (so newly-selected blocks
+  // automatically follow whichever mode is currently active).
+  var nbWindowEl = qs('#nb-window');
+  function setNbView(name) {
+    if (nbWindowEl) nbWindowEl.className = 'nb-window ' + (name === 'nb-view-table' ? 'view-table' : 'view-figure');
+    qsa('#nb-view-tabs .nb-subtab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === name); });
+  }
+  qsa('#nb-view-tabs .nb-subtab').forEach(function (t) {
+    on(t, 'click', function () { setNbView(t.dataset.view); });
   });
 
   function updateCrumb() {
@@ -2575,7 +2522,7 @@ $nb_selector
     closeSel();
   });
   on(window, 'keydown', function(e){
-    if(e.key==='Escape') { closeSel(); closeProtPopup(); }
+    if(e.key==='Escape') { closeSel(); tip.style.display='none'; }
     if(e.key==='ArrowRight' && !e.target.matches('input,textarea')) navigate(1);
     if(e.key==='ArrowLeft'  && !e.target.matches('input,textarea')) navigate(-1);
   });
@@ -2878,9 +2825,11 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
 
     Each neighborhood is one hidden panel containing two sub-views: its
     figure and its input-rows table (as a sortable/downloadable table
-    card). A single pair of Figure/Table sub-tabs at the top switches
-    which sub-view shows for whichever panel is active; the pop-up (and
-    the prev/next arrows) choose which panel is active.
+    card). All currently-selected panels render together inside one
+    shared, bordered "window" (see the report template's `.nb-window`)
+    rather than as separate boxed panels; a single Figure/Table toggle
+    switches every visible panel's sub-view at once. The pop-up (and the
+    prev/next arrows) choose which panel(s) are active.
 
     Parameters
     ----------
@@ -2918,20 +2867,15 @@ def build_neighborhood_panels(extents, block_svgs, block_tables=None,
     selector_items = []
 
     def panel(slug, label, head, svg, table_card):
-        # Every panel starts hidden; JS activates the right set on load.
-        # Each panel owns its own Figure / Table sub-tabs so multiple
-        # panels can be shown simultaneously with independent view state.
-        subtabs = (
-            '<div class="nb-panel-subtabs">'
-            '<button type="button" class="nb-subtab active" data-view="nb-view-figure">&#9654; Figure</button>'
-            '<button type="button" class="nb-subtab" data-view="nb-view-table">&#9776; Table</button>'
-            '</div>'
-        )
-        fig = f'<div class="nb-view nb-view-figure active"><div class="nb-fig-scroll"><div class="nb-fig">{svg}</div></div></div>'
+        # Every panel starts hidden; JS shows the selected set on load.
+        # Figure/Table mode is controlled centrally (one toggle for every
+        # visible block -- see the .nb-window wrapper in the template), so
+        # panels don't carry their own sub-tabs.
+        fig = f'<div class="nb-view nb-view-figure"><div class="nb-fig-scroll"><div class="nb-fig">{svg}</div></div></div>'
         tab = f'<div class="nb-view nb-view-table">{table_card or "<p class=\'nb-empty\'>No table.</p>"}</div>'
         return (
             f'<div class="nb-panel" data-block="{slug}" data-label="{html.escape(str(label))}">'
-            f'{head}{subtabs}{fig}{tab}</div>'
+            f'{head}{fig}{tab}</div>'
         )
 
     if has_combined:
@@ -3059,8 +3003,10 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         off by default). Color/label and `group_col`/`org_col`/
         `label_col` are handled centrally here, so don't pass those.
     max_table_rows : int or None
-        Row cap for the main embedded table; `None` embeds every row.
-        (Per-neighborhood sub-tables are never capped.)
+        Row cap applied to the full input table shown in the "All
+        neighborhoods" panel's Table view (the only place the complete
+        table is browsable/downloadable from). `None` embeds every row.
+        Per-block sub-tables are never capped.
     work_dir : str or None
         Where intermediate SVGs are written. If None, a temporary
         directory is used and cleaned up afterwards.
@@ -3134,8 +3080,13 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         if own_tmp:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # Combined table card lives in the "All neighborhoods" table sub-view
-    combined_table = render_table_card(df, filename='all_neighborhoods.csv') if include_combined else None
+    # Combined table card lives in the "All neighborhoods" table sub-view --
+    # since the standalone Data tab is gone, this is now the only place to
+    # browse/download the full input table, so it gets the same row cap.
+    combined_table = (
+        render_table_card(df, filename='all_neighborhoods.csv', max_rows=max_table_rows)
+        if include_combined else None
+    )
 
     nb_panels, nb_selector = build_neighborhood_panels(
         extents, block_svgs, block_tables=block_tables,
@@ -3147,9 +3098,6 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     ref_counts, arch_counts = compute_domain_stats(working, ignore_domains=ignore_domains)
     stats_html = build_stats_section_html(ref_counts, arch_counts, color_map=color_map)
 
-    # Main data card (Data tab — full table with sort/filter/CSV)
-    data_card = render_table_card(df, filename='full_data.csv', max_rows=max_table_rows)
-
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
     html_doc = HTML_REPORT_TEMPLATE.substitute(
         title=html.escape(title),
@@ -3159,7 +3107,6 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         nb_panels=nb_panels,
         nb_selector=nb_selector,
         stats_html=stats_html,
-        data_card=data_card,
         software_name=html.escape(software_name),
         header_logo_html=header_logo or '',
     )
