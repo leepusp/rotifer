@@ -510,15 +510,15 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='arch', evalue_
     if build_arch_by_source == True:
         sources = h.source.drop_duplicates().str.split('/').str[-1].tolist()
         for x in sources:
-            h = h[h.source.str.contains(x)]
-            h = riu.filter_nonoverlapping_regions(h, **riu.config['hmmer'])
-            h = h.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
-            h = h.sort_values(['sequence', 'estart'])
-            arch = h.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
+            h_source = h[h.source.str.contains(x)]
+            h_source = riu.filter_nonoverlapping_regions(h_source, **riu.config['hmmer'])
+            h_source = h_source.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
+            h_source = h_source.sort_values(['sequence', 'estart'])
+            arch = h_source.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
             arch.rename({'sequence':column}, axis = 1, inplace = True)
             arch = arch.set_index(column).pfam.to_dict()
-            df[x] = df[column].map(arch)
-            return df
+            df[f'{column_arch_name}_{x}'] = df[column].map(arch)
+        return df
 
     else:            
         h = riu.filter_nonoverlapping_regions(h, **riu.config['hmmer'])
