@@ -591,8 +591,7 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
 
 def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                         highlight_query=True, collapse_opposite_strand=False,
-                        font_size=10, left_pad=0, right_pad=0, spacer_width=0.6,
-                        show_row_label=True):
+                        font_size=10, left_pad=0, right_pad=0, spacer_width=0.6):
     """
     Add one full row (label box + every gene) to `graph`, wiring
     everything together with invisible same-rank edges so it is drawn as
@@ -626,14 +625,6 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         Number of invisible spacer nodes to add on each side.
     spacer_width : float
         Width (inches) of each spacer node.
-    show_row_label : bool, default True
-        If False, the left-hand 3-line label (query protein id / block id
-        / organism) is not drawn -- an invisible zero-size placeholder
-        takes its place instead, so the alignment machinery (which
-        references `label_node`) keeps working unchanged. Useful when
-        something else already identifies the block (e.g. the report's
-        neighborhood selector), so repeating it inside every stacked
-        figure would just be noise.
 
     Returns
     -------
@@ -653,17 +644,14 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         query_canonical_strand = 1
 
     label_node_id = f'label_{block_index}'
-    if show_row_label:
-        label_html = build_row_label_html(
-            query_pid=query_pid,
-            block_id=block_df['ID'].iloc[0],
-            org_name=block_df['org_name'].iloc[0],
-            width=label_width,
-            font_size=font_size,
-        )
-        graph.add_node(label_node_id, label=label_html, shape='none', margin=0.1)
-    else:
-        graph.add_node(label_node_id, label='', shape='point', style='invis', width=0.01, height=0.01)
+    label_html = build_row_label_html(
+        query_pid=query_pid,
+        block_id=block_df['ID'].iloc[0],
+        org_name=block_df['org_name'].iloc[0],
+        width=label_width,
+        font_size=font_size,
+    )
+    graph.add_node(label_node_id, label=label_html, shape='none', margin=0.1)
 
     gene_node_ids = []
     gene_meta = {}
@@ -745,8 +733,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
                         highlight_query=True, font_size=10, ignore_domains=None,
                         custom_colors=None, rename_map=None, normalize_orientation=True,
                         align_query_center=False, collapse_opposite_strand=False,
-                        spacer_width=0.6, color_map=None, collect_node_meta=False,
-                        show_row_label=True):
+                        spacer_width=0.6, color_map=None, collect_node_meta=False):
     """
     Draw a gene-neighborhood ("operon") figure, one row per block, and
     write it to `output_file`.
@@ -847,13 +834,6 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
     ----------------
     collect_node_meta : bool, default False
         If True, also return the per-gene metadata dict (see Returns).
-    show_row_label : bool, default True
-        If False, don't draw the left-hand 3-line label (query protein id
-        / block id / organism) on any row. Off by default in the HTML
-        report's per-block figures (the neighborhood selector already
-        shows that info), so stacking several selected figures doesn't
-        repeat it before every one. Left on by default here since
-        `neighborhood_figure` is also used standalone.
     """
     working = prepare_dataframe(
         df, group_col=group_col, org_col=org_col, label_col=label_col, rename_map=rename_map
@@ -896,7 +876,6 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
             left_pad=left_pad,
             right_pad=right_pad,
             spacer_width=spacer_width,
-            show_row_label=show_row_label,
         )
         blocks_info.append(info)
 
@@ -3406,13 +3385,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
     try:
-        # In the report, each figure's block identity is already shown by
-        # the neighborhood selector, so the left-hand id/block/organism
-        # label baked into every graphviz figure is off by default here --
-        # otherwise it repeats before every stacked figure like a banner.
-        # `show_row_label=False` can still be overridden via operon_kwargs.
-        per_block_operon_kwargs = dict(show_row_label=False)
-        per_block_operon_kwargs.update(operon_kwargs)
+        per_block_operon_kwargs = dict(operon_kwargs)
         per_block_operon_kwargs.update(
             org_col=org_col, label_col=label_col, rename_map=rename_map,
         )
