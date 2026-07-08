@@ -1734,8 +1734,7 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
     Build the statistics section's inner HTML.
 
     Two independent toggles combine (2 x 3 = 6 panels, one shown at a
-    time), plus a shared search box and a sort toggle that apply to
-    whichever panel is visible:
+    time), plus a sort toggle that applies to whichever panel is visible:
 
       * granularity -- "Domains" (atomic, split on '+') vs
         "Architectures" (full composite string kept intact);
@@ -1748,9 +1747,12 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
         can make a domain look far more common among the neighbors than
         it actually is.
 
-    Each panel shows an interactive bar list (every domain, not just a
-    top-N slice -- scrollable, filterable, re-sortable) plus the same
-    data as a full sortable/filterable/downloadable table.
+    Each panel shows only an interactive bar list (every domain, not just
+    a top-N slice -- scrollable, re-sortable). Which domains/architectures
+    actually appear in that list is controlled the same way the
+    Neighborhoods section controls which blocks show: a "Select" pop-up
+    with a checklist (All/None + "Show selected"), one per panel (see
+    `build_html_report`/the report template for the matching modal).
 
     Parameters
     ----------
@@ -1764,8 +1766,11 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
 
     Returns
     -------
-    str
-        HTML fragment for the statistics section body.
+    (str, str)
+        (stats_html, stats_selector_html) -- the panels' HTML and the
+        HTML for all 6 selector-checklist groups (one per gran/scope
+        combination), each shown/hidden by the report's JS to match
+        whichever panel is currently active.
     """
     scopes = [
         ('all', 'All proteins'),
@@ -1797,6 +1802,7 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
     }
 
     panels = []
+    selector_groups = []
     toggle_gran = ''.join(
         f'<button type="button" class="stats-btn{" active" if i == 0 else ""}" '
         f'data-gran="{key}">{label}</button>'
@@ -1814,24 +1820,38 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
         )
         for gran_key, counts in (('domain', domain_counts), ('arch', arch_counts)):
             bar_list = build_bar_list_html(counts, color_map=color_map)
-            table_card = render_table_card(
-                counts, filename=f'{gran_key}_counts_{scope_key}.csv',
-            )
             active = ' active' if (scope_key == 'all' and gran_key == 'domain') else ''
             panels.append(
                 f'<div class="stats-block{active}" data-gran="{gran_key}" data-scope="{scope_key}">'
                 f'<p class="stats-note">{notes[gran_key]} {scope_notes[scope_key]} '
                 f'{len(counts)} distinct {"domains" if gran_key == "domain" else "architectures"}.</p>'
-                f'<div class="stats-chart">{bar_list}</div>{table_card}</div>'
+                f'<div class="stats-chart">{bar_list}</div></div>'
             )
 
-    return (
+            # matching selector checklist for the "Select domains" pop-up
+            sel_display = '' if active else ' style="display:none"'
+            items = ''.join(
+                f'<div class="nb-sel-item" data-domain="{html.escape(str(row["domain"]).lower())}" '
+                f'role="button" tabindex="0">'
+                f'<span class="nb-sel-icon">&#9673;</span>'
+                f'<span class="nb-sel-name">{html.escape(str(row["domain"]))}</span>'
+                f'<span class="nb-sel-sub">{int(row["count"])}</span></div>'
+                for _, row in counts.iterrows()
+            )
+            selector_groups.append(
+                f'<div class="stats-sel-group" data-gran="{gran_key}" data-scope="{scope_key}"{sel_display}>'
+                f'{items}</div>'
+            )
+
+    stats_html = (
         '<div class="stats-controls">'
         f'<div class="stats-toggle" id="stats-gran-toggle">{toggle_gran}</div>'
         f'<div class="stats-toggle" id="stats-scope-toggle">{toggle_scope}</div>'
-        '</div>'
-        '<div class="stats-explore">'
-        '<input type="text" id="stats-search" placeholder="Filter domains...">'
+        '<button type="button" class="nb-icon-btn" id="stats-sel-open">'
+        '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/>'
+        '<circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/>'
+        '<line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="19" x2="19" y2="19"/></svg>'
+        'Select</button>'
         '<div class="stats-sort-group" id="stats-sort-toggle">'
         '<button type="button" class="stats-btn active" data-sort="count">Sort: count</button>'
         '<button type="button" class="stats-btn" data-sort="alpha">Sort: A&rarr;Z</button>'
@@ -1839,6 +1859,7 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
         '</div>'
         f'<div id="stats-panels">{"".join(panels)}</div>'
     )
+    return stats_html, ''.join(selector_groups)
 
 
 # Kept as a module-level constant (rather than building the string
@@ -2021,11 +2042,6 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-fig-block{display:none;}
   .nb-fig-block.active{display:block;}
   .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;}
-  .nb-fig-block-label{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
-    color:var(--muted);margin-bottom:8px;
-  }
-  .nb-fig-block-label b{color:var(--ink);font-weight:600;}
 
   /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
   .nb-fig-scroll{overflow-x:auto;}
@@ -2155,12 +2171,6 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .stats-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
   .stats-btn:hover{color:var(--ink);}
-  .stats-explore{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
-  #stats-search{
-    flex:1 1 220px;padding:7px 11px;border:1px solid var(--line);border-radius:6px;
-    font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;
-  }
-  #stats-search:focus{outline:2px solid var(--accent);outline-offset:1px;}
   .stats-sort-group{display:flex;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
   .stats-sort-group .stats-btn{padding:6px 12px;border-bottom:none;margin-bottom:0;}
   .stats-sort-group .stats-btn.active{background:var(--accent-soft);}
@@ -2310,10 +2320,6 @@ $genome_overview
       <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="19" x2="19" y2="19"/></svg>
       Select
     </button>
-    <button type="button" class="nb-icon-btn" id="nb-svg-download" title="Download the currently selected neighborhoods as one SVG file">
-      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
-      Download SVG
-    </button>
 
     <div class="nb-zoom-group">
       <button type="button" id="nb-zoom-out" title="Zoom out">&minus;</button>
@@ -2356,7 +2362,7 @@ $nb_table_card
 <div class="page-section" data-page="statistics">
 <div class="sec-inner">
   <h1 class="sec-title">Domain statistics</h1>
-  <p class="sec-desc">How often each domain appears. Toggle <b>Domains</b> (atomic, split on &lsquo;+&rsquo;) vs <b>Architectures</b> (full composite string) and <b>All proteins</b> / <b>Query only</b> / <b>Neighbors only</b> to change scope. Every domain is listed (scroll for more) &mdash; use the search box to filter and the sort toggle to reorder.</p>
+  <p class="sec-desc">How often each domain appears. Toggle <b>Domains</b> (atomic, split on &lsquo;+&rsquo;) vs <b>Architectures</b> (full composite string) and <b>All proteins</b> / <b>Query only</b> / <b>Neighbors only</b> to change scope. Use <b>&#9776; Select</b> to choose which ones appear in the list, and the sort toggle to reorder.</p>
   <div class="panel">
 $stats_html
   </div>
@@ -2378,6 +2384,24 @@ $stats_html
     </div>
     <div class="nb-sel-list" id="nb-sel-list">
 $nb_selector
+    </div>
+  </div>
+</div>
+
+<div class="nb-sel-backdrop" id="stats-sel-modal">
+  <div class="nb-sel-modal">
+    <div class="nb-sel-header">
+      <h3 id="stats-sel-title">Select domains</h3>
+      <button type="button" class="nb-sel-close" id="stats-sel-close">&times;</button>
+    </div>
+    <input type="text" class="nb-sel-search" id="stats-sel-search" placeholder="Search domains&hellip;">
+    <div class="nb-sel-actions">
+      <button type="button" id="stats-sel-all">&#9745; All</button>
+      <button type="button" id="stats-sel-none">&#9744; None</button>
+      <button type="button" class="nb-sel-show" id="stats-sel-apply">Show selected</button>
+    </div>
+    <div class="nb-sel-list" id="stats-sel-list">
+$stats_selector
     </div>
   </div>
 </div>
@@ -2608,84 +2632,6 @@ $nb_selector
   on(qs('#nb-zoom-200'),   'click', function(){ nbSetZoom(2); });
   on(qs('#nb-zoom-fit'),   'click', function(){ nbSetZoom(1); });
 
-  // ── download the current selection as one combined SVG ────────────────
-  // Built via real DOM nodes + XMLSerializer (not manual string
-  // concatenation of .innerHTML) so the output is always well-formed XML.
-  // .innerHTML can round-trip named HTML entities (e.g. "&nbsp;" used by
-  // the on-page tooltips) into a form that HTML tolerates but strict XML
-  // parsers reject ("Entity 'nbsp' not defined"); DOM APIs + XMLSerializer
-  // never produce that -- everything is escaped as valid XML by construction.
-  function downloadSelectedSVG() {
-    var blocks = qsa('.nb-fig-block.active');
-    if (!blocks.length) return;
-    var SVGNS = 'http://www.w3.org/2000/svg';
-    var gap = 26, pad = 12, labelH = 20;
-    var maxW = 0, y = pad;
-
-    var root = document.createElementNS(SVGNS, 'svg');
-    var bg = document.createElementNS(SVGNS, 'rect');
-    bg.setAttribute('x', 0);
-    bg.setAttribute('y', 0);
-    bg.setAttribute('fill', '#ffffff');
-    root.appendChild(bg);
-
-    blocks.forEach(function (b) {
-      var svg = b.querySelector('svg');
-      if (!svg) return;
-      var vb = (svg.getAttribute('viewBox') || '').trim().split(/[ ,]+/).map(Number);
-      var w = (vb.length === 4 && vb[2]) ? vb[2] : (svg.getBoundingClientRect().width || 600);
-      var h = (vb.length === 4 && vb[3]) ? vb[3] : (svg.getBoundingClientRect().height || 200);
-      var labelEl = b.querySelector('.nb-fig-block-label');
-      var label = labelEl ? labelEl.textContent.replace(/\s+/g, ' ').trim() : '';
-
-      var text = document.createElementNS(SVGNS, 'text');
-      text.setAttribute('x', pad);
-      text.setAttribute('y', y + 13);
-      text.setAttribute('font-family', "Consolas,'SF Mono',Menlo,monospace");
-      text.setAttribute('font-size', '12');
-      text.setAttribute('fill', '#555');
-      text.textContent = label; // DOM text node: browser guarantees correct escaping
-      root.appendChild(text);
-
-      var nested = document.createElementNS(SVGNS, 'svg');
-      nested.setAttribute('x', pad);
-      nested.setAttribute('y', y + labelH);
-      nested.setAttribute('width', w);
-      nested.setAttribute('height', h);
-      nested.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-      Array.prototype.slice.call(svg.childNodes).forEach(function (child) {
-        nested.appendChild(child.cloneNode(true));
-      });
-      root.appendChild(nested);
-
-      y += labelH + h + gap;
-      if (w + pad * 2 > maxW) maxW = w + pad * 2;
-    });
-    y += pad - gap;
-
-    root.setAttribute('xmlns', SVGNS);
-    root.setAttribute('width', maxW);
-    root.setAttribute('height', y);
-    root.setAttribute('viewBox', '0 0 ' + maxW + ' ' + y);
-    bg.setAttribute('width', maxW);
-    bg.setAttribute('height', y);
-
-    var xml = new XMLSerializer().serializeToString(root);
-    // Belt-and-braces: strict XML only predefines amp/lt/gt/apos/quot (plus
-    // numeric refs like &#160;). Anything else that looks like a named
-    // entity -- e.g. a stray "&nbsp;" or "&middot;" that slipped through
-    // some other path -- gets its "&" escaped so parsers never choke on it.
-    xml = xml.replace(/&(?!amp;|lt;|gt;|apos;|quot;|#\d+;|#x[0-9a-fA-F]+;)/g, '&amp;');
-    var out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + xml;
-    var blob = new Blob([out], { type: 'image/svg+xml' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    var n = blocks.length;
-    a.download = 'neighborhoods_' + n + (n === 1 ? '_block' : '_blocks') + '.svg';
-    a.click();
-  }
-  on(qs('#nb-svg-download'), 'click', downloadSelectedSVG);
-
   // ── selector modal ────────────────────────────────────────────────────
   var selModal = qs('#nb-sel-modal');
   function openSel() {
@@ -2730,7 +2676,7 @@ $nb_selector
     closeSel();
   });
   on(window, 'keydown', function(e){
-    if(e.key==='Escape') { closeSel(); tip.style.display='none'; }
+    if(e.key==='Escape') { closeSel(); closeStatsSel(); tip.style.display='none'; }
     if(e.key==='ArrowRight' && !e.target.matches('input,textarea')) navigate(1);
     if(e.key==='ArrowLeft'  && !e.target.matches('input,textarea')) navigate(-1);
   });
@@ -3023,23 +2969,21 @@ $nb_selector
   }
   qsa('.tbl-card').forEach(initTableCard);
 
-  // ── statistics: granularity x scope toggle + search + sort ─────────────
+  // ── statistics: granularity x scope toggle + domain selection + sort ───
   var statsGran = 'domain', statsScope = 'all', statsSort = 'count';
+  // per-panel (gran|scope) selected-domain sets; a panel with no entry here
+  // yet means "everything selected" (the default, until the user customizes it)
+  var statsSelections = {};
+  function statsKey() { return statsGran + '|' + statsScope; }
 
-  function applyStatsSearch() {
-    var term = (qs('#stats-search') || {}).value || '';
-    term = term.toLowerCase();
+  function applyStatsSelection() {
     var active = qs('.stats-block.active');
     if (!active) return;
+    var sel = statsSelections[statsKey()];
     qsa('.bar-row', active).forEach(function (r) {
-      r.classList.toggle('hidden-row', !!term && r.dataset.domain.indexOf(term) === -1);
+      var shown = !sel || !!sel[r.dataset.domain];
+      r.classList.toggle('hidden-row', !shown);
     });
-    // mirror into that panel's own table-card filter box, reusing its existing JS
-    var filterInput = active.querySelector('.tbl-filter');
-    if (filterInput) {
-      filterInput.value = term;
-      filterInput.dispatchEvent(new Event('input'));
-    }
   }
   function applyStatsSort() {
     var active = qs('.stats-block.active');
@@ -3057,7 +3001,7 @@ $nb_selector
     qsa('.stats-block').forEach(function (b) {
       b.classList.toggle('active', b.dataset.gran === statsGran && b.dataset.scope === statsScope);
     });
-    applyStatsSearch();
+    applyStatsSelection();
     applyStatsSort();
   }
   qsa('#stats-gran-toggle .stats-btn').forEach(function (btn) {
@@ -3081,8 +3025,85 @@ $nb_selector
       applyStatsSort();
     });
   });
-  on(qs('#stats-search'), 'input', applyStatsSearch);
   showStatsPanel();
+
+  // ── "Select domains" pop-up (mirrors the neighborhoods Select pop-up) ──
+  var statsSelModal = qs('#stats-sel-modal');
+  var statsSelGroups = qsa('.stats-sel-group');
+
+  // inject checkboxes into every group's items, once
+  statsSelGroups.forEach(function (g) {
+    qsa('.nb-sel-item', g).forEach(function (i) {
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      on(cb, 'click', function (e) { e.stopPropagation(); });
+      on(cb, 'change', function (e) { e.stopPropagation(); });
+      i.appendChild(cb);
+    });
+  });
+
+  function currentStatsSelGroup() {
+    return statsSelGroups.filter(function (g) {
+      return g.dataset.gran === statsGran && g.dataset.scope === statsScope;
+    })[0];
+  }
+  function openStatsSel() {
+    var group = currentStatsSelGroup();
+    statsSelGroups.forEach(function (g) { g.style.display = (g === group) ? '' : 'none'; });
+    if (group) {
+      var sel = statsSelections[statsKey()];
+      qsa('.nb-sel-item', group).forEach(function (i) {
+        var cb = i.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = !sel || !!sel[i.dataset.domain];
+      });
+    }
+    var titleEl = qs('#stats-sel-title');
+    if (titleEl) titleEl.textContent = 'Select ' + (statsGran === 'domain' ? 'domains' : 'architectures');
+    if (statsSelModal) statsSelModal.classList.add('open');
+    var s = qs('#stats-sel-search');
+    if (s) { s.value = ''; s.dispatchEvent(new Event('input')); s.focus(); }
+  }
+  function closeStatsSel() { if (statsSelModal) statsSelModal.classList.remove('open'); }
+  on(qs('#stats-sel-open'), 'click', openStatsSel);
+  on(qs('#stats-sel-close'), 'click', closeStatsSel);
+  on(statsSelModal, 'click', function (e) { if (e.target === statsSelModal) closeStatsSel(); });
+  on(qs('#stats-sel-search'), 'input', function () {
+    var term = this.value.toLowerCase();
+    var group = currentStatsSelGroup();
+    if (!group) return;
+    qsa('.nb-sel-item', group).forEach(function (i) {
+      i.classList.toggle('hidden-row', term && i.textContent.toLowerCase().indexOf(term) === -1);
+    });
+  });
+  on(qs('#stats-sel-all'), 'click', function () {
+    var group = currentStatsSelGroup();
+    if (!group) return;
+    qsa('.nb-sel-item', group).forEach(function (i) {
+      if (!i.classList.contains('hidden-row')) {
+        var cb = i.querySelector('input[type=checkbox]'); if (cb) cb.checked = true;
+      }
+    });
+  });
+  on(qs('#stats-sel-none'), 'click', function () {
+    var group = currentStatsSelGroup();
+    if (!group) return;
+    qsa('.nb-sel-item', group).forEach(function (i) {
+      var cb = i.querySelector('input[type=checkbox]'); if (cb) cb.checked = false;
+    });
+  });
+  on(qs('#stats-sel-apply'), 'click', function () {
+    var group = currentStatsSelGroup();
+    if (!group) { closeStatsSel(); return; }
+    var sel = {};
+    qsa('.nb-sel-item', group).forEach(function (i) {
+      var cb = i.querySelector('input[type=checkbox]');
+      if (cb && cb.checked) sel[i.dataset.domain] = true;
+    });
+    statsSelections[statsKey()] = sel;
+    applyStatsSelection();
+    closeStatsSel();
+  });
 
 
   // ── init ──────────────────────────────────────────────────────────────
@@ -3220,10 +3241,9 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
             active = ' active' if (default_view == 'all' or slug == first_slug) else ''
 
-            fig_label = f'<div class="nb-fig-block-label"><b>{html.escape(str(label))}</b></div>'
             fig_blocks.append(
                 f'<div class="nb-fig-block{active}" data-block="{slug}">'
-                f'{fig_label}<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
+                f'<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
             )
             selector_items.append(
                 f'<div class="nb-sel-item" data-block="{slug}" role="button" tabindex="0" '
@@ -3388,7 +3408,9 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     )
 
     # Statistics (granularity x scope, all computed inside build_stats_section_html)
-    stats_html = build_stats_section_html(working, color_map=color_map, ignore_domains=ignore_domains)
+    stats_html, stats_selector = build_stats_section_html(
+        working, color_map=color_map, ignore_domains=ignore_domains,
+    )
 
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
     html_doc = HTML_REPORT_TEMPLATE.substitute(
@@ -3400,6 +3422,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         nb_table_card=nb_table_card,
         nb_selector=nb_selector,
         stats_html=stats_html,
+        stats_selector=stats_selector,
         software_name=html.escape(software_name),
         header_logo_html=header_logo or '',
     )
