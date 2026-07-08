@@ -518,7 +518,7 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='arch', evalue_
             arch.rename({'sequence':column}, axis = 1, inplace = True)
             arch = arch.set_index(column).pfam.to_dict()
             df[f'{column_arch_name}_{x}'] = df[column].map(arch)
-        return df
+        return None if inplace else df
 
     else:            
         h = riu.filter_nonoverlapping_regions(h, **riu.config['hmmer'])
@@ -528,7 +528,7 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='arch', evalue_
         arch.rename({'sequence':column}, axis = 1, inplace = True)
         arch = arch.set_index(column).pfam.to_dict()
         df[column_arch_name] = df[column].map(arch)
-        return df
+        return None if inplace else df
       
 def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
     
