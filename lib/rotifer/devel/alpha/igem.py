@@ -2020,12 +2020,12 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   /* one block's row inside the single merged figure stack */
   .nb-fig-block{display:none;}
   .nb-fig-block.active{display:block;}
-  .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;padding-top:22px;border-top:2px solid var(--line);}
+  .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;}
   .nb-fig-block-label{
     font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
-    color:var(--muted);margin-bottom:10px;
+    color:var(--muted);margin-bottom:8px;
   }
-  .nb-fig-block-label b{color:var(--ink);}
+  .nb-fig-block-label b{color:var(--ink);font-weight:600;}
 
   /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
   .nb-fig-scroll{overflow-x:auto;}
@@ -2189,7 +2189,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .cfp-popup{
     position:fixed;z-index:801;background:#fff;border:1px solid var(--line);
     border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);
-    min-width:240px;max-width:300px;overflow:hidden;
+    min-width:240px;max-width:300px;max-height:80vh;overflow-y:auto;
     font-size:13px;font-family:Consolas,"SF Mono",Menlo,monospace;
   }
   .cfp-head{
@@ -2671,6 +2671,11 @@ $nb_selector
     bg.setAttribute('height', y);
 
     var xml = new XMLSerializer().serializeToString(root);
+    // Belt-and-braces: strict XML only predefines amp/lt/gt/apos/quot (plus
+    // numeric refs like &#160;). Anything else that looks like a named
+    // entity -- e.g. a stray "&nbsp;" or "&middot;" that slipped through
+    // some other path -- gets its "&" escaped so parsers never choke on it.
+    xml = xml.replace(/&(?!amp;|lt;|gt;|apos;|quot;|#\d+;|#x[0-9a-fA-F]+;)/g, '&amp;');
     var out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + xml;
     var blob = new Blob([out], { type: 'image/svg+xml' });
     var a = document.createElement('a');
@@ -2759,11 +2764,12 @@ $nb_selector
     var nonEmpty = vals.filter(function(v){ return v !== ''; });
     var isNum = nonEmpty.length > 0 && nonEmpty.every(function(v){ return v !== '' && !isNaN(parseFloat(v)); });
 
-    // position popup below the th
+    // position popup near the th; final clamp happens after content is
+    // built below, once the popup's real (content-dependent) size is known
     var rect = thEl.getBoundingClientRect();
-    cfpPopup.style.display = 'block';
-    cfpPopup.style.left = Math.min(rect.left, window.innerWidth - 310) + 'px';
+    cfpPopup.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 310)) + 'px';
     cfpPopup.style.top  = (rect.bottom + 4) + 'px';
+    cfpPopup.style.display = 'block';
     cfpBackdrop.classList.add('open');
 
     // column name
@@ -2868,6 +2874,22 @@ $nb_selector
         applyFn(); closeCfp();
       }, {once:true});
     }
+
+    // final clamp: now that the popup's real content (num controls or the
+    // value checklist) is in place, measure it and make sure it's fully
+    // inside the viewport -- flip above the header if there's no room
+    // below, and never let it hang off the left/right/bottom edges.
+    requestAnimationFrame(function () {
+      var pr = cfpPopup.getBoundingClientRect();
+      var left = Math.max(8, Math.min(rect.left, window.innerWidth - pr.width - 8));
+      var top = rect.bottom + 4;
+      if (top + pr.height > window.innerHeight - 8) {
+        var above = rect.top - pr.height - 4;
+        top = above >= 8 ? above : Math.max(8, window.innerHeight - pr.height - 8);
+      }
+      cfpPopup.style.left = left + 'px';
+      cfpPopup.style.top = top + 'px';
+    });
   }
 
   // ── table cards ───────────────────────────────────────────────────────
@@ -3196,16 +3218,9 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
         for _, block in rows.iterrows():
             slug = _slug(block['ID'])
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
-            domain = block['query_domain'] if block['query_domain'] is not None else '-'
             active = ' active' if (default_view == 'all' or slug == first_slug) else ''
 
-            fig_label = (
-                f'<div class="nb-fig-block-label"><b>{html.escape(str(label))}</b> &middot; '
-                f'{html.escape(str(block["ID"]))} &middot; {html.escape(str(domain))} &middot; '
-                f'{html.escape(str(block["org_name"]))} &middot; '
-                f'{block["block_start"]:,.0f}&ndash;{block["block_end"]:,.0f} bp &middot; '
-                f'{int(block["n_genes"])} genes</div>'
-            )
+            fig_label = f'<div class="nb-fig-block-label"><b>{html.escape(str(label))}</b></div>'
             fig_blocks.append(
                 f'<div class="nb-fig-block{active}" data-block="{slug}">'
                 f'{fig_label}<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
@@ -3222,6 +3237,7 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
         f'<div class="nb-fig-scroll"><div id="nb-fig-stack">{"".join(fig_blocks)}</div></div>'
     )
     return fig_stack, ''.join(selector_items)
+
 
 def read_svg_logo(path):
     """
