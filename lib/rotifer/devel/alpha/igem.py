@@ -2609,15 +2609,26 @@ $nb_selector
   on(qs('#nb-zoom-fit'),   'click', function(){ nbSetZoom(1); });
 
   // ── download the current selection as one combined SVG ────────────────
-  function svgEsc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
+  // Built via real DOM nodes + XMLSerializer (not manual string
+  // concatenation of .innerHTML) so the output is always well-formed XML.
+  // .innerHTML can round-trip named HTML entities (e.g. "&nbsp;" used by
+  // the on-page tooltips) into a form that HTML tolerates but strict XML
+  // parsers reject ("Entity 'nbsp' not defined"); DOM APIs + XMLSerializer
+  // never produce that -- everything is escaped as valid XML by construction.
   function downloadSelectedSVG() {
     var blocks = qsa('.nb-fig-block.active');
     if (!blocks.length) return;
+    var SVGNS = 'http://www.w3.org/2000/svg';
     var gap = 26, pad = 12, labelH = 20;
     var maxW = 0, y = pad;
-    var parts = [];
+
+    var root = document.createElementNS(SVGNS, 'svg');
+    var bg = document.createElementNS(SVGNS, 'rect');
+    bg.setAttribute('x', 0);
+    bg.setAttribute('y', 0);
+    bg.setAttribute('fill', '#ffffff');
+    root.appendChild(bg);
+
     blocks.forEach(function (b) {
       var svg = b.querySelector('svg');
       if (!svg) return;
@@ -2626,21 +2637,41 @@ $nb_selector
       var h = (vb.length === 4 && vb[3]) ? vb[3] : (svg.getBoundingClientRect().height || 200);
       var labelEl = b.querySelector('.nb-fig-block-label');
       var label = labelEl ? labelEl.textContent.replace(/\s+/g, ' ').trim() : '';
-      parts.push(
-        '<text x="' + pad + '" y="' + (y + 13) + '" font-family="Consolas,\'SF Mono\',Menlo,monospace" font-size="12" fill="#555">' +
-          svgEsc(label) + '</text>' +
-        '<svg x="' + pad + '" y="' + (y + labelH) + '" width="' + w + '" height="' + h +
-          '" viewBox="0 0 ' + w + ' ' + h + '">' + svg.innerHTML + '</svg>'
-      );
+
+      var text = document.createElementNS(SVGNS, 'text');
+      text.setAttribute('x', pad);
+      text.setAttribute('y', y + 13);
+      text.setAttribute('font-family', "Consolas,'SF Mono',Menlo,monospace");
+      text.setAttribute('font-size', '12');
+      text.setAttribute('fill', '#555');
+      text.textContent = label; // DOM text node: browser guarantees correct escaping
+      root.appendChild(text);
+
+      var nested = document.createElementNS(SVGNS, 'svg');
+      nested.setAttribute('x', pad);
+      nested.setAttribute('y', y + labelH);
+      nested.setAttribute('width', w);
+      nested.setAttribute('height', h);
+      nested.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+      Array.prototype.slice.call(svg.childNodes).forEach(function (child) {
+        nested.appendChild(child.cloneNode(true));
+      });
+      root.appendChild(nested);
+
       y += labelH + h + gap;
       if (w + pad * 2 > maxW) maxW = w + pad * 2;
     });
     y += pad - gap;
-    var out = '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<svg xmlns="http://www.w3.org/2000/svg" width="' + maxW + '" height="' + y +
-      '" viewBox="0 0 ' + maxW + ' ' + y + '">' +
-      '<rect x="0" y="0" width="' + maxW + '" height="' + y + '" fill="#ffffff"/>' +
-      parts.join('') + '</svg>';
+
+    root.setAttribute('xmlns', SVGNS);
+    root.setAttribute('width', maxW);
+    root.setAttribute('height', y);
+    root.setAttribute('viewBox', '0 0 ' + maxW + ' ' + y);
+    bg.setAttribute('width', maxW);
+    bg.setAttribute('height', y);
+
+    var xml = new XMLSerializer().serializeToString(root);
+    var out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + xml;
     var blob = new Blob([out], { type: 'image/svg+xml' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
