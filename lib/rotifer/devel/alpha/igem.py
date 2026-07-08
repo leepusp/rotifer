@@ -591,7 +591,8 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
 
 def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                         highlight_query=True, collapse_opposite_strand=False,
-                        font_size=10, left_pad=0, right_pad=0, spacer_width=0.6):
+                        font_size=10, left_pad=0, right_pad=0, spacer_width=0.6,
+                        show_row_label=True):
     """
     Add one full row (label box + every gene) to `graph`, wiring
     everything together with invisible same-rank edges so it is drawn as
@@ -625,6 +626,14 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         Number of invisible spacer nodes to add on each side.
     spacer_width : float
         Width (inches) of each spacer node.
+    show_row_label : bool, default True
+        If False, the left-hand 3-line label (query protein id / block id
+        / organism) is not drawn -- an invisible zero-size placeholder
+        takes its place instead, so the alignment machinery (which
+        references `label_node`) keeps working unchanged. Useful when
+        something else already identifies the block (e.g. the report's
+        neighborhood selector), so repeating it inside every stacked
+        figure would just be noise.
 
     Returns
     -------
@@ -644,14 +653,17 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         query_canonical_strand = 1
 
     label_node_id = f'label_{block_index}'
-    label_html = build_row_label_html(
-        query_pid=query_pid,
-        block_id=block_df['ID'].iloc[0],
-        org_name=block_df['org_name'].iloc[0],
-        width=label_width,
-        font_size=font_size,
-    )
-    graph.add_node(label_node_id, label=label_html, shape='none', margin=0.1)
+    if show_row_label:
+        label_html = build_row_label_html(
+            query_pid=query_pid,
+            block_id=block_df['ID'].iloc[0],
+            org_name=block_df['org_name'].iloc[0],
+            width=label_width,
+            font_size=font_size,
+        )
+        graph.add_node(label_node_id, label=label_html, shape='none', margin=0.1)
+    else:
+        graph.add_node(label_node_id, label='', shape='point', style='invis', width=0.01, height=0.01)
 
     gene_node_ids = []
     gene_meta = {}
@@ -733,7 +745,8 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
                         highlight_query=True, font_size=10, ignore_domains=None,
                         custom_colors=None, rename_map=None, normalize_orientation=True,
                         align_query_center=False, collapse_opposite_strand=False,
-                        spacer_width=0.6, color_map=None, collect_node_meta=False):
+                        spacer_width=0.6, color_map=None, collect_node_meta=False,
+                        show_row_label=True):
     """
     Draw a gene-neighborhood ("operon") figure, one row per block, and
     write it to `output_file`.
@@ -834,6 +847,13 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
     ----------------
     collect_node_meta : bool, default False
         If True, also return the per-gene metadata dict (see Returns).
+    show_row_label : bool, default True
+        If False, don't draw the left-hand 3-line label (query protein id
+        / block id / organism) on any row. Off by default in the HTML
+        report's per-block figures (the neighborhood selector already
+        shows that info), so stacking several selected figures doesn't
+        repeat it before every one. Left on by default here since
+        `neighborhood_figure` is also used standalone.
     """
     working = prepare_dataframe(
         df, group_col=group_col, org_col=org_col, label_col=label_col, rename_map=rename_map
@@ -876,6 +896,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
             left_pad=left_pad,
             right_pad=right_pad,
             spacer_width=spacer_width,
+            show_row_label=show_row_label,
         )
         blocks_info.append(info)
 
@@ -1845,8 +1866,14 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
 
     stats_html = (
         '<div class="stats-controls">'
+        '<div class="stats-toggle-wrap">'
+        '<span class="stats-toggle-label">View</span>'
         f'<div class="stats-toggle" id="stats-gran-toggle">{toggle_gran}</div>'
+        '</div>'
+        '<div class="stats-toggle-wrap">'
+        '<span class="stats-toggle-label">Scope</span>'
         f'<div class="stats-toggle" id="stats-scope-toggle">{toggle_scope}</div>'
+        '</div>'
         '<button type="button" class="nb-icon-btn" id="stats-sel-open">'
         '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/>'
         '<circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/>'
@@ -1855,6 +1882,11 @@ def build_stats_section_html(working, color_map=None, ignore_domains=None):
         '<div class="stats-sort-group" id="stats-sort-toggle">'
         '<button type="button" class="stats-btn active" data-sort="count">Sort: count</button>'
         '<button type="button" class="stats-btn" data-sort="alpha">Sort: A&rarr;Z</button>'
+        '</div>'
+        '<div class="tbl-dl-wrap" id="stats-dl-group" title="Download the distribution currently shown">'
+        '<button type="button" class="tbl-dl-btn stats-dl-btn" data-fmt="csv">&#8681; CSV</button>'
+        '<button type="button" class="tbl-dl-btn stats-dl-btn" data-fmt="tsv">TSV</button>'
+        '<button type="button" class="tbl-dl-btn stats-dl-btn" data-fmt="json">JSON</button>'
         '</div>'
         '</div>'
         f'<div id="stats-panels">{"".join(panels)}</div>'
@@ -2162,7 +2194,12 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     border-radius:10px;padding:1px 8px;font-weight:600;}
 
   /* ---- stats section ---- */
-  .stats-controls{display:flex;flex-wrap:wrap;gap:10px 24px;margin-bottom:14px;}
+  .stats-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 24px;margin-bottom:14px;}
+  .stats-toggle-wrap{display:flex;flex-direction:column;gap:4px;}
+  .stats-toggle-label{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);font-weight:600;
+  }
   .stats-toggle{display:flex;gap:0;border-bottom:2px solid var(--line);}
   .stats-btn{
     padding:9px 18px;font-size:13px;cursor:pointer;
@@ -2362,7 +2399,7 @@ $nb_table_card
 <div class="page-section" data-page="statistics">
 <div class="sec-inner">
   <h1 class="sec-title">Domain statistics</h1>
-  <p class="sec-desc">How often each domain appears. Toggle <b>Domains</b> (atomic, split on &lsquo;+&rsquo;) vs <b>Architectures</b> (full composite string) and <b>All proteins</b> / <b>Query only</b> / <b>Neighbors only</b> to change scope. Use <b>&#9776; Select</b> to choose which ones appear in the list, and the sort toggle to reorder.</p>
+  <p class="sec-desc"><b>View</b> switches Domains (atomic, split on &lsquo;+&rsquo;) vs Architectures (full composite string); <b>Scope</b> switches All proteins / Query only / Neighbors only. Use <b>&#9776; Select</b> to choose which ones appear in the list, the sort toggle to reorder, and <b>&#8681; CSV/TSV/JSON</b> to download the distribution currently shown.</p>
   <div class="panel">
 $stats_html
   </div>
@@ -3105,6 +3142,40 @@ $stats_selector
     closeStatsSel();
   });
 
+  // ── download the distribution currently shown (respects the domain
+  // selection and sort order, same "download what's visible" pattern as
+  // the neighborhoods table) ──────────────────────────────────────────
+  function statsVisibleRows() {
+    var active = qs('.stats-block.active');
+    if (!active) return [];
+    return qsa('.bar-row', active)
+      .filter(function (r) { return !r.classList.contains('hidden-row'); })
+      .map(function (r) { return { domain: r.dataset.name, count: r.dataset.count }; });
+  }
+  function statsDownload(fmt) {
+    var rows = statsVisibleRows();
+    var base = 'distribution_' + statsGran + '_' + statsScope;
+    var d;
+    if (fmt === 'tsv') {
+      var t = ['domain\tcount'];
+      rows.forEach(function (r) { t.push(r.domain + '\t' + r.count); });
+      d = { txt: t.join('\n'), mime: 'text/tab-separated-values', ext: 'tsv' };
+    } else if (fmt === 'json') {
+      d = { txt: JSON.stringify(rows, null, 2), mime: 'application/json', ext: 'json' };
+    } else {
+      var c = ['"domain","count"'];
+      rows.forEach(function (r) { c.push('"' + r.domain.replace(/"/g, '""') + '","' + r.count + '"'); });
+      d = { txt: c.join('\n'), mime: 'text/csv', ext: 'csv' };
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([d.txt], { type: d.mime }));
+    a.download = base + '.' + d.ext;
+    a.click();
+  }
+  qsa('.stats-dl-btn').forEach(function (btn) {
+    on(btn, 'click', function () { statsDownload(btn.dataset.fmt); });
+  });
+
 
   // ── init ──────────────────────────────────────────────────────────────
   initBases();
@@ -3385,6 +3456,10 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
     try:
+        # The left-hand id/block/organism label (see `show_row_label` on
+        # `neighborhood_figure`) stays on by default here too -- it's the
+        # per-figure identifier. Pass `operon_kwargs=dict(show_row_label=False)`
+        # to turn it off if it's ever not wanted.
         per_block_operon_kwargs = dict(operon_kwargs)
         per_block_operon_kwargs.update(
             org_col=org_col, label_col=label_col, rename_map=rename_map,
