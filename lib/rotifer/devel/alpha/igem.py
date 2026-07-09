@@ -146,7 +146,7 @@ SHARP_HEADER_LOGO = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http:/
 # Column preparation
 # ---------------------------------------------------------------------------
 
-def resolve_domain_labels(df, label_col='pfam'):
+def resolve_domain_labels(df, label_col='arch'):
     """
     Build the 'domain' column that gene node labels/colors are based on.
 
@@ -3359,7 +3359,7 @@ def read_svg_logo(path):
 
 
 def build_html_report(df, output_file='operon_report.html', title='Gene Neighborhood Report',
-                       group_col='block_id', org_col='organism', label_col='pfam',
+                       group_col='block_id', org_col='organism', label_col='arch',
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', operon_kwargs=None, max_table_rows=None,
