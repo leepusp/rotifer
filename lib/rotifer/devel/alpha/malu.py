@@ -318,3 +318,50 @@ def make_hist(df, column, bins=10):
           print(line)
 
 
+def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
+    """
+    fimoraw = dataframe from fimo
+    gentab = features table
+    repdist = minimal distance for repeats
+    gensize = minimal gene size for overlap check
+    """
+    import numpy as np
+
+    distfilt = fimoraw.loc[fimoraw["distance"] >= repdist]
+    genfil = gentab.loc[gentab["plen"] > gensize]
+
+    distfilt = distfilt.sort_values(["assembly", "sequence_name", "start", "stop"])
+    genfil = genfil.sort_values(["assembly", "nucleotide", "start", "end"])
+
+
+    gene_groups = {acc: g for acc, g in genfil.groupby(["assembly", "nucleotide"], sort=False)}
+
+    result = np.zeros(len(distfilt), dtype=bool)
+
+    offset = 0
+    for acc, r in distfilt.groupby(["assembly", "sequence_name"], sort=False):
+        g = gene_groups.get(acc)
+        n = len(r)
+
+        if g is None or g.empty:
+            offset += n
+            continue
+
+        gene_starts = g["start"].to_numpy()
+        gene_ends = g["end"].to_numpy()
+        r_starts = r["start"].to_numpy()
+        r_stops = r["stop"].to_numpy()
+
+        pos = np.searchsorted(gene_starts, r_stops, side="right") - 1
+        max_end_so_far = np.maximum.accumulate(gene_ends)
+
+        valid = pos >= 0
+        overlap = np.zeros(n, dtype=bool)
+        overlap[valid] = max_end_so_far[pos[valid]] >= r_starts[valid]
+
+        result[offset:offset+n] = overlap
+        offset += n
+
+    distfilt["intragenic"] = result
+
+    return distfilt.loc[~distfilt["intragenic"]]
