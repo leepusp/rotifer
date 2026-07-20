@@ -318,6 +318,9 @@ def make_hist(df, column, bins=10):
           print(line)
 
 
+### Igem 2026
+
+
 def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
     """
     fimoraw = dataframe from fimo
@@ -326,6 +329,8 @@ def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
     gensize = minimal gene size for overlap check
     """
     import numpy as np
+
+    fimoraw["assembly"] = fimoraw["genome"].str.rsplit("_", n=2).str[0]
 
     distfilt = fimoraw.loc[fimoraw["distance"] >= repdist]
     genfil = gentab.loc[gentab["plen"] > gensize]
@@ -364,4 +369,4 @@ def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
 
     distfilt["intragenic"] = result
 
-    return distfilt.loc[~distfilt["intragenic"]]
+    return distfilt
