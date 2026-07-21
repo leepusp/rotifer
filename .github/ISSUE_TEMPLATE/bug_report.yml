@@ -1,0 +1,188 @@
+name: Bug Report
+description: Report a bug in ROTIFER
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The two most useful
+        things you can give us are an exact way to **reproduce** the problem
+        and the **full error output**. Please fill in the fields below as
+        completely as you can. Reports missing this information are much
+        harder to act on.
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps / command to reproduce
+      description: |
+        The exact command line or Python/Perl snippet that triggers the bug, plus any steps to get there.
+        If possible, attach a **minimal input data file** (a few sequences/records is enough) that reproduces the problem — you can drag-and-drop it into this field.
+        Please paste code and commands between triple backticks (```) so they stay formatted.
+      placeholder: |
+        ```
+        $ rotifer-tool --input example.fasta --option value
+        ```
+        or
+
+        ```python
+        from rotifer.core import ...
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full error message / traceback
+      description: The complete output, not just the last line. Paste it between triple backticks (```).
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: A clear and concise description of what actually happened.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ROTIFER version / commit
+      description: The release tag, or the output of `git rev-parse --short HEAD` if installed from source.
+      placeholder: "e.g. v1.2.0, or commit a1b2c3d"
+    validations:
+      required: true
+
+  - type: input
+    id: last-working
+    attributes:
+      label: Last known working version
+      description: The last ROTIFER version where this worked, if applicable.
+      placeholder: "e.g. v1.1.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: What operating system(s) are you seeing the problem on?
+      multiple: true
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - WSL (Windows Subsystem for Linux)
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system version
+      description: Provide your system version → Linux/WSL (uname -a or lsb_release -a), Windows (winver), or macOS (Apple menu → About This Mac).
+      placeholder: "e.g. Ubuntu 24.04 (WSL2), or macOS 14.5"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`. (If the bug is in the Perl code, give your `perl --version` here instead and note that below.)
+      placeholder: "e.g. Python 3.11.8"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install ROTIFER?
+      options:
+        - conda (standard install)
+        - conda-develop / editable development install
+        - From source (other)
+    validations:
+      required: true
+
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of ROTIFER is affected?
+      description: If you're not sure, choose "Not sure" and describe what you were doing below.
+      options:
+        - Python library (lib/rotifer)
+        - Perl library (perl/lib)
+        - Command-line tool (bin/ or sbin/)
+        - Installation / conda environment
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: functionality
+    attributes:
+      label: What functionality is affected?
+      description: The kind of task you were doing when the bug occurred. Pick the closest; use the fields below to add detail.
+      multiple: true
+      options:
+        - Data access & retrieval
+        - Import / export / format conversion
+        - Sequence & alignment analysis
+        - Homology & profile search
+        - Genomic neighborhood & domain architecture
+        - Clustering
+        - Taxonomy
+        - Tabular data manipulation
+        - Graphic / figure generation
+        - 3D structure analysis
+        - Configuration / installation / runtime
+        - Other (describe below)
+        - Not sure
+    validations:
+      required: true
+
+
+
+  - type: input
+    id: external-tools
+    attributes:
+      label: Relevant external tools or databases
+      description: If the bug involves an external dependency (e.g. NCBI Entrez, BLAST, HMMER, MMseqs2) or a network/database lookup, name it and its version here.
+      placeholder: "e.g. NCBI Entrez (online), HMMER 3.4"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help. Screenshots, related issues, etc. If the bug is in non-Python code, please note that here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Before you submit
+      description: Please confirm the following before filing.
+      options:
+        - label: I have read the [Contributing Guidelines](https://github.com/leepusp/rotifer/blob/master/CONTRIBUTING.md) for this project.
+          required: true
+        - label: I agree to follow the [Code of Conduct](https://github.com/leepusp/rotifer/blob/master/CODE_OF_CONDUCT.md) that this project adheres to.
+          required: true
+        - label: I have searched the [issue tracker](https://github.com/leepusp/rotifer/issues) for an issue that matches the one I want to file, without success.
+          required: true
