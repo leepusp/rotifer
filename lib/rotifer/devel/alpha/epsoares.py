@@ -1148,7 +1148,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
-    ndf = gen.neighbors(gen.pid.isin(fimo.sequence_name), after=after, before=before)
+    ndf = gen.neighbors(gen.pid.isin(fimo.pid), after=after, before=before)
     
     if make_figure:
         rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict)
