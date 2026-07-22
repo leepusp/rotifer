@@ -1142,8 +1142,8 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 <= distance <= 15')
     gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
     
-    if genome_format == 'genbank':
-        gen['pid'] = gen.locus
+    if genome_format == 'gff':
+        fimo['pid'] = fimo.pid.str.split('ID=', expand=True)[1]
 
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
