@@ -1139,7 +1139,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     Doc
     '''
 
-    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 <= distance <= 15')
+    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 < distance <= 15')
     gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
     
     if genome_format == 'gff':
