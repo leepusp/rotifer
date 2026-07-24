@@ -29,7 +29,6 @@ public benefit everyone who runs into the same doubt later.
 before creating a new one. If you find an existing report that matches your
 problem:
 
-- Add a 👍 reaction to the original post instead of writing a "+1" comment.
 - Add a comment only if you have new information: a different platform, a
   smaller reproduction case, a stack trace the original report lacks.
 
@@ -38,7 +37,7 @@ makes it far more likely that the problem actually gets fixed.
 
 ### Writing a good bug report
 
-Please use the issue forms — they ask for the information we need. The most
+Please use the issue forms. They ask for the information we need. The most
 useful reports include:
 
 - The version or commit of ROTIFER you are running.
@@ -71,7 +70,7 @@ implementation. This is especially worthwhile for larger changes: it is much les
 frustrating to discuss the design first than to have a finished pull request
 turned down.
 
-In order to make this matter, and contribution and usage easier, our complete documentation of ROTIFER is on the way.
+In order to make this matter, and contribution and usage  easier, our complete documentation of ROTIFER is on the way.
 
 ## Contributing code
 
@@ -157,6 +156,15 @@ Please mention in the pull request description if a substantial part of the
 change was AI-assisted. This is not held against you; it simply tells reviewers
 where to look more carefully. Pull requests that appear to be unreviewed
 generated output may be closed without detailed review.
+
+## If you have a personal codebase
+
+- If you have a personal codebase inside ROTIFER, avoid using it whenever possible. Use a branch instead.
+- If you do use it, pay extra close attention to the code you submit, especially:
+  - Creation of functions that already exist on ROTIFER
+  - AI-generated code
+- Your codebase will eventually be fully merged into ROTIFER. Useful code will be adapted and duplicates deleted.
+- Contact the maintainers if you have any questions about this.
 
 ## Thank you
 
