@@ -166,6 +166,10 @@ generated output may be closed without detailed review.
 - Your codebase will eventually be fully merged into ROTIFER. Useful code will be adapted and duplicates deleted.
 - Contact the maintainers if you have any questions about this.
 
+## Documentation
+
+A full, detailed documentation of ROTIFER is currently being built. Please check it for further information about contribution and/or the tool itself.
+
 ## Thank you
 
 Your contributions are what
