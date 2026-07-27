@@ -323,49 +323,96 @@ def make_hist(df, column, bins=10):
 
 def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
     """
-    fimoraw = dataframe from fimo
-    gentab = features table
-    repdist = minimal distance for repeats
-    gensize = minimal gene size for overlap check
+    Apply the repeat-distance filter and mark repeats that overlap genes
+    on the same nucleotide and strand.
+
+    Parameters
+    ----------
+    fimoraw : pandas.DataFrame
+        Must contain sequence_name, strand, start, stop, and distance.
+
+    gentab : pandas.DataFrame
+        Must contain nucleotide, strand, start, end, plen, and type.
+
+    repdist : int or float, default=2
+        Minimum repeat distance retained.
+
+    gensize : int or float, default=5
+        Minimum protein length used in the overlap check.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Distance-filtered repeats with an ``intragenic`` column.
     """
     import numpy as np
+    import pandas as pd
 
-    fimoraw["assembly"] = fimoraw["genome"].str.rsplit("_", n=2).str[0]
+    # Doing .copy() to avoid pandas' warnings
 
-    distfilt = fimoraw.loc[fimoraw["distance"] >= repdist]
-    genfil = gentab.loc[gentab["plen"] > gensize]
+    distfilt = fimoraw.loc[fimoraw["distance"] >= repdist].copy()
+    
+    # I'm  only interested in genes, so I grab only the CDS and while I am at it, I will ignore proteins that are smaller than 5 AA
+    
+    genfil = gentab.loc[(gentab["type"] == "CDS") & (gentab["plen"] >= gensize)].copy()
 
-    distfilt = distfilt.sort_values(["assembly", "sequence_name", "start", "stop"])
-    genfil = genfil.sort_values(["assembly", "nucleotide", "start", "end"])
+    # I need to compare repeats with genes on the same strand, but FIMO has "+" and "-" representation, so I'll change that on the fly
+    
+    distfilt["strand"] = distfilt["strand"].map({"+": 1,"-": -1})
+    
+    # Crash if there are unexpected values in strand
+    
+    if distfilt["strand"].isna().any():
+        raise ValueError("FIMO strand contains values other than '+' and '-'")
 
+    # Now, the operation I intend to do wants the df to be ordered
 
-    gene_groups = {acc: g for acc, g in genfil.groupby(["assembly", "nucleotide"], sort=False)}
+    distfilt = distfilt.sort_values(["sequence_name", "start", "stop","strand"])
+    genfil = genfil.sort_values(["nucleotide", "start", "end","strand"])
 
-    result = np.zeros(len(distfilt), dtype=bool)
+    # Create gene groups where only one strand is present
+    
+    gene_groups = {key: group for key, group in genfil.groupby(["nucleotide", "strand"],sort=False,dropna=False)}
 
-    offset = 0
-    for acc, r in distfilt.groupby(["assembly", "sequence_name"], sort=False):
-        g = gene_groups.get(acc)
-        n = len(r)
+    # Initialize  series to store results defaulting to False
+    
+    result = pd.Series(False,index=distfilt.index,dtype=bool)
 
-        if g is None or g.empty:
-            offset += n
+    # Iterate for every matching key 
+    
+    for key, repeats in distfilt.groupby(["sequence_name", "strand"],sort=False,dropna=False):
+        
+        # Grab the matching key
+        genes = gene_groups.get(key)
+        
+        # Handling if it continues
+        if genes is None or genes.empty:
             continue
 
-        gene_starts = g["start"].to_numpy()
-        gene_ends = g["end"].to_numpy()
-        r_starts = r["start"].to_numpy()
-        r_stops = r["stop"].to_numpy()
+        # NP arrays from each group
+        
+        gene_starts = genes["start"].to_numpy()
+        gene_ends = genes["end"].to_numpy()
 
-        pos = np.searchsorted(gene_starts, r_stops, side="right") - 1
+        repeat_starts = repeats["start"].to_numpy()
+        repeat_stops = repeats["stop"].to_numpy()
+
+        # Largest gene end observed at or before each gene position.
         max_end_so_far = np.maximum.accumulate(gene_ends)
 
-        valid = pos >= 0
-        overlap = np.zeros(n, dtype=bool)
-        overlap[valid] = max_end_so_far[pos[valid]] >= r_starts[valid]
+        # Last gene whose start is <= repeat stop.
+        pos = np.searchsorted(gene_starts, repeat_stops,side="right") - 1
 
-        result[offset:offset+n] = overlap
-        offset += n
+        valid = pos >= 0
+        overlap = np.zeros(len(repeats), dtype=bool)
+
+        overlap[valid] = (
+            max_end_so_far[pos[valid]]
+            >= repeat_starts[valid]
+        )
+
+        # Assign the value
+        result.loc[repeats.index] = overlap
 
     distfilt["intragenic"] = result
 
