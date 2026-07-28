@@ -1133,8 +1133,8 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20):
 
     return df
 
-def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm'], return_hmmscan=False,
-    after=10, before=10, run_fimo=True, meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True,
+def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
+    sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True, meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True,
     output_report='neighborhood_report.html', color_dict=None, domain_dict=None):
     ''' 
     Doc
@@ -1148,9 +1148,11 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
 
     fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
+    hsearch = hmmsearch(sarp_model, genome_protein_fasta)
+    l = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3').sequence.tolist()
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
-    ndf = gen.neighbors(gen.pid.isin(fimo.pid), after=after, before=before)
+    ndf = gen.neighbors(gen.pid.isin(fimo.pid.tolist() + l), after=after, before=before)
     
     if make_figure:
         rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict)
