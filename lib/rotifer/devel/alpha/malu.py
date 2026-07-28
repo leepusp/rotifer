@@ -417,3 +417,73 @@ def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
     distfilt["intragenic"] = result
 
     return distfilt
+
+def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = np.inf, genome_protein_fasta=genome_protein_fasta, models_path=['/scratch/global/databases/pfam/Pfam-A.hmm', '/home/epsoares/projects/igem/2026/work/hmms_build/all_models.hmm']):
+
+    ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
+    rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True, file = genome_protein_fasta, models_path = models_path)
+    hlist = pd.read_table(reqdom, names=['model','source'])
+    
+    if customdoms:
+        nhlist = pd.read_table(customdoms, names=['model','source'])
+        hlist = pd.concat([hlist,nhlist])
+
+    model_set = set(hlist['model'])
+    domain_mask = ndff["pfam"].fillna("").str.split("+").apply(lambda architecture: bool(model_set.intersection(architecture)))
+
+    print(f"Analyzing {ndff.block_id.nunique()} block(s)")
+
+    print(f"{ndff.loc[domain_mask,['block_id']]['block_id'].nunique()} block(s) with target domains")
+    print(f"Found {ndff.query('query == 1')['block_id'].value_counts().gt(1).sum()} block(s) with more than 1 pid hit")
+
+    queries = ndff.loc[ndff["query"] == 1, ["nucleotide","block_id","feature_order","pid"]].copy()
+
+    queries["keep"] = False
+
+    print(f"Processing blocks and dropping pids that are over {max_distance} CDS features from a domain of interest")
+
+    # For each block, store the sorted feature_order values looking at CDS
+    
+    hit_groups = {key: np.sort(group["feature_order"].drop_duplicates().to_numpy()) for key, group in ndff.loc[(ndff["type"] == "CDS") & domain_mask].groupby(["nucleotide", "block_id"],sort=False)}
+
+    # Iterate block by block
+    for key, query_group in queries.groupby(["nucleotide", "block_id"], sort=False):
+    
+        hit_orders = hit_groups.get(key)
+
+    # Skips if there's no domain of interest hits on the block
+        if hit_orders is None:
+            continue
+
+        query_orders = query_group["feature_order"].to_numpy()
+
+    # np.searchsorted looks at the numerical array and checks where the value would be placed
+    # feature_order is used to keep consistency to how neighbors takes cds instead of indexes
+
+        pos = np.searchsorted( hit_orders, query_orders, side="left")
+
+        nearby = np.zeros(len(query_group), dtype=bool)
+
+    # Check the nearest hit at or to the right of each query
+        has_right = pos < len(hit_orders)
+        
+    # Check if this is within max distance chosen 
+        nearby[has_right] |= (hit_orders[pos[has_right]] - query_orders[has_right]) <= max_distance
+
+    # Check the nearest hit strictly to the left of each query
+        has_left = pos > 0
+
+        nearby[has_left] |= (query_orders[has_left]- hit_orders[pos[has_left] - 1]) <= max_distance
+
+        queries.loc[query_group.index, "keep"] = nearby
+
+    print(f"Dropped {len(queries.query('keep == False'))}")
+    print("Updating ndf")
+    #Saving the annotation so I don't have to run it again
+    pfam_map = ndff[['pid','pfam']]
+    ndff = ndf.neighbors(ndf.pid.isin(queries.query('keep == True').pid), after=after, before=before)
+    ndff['pfam'] = ndff['pid'].map(pfam_map.set_index('pid')["pfam"])
+
+    return ndff
+
+    
