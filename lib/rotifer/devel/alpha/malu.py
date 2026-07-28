@@ -418,8 +418,14 @@ def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
 
     return distfilt
 
-def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = np.inf, genome_protein_fasta=genome_protein_fasta, models_path=['/scratch/global/databases/pfam/Pfam-A.hmm', '/home/epsoares/projects/igem/2026/work/hmms_build/all_models.hmm']):
-
+def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = 200, genome_protein_fasta=genome_protein_fasta, models_path=['/scratch/global/databases/pfam/Pfam-A.hmm', '/home/epsoares/projects/igem/2026/work/hmms_build/all_models.hmm']):
+    
+    import numpy as np
+    import pandas as pd
+    from rotifer.genome import utils as rgu
+    from rotifer.genome import io as rgio
+    from rotifer.genome.data import NeighborhoodDF
+    
     ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
     rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True, file = genome_protein_fasta, models_path = models_path)
     hlist = pd.read_table(reqdom, names=['model','source'])
