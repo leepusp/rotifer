@@ -26,6 +26,7 @@ from multiprocessing import Pool, pool
 from rotifer.genome import utils as rgu
 from rotifer.genome import io as rgio
 from rotifer.devel.alpha import igem as rdai
+from rotifer.devel.alpha import malu as rdam
 
 def get_matrix(df, filter_list, rows, columns, n=10, filter_by='pid'):
         filtered_df = df[df[filter_by].isin(filter_list)]
@@ -1145,6 +1146,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     if genome_format == 'gff':
         fimo['pid'] = fimo.pid.str.split('ID=', expand=True)[1]
 
+    fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
