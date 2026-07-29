@@ -491,9 +491,7 @@ def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = Fal
     print(f"Dropped {len(queries.query('keep == False'))}")
     print("Updating ndf")
     #Saving the annotation so I don't have to run it again
-    pfam_map = ndff[['pid','pfam']]
-    ndff = ndf.neighbors(ndf.pid.isin(queries.query('keep == True').pid), after=after, before=before)
-    ndff['pfam'] = ndff['pid'].map(pfam_map.set_index('pid')["pfam"])
+    ndff = ndff.neighbors(ndff.pid.isin(queries.query('keep == True').pid), after=after, before=before)
 
     return ndff
 
