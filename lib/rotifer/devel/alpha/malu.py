@@ -418,7 +418,7 @@ def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
 
     return distfilt
 
-def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = 200, genome_protein_fasta=None, models_path=None):
+def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = 200, genome_protein_fasta=None, models_path=None, annotate=False):
     
     import numpy as np
     import pandas as pd
