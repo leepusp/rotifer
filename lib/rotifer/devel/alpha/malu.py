@@ -425,9 +425,14 @@ def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = Fal
     from rotifer.genome import utils as rgu
     from rotifer.genome import io as rgio
     from rotifer.genome.data import NeighborhoodDF
-    
-    ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
-    rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True, file = genome_protein_fasta, models_path = models_path)
+    from rotifer.devel.alpha import epsoares as rdae
+
+    if annotate:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
+        rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True, file = genome_protein_fasta, models_path = models_path)
+    else:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
+
     hlist = pd.read_table(reqdom, names=['model','source'])
     
     if customdoms:
