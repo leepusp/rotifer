@@ -167,8 +167,9 @@ def to_blocks(df, groupby='c80e3', buf=None, header=default_header,
               sortblocks=None, sep="\n", **kwargs):
     from rotifer.pandas import functions as rpf
 
-    blocks = df.groupby(groupby, sort=False, group_keys=False)
-    blocks = blocks.apply(apply, groupby=groupby, header=header, colsep=colsep, **kwargs)
+    blocks = df.groupby(groupby, sort=False)
+    blocks = blocks.apply(apply, groupby=groupby, header=header, colsep=colsep,
+                          include_groups=False, **kwargs)
 
     if sortblocks:
         sortcols = [c for c in sortblocks if c in blocks]
