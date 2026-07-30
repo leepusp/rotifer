@@ -1,5 +1,6 @@
 biopython
 pandas
+pyarrow
 numpy
 termcolor
 PyYAML
