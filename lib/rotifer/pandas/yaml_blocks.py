@@ -37,7 +37,7 @@ import re
 import yaml
 import pandas as pd
 
-from rotifer.pandas import to_string, to_blocks, _as_label, _group_key, _py, _resolve_stats
+from rotifer.pandas import to_string, to_blocks, _group_key, _py, _resolve_stats
 
 INDENT = '    '
 RESERVED = ('key', 'parameters')
@@ -115,8 +115,7 @@ def yaml_block_rows(df, groupby='c80e3', header=yaml_header, colsep=None,
                     columns=None, sample=None, stats=None, sortrows=None,
                     name='rows', **kwargs):
     """to_blocks `apply` callback: emits one block element of the sequence."""
-    groupby = _as_label(groupby)
-    key = _group_key(df, groupby)
+    key = _group_key(df, groupby)   # _group_key normalizes the groupby itself
     key = list(key) if isinstance(key, tuple) else [key]
 
     statDict = _resolve_stats(df, stats or {})
@@ -140,17 +139,15 @@ def yaml_block_rows(df, groupby='c80e3', header=yaml_header, colsep=None,
 
 
 def to_yaml(df, groupby='c80e3', buf=None, header=yaml_header,
-            apply=yaml_block_rows, parameters=None, sep='\n\n', **kwargs):
+            apply=yaml_block_rows, sep='\n\n', **kwargs):
     """Write `df` as the YAML block document described above.
 
     A blank line precedes each block separator; nothing else is padded out, so the
     envelope costs about 0.1% over the plain to_blocks rendering."""
-    # Normalize only for the recorded parameters: pandas reads a tuple as a single
-    # key, so the grouping call must keep the caller's list.
-    labels = _as_label(groupby)
-    params = {'groupby': list(labels) if isinstance(labels, tuple) else [labels]}
-    params.update(parameters or {})
-    head = '- parameters:\n' + '\n'.join(f'    {k}: {_flow(v)}' for k, v in params.items())
+    # Recorded for the reader only; `groupby` itself is passed on untouched, since
+    # pandas reads a tuple as a single key rather than a list of columns.
+    labels = list(groupby) if isinstance(groupby, (list, tuple)) else [groupby]
+    head = f'- parameters:\n    groupby: {_flow(labels)}'
 
     blocks = to_blocks(df, groupby=groupby, header=header, apply=apply, sep=sep, **kwargs)
     text = head + sep + blocks + '\n'
