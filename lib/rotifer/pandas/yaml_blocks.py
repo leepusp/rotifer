@@ -52,7 +52,8 @@ import pyarrow.compute as pc
 from rotifer.pandas import _py
 
 INDENT = '    '
-RESERVED = ('key', 'parameters')
+MERGED = 'merged'                       # read_yaml returns the joined frame here
+RESERVED = ('key', 'parameters', MERGED)
 SEPARATOR = '# ' + '-' * 5
 
 # libyaml where it was built, which reads these documents about 13x faster than
@@ -172,7 +173,9 @@ def _split_tables(grouped, tables):
     aggregated, callbacks = {}, {}
     for table, spec in tables.items():
         if table in RESERVED:
-            raise ValueError(f'table name {table!r} is reserved for block metadata')
+            raise ValueError(f'table name {table!r} is reserved: {RESERVED[0]!r} and '
+                             f'{RESERVED[1]!r} carry block metadata, and {MERGED!r} is '
+                             f'where read_yaml returns the joined frame')
         if isinstance(spec, Mapping):
             aggregated[table] = _group_agg(grouped, spec, table)
         elif callable(spec):
@@ -303,14 +306,33 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
 
 
 # --------------------------------------------------------------------- reading
-def read_yaml(source, merge=False, drop=None, how='outer'):
+def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     """Read a document written by to_yaml.
 
     source : YAML text, a path, or a file-like object.
-    merge  : True folds every table into one DataFrame, merging on the group
-             columns; False returns {name: DataFrame}.
-    drop   : table names to discard before combining, e.g. drop=['stats'].
     how    : join used when merging tables held under different keys.
+    merge  : what to fold together, and on what.
+
+        True          the default: every table is merged on the grouping columns.
+        None, False   nothing is merged.
+        ['a', 'b']    only these tables are merged, on the grouping columns.
+        {'a': 'pid'}  only these tables are merged, each joined on the columns
+        {'a': [...]}  given for it rather than on the grouping columns.
+
+    drop   : tables to leave out entirely.
+    keep   : tables to return in their original, unmerged form.
+
+    drop and keep each take one table name or an array-like of them, and **keep
+    wins over drop**: a table named in both is returned. keep is also independent
+    of merging, so a table can be folded into the merged frame and handed back
+    untouched at the same time.
+
+    Everything the document holds comes back unless it was dropped: tables left
+    out of a partial merge are returned as they are, alongside the merged frame,
+    which is keyed 'merged'. The return is that bare DataFrame when it is the only
+    thing to return -- the usual case under the default merge=True -- and a
+    {name: DataFrame} mapping otherwise. Naming a table that the document does not
+    hold raises KeyError rather than passing unnoticed.
 
     The grouping columns come from the document's parameters element, so a
     document always describes itself. Their values are injected into each table
@@ -345,6 +367,10 @@ def read_yaml(source, merge=False, drop=None, how='outer'):
     groupcols = params.get('groupby', [])
     groupcols = list(groupcols) if isinstance(groupcols, (list, tuple)) else [groupcols]
 
+    # keep wins over drop, so a table named in both survives to be returned.
+    keep = [keep] if isinstance(keep, str) else list(keep or ())
+    dropped = set([drop] if isinstance(drop, str) else list(drop or ())) - set(keep)
+
     # Gather each table's text as one string. The key a table is stored under is
     # what makes two of them equivalent, not their columns: a `stats` table and a
     # `span` table are different things whether or not they share column names.
@@ -356,7 +382,6 @@ def read_yaml(source, merge=False, drop=None, how='outer'):
     # grouping columns ride along as extra cells on each row, so a row carries its
     # own key and nothing has to be realigned afterwards; a table already naming a
     # grouping column keeps the one it stores.
-    drop = set(drop or ())
     rows, header, missing, escaped = {}, {}, {}, {}
     for element in doc:
         if not isinstance(element, dict) or 'parameters' in element:
@@ -365,7 +390,7 @@ def read_yaml(source, merge=False, drop=None, how='outer'):
         key = list(key) if isinstance(key, (list, tuple)) else [key]
         values = dict(zip(groupcols, key))
         for name, table in element.items():
-            if name in RESERVED or name in drop or not isinstance(table, str):
+            if name in RESERVED or name in dropped or not isinstance(table, str):
                 continue
             head, _, rest = table.partition('\n')
             _, _, body = rest.partition('\n')           # the second line is the rule
@@ -404,21 +429,55 @@ def read_yaml(source, merge=False, drop=None, how='outer'):
                     pass
         front = [c for c in groupcols if c in frame.columns]
         frames[name] = frame[front + [c for c in frame.columns if c not in front]]
-    if not merge:
+    unknown = [name for name in keep if name not in frames]
+    if unknown:
+        raise KeyError(f'no table named {unknown[0]!r} in the document '
+                       f'(have {sorted(frames)})')
+    if merge is None or merge is False:
         return frames
 
-    # different keys -> merge on the group columns, widest table first so the
-    # per-row tables keep their granularity and block-level values broadcast onto
-    # them. A column arriving from more than one table is suffixed with the name
-    # the table has in the document, so the merged frame stays self-describing.
-    ordered = sorted(frames.items(), key=lambda item: len(item[1]), reverse=True)
-    on = [c for c in groupcols if all(c in f.columns for _, f in ordered)]
-    if not on:
-        raise ValueError(f'no group columns shared by every table (looked for {groupcols})')
-    merged = ordered[0][1]
-    for name, right in ordered[1:]:
+    # Which tables to merge, and on what. True takes them all on the grouping
+    # columns; a list picks some of them, still on the grouping columns; a mapping
+    # picks some and says which columns each is joined on.
+    if merge is True:
+        # No order was given, so take the document in reverse: to_yaml appends the
+        # main table after the aggregations, which puts it first here, where it
+        # keeps its column names and sets the row granularity.
+        joins = {name: groupcols for name in reversed(frames)}
+    elif isinstance(merge, Mapping):
+        joins = {name: [c] if isinstance(c, str) else list(c) for name, c in merge.items()}
+    else:
+        joins = {name: groupcols for name in ([merge] if isinstance(merge, str) else merge)}
+
+    unknown = [name for name in joins if name not in frames]
+    if unknown:
+        raise KeyError(f'no table named {unknown[0]!r} in the document '
+                       f'(have {sorted(frames)})')
+    if not joins:
+        raise ValueError('merge names no tables')
+
+    # Tables are merged in the order merge gave them: the first is the frame the
+    # rest are joined onto, so it is the one that keeps its column names unsuffixed
+    # and sets the row granularity. A column arriving from a later table is
+    # suffixed with the name that table has in the document, so the merged frame
+    # stays self-describing.
+    names = list(joins)
+    merged = frames[names[0]]
+    for name in names[1:]:
+        right = frames[name]
+        on = [c for c in joins[name] if c in merged.columns and c in right.columns]
+        if not on:
+            raise ValueError(f'table {name!r} shares none of {joins[name]} with the '
+                             f'tables merged before it')
         merged = merged.merge(right, on=on, how=how, suffixes=('', f'_{name}'))
-    return merged
+
+    # Everything the document held comes back: the merged frame, whatever a
+    # partial merge left out, and any original asked for by keep. A lone merged
+    # frame is handed back bare rather than wrapped in a mapping of one.
+    result = {MERGED: merged}
+    result.update({name: frame for name, frame in frames.items() if name not in joins})
+    result.update({name: frames[name] for name in keep})
+    return merged if len(result) == 1 else result
 
 
 read_blocks = read_yaml  # alias

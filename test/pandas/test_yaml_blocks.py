@@ -85,7 +85,7 @@ def test_round_trip_multicolumn_groupby():
 
 
 def test_escaped_pipe_survives():
-    rows = yb.read_yaml(document())['rows']
+    rows = yb.read_yaml(document(), merge=False)['rows']
     assert 'has | a pipe' in rows['product'].tolist()
 
 
@@ -96,11 +96,11 @@ def test_newline_in_a_cell_is_flattened():
     df.loc[0, 'product'] = 'two\nlines'
     text = document(df)
     yaml.safe_load(text)                       # must still parse
-    assert 'two lines' in yb.read_yaml(text)['rows']['product'].tolist()
+    assert 'two lines' in yb.read_yaml(text, merge=False)['rows']['product'].tolist()
 
 
 def test_dtypes_are_inferred():
-    rows = yb.read_yaml(document())['rows']
+    rows = yb.read_yaml(document(), merge=False)['rows']
     assert rows['plen'].dtype.kind == 'i'
     assert rows['pid'].dtype == object
 
@@ -238,19 +238,19 @@ def test_sortrows_orders_within_a_block_only():
     text = yb.to_yaml(df, groupby='g', columns=['lineage', 'pid'],
                       sortrows={'lineage': True})
     assert block_keys(text) == ['b', 'a']
-    rows = yb.read_yaml(text)['rows']
+    rows = yb.read_yaml(text, merge=False)['rows']
     assert rows[rows.g == 'a']['lineage'].tolist() == ['L1', 'L9']
 
 
 def test_sortrows_descending():
     df = pd.DataFrame({'g': ['a', 'a', 'a'], 'n': [2, 3, 1], 'pid': ['p1', 'p2', 'p3']})
     text = yb.to_yaml(df, groupby='g', columns=['n'], sortrows={'n': False})
-    assert yb.read_yaml(text)['rows']['n'].tolist() == [3, 2, 1]
+    assert yb.read_yaml(text, merge=False)['rows']['n'].tolist() == [3, 2, 1]
 
 
 # ------------------------------------------------------------- combining tables
 def test_merge_false_returns_one_frame_per_table():
-    frames = yb.read_yaml(document())
+    frames = yb.read_yaml(document(), merge=False)
     assert set(frames) == {'stats', 'rows'}
     assert len(frames['stats']) == 2         # one row per block, concatenated
     assert len(frames['rows']) == 3
@@ -264,7 +264,7 @@ def test_tables_are_recombined_by_key_not_by_columns():
                        'plen': [10, 200, 3000, 5]})
     text = yb.to_yaml(df, groupby='g', columns=['pid', 'plen'],
                       stats={'pid': 'nunique'}, span={'pid': 'max'})
-    frames = yb.read_yaml(text)
+    frames = yb.read_yaml(text, merge=False)
     assert set(frames) == {'stats', 'span', 'rows'}
     assert list(frames['stats'].columns) == list(frames['span'].columns)  # same shape
     assert len(frames['stats']) == len(frames['span']) == 3               # still apart
@@ -287,10 +287,102 @@ def test_merge_suffix_disambiguates_colliding_names():
     assert merged['pid_stats'].dtype.kind == 'i'
 
 
+def merge_document():
+    df = pd.DataFrame({'g': list('AABC'), 'pid': ['p1', 'p2', 'p3', 'p4'],
+                       'plen': [10, 200, 3000, 5],
+                       'product': ['kinase', 'kinase', 'permease', 'ligase']})
+    return yb.to_yaml(df, groupby='g', columns=['pid', 'plen'],
+                      stats={'pid': 'nunique'},
+                      tags=lambda b: b[['pid']].assign(tag=b['product'].str.upper()))
+
+
+@pytest.mark.parametrize('merge', [False, None])
+def test_merge_off_returns_every_table(merge):
+    assert set(yb.read_yaml(merge_document(), merge=merge)) == {'rows', 'stats', 'tags'}
+
+
+def test_merge_true_takes_everything():
+    merged = yb.read_yaml(merge_document(), merge=True)
+    assert {'pid', 'pid_stats', 'tag'} <= set(merged.columns)
+
+
+def test_merge_list_selects_tables():
+    """A list merges only the tables it names, still on the grouping columns. What
+    it leaves out is returned alongside rather than discarded."""
+    result = yb.read_yaml(merge_document(), merge=['rows', 'stats'])
+    assert set(result) == {yb.MERGED, 'tags'}
+    assert 'pid_stats' in result[yb.MERGED].columns
+    assert 'tag' not in result[yb.MERGED].columns
+
+
+def test_merge_mapping_chooses_the_join_columns():
+    """The mapping form exists for joins that are not on the grouping columns:
+    `tags` is per row, so joining it on pid keeps one row per pid."""
+    result = yb.read_yaml(merge_document(), merge={'rows': 'g', 'tags': 'pid'})
+    merged = result[yb.MERGED]
+    assert len(merged) == 4
+    assert merged.sort_values('pid')['tag'].tolist() == ['KINASE', 'KINASE', 'PERMEASE', 'LIGASE']
+    assert 'stats' in result          # not named, so returned as it is
+
+
+def test_merge_mapping_accepts_one_column_or_several():
+    text = merge_document()
+    one = yb.read_yaml(text, merge={'rows': 'g', 'stats': 'g'})
+    many = yb.read_yaml(text, merge={'rows': ['g'], 'stats': ['g']})
+    assert one[yb.MERGED].equals(many[yb.MERGED])
+
+
+@pytest.mark.parametrize('kwargs,error', [
+    ({'merge': ['nosuch']}, KeyError),                      # not in the document
+    ({'drop': ['tags'], 'merge': ['rows', 'tags']}, KeyError),   # dropped, then named
+    ({'merge': []}, ValueError),                            # names nothing
+    ({'merge': {'rows': 'g', 'tags': 'plen'}}, ValueError),  # no column in common
+])
+def test_rejected_merge_requests(kwargs, error):
+    with pytest.raises(error):
+        yb.read_yaml(merge_document(), **kwargs)
+
+
 def test_drop_removes_named_tables():
-    assert set(yb.read_yaml(document(), drop=['stats'])) == {'rows'}
-    merged = yb.read_yaml(document(), merge=True, drop=['stats'])
+    assert set(yb.read_yaml(document(), merge=False, drop=['stats'])) == {'rows'}
+    merged = yb.read_yaml(document(), drop=['stats'])
     assert 'pid_stats' not in merged.columns
+
+
+def test_keep_returns_a_table_in_its_original_form():
+    """A table can be folded into the merged frame and handed back untouched at
+    the same time."""
+    result = yb.read_yaml(merge_document(), keep='stats')
+    assert set(result) == {yb.MERGED, 'stats'}
+    assert 'pid_stats' in result[yb.MERGED].columns     # merged in, and
+    assert list(result['stats'].columns) == ['g', 'pid']  # also returned as it was
+
+
+def test_keep_wins_over_drop():
+    """A table named in both survives, which is the documented precedence."""
+    result = yb.read_yaml(merge_document(), drop='tags', keep='tags')
+    assert set(result) == {yb.MERGED, 'tags'}
+    assert 'tag' in result[yb.MERGED].columns
+
+
+@pytest.mark.parametrize('value,expected', [
+    ('stats', {'stats'}),
+    (['stats', 'tags'], {'stats', 'tags'}),
+    (('stats',), {'stats'}),
+])
+def test_keep_takes_a_name_or_an_array_of_them(value, expected):
+    result = yb.read_yaml(merge_document(), keep=value)
+    assert set(result) - {yb.MERGED} == expected
+
+
+def test_drop_takes_a_name_or_an_array_of_them():
+    assert set(yb.read_yaml(merge_document(), merge=False, drop='stats')) == {'rows', 'tags'}
+    assert set(yb.read_yaml(merge_document(), merge=False, drop=['stats', 'tags'])) == {'rows'}
+
+
+def test_keep_rejects_an_unknown_table():
+    with pytest.raises(KeyError):
+        yb.read_yaml(merge_document(), keep='nosuch')
 
 
 # -------------------------------------------------------------- editing by hand
@@ -308,7 +400,7 @@ def test_hand_edited_table_still_parses():
     | p1 |  10 | prod one |
     |p2|200|   sloppy but valid   |
 '''
-    rows = yb.read_yaml(text)['rows']
+    rows = yb.read_yaml(text, merge=False)['rows']
     assert rows['product'].tolist() == ['prod one', 'sloppy but valid']
     assert rows['plen'].tolist() == [10, 200]
     assert rows['g'].tolist() == ['A', 'A']
@@ -319,7 +411,7 @@ def test_grouping_columns_come_from_the_document():
     and the block keys supply the values."""
     df = pd.DataFrame({'left': ['a', 'a', 'b'], 'right': ['x', 'y', 'x'],
                        'pid': ['p1', 'p2', 'p3']})
-    frames = yb.read_yaml(yb.to_yaml(df, groupby=['left', 'right'], columns=['pid']))
+    frames = yb.read_yaml(yb.to_yaml(df, groupby=['left', 'right'], columns=['pid']), merge=False)
     assert list(frames['rows'].columns[:2]) == ['left', 'right']
     assert frames['rows'].sort_values('pid')['left'].tolist() == ['a', 'a', 'b']
     assert frames['rows'].sort_values('pid')['right'].tolist() == ['x', 'y', 'x']
@@ -331,8 +423,8 @@ def test_reads_from_path_and_file_object(tmp_path):
     path = tmp_path / 'blocks.yml'
     yb.to_yaml(frame(), groupby='c80e3', buf=str(path), **DOC_KWARGS)
     assert path.read_text() == text
-    assert yb.read_yaml(str(path))['rows'].equals(yb.read_yaml(text)['rows'])
-    assert yb.read_yaml(io.StringIO(text))['rows'].equals(yb.read_yaml(text)['rows'])
+    assert yb.read_yaml(str(path), merge=False)['rows'].equals(yb.read_yaml(text, merge=False)['rows'])
+    assert yb.read_yaml(io.StringIO(text), merge=False)['rows'].equals(yb.read_yaml(text, merge=False)['rows'])
 
 
 def test_rejects_a_non_document():
@@ -349,8 +441,10 @@ if __name__ == '__main__':
         ('groupby stored once', lambda: text.count('groupby') == 1),
         ('round trip', lambda: yb.read_yaml(text, merge=True, drop=['stats'])
             [['c80e3', 'pid', 'plen', 'product']].equals(frame()[['c80e3', 'pid', 'plen', 'product']])),
-        ('escaped pipe', lambda: 'has | a pipe' in yb.read_yaml(text)['rows']['product'].tolist()),
-        ('drop=[stats]', lambda: set(yb.read_yaml(text, drop=['stats'])) == {'rows'}),
+        ('escaped pipe', lambda: 'has | a pipe' in yb.read_yaml(text, merge=False)['rows']['product'].tolist()),
+        ('drop=[stats]', lambda: set(yb.read_yaml(text, merge=False, drop=['stats'])) == {'rows'}),
+        ('keep over drop', lambda: set(yb.read_yaml(text, merge=False, drop='stats',
+                                                    keep='stats')) == {'rows', 'stats'}),
         ('merge suffixes', lambda: 'pid_stats' in yb.read_yaml(text, merge=True).columns),
     ]
     failures = 0
