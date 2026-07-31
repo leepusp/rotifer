@@ -52,7 +52,7 @@ import pyarrow.compute as pc
 from rotifer.pandas import _py
 from rotifer.core import functions as rcf
 
-CONFIG = rcf.loadConfig(__name__, defaults = {
+config = rcf.loadConfig(__name__, defaults = {
     'indent': 4,
     'colsep': ' | ',
     'header': True,
