@@ -50,8 +50,39 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from rotifer.pandas import _py
+from rotifer.core import functions as rcf
 
-INDENT = '    '
+CONFIG = rcf.loadConfig(__name__, defaults = {
+    'indent': 4,
+    'colsep': ' | ',
+    'header': True,
+    'ndf': {
+        'annotation': lambda x: pd.DataFrame({'pfam':x.pfam.mode(), 'curated':x.pfam.mode() }),
+        'stats': {
+            'superkingdom': ('superkingdom', 'nunique'),
+            'lineage': ('lineage', 'nunique'),
+            'phylum': ('phylum', 'nunique'),
+            'taxid': ('taxid', 'nunique'),
+            'c80i70': ('c80i70', 'nunique'),
+            'pid': ('pid', 'nunique'),
+        },
+        'dist': lambda x: x.groupby('pfam').c80i70.nunique().reset_index(),
+        'columns': ['pid', 'c80i70', 'c100i100', 'plen', 'pfam', 'aravind', 'product', 'organism', 'lineage', 'classification'],
+        'sortblocks': {
+            'phylum': False,
+            'c80i70': False
+        },
+        'sortrows': {
+            'qc80e3': True,
+            'superkingdom': True,
+            'phylum': True,
+            'lineage': True,
+            'classification': True,
+            'c80i70': True
+        },
+    },
+})
+INDENT = ' ' * CONFIG['indent']
 MERGED = 'merged'                       # read_yaml returns the joined frame here
 RESERVED = ('key', 'parameters', MERGED)
 SEPARATOR = '# ' + '-' * 5
