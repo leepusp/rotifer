@@ -82,7 +82,7 @@ config = rcf.loadConfig(__name__, defaults = {
         },
     },
 })
-INDENT = ' ' * CONFIG['indent']
+INDENT = ' ' * config['indent']
 MERGED = 'merged'                       # read_yaml returns the joined frame here
 RESERVED = ('key', 'parameters', MERGED)
 SEPARATOR = '# ' + '-' * 5
