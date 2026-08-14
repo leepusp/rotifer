@@ -683,7 +683,7 @@ def _walk(orders, hits, pos0, direction, seed, patience):
 
     return n_kept, last_kept, saw_hit
 
-    def plot_block_minimap(
+def plot_block_minimap(
     ndf,
     block_id,
     models=None,
