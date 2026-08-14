@@ -682,3 +682,131 @@ def _walk(orders, hits, pos0, direction, seed, patience):
             n_kept, last_kept = steps_taken, orders[idx]
 
     return n_kept, last_kept, saw_hit
+
+    def plot_block_minimap(
+    ndf,
+    block_id,
+    models=None,
+    label_queries=True,
+    figsize=(12, 2),
+):
+    """
+    Plot an equally spaced minimap of one NeighborhoodDF block.
+
+    Black lines
+        Features containing at least one domain. If `models` is supplied,
+        only domains present in that collection are marked.
+
+    Red lines
+        Query features.
+
+    Parameters
+    ----------
+    ndf : pandas.DataFrame
+        NeighborhoodDF containing block_id, internal_id, pid, pfam, and query.
+
+    block_id : str
+        Block to plot.
+
+    models : iterable or pandas.Series, optional
+        Domain models of interest. When None, every feature with a non-null
+        pfam architecture is marked.
+
+    label_queries : bool, default=True
+        Add the query PID above its line.
+
+    figsize : tuple, default=(12, 2)
+        Matplotlib figure size.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    block = (
+        ndf.loc[
+            ndf["block_id"] == block_id,
+            ["internal_id", "pid", "pfam", "query"],
+        ]
+        .sort_values("internal_id")
+        .drop_duplicates("internal_id")
+        .copy()
+    )
+
+    if block.empty:
+        raise ValueError(f"No rows found for block_id: {block_id}")
+
+    # Equally spaced positions, independent of genomic coordinate distances.
+    if len(block) == 1:
+        block["plot_position"] = 0.5
+    else:
+        block["plot_position"] = np.linspace(0, 1, len(block))
+
+    if models is None:
+        domain_mask = block["pfam"].notna()
+    else:
+        model_set = set(models)
+
+        domain_mask = (
+            block["pfam"]
+            .fillna("")
+            .str.split("+")
+            .apply(lambda architecture: bool(model_set.intersection(architecture)))
+        )
+
+    query_mask = block["query"].eq(1)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Baseline representing the neighborhood.
+    ax.hlines(
+        y=0,
+        xmin=0,
+        xmax=1,
+        linewidth=1,
+    )
+
+    # Features containing domains.
+    ax.vlines(
+        block.loc[domain_mask, "plot_position"],
+        ymin=-0.25,
+        ymax=0.25,
+        color="black",
+        linewidth=1.2,
+    )
+
+    # Query features.
+    ax.vlines(
+        block.loc[query_mask, "plot_position"],
+        ymin=-0.4,
+        ymax=0.4,
+        color="red",
+        linewidth=2.2,
+    )
+
+    if label_queries:
+        for row in block.loc[query_mask].itertuples():
+            label = row.pid if row.pid == row.pid else "query"
+
+            ax.text(
+                row.plot_position,
+                0.48,
+                str(label),
+                rotation=45,
+                ha="left",
+                va="bottom",
+                fontsize=8,
+            )
+
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.55, 0.85)
+
+    ax.set_xlabel(
+        f"Relative feature position ({len(block)} features)"
+    )
+    ax.set_yticks([])
+    ax.set_title(block_id)
+
+    ax.spines[["left", "right", "top"]].set_visible(False)
+
+    plt.tight_layout()
+
+    return fig, ax
