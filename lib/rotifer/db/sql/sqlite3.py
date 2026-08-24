@@ -1,6 +1,14 @@
 __doc__ = """
-Rotifer connections to SQL databases
-====================================
+Fetch gene neighborhoods and identical protein group reports from
+local SQLite3 databases.
+
+The databases queried here are built by other rotifer tools (for
+example, by caching batches downloaded through
+:mod:`rotifer.db.ncbi`) and follow a fixed schema: a ``features``
+table of genome annotation rows and, optionally, a ``nr`` table of
+non-redundant sequence clusters. This module never contacts the
+network; all cursors here only read and write the SQLite3 file
+given as ``path``.
 """
 
 # Dependencies
@@ -28,34 +36,27 @@ config = rcf.loadConfig(__name__, defaults = {})
 
 class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
     """
-    Shared SQLite3 methods and initialization routines
-    ==================================================
+    Shared connection and query helpers for SQLite3 cursors.
 
-    This class is not expected to be used directly
-    but as a parent class for all SQLite3 cursors.
-
-    Usage
-    -----
-    Dictionary-like interface
-
-    >>> from rotifer.db.sql import sqlite3 as rdss
-    >>> gnc = rdss.GeneNeighborhoodCursor("genomes.sqlite3")
-    >>> df = gnc["EEE9598493.1"]
+    This class is not meant to be used directly: it is a parent
+    class that opens the database file and provides the temporary
+    query table used by subclasses to submit batches of accessions.
+    Failed lookups are still tracked through the inherited
+    :attr:`~rotifer.db.core.BaseCursor.missing` registry.
 
     Parameters
     ----------
-    path: string
-      Path to a SQLite3 database file
+    path : str
+        Path to a SQLite3 database file. The file is created on
+        first write if it does not exist.
+    replace : bool, default False
+        If True, delete any existing file at ``path`` before
+        opening the connection.
 
-    Internal state attributes
-    -------------------------
-    Objects of this class modify the following attributes
-    when fetch methods are called:
-
-    * missing
-      A Pandas DataFrame describing errors and messages for
-      failed attempts to download gene neighborhoods.
-
+    See Also
+    --------
+    rotifer.db.sql.sqlite3.GeneNeighborhoodCursor : gene neighborhood cursor
+    rotifer.db.sql.sqlite3.IPGCursor : identical protein group cursor
     """
     def __init__(
             self,
@@ -74,23 +75,29 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
 
     def stored(self, data, column='block_id', table='features'):
         """
-        Find which part of the input data is stored in the
-        object's SQLite3 database.
+        Find which rows of the input data are already stored.
 
         Parameters
         ----------
-        data: string, list, pandas series or dataframe
-          Input data to scan for entries in the database
-        column: (list of) string
-          What column(s) to use while searching.
-        table: string
-          Name of the table to search for matches.
+        data : str, list, pandas.Series or pandas.DataFrame
+            Input data to scan for entries in the database.
+        column : str or list of str
+            Column(s) to use while searching. Ignored when ``data``
+            is not a dataframe.
+        table : str, default 'features'
+            Name of the table to search for matches.
 
         Returns
         -------
-        Pandas Series of boolean values
-        The Series elements are True if the corresponding
-        data is found in the storage. 
+        pandas.Series of bool
+            True for rows whose value is already present in
+            ``table``.
+
+        Note
+        ----
+        The default ``column`` is documented as a single column
+        name but is iterated as ``for col in column``; see
+        ``docs/OPEN_QUESTIONS.md``.
         """
         ret = pd.Series([ False for x in range(1,len(data)) ])
         if not self.has_table(table):
@@ -110,6 +117,15 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
     def has_table(self, name):
         """
         Find whether a table exists in the database.
+
+        Parameters
+        ----------
+        name : str
+            Table name.
+
+        Returns
+        -------
+        bool
         """
         sql = self._dbconn.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}'").fetchall()
         return len(sql) > 0
@@ -117,26 +133,32 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
     @property
     def schema(self):
         """
-        Show table definitions.
+        The SQL statement used to create the database's first table.
 
         Returns
         -------
-        String
+        str
         """
         return self._dbconn.execute("""SELECT sql FROM sqlite_schema;""").fetchall()[0][0]
 
     def submit(self, accessions):
         """
-        Send data to temporary tables for use in subsequent searches.
-        
-        Note
-        ----
-        Submitted data will be overwritten in the next submit() call.
+        Register query accessions in a temporary table.
+
+        Subclasses join this table against ``features`` (or another
+        stored table) to restrict SQL queries to the requested
+        accessions.
 
         Parameters
         ----------
-        accessions:
-         Any sqlite3 supported values, such as strings, integers or float.
+        accessions : iterable
+            Any values supported by SQLite3, such as strings,
+            integers or floats.
+
+        Note
+        ----
+        Accessions submitted by a previous call are cleared first;
+        this cursor holds only one pending batch at a time.
         """
         if isinstance(accessions,str) or not isinstance(accessions,typing.Iterable):
             ids = set([accessions])
@@ -151,107 +173,82 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
 
     def cleanup(self):
         """
-        Remove data from temporary tables.
+        Remove this cursor's rows from the temporary query table.
         """
         self._dbconn.execute(f"DELETE FROM queries WHERE uuid = '{self.uuid}'")
         self._dbconn.commit()
 
 class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLite3Cursor):
     """
-    Fetch gene neighborhoods from SQLite3 database
-    ==============================================
+    Fetch gene neighborhoods cached in a local SQLite3 database.
 
-    This class implements methods for retrieval of
-    gene neighborhoods from a local SQLite3 database.
+    All parameters accepted at initialization are also exposed as
+    mutable attributes that can be changed between calls to tune the
+    cursor's behaviour. Failed lookups are tracked through the
+    inherited :attr:`~rotifer.db.core.BaseCursor.missing` registry.
 
-    Usage
-    -----
+    Parameters
+    ----------
+    path : str
+        Path to a SQLite3 database file.
+    replace : bool, default False
+        If True, overwrite the database file.
+    column : str, default 'pid'
+        Name of the ``features`` table column to match against the
+        queried accessions. See :class:`rotifer.genome.data.NeighborhoodDF`.
+    before : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, upstream of each target.
+    after : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, downstream of each target.
+    min_block_distance : int, default 0
+        Minimum distance between two consecutive blocks.
+    strand : str, optional
+        How to evaluate rows relative to the strand of the target.
+        One of:
+
+        - None : ignore strand
+        - same : same strand as the target
+        - + : positive strand features and targets only
+        - - : negative strand features and targets only
+
+    fttype : str, default 'same'
+        How to process feature types when counting neighbors:
+
+        - same : consider only features of the same type as the target
+        - any : ignore feature type when setting neighborhood
+          boundaries
+
+    eukaryotes : bool, default False
+        Whether the queried genomes are eukaryotic.
+    exclude_type : list of str, default ['source', 'gene', 'mRNA']
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Default codon table, used when not set in the data.
+    progress : bool, default False
+        Whether to print a progress bar.
+
+    See Also
+    --------
+    rotifer.db.methods.GeneNeighborhoodCursor : shared gene neighborhood interface
+    rotifer.db.sql.sqlite3.IPGCursor : identical protein group cursor
+
+    Examples
+    --------
     Using the dictionary-like interface, fetch the gene
     neighborhood around the gene encoding a target protein:
 
     >>> from rotifer.db.sql import sqlite3 as rdss
-    >>> gnc = rdss.GeneNeighborhoodCursor("genomes.sqlite3")
-    >>> df = gnc["EEE9598493.1"]
+    >>> gnc = rdss.GeneNeighborhoodCursor("genomes.sqlite3")  # doctest: +SKIP
+    >>> df = gnc["EEE9598493.1"]  # doctest: +SKIP
 
     Fetch all gene neighborhoods for a sample of proteins:
 
     >>> q = ['WP_012291365.1','WP_013208129.1','WP_122330970.1']
-    >>> df = gnc.fetchall(q)
-
-    Process gene neighborhoods while loading:
-
-    >>> for n in gnc.fetchone(q):
-    >>>     do_something(n)
-
-    Parameters
-    ----------
-    *Important note:*
-
-    All parameters for initialization of this class are acessible
-    as mutable attributes and can be modified to tune the cursor's
-    behaviour.
-
-    path: string
-      Path to a SQLite3 database file
-    replace : boolean, default False
-      If set to true, overwrite the database file
-    column : string
-      Name of the column to scan for matches to the accessions
-      See rotifer.genome.data.NeighborhoodDF
-    before : int
-      Keep at most this number of features, of the same type as the
-      target, before each target
-    after  : nt
-      Keep at most this number of features, of the same type as the
-      target, after each target
-    min_block_distance : int
-      Minimum distance between two consecutive blocks
-    strand : string
-      How to evaluate rows concerning the value of the strand column
-      Possible values for this option are:
-
-      - None : ignore strand
-      - same : same strand as the targets
-      -    + : positive strand features and targets only
-      -    - : negative strand features and targets only
-
-    fttype : string
-      How to process feature types of neighbors
-      Supported values:
-
-      - same : consider only features of the same type as the target
-      - any  : ignore feature type and count all features when
-               setting neighborhood boundaries
-
-    eukaryotes : boolean, default False
-      If set to True, neighborhood data for eukaryotic genomes
-    save : string, default None
-      If set, save processed batches to the path given
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    cache: path-like string
-      Where to place temporary files
-
-    Internal state attributes
-    -------------------------
-    Objects of this class modify two main read/write attributes
-    when fetch methods are called:
-    * missing
-      A Pandas DataFrame describing errors and messages for
-      failed attempts to download gene neighborhoods.
-
+    >>> df = gnc.fetchall(q)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -287,7 +284,22 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
 
     def __getitem__(self, accession, ipgs=None):
         """
-        Dictionary-like access to gene neighbors.
+        Fetch gene neighborhoods, dictionary style.
+
+        Parameters
+        ----------
+        accession : str or iterable of str
+            Database identifiers.
+        ipgs : pandas.DataFrame, optional
+            Identical protein group report used to restrict results
+            to nucleotides confirmed by NCBI's IPG database.
+
+        Returns
+        -------
+        rotifer.genome.data.NeighborhoodDF
+            Neighborhood rows for the found accessions. Accessions
+            not found in the ``features`` table are registered in
+            ``self.missing``.
         """
         if not self.has_table('features'):
             return NeighborhoodDF()
@@ -360,24 +372,27 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
 
     def fetchone(self, proteins, ipgs=None):
         """
-        Fetch each gene neighborhood iteratively.
+        Iterate over gene neighborhoods, one block at a time.
 
         Parameters
         ----------
-        proteins: list of strings
-          Database identifiers.
-        ipgs : Pandas dataframe
-          This parameter may be used to avoid downloading IPGs
-          from NCBI several times. Example:
+        proteins : list of str
+            Database identifiers.
+        ipgs : pandas.DataFrame, optional
+            Identical protein group report, passed through to
+            :meth:`__getitem__` to avoid recomputing it.
 
-          >>> from rotifer.db.sql import sqlite3 as dns
-          >>> gnc = rdss.GeneNeighborhoodCursor(progress=True)
-          >>> for n in gnc.fetchone(['WP_063732599.1']):
-                print(n.groupby('nucleotide').block_id.nunique())
+        Yields
+        ------
+        rotifer.genome.data.NeighborhoodDF
+            The rows of one neighborhood block.
 
-        Returns
-        -------
-        Generator of rotifer.genome.data.NeighborhoodDF
+        Examples
+        --------
+        >>> from rotifer.db.sql import sqlite3 as rdss
+        >>> gnc = rdss.GeneNeighborhoodCursor("genomes.sqlite3", progress=True)  # doctest: +SKIP
+        >>> for n in gnc.fetchone(['WP_063732599.1']):  # doctest: +SKIP
+        ...     print(n.groupby('nucleotide').block_id.nunique())
         """
         if not isinstance(proteins,typing.Iterable) or isinstance(proteins,str):
             proteins = [proteins]
@@ -398,19 +413,21 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
 
         Parameters
         ----------
-        proteins: list of strings
-          Database identifiers.
-        ipgs : Pandas dataframe
-          This parameter may be used to avoid downloading IPGs
-          from NCBI several times. Example:
-
-          >>> from rotifer.db.sql import sqlite3 as rdss
-          >>> gnc = rdss.GeneNeighborhoodCursor()
-          >>> n = gnc.fetchall(['WP_063732599.1'])
+        ids : list of str
+            Database identifiers.
+        ipgs : pandas.DataFrame, optional
+            Identical protein group report, passed through to
+            :meth:`__getitem__` to avoid recomputing it.
 
         Returns
         -------
         rotifer.genome.data.NeighborhoodDF
+
+        Examples
+        --------
+        >>> from rotifer.db.sql import sqlite3 as rdss
+        >>> gnc = rdss.GeneNeighborhoodCursor("genomes.sqlite3")  # doctest: +SKIP
+        >>> n = gnc.fetchall(['WP_063732599.1'])  # doctest: +SKIP
         """
         return self.__getitem__(ids, ipgs=ipgs)
 
@@ -418,10 +435,13 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         """
         Store genome annotation data in the SQLite3 database.
 
+        Rows already present in the ``features`` table (matched by
+        ``block_id``) are skipped.
+
         Parameters
         ----------
-        data: rotifer.genome.data.NeighborhoodDF
-          Gene neighborhood dataframe
+        data : rotifer.genome.data.NeighborhoodDF
+            Gene neighborhood dataframe.
         """
         data = data[~self.stored(data)]
         if len(data) > 0:
@@ -429,21 +449,35 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
 
 class IPGCursor(rotifer.db.methods.SequenceCursor, BaseSQLite3Cursor):
     """
-    Fetch identical proteins reports (IPG).
+    Fetch identical protein group (IPG) reports from a local SQLite3 database.
 
-    Usage
-    -----
-    >>> from rotifer.db.sql import sqlite3 as rdss
-    >>> ic = rdss.IPGCursor(database="protein")
-    >>> df = ic.fetchall("YP_009724395.1")
+    Depending on ``identical``, results are built either from a
+    precomputed non-redundant clustering table (``nr``) or directly
+    from the ``features`` table.
 
     Parameters
     ----------
-    path: list of strings
-        Path to local SQLite3 database
-    replace : boolean, default False
-      If set to true, overwrite the database file
+    path : str
+        Path to a local SQLite3 database.
+    replace : bool, default False
+        If True, overwrite the database file.
+    identical : str or None, default 'c100'
+        Name of the clustering column used to group identical
+        proteins. If None, IPGs are derived from ``features`` alone.
+    identical_column : str, default 'c100i100'
+        Column added to the report identifying the cluster
+        representative.
 
+    See Also
+    --------
+    rotifer.db.sql.sqlite3.GeneNeighborhoodCursor : gene neighborhood cursor
+    rotifer.db.ncbi.entrez.IPGCursor : equivalent cursor backed by NCBI Entrez
+
+    Examples
+    --------
+    >>> from rotifer.db.sql import sqlite3 as rdss
+    >>> ic = rdss.IPGCursor("genomes.sqlite3")  # doctest: +SKIP
+    >>> df = ic.fetchall("YP_009724395.1")  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -461,7 +495,19 @@ class IPGCursor(rotifer.db.methods.SequenceCursor, BaseSQLite3Cursor):
     # Fetch identical sequences and merge
     def __getitem__(self, accessions):
         """
-        Identical protein report dictionary-like interface.
+        Fetch identical protein group reports, dictionary style.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns as listed in ``self._columns`` plus
+            ``self._added_columns``. Empty if the SQL file for the
+            selected ``identical`` mode could not be found.
         """
         self.submit(accessions)
         if self.identical == None:
@@ -479,4 +525,16 @@ class IPGCursor(rotifer.db.methods.SequenceCursor, BaseSQLite3Cursor):
         return result
 
     def fetchall(self, accessions):
+        """
+        Fetch identical protein group reports for all accessions at once.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Returns
+        -------
+        pandas.DataFrame
+        """
         return self.__getitem__(accessions)
