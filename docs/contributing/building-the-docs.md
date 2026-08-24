@@ -1,5 +1,16 @@
 # Building the docs
 
+TL;DR, I want to build the docs:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r docs/requirements.txt
+pip install -e .
+cd docs
+make livehtml
+```
+
 ## Environment setup
 
 The docs build needs Python 3.12 or newer, the pinned documentation
