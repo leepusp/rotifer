@@ -1,3 +1,16 @@
+"""
+Query UniProt's REST web services.
+
+:mod:`rotifer.db.uniprot.webapi.idmapping` implements the identifier
+mapping workflow: submit a batch of accessions, poll until the job
+finishes and download the results.
+
+Note
+----
+The ``local_database_path`` configuration default below is not used
+anywhere in this package; see ``docs/OPEN_QUESTIONS.md``.
+"""
+
 import os
 import rotifer
 from rotifer import GlobalConfig

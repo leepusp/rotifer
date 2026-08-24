@@ -1,3 +1,16 @@
+"""
+Access data hosted by UniProt.
+
+This package groups the tools that query UniProt's web services.
+Currently :mod:`rotifer.db.uniprot.webapi` wraps UniProt's REST API
+for mapping identifiers between databases.
+
+Note
+----
+The ``local_database_path`` configuration default below is not used
+anywhere in this package; see ``docs/OPEN_QUESTIONS.md``.
+"""
+
 import os
 import rotifer
 from rotifer import GlobalConfig
