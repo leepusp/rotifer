@@ -1,6 +1,16 @@
 
 #!/usr/bin/env python3
 
+"""
+Reusable command line argument sets for database tools.
+
+This module defines argument parser builders shared by rotifer's
+command line programs that query the laboratory's PostgreSQL genome
+annotation database: :class:`sql` collects the connection options and
+:class:`rneighbors` collects the options of the ``rneighbors``
+program.
+"""
+
 __version__ = "0.01"
 
 ### Import rotifer package
@@ -14,6 +24,14 @@ import rotifer.core.cli as corecli
 import argparse
 
 class sql:
+    """
+    Argument parser builder for SQL database connection options.
+
+    The available options are ``--database``, ``--port``, ``--host``
+    and ``--user``, with defaults matching the laboratory's internal
+    PostgreSQL server.
+    """
+
     def __init__(self):
          self.dc = {'database': {'short': '-d',
                         'long': '--database',
@@ -36,7 +54,25 @@ class sql:
     def input(self, number = 1, exclude = [],
               input_order = ['database', 'port','host','user'],
               add_help = False):
+        """
+        Build an argument parser with the connection options.
 
+        Parameters
+        ----------
+        number : int, default 1
+            Unused, kept for interface compatibility.
+        exclude : list of str, default []
+            Option names to leave out of the parser.
+        input_order : list of str, default ``['database', 'port', 'host', 'user']``
+            Options to add, in order.
+        add_help : bool, default False
+            Whether the parser defines its own ``--help`` option.
+
+        Returns
+        -------
+        argparse.ArgumentParser
+            The configured parser.
+        """
         self.parser = argparse.ArgumentParser(add_help = add_help)
         for choice in input_order:
             if choice not in exclude:
@@ -49,6 +85,15 @@ class sql:
 
 
 class rneighbors:
+    """
+    Argument parser builder for the ``rneighbors`` program.
+
+    The options cover the input file of protein accessions, the size
+    of the neighborhood (``--above`` and ``--below``), filters by
+    genomic accession or assembly, output format selection and
+    logging destinations.
+    """
+
     def __init__(self):
         self.dc = {'above': {'short': '-a',
                         'long': '--above',
@@ -98,16 +143,31 @@ class rneighbors:
               input_order = ['file','above', 'below', 'gacc', 'asm',
                               'debug','outformat', 'log'],
               add_help = False, no_open = False):
-        '''
-        file,
-        above,
-        below,
-        gacc,
-        asm.
-        debug,
-        outformat,
-        log
-        '''
+        """
+        Build an argument parser with the ``rneighbors`` options.
+
+        Parameters
+        ----------
+        number : int, default 1
+            Unused, kept for interface compatibility.
+        exclude : list of str, default []
+            Option names to leave out of the parser.
+        input_order : list of str, optional
+            Options to add, in order. Defaults to every available
+            option: ``file``, ``above``, ``below``, ``gacc``,
+            ``asm``, ``debug``, ``outformat`` and ``log``.
+        add_help : bool, default False
+            Whether the parser defines its own ``--help`` option.
+        no_open : bool, default False
+            When True, the ``--genomic_accession`` and ``--assembly``
+            options take plain values instead of files loaded through
+            :mod:`rotifer.core.cli`.
+
+        Returns
+        -------
+        argparse.ArgumentParser
+            The configured parser.
+        """
         self.parser = argparse.ArgumentParser(add_help = add_help)
         for choice in input_order:
             if choice not in exclude:

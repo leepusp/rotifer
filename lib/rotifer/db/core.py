@@ -1,3 +1,14 @@
+"""
+Abstract base class for all database cursors.
+
+This module defines :class:`BaseCursor`, the root of the cursor class
+hierarchy used across :mod:`rotifer.db`. It standardizes identifier
+handling and the bookkeeping of entries that could not be retrieved.
+Concrete cursors implement the actual data access methods
+(``__getitem__``, :meth:`~BaseCursor.fetchone` and
+:meth:`~BaseCursor.fetchall`).
+"""
+
 import types
 import typing
 import pandas as pd
@@ -11,17 +22,25 @@ class BaseCursor:
     """
     Generic database cursor abstract interface.
 
+    Subclasses must implement ``__getitem__``, :meth:`fetchone`,
+    :meth:`fetchall` and :meth:`getids`. The base class provides
+    identifier normalization (:meth:`parse_ids`) and a registry of
+    missing entries (:attr:`missing`, :meth:`missing_ids`,
+    :meth:`update_missing`, :meth:`remove_missing`).
+
     Parameters
     ----------
-    batch_size: int, default 1
-      Number of accessions per batch
-    threads: integer, default 3
-      Number of simultaneous threads to run
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download each batch
+    progress : bool, default False
+        Whether to print a progress bar.
 
+    Attributes
+    ----------
+    giveup : set of str
+        Substrings of error messages that mark an entry as
+        unrecoverable, so no further retrieval attempts are made.
+    maxgetitem : int
+        Maximum number of accessions accepted per ``__getitem__``
+        call.
     """
     def __init__(self, progress=False, *args, **kwargs):
         self.progress = progress
@@ -32,25 +51,34 @@ class BaseCursor:
 
     def parse_ids(self, accessions, as_string=True):
         """
-        Convert a list of accessions into a set object
+        Convert a collection of accessions into a set.
 
-        Usage
-        -----
-        setobj = cursor.parse_ids(["acc1","acc2"])
+        Cursors accept identifiers as strings, lists, tuples, sets,
+        pandas Series or other iterables. This method converges any
+        of those inputs into a standard representation, a Python set.
+        Comma separated strings are split into individual accessions.
 
         Parameters
         ----------
-        as_string : boolean, default True
-          Convert individual accessions to strings
+        accessions : str or iterable
+            One or more database identifiers. A string containing
+            commas is split on the commas.
+        as_string : bool, default True
+            Convert individual accessions to strings.
 
-        Rational
+        Returns
+        -------
+        set
+            The normalized, deduplicated identifiers.
+
+        Examples
         --------
-        Cursors usually receive a list of valid database
-        identifiers as input but such a list can be given
-        as strings, lists, Pandas series or other objects.
-
-        This method ensures that the input converges into
-        a standard representation, i.e. a Python set.
+        >>> from rotifer.db.core import BaseCursor
+        >>> cursor = BaseCursor()
+        >>> sorted(cursor.parse_ids("acc1,acc2"))
+        ['acc1', 'acc2']
+        >>> sorted(cursor.parse_ids(["acc1", "acc1", "acc2"]))
+        ['acc1', 'acc2']
         """
         from copy import deepcopy
         targets = deepcopy(accessions)
@@ -65,6 +93,17 @@ class BaseCursor:
 
     @property
     def missing(self):
+        """
+        Registry of entries that could not be retrieved.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per missing accession, indexed by accession, with
+            columns ``error`` (last error message), ``class`` (the
+            cursor that failed) and ``retry`` (whether another attempt
+            may succeed).
+        """
         return pd.DataFrame(self._missing, index="error class retry".split(" ")).T
 
     def missing_ids(self, retry=None):
@@ -73,9 +112,16 @@ class BaseCursor:
 
         Parameters
         ----------
-        retry: boolean, default None
-          Filter accession based on whether they might
-          still be recovered (retry=True) or not (retry=False)
+        retry : bool, optional
+            When set, filter accessions based on whether they might
+            still be recovered (``retry=True``) or not
+            (``retry=False``). By default all missing accessions are
+            returned.
+
+        Returns
+        -------
+        set of str
+            The missing accessions.
         """
         if isinstance(retry, types.NoneType):
             return set(sorted(list(self._missing.keys())))
@@ -88,19 +134,27 @@ class BaseCursor:
 
         Parameters
         ----------
-        accessions: list, tuple or set
-          Database identifiers
-        error: string, default None
-          A string describing the latest error
-        retry: boolean, default None
-          Whether the error is recoverable or not
-        data: dictionary, default None
-          A dictionary that matches the internal
-          registry, with accessions as keys and
-          three-elements lists as values.
+        accessions : list, tuple or set
+            Database identifiers to register as missing.
+        error : str, optional
+            A string describing the latest error. When not given,
+            the previously recorded error is kept, or the text
+            ``"Unknown error"`` is used for new entries.
+        retry : bool, optional
+            Whether the error is recoverable. When not given, the
+            value is inferred by matching `error` against the
+            ``giveup`` patterns.
+        data : dict, optional
+            A dictionary matching the internal registry layout, with
+            accessions as keys and three element lists (error,
+            calling class, retry flag) as values. When given, the
+            `accessions`, `error` and `retry` parameters are ignored.
 
-          If using this parameter, error and retry
-          are ignored.
+        Returns
+        -------
+        bool
+            Whether at least one of the registered entries may still
+            be recovered by another retrieval attempt.
         """
         if isinstance(data, types.NoneType):
             if isinstance(retry,types.NoneType):
@@ -130,8 +184,15 @@ class BaseCursor:
 
         Parameters
         ----------
-        accessions: list of strings or None
-          If set to None, all entries in the cache will be removed
+        accessions : list of str, optional
+            Accessions to remove from the registry. When not given,
+            all entries are removed.
+
+        Returns
+        -------
+        dict or None
+            When all entries are removed, the previous registry
+            content is returned. Otherwise nothing is returned.
         """
         if isinstance(accessions,types.NoneType):
             old = self._missing.copy()
@@ -143,51 +204,81 @@ class BaseCursor:
 
     def getids(self, obj):
         """
-        Extract accessions from the objects generated by parser().
+        Extract accessions from the objects generated by the cursor.
+
+        Subclasses must override this method to recognize their own
+        result objects.
+
+        Parameters
+        ----------
+        obj : object
+            A result object produced by the cursor.
 
         Returns
         -------
-        A set of strings.
+        set of str
+            The accessions found in `obj`.
         """
         return NotImplementedError(f'Method getids() must be implemented by descendants')
 
     def __getitem__(self, accession, *args, **kwargs):
         """
-        Fetch data from the database.
+        Fetch data for one entry, dictionary style.
+
+        Subclasses must override this method.
 
         Parameters
         ----------
-        accession: string
-          Database entry identifier.
+        accession : str
+            Database entry identifier.
 
+        Raises
+        ------
+        NotImplementedError
+            Always, unless overridden by a subclass.
         """
         raise NotImplementedError(f'Method __getitem__() must be implemented by descendants')
 
     def fetchone(self, accessions, *args, **kwargs):
         """
-        Asynchronously fetch sequences data from a database.
-        Note: input order is not preserved.
+        Iterate over entries as they are retrieved.
+
+        Subclasses must override this method. Input order is not
+        preserved.
 
         Parameters
         ----------
-        accessions: list of strings
-          Database entry identifiers.
+        accessions : list of str
+            Database entry identifiers.
 
-        Returns
-        -------
-        A generator for Bio.SeqRecord objects
+        Yields
+        ------
+        object
+            One result object per retrieved entry.
+
+        Raises
+        ------
+        NotImplementedError
+            Always, unless overridden by a subclass.
         """
         raise NotImplementedError(f'Method fetchone() must be implemented by descendants')
 
     def fetchall(self, accessions, *args, **kwargs):
         """
-        Fetch all data.
-        Note: input order is not preserved.
+        Fetch data for all entries at once.
+
+        Subclasses must override this method. Input order is not
+        preserved.
 
         Parameters
         ----------
-        accessions: list of strings
-         Database entry identifiers 
+        accessions : list of str
+            Database entry identifiers.
+
+        Raises
+        ------
+        NotImplementedError
+            Always, unless overridden by a subclass.
         """
         raise NotImplementedError(f'Method fetchall() must be implemented by descendants')
 
