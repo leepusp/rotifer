@@ -1,0 +1,153 @@
+/* ROTIFER documentation design tokens.
+ *
+ * Single source of truth: every color, font and radius used by the site is
+ * defined in the two token blocks below (light, then dark). No other CSS
+ * file, template or directive in this docs tree may contain a color literal.
+ * To change the accent, edit --rot-accent (and its dark twin) and nothing
+ * else. Also keep the "accent_color" tunable in conf.py on the nearest
+ * radix family so theme-owned surfaces stay in sync.
+ *
+ * Contrast (WCAG AA): every pair used below was computed during the last
+ * design audit; see contributing/design-system for the numbers.
+ */
+
+:root {
+  --rot-accent:        #0E7C86;  /* deep teal, the only accent (4.95:1 on --rot-bg) */
+  --rot-accent-hover:  #0A626A;
+  --rot-bg:            #FFFFFF;
+  --rot-surface:       #F5F7F8;
+  --rot-border:        #DDE3E6;
+  --rot-text:          #1A2226;
+  --rot-text-muted:    #5B6771;
+  --rot-code-bg:       #F2F5F6;
+
+  --rot-font-sans: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Oxygen",
+                   "Ubuntu", "Droid Sans", "Helvetica Neue", sans-serif;
+  --rot-font-mono: ui-monospace, "SFMono-Regular", "Menlo", "Monaco",
+                   "Consolas", "Liberation Mono", "Courier New", monospace;
+
+  /* One corner-radius scale for the whole site. */
+  --rot-radius:     6px;
+  /* Motion: hover and focus transitions only, always under 150ms. */
+  --rot-transition: 120ms ease;
+}
+
+/* Shibuya toggles dark mode by setting the "dark" class on <html>. */
+html.dark {
+  --rot-accent:        #47B3B0;  /* 7.08:1 on --rot-bg */
+  --rot-accent-hover:  #6BC5C2;
+  --rot-bg:            #14181D;
+  --rot-surface:       #1C2127;
+  --rot-border:        #2A3138;
+  --rot-text:          #E6EAED;
+  --rot-text-muted:    #9BA6AE;
+  --rot-code-bg:       #191E24;
+}
+
+/* ------------------------------------------------------------------------
+ * Token mapping. Everything below only references the tokens above.
+ * ---------------------------------------------------------------------- */
+
+/* Map the tokens onto the variables Shibuya consumes. Because the --rot-*
+ * tokens flip inside html.dark, a single mapping covers both modes. */
+:root,
+html.dark {
+  --sy-c-link:        var(--rot-accent);
+  --sy-c-link-hover:  var(--rot-accent-hover);
+  --sy-c-text:        var(--rot-text);
+  --sy-c-light:       var(--rot-text-muted);
+  --sy-c-bold:        var(--rot-text);
+  --sy-c-heading:     var(--rot-text);
+  --sy-c-background:  var(--rot-bg);
+  --sy-c-surface:     var(--rot-surface);
+  --sy-c-border:      var(--rot-border);
+  --sy-c-divider:     var(--rot-border);
+  --sy-f-heading:     var(--rot-font-sans);
+  --sy-f-text:        var(--rot-font-sans);
+  --sy-f-mono:        var(--rot-font-mono);
+}
+
+/* Map the tokens onto the variables sphinx-design consumes. */
+:root,
+html.dark {
+  --sd-color-primary:            var(--rot-accent);
+  --sd-color-primary-highlight:  var(--rot-accent-hover);
+  --sd-color-card-border:        var(--rot-border);
+  --sd-color-card-border-hover:  var(--rot-accent);
+  --sd-color-tabs-label-active:        var(--rot-accent);
+  --sd-color-tabs-label-hover:         var(--rot-accent-hover);
+  --sd-color-tabs-label-inactive:      var(--rot-text-muted);
+  --sd-color-tabs-underline-active:    var(--rot-accent);
+  --sd-color-tabs-underline-hover:     var(--rot-border);
+  --sd-color-tabs-underline-inactive:  transparent;
+}
+
+/* Readability: keep prose near 72 characters. Tables, code blocks and API
+ * signatures may use the full content column but never force the page to
+ * scroll sideways (their containers scroll instead). */
+.yue p,
+.yue li,
+.yue dd {
+  max-width: 72ch;
+}
+
+.yue div.highlight pre {
+  background-color: var(--rot-code-bg);
+  border-radius: var(--rot-radius);
+}
+
+/* One radius scale everywhere. */
+.sd-card,
+.sd-dropdown,
+.yue img,
+.yue table.dataTable,
+.admonition {
+  border-radius: var(--rot-radius);
+}
+
+/* Cards: functional hover feedback on the border only. */
+.sd-card {
+  border-color: var(--rot-border);
+  transition: border-color var(--rot-transition);
+}
+
+.sd-card:hover {
+  border-color: var(--rot-accent);
+}
+
+.sd-card .sd-card-title iconify-icon {
+  color: var(--rot-accent);
+  vertical-align: -0.2em;
+  margin-right: 0.35em;
+}
+
+/* Focus rings use the accent. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--rot-accent);
+  outline-offset: 2px;
+}
+
+/* DataTables widgets inherit the site palette. */
+table.dataTable {
+  border-color: var(--rot-border);
+}
+
+div.dt-container .dt-search input {
+  border: 1px solid var(--rot-border);
+  border-radius: var(--rot-radius);
+  background-color: var(--rot-bg);
+  color: var(--rot-text);
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
