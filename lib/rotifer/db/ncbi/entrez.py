@@ -1,3 +1,21 @@
+"""
+Access NCBI databases through the Entrez E-utilities.
+
+Cursors in this module download sequences, identical protein group
+(IPG) reports, taxonomy records, nucleotide feature tables and gene
+neighborhoods with Biopython's :mod:`Bio.Entrez` interface to the
+NCBI E-utilities web service.
+
+Network, authentication and rate limits
+---------------------------------------
+Every request sends the user email registered in the
+:mod:`rotifer.db.ncbi` configuration and the API key from the
+``NCBI_API_KEY`` environment variable, when set. Without an API key
+NCBI allows 3 requests per second and the cursors cap themselves at
+3 simultaneous threads; with a key the cap is 10 threads. No data is
+cached locally.
+"""
+
 # Import external modules
 import os
 import sys
@@ -32,42 +50,50 @@ config = loadConfig(__name__, defaults = _defaults)
 
 class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.parallel.SimpleParallelProcessCursor):
     """
-    Fetch sequences from NCBI using accession numbers and EUtilities.
+    Fetch annotated sequences from NCBI with the E-utilities.
 
-    This class downloads and parses sequences in Genbank format, i.e.
-    the most richly annotated format from NCBI.
-
-    Usage
-    -----
-    Fetch a protein sequence
-    >>> from rotifer.db.ncbi import entrez
-    >>> sc = entrez.SequenceCursor(database="protein")
-    >>> seqrec = sc.fetchall("YP_009724395.1")
-
-    Fetch several nucleotide entries
-    >>> import sys
-    >>> from Bio import SeqIO
-    >>> from rotifer.db.ncbi import entrez
-    >>> sc = entrez.SequenceCursor(database="nucleotide")
-    >>> query = ['CP084314.1', 'NC_019757.1', 'AAHROG010000026.1']
-    >>> for seqrec in sc.fetchone(query):
-    >>>     print(SeqIO.write(seqrec, sys.stdout, "genbank")
+    Sequences are downloaded with EFetch and parsed from GenBank
+    format, the most richly annotated format NCBI provides.
 
     Parameters
     ----------
-    database: string, default 'protein'
-        Valid NCBI sequence database
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    sleep_between_tries: int, default 1
-      Number of seconds to wait between download attempts
-    batch_size: int, default 1
-      Number of accessions per batch
-    threads: integer, default 3
-      Number of simultaneous threads to run
+    database : str, default 'nucleotide'
+        A valid NCBI sequence database name, such as ``protein`` or
+        ``nucleotide``.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch. The default may be changed
+        by the module configuration.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
 
+    See Also
+    --------
+    FastaCursor : faster download without annotations
+    rotifer.db.ncbi.SequenceCursor : delegator that combines backends
+
+    Examples
+    --------
+    Fetch a protein sequence:
+
+    >>> from rotifer.db.ncbi import entrez
+    >>> sc = entrez.SequenceCursor(database="protein")  # doctest: +SKIP
+    >>> seqrec = sc.fetchall("YP_009724395.1")  # doctest: +SKIP
+
+    Fetch several nucleotide entries:
+
+    >>> import sys
+    >>> from Bio import SeqIO
+    >>> query = ['CP084314.1', 'NC_019757.1', 'AAHROG010000026.1']
+    >>> sc = entrez.SequenceCursor(database="nucleotide")  # doctest: +SKIP
+    >>> for seqrec in sc.fetchone(query):  # doctest: +SKIP
+    ...     SeqIO.write(seqrec, sys.stdout, "genbank")
     """
     def __init__(
             self,
@@ -102,12 +128,41 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.parallel.Simp
         self._retmode = 'text'
 
     def parser(self, stream, accession):
+        """
+        Parse an EFetch stream into sequence records.
+
+        Parameters
+        ----------
+        stream : file-like
+            Open stream returned by :meth:`fetcher`.
+        accession : str or iterable of str
+            Database entry identifiers, kept for interface
+            compatibility.
+
+        Returns
+        -------
+        list of Bio.SeqRecord.SeqRecord
+            The parsed records.
+        """
         stack = []
         for s in SeqIO.parse(stream, self._format):
             stack.append(s)
         return stack
 
     def fetcher(self, accession):
+        """
+        Run EFetch and return the response stream.
+
+        Parameters
+        ----------
+        accession : str or iterable of str
+            Database entry identifiers.
+
+        Returns
+        -------
+        file-like
+            The open EFetch response.
+        """
         from Bio import Entrez
         Entrez.email = NcbiConfig["email"]
         Entrez.api_key = NcbiConfig["api_key"]
@@ -123,17 +178,22 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.parallel.Simp
 
     def __getitem__(self, accession):
         """
-        Run EFetch to download NCBI data.
+        Download data for one batch of entries, dictionary style.
+
+        Entries that fail with a recoverable error are retried once
+        in a second pass.
 
         Parameters
         ----------
-        accession: string
-          Comma separated list of NCBI database entries.
+        accession : str or iterable of str
+            NCBI database entry identifiers. A string may contain
+            several accessions separated by commas.
 
         Returns
         -------
-        List of Bio.SeqRecord objects
-
+        Bio.SeqRecord.SeqRecord or list of Bio.SeqRecord.SeqRecord
+            A single record when a single accession yields a single
+            record, otherwise a list.
         """
         targets = sorted(list(self.parse_ids(accession)))
         objlist = []
@@ -156,6 +216,36 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.parallel.Simp
         return objlist
 
 class FastaCursor(SequenceCursor):
+    """
+    Fetch sequences from NCBI as FASTA, without annotations.
+
+    Identical to :class:`SequenceCursor` except that data is
+    downloaded in FASTA format, which is faster but carries no
+    annotation.
+
+    Parameters
+    ----------
+    database : str, default 'protein'
+        A valid NCBI sequence database name.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> fc = entrez.FastaCursor()  # doctest: +SKIP
+    >>> seqs = fc.fetchall(["YP_009724395.1"])  # doctest: +SKIP
+    """
+
     def __init__(self,
             database="protein",
             progress=True,
@@ -170,6 +260,41 @@ class FastaCursor(SequenceCursor):
         self._format = 'fasta'
 
 class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
+    """
+    Fetch identical protein group (IPG) reports from NCBI.
+
+    IPG reports are downloaded with EFetch from the ``ipg`` database
+    and returned as dataframes, one row per identical sequence, with
+    the genomic coordinates of the encoding nucleotide sequences.
+
+    Parameters
+    ----------
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
+
+    Notes
+    -----
+    Three columns are added to the original NCBI report:
+    ``order`` (position of each row within its IPG), ``is_query``
+    (whether the row's protein was part of the query) and
+    ``representative`` (the query protein that represents the IPG).
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> ic = entrez.IPGCursor()  # doctest: +SKIP
+    >>> ipgs = ic.fetchall(["WP_063732599.1"])  # doctest: +SKIP
+    """
+
     def __init__(self,
             progress=True,
             tries=3,
@@ -185,6 +310,24 @@ class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
         self.giveup.update(["no IPG","No IPG"])
 
     def _seqrecords_to_ipg(self, seqrecords):
+        """
+        Build an IPG-like dataframe from GenPept records.
+
+        Records with identical sequences are grouped under negative
+        IPG identifiers and coordinates are read from their
+        ``coded_by`` qualifiers.
+
+        Parameters
+        ----------
+        seqrecords : iterable of Bio.SeqRecord.SeqRecord
+            GenPept records.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A dataframe with the same columns as a parsed IPG
+            report.
+        """
         ipg = dict()
         representative = dict()
         order = dict()
@@ -224,6 +367,31 @@ class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
         return ipgFromGenPept
 
     def parser(self, stream, accession):
+        """
+        Parse an EFetch stream into an IPG dataframe.
+
+        Rows with malformed identifiers are dropped, query proteins
+        are flagged in the ``is_query`` column, the original row
+        order is recorded and each IPG is annotated with the query
+        protein that represents it.
+
+        Parameters
+        ----------
+        stream : file-like
+            Open stream returned by the fetcher.
+        accession : str or iterable of str
+            The queried protein accessions.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The parsed report.
+
+        Raises
+        ------
+        ValueError
+            If no valid IPG rows remain after error removal.
+        """
         targets = self.parse_ids(accession)
         ipg = pd.read_csv(stream, sep='\t', names=self._columns, header=0).drop_duplicates()
 
@@ -263,6 +431,22 @@ class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
         return ipg
 
     def fetchone(self,accessions):
+        """
+        Iterate over IPG reports as they are retrieved.
+
+        Reports whose accessions were all seen in previously yielded
+        reports are skipped.
+
+        Parameters
+        ----------
+        accessions : list of str
+            NCBI protein accessions.
+
+        Yields
+        ------
+        pandas.DataFrame
+            One IPG report per batch.
+        """
         seen = set()
         for ipg in super().fetchone(accessions):
             if len(ipg) == 0:
@@ -274,6 +458,20 @@ class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
             yield ipg
 
     def fetchall(self, accessions):
+        """
+        Fetch the IPG reports of all accessions as one dataframe.
+
+        Parameters
+        ----------
+        accessions : list of str
+            NCBI protein accessions.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The concatenated reports. Empty, but with the expected
+            columns, when nothing could be retrieved.
+        """
         targets = self.parse_ids(accessions)
         df = list(self.fetchone(targets))
         if len(df) > 0:
@@ -283,6 +481,45 @@ class IPGCursor(rotifer.db.methods.IPGCursor, SequenceCursor):
         return df
 
 class TaxonomyCursor(SequenceCursor):
+    """
+    Fetch NCBI Taxonomy records with the E-utilities.
+
+    Taxonomy entries are downloaded as XML with EFetch and returned
+    as dataframes.
+
+    Parameters
+    ----------
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
+
+    Attributes
+    ----------
+    columns : list of str
+        Columns of the returned dataframes: ``taxid``, ``organism``,
+        ``superkingdom``, ``lineage``, ``classification`` and
+        ``alternative_taxids``.
+
+    See Also
+    --------
+    rotifer.db.ncbi.TaxonomyCursor : delegator that prefers the
+        local ETE toolkit database
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> tc = entrez.TaxonomyCursor()  # doctest: +SKIP
+    >>> t = tc.fetchall([2599])  # doctest: +SKIP
+    """
+
     def __init__(self,
             progress=True,
             tries=3,
@@ -298,6 +535,20 @@ class TaxonomyCursor(SequenceCursor):
         self.giveup.update(["no taxonomy"])
 
     def getids(self,obj):
+        """
+        Extract taxonomy identifiers from taxonomy dataframes.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame or list of pandas.DataFrame
+            Taxonomy dataframes produced by the cursor.
+
+        Returns
+        -------
+        set of str
+            All identifiers in the ``taxid`` and
+            ``alternative_taxids`` columns.
+        """
         if not isinstance(obj,list):
             obj = [obj]
         ids = set()
@@ -307,6 +558,27 @@ class TaxonomyCursor(SequenceCursor):
         return ids
 
     def parser(self, stream, accession):
+        """
+        Parse an EFetch XML stream into a taxonomy dataframe.
+
+        Parameters
+        ----------
+        stream : file-like
+            Open stream returned by the fetcher.
+        accession : str or iterable of str
+            The queried taxonomy identifiers, kept for interface
+            compatibility.
+
+        Returns
+        -------
+        list of pandas.DataFrame
+            A single element list holding the parsed dataframe.
+
+        Raises
+        ------
+        ValueError
+            If the stream contains no taxonomy records.
+        """
         from Bio import Entrez
         from rotifer.taxonomy.utils import lineage
         taxdf = [ x for x in Entrez.parse(stream) ]
@@ -326,6 +598,20 @@ class TaxonomyCursor(SequenceCursor):
         return [taxdf]
 
     def fetchall(self, accessions):
+        """
+        Fetch taxonomy data for all taxids as one dataframe.
+
+        Parameters
+        ----------
+        accessions : list
+            NCBI Taxonomy identifiers.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per taxon, with the columns listed in
+            ``columns``.
+        """
         df = list(self.fetchone(accessions))
         if len(df) > 0:
             df = pd.concat(df, ignore_index=True)
@@ -334,6 +620,41 @@ class TaxonomyCursor(SequenceCursor):
         return df
 
 class NucleotideFeaturesCursor(SequenceCursor):
+    """
+    Fetch nucleotide annotation as feature tables.
+
+    Nucleotide entries are downloaded in GenBank format and
+    converted to dataframes with one row per annotated feature.
+
+    Parameters
+    ----------
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    assembly : str, optional
+        Assembly accession assigned to every parsed feature.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> nfc = entrez.NucleotideFeaturesCursor()  # doctest: +SKIP
+    >>> df = nfc.fetchall(['CP084314.1'])  # doctest: +SKIP
+    """
+
     def __init__(
             self,
             exclude_type = ['source','gene','mRNA'],
@@ -361,6 +682,19 @@ class NucleotideFeaturesCursor(SequenceCursor):
         self.codontable = codontable
 
     def getids(self,obj):
+        """
+        Extract nucleotide accessions from feature tables.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame or list of pandas.DataFrame
+            Feature tables produced by the cursor.
+
+        Returns
+        -------
+        set of str
+            The values of the ``nucleotide`` column.
+        """
         if not isinstance(obj,list):
             obj = [obj]
         ids = set()
@@ -369,12 +703,42 @@ class NucleotideFeaturesCursor(SequenceCursor):
         return ids
 
     def parser(self, stream, accession):
+        """
+        Parse an EFetch GenBank stream into feature tables.
+
+        Parameters
+        ----------
+        stream : file-like
+            Open stream returned by the fetcher.
+        accession : str or iterable of str
+            The queried nucleotide accessions, kept for interface
+            compatibility.
+
+        Returns
+        -------
+        list of pandas.DataFrame
+            One feature table per nucleotide sequence.
+        """
         stream = SeqIO.parse(stream, self._format)
         stream = seqrecords_to_dataframe(stream, exclude_type=self.exclude_type, autopid=self.autopid, assembly=self.assembly, codontable=self.codontable)
         stream = [ x[1].copy() for x in stream.groupby('nucleotide') ]
         return stream
 
     def fetchall(self, accessions):
+        """
+        Fetch the feature tables of all entries as one dataframe.
+
+        Parameters
+        ----------
+        accessions : list of str
+            NCBI nucleotide accessions.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The concatenated feature tables. Empty when nothing
+            could be retrieved.
+        """
         df = list(self.fetchone(accessions))
         if len(df) > 0:
             df = pd.concat(df, ignore_index=True)
@@ -384,57 +748,71 @@ class NucleotideFeaturesCursor(SequenceCursor):
 
 class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, NucleotideFeaturesCursor):
     """
-    Fetch gene neighbors from nucleotide annotation.
+    Fetch gene neighborhoods from nucleotide annotation.
 
-    Usage
-    -----
-    >>> from rotifer.db.ncbi import ftp
-    >>> gfc = ftp.GeneNeighborhoodCursor(progress=True)
-    >>> df = gfc.fetchall(["EEE9598493.1"])
+    Target proteins are first resolved to nucleotide sequences
+    through identical protein group (IPG) reports, and the annotated
+    regions around each target are then extracted from the
+    nucleotide entries downloaded with EFetch. This backend does not
+    require a genome assembly, so it also covers proteins encoded on
+    unassembled sequences.
 
     Parameters
     ----------
-    column : string
-      Name of the column to scan for matches to the accessions
-      See rotifer.genome.data.NeighborhoodDF
-    before : int
-      Keep at most this number of features, of the same type as the
-      target, before each target
-    after  : nt
-      Keep at most this number of features, of the same type as the
-      target, after each target
-    min_block_distance : int
-      Minimum distance between two consecutive blocks
-    strand : string
-      How to evaluate rows concerning the value of the strand column
-      Possible values for this option are:
-      - None : ignore strand
-      - same : same strand as the targets
-      -    + : positive strand features and targets only
-      -    - : negative strand features and targets only
-    fttype : string
-      How to process feature types of neighbors
-      Supported values:
-      - same : consider only features of the same type as the target
-      - any  : ignore feature type and count all features when
-               setting neighborhood boundaries
-    eukaryotes : boolean, default False
-      If set to True, neighborhood data for eukaryotic nucleotide sequences
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult True
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
+    column : str, default 'pid'
+        Name of the column to scan for matches to the accessions.
+        See :class:`rotifer.genome.data.NeighborhoodDF`.
+    before : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, before each target.
+    after : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, after each target.
+    min_block_distance : int, default 0
+        Minimum distance between two consecutive blocks.
+    strand : str, optional
+        How to evaluate rows concerning the value of the strand
+        column. Supported values:
 
+        * ``None`` : ignore strand
+        * ``same`` : same strand as the targets
+        * ``+`` : positive strand features and targets only
+        * ``-`` : negative strand features and targets only
+    fttype : {'same', 'any'}, default 'same'
+        How to process feature types of neighbors. With ``same``,
+        only features of the same type as the target are considered.
+        With ``any``, all features count when setting neighborhood
+        boundaries.
+    eukaryotes : bool, default False
+        Whether to process eukaryotic nucleotide sequences.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, default 20
+        Number of accessions per batch.
+    threads : int, default 10
+        Number of simultaneous threads. Capped at 3 without an NCBI
+        API key and at 10 with one.
+
+    See Also
+    --------
+    rotifer.db.ncbi.GeneNeighborhoodCursor : delegator that combines
+        this backend with the FTP and mirror backends
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> gnc = entrez.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+    >>> df = gnc.fetchall(["EEE9598493.1"])  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -480,6 +858,20 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
             self.giveup.update(["Eukaryot","eukaryot"])
 
     def getids2(self, obj, *args, **kwargs):
+        """
+        List protein identifiers per nucleotide sequence.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame
+            A neighborhood dataframe.
+
+        Returns
+        -------
+        list of str
+            The identifiers found in the ``pid`` and, when present,
+            ``replaced`` columns.
+        """
         columns = ['pid']
         if 'replaced' in obj.columns:
             columns.append('replaced')
@@ -491,11 +883,21 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
 
     def __getitem__(self, accessions, ipgs=None):
         """
-        Find gene neighborhoods in a nucleotide sequence.
+        Find gene neighborhoods around one or more target proteins.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            NCBI protein accessions.
+        ipgs : pandas.DataFrame, optional
+            Precomputed identical protein group reports. When not
+            given, they are downloaded with :class:`IPGCursor`.
 
         Returns
         -------
         rotifer.genome.data.NeighborhoodDF
+            The neighborhoods found. Empty when nothing could be
+            retrieved.
         """
         objlist = seqrecords_to_dataframe([])
 
@@ -599,6 +1001,32 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         return objlist
 
     def parser(self, stream, accession, proteins):
+        """
+        Extract gene neighborhoods from a nucleotide stream.
+
+        Parameters
+        ----------
+        stream : file-like
+            Open stream returned by the fetcher.
+        accession : str
+            Nucleotide accession.
+        proteins : dict
+            Mapping of each target protein accession to its
+            identical protein group representative.
+
+        Returns
+        -------
+        list of rotifer.genome.data.NeighborhoodDF
+            The neighborhoods found, one dataframe per nucleotide
+            sequence, each with a ``replaced`` column mapping
+            proteins to the queries they represent.
+
+        Raises
+        ------
+        ValueError
+            If the sequence is eukaryotic and ``eukaryotes`` is
+            False.
+        """
         stack = []
         for df in super().parser(stream, accession):
             taxonomy = df.classification.fillna("").iloc[0].split(";")
@@ -617,6 +1045,25 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         return stack
 
     def worker(self, chunk):
+        """
+        Process one batch of nucleotide sequences in a worker
+        process.
+
+        Parameters
+        ----------
+        chunk : list of tuple
+            Batch entries produced by :meth:`splitter`. Each entry
+            holds a set of target protein accessions and the IPG
+            rows of one nucleotide sequence.
+
+        Returns
+        -------
+        dict
+            A dictionary with two keys: ``result``, a list of
+            neighborhood dataframes (one per gene block), and
+            ``missing``, the registry of entries that could not be
+            retrieved.
+        """
         result = []
         for args in chunk:
             df = self.__getitem__(*args)
@@ -627,6 +1074,25 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         return {"result":result,"missing":self.remove_missing()}
 
     def splitter(self, accessions, ipgs):
+        """
+        Group targets and their IPG rows into per-nucleotide
+        batches.
+
+        Parameters
+        ----------
+        accessions : set of str
+            Target protein accessions.
+        ipgs : pandas.DataFrame
+            Identical protein group reports restricted to the
+            selected nucleotide sequences.
+
+        Returns
+        -------
+        list of list of tuple
+            Batches of ``(proteins, ipg_rows)`` pairs, one pair per
+            nucleotide sequence, at most ``batch_size`` pairs per
+            batch.
+        """
         size = self.batch_size
         if size == None or size == 0:
             size = max(int(ipgs.nucleotide.nunique()/self.threads),1)
@@ -638,6 +1104,19 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         return batch
 
     def nucleotide_ids(self, obj):
+        """
+        Extract nucleotide accessions from neighborhood dataframes.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame or list of pandas.DataFrame
+            Neighborhood dataframes.
+
+        Returns
+        -------
+        set of str
+            The unique values of the ``nucleotide`` column.
+        """
         if not isinstance(obj,list):
             obj = [obj]
         ids = set()
@@ -647,16 +1126,22 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
 
     def fetchone(self, accessions, ipgs=None):
         """
-        Asynchronously fetch gene neighborhoods from NCBI.
+        Iterate over gene neighborhoods as downloads complete.
+
+        Results are yielded in completion order, not input order.
 
         Parameters
         ----------
-        accessions: list of strings
-          NCBI protein identifiers
+        accessions : list of str
+            NCBI protein identifiers.
+        ipgs : pandas.DataFrame, optional
+            Precomputed identical protein group reports, used to
+            avoid downloading IPGs again.
 
-        Returns
-        -------
-        A generator for rotifer.genome.data.NeighborhoodDF objects
+        Yields
+        ------
+        rotifer.genome.data.NeighborhoodDF
+            One dataframe per retrieved gene neighborhood.
         """
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -718,25 +1203,32 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
 
 def elink(accessions, dbfrom="protein", dbto="taxonomy", linkname=None):
     """
-    Find related database entries via NCBI's EUtilities.
+    Find related database entries with the ELink E-utility.
 
-    Usage:
-      # download from NCBI's FTP site
-      from rotifer.db.ncbi import entrez
-      eutils = entrez.cursor()
-      a = eutils.elink("YP_009724395.1")
+    Parameters
+    ----------
+    accessions : str or list of str
+        NCBI accessions to search links for.
+    dbfrom : str, default 'protein'
+        Name of the source database.
+    dbto : str, default 'taxonomy'
+        Name of the target database.
+    linkname : str, optional
+        Type of link between `dbfrom` and `dbto`. When not set,
+        ``{dbfrom}_{dbto}`` is used.
 
-    Returns:
-      Pandas DataFrame
+    Returns
+    -------
+    pandas.DataFrame
+        One row per link, with columns ``qacc``, ``quid``,
+        ``dbfrom``, ``linkname``, ``dbto`` and ``tuid``.
 
-    Parameters:
-      accessions : string or list of strings
-        NCBI accessions to search links for
-      to: string
-        Name of the target database
-      linkname: string
-        Type of link between dbfrom and dbto
-        If not set, {dbfrom}_{dbto} is used
+    Examples
+    --------
+    Find the taxonomy entry of a protein:
+
+    >>> from rotifer.db.ncbi import entrez
+    >>> links = entrez.elink("YP_009724395.1")  # doctest: +SKIP
     """
     from Bio import Entrez
     Entrez.email = NcbiConfig["email"]
@@ -764,6 +1256,30 @@ def elink(accessions, dbfrom="protein", dbto="taxonomy", linkname=None):
     return data
 
 def nucleotide2assembly(nucids):
+    """
+    Map nucleotide accessions to their genome assemblies.
+
+    Links are resolved with ELink from the ``nuccore`` database to
+    the ``assembly`` database, and the assembly accessions are then
+    read from the assembly document summaries.
+
+    Parameters
+    ----------
+    nucids : str or list of str
+        NCBI nucleotide accessions.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per link, with columns ``nucleotide``, ``nuid``,
+        ``auid`` and ``assembly``. The ``assembly`` column is NaN
+        for links whose summary could not be resolved.
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import entrez
+    >>> t = entrez.nucleotide2assembly(["CP084314.1"])  # doctest: +SKIP
+    """
     from Bio import Entrez
     Entrez.email = NcbiConfig["email"]
     Entrez.api_key = NcbiConfig["api_key"]

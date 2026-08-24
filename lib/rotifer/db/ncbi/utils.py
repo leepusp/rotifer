@@ -1,11 +1,56 @@
+"""
+Helper functions for identical protein group (IPG) reports.
+
+These utilities operate on the dataframes produced by
+:class:`rotifer.db.ncbi.entrez.IPGCursor` and are used by the gene
+neighborhood cursors to choose, for each queried protein, the best
+genomic sequence to download.
+"""
+
 import types
 
 def best_ipgs(ipgs):
+    """
+    Select the first ranked row of each identical protein group.
+
+    Rows are ranked by their original position in the report (the
+    ``order`` column), so the selected row corresponds to the entry
+    NCBI listed first for each IPG.
+
+    Parameters
+    ----------
+    ipgs : pandas.DataFrame
+        Identical protein group reports.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per IPG identifier.
+    """
     best = ipgs.sort_values(['id','order'], ascending=[True,True])
     best = best.drop_duplicates(['id'], keep='first')
     return best
 
 def ipgs_to_dicts(ipgs):
+    """
+    Split IPG rows into assembly based and nucleotide based maps.
+
+    IPGs that name at least one genome assembly are grouped by
+    assembly accession; the remaining IPGs are grouped by nucleotide
+    accession.
+
+    Parameters
+    ----------
+    ipgs : pandas.DataFrame
+        Identical protein group reports.
+
+    Returns
+    -------
+    tuple of dict
+        A pair ``(assemblies, nucleotides)``. In both dictionaries
+        each key maps to a dictionary from protein accession
+        (``pid``) to IPG representative.
+    """
     if len(ipgs) == 0:
         return dict(), dict()
 

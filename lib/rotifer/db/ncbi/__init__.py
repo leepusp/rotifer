@@ -6,15 +6,32 @@
 # package.
 
 r"""
-=============================
-Rotifer's NCBI database tools
-=============================
+Access NCBI sequence, genome and taxonomy data.
 
-Class attributes
-----------------
+This package is the main entry point for retrieving data from the
+National Center for Biotechnology Information (NCBI). The cursors
+defined here are delegators: each one combines several backends
+(Entrez E-utilities, the NCBI FTP site, local genome mirrors, local
+indexed FASTA files, the ETE toolkit taxonomy database and SQLite3
+stores) and tries them in order until every requested identifier is
+resolved.
 
-config : NCBI configuration
-  Automatically loaded from ~/.rotifer/etc/db/ncbi.yml
+Network, authentication and rate limits
+---------------------------------------
+Entrez based backends send the user email registered in the
+configuration and honor the ``NCBI_API_KEY`` environment variable.
+Without an API key, NCBI limits clients to 3 requests per second and
+the Entrez backends restrict themselves to 3 simultaneous threads;
+with a key, up to 10 threads are used. FTP backends download files
+to the rotifer cache directory (``rotifer.config['cache']``).
+
+Configuration
+-------------
+The module level ``config`` dictionary is loaded from
+``~/.rotifer/etc/db/ncbi.yml`` when that file exists. Its keys
+include the Entrez email and API key, the FTP server address, the
+path of a local genome mirror and the mapping of backend names to
+reader and writer modules.
 """
 
 # Import external modules
@@ -61,46 +78,52 @@ NcbiConfig = config # for compatibility but deprecated: to be removed!
 
 class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.delegator.SequentialDelegatorCursor):
     """
-    Fetch sequences from NCBI.
+    Fetch annotated sequences from NCBI.
 
-    This class loads and parses sequences in Genbank format, i.e.
-    the most richly annotated format from NCBI.
-
-    Usage
-    -----
-    Fetch a protein sequence
-    >>> from rotifer.db import ncbi
-    >>> sc = ncbi.SequenceCursor(database="protein")
-    >>> seqrec = sc.fetchall("YP_009724395.1")
-
-    Fetch several nucleotide entries
-    >>> import sys
-    >>> from Bio import SeqIO
-    >>> from rotifer.db import ncbi
-    >>> sc = ncbi.SequenceCursor(database="nucleotide")
-    >>> query = ['CP084314.1', 'NC_019757.1', 'AAHROG010000026.1']
-    >>> for seqrec in sc.fetchone(query):
-    >>>     print(SeqIO.write(seqrec, sys.stdout, "genbank")
+    Sequences are downloaded and parsed in GenBank format, the most
+    richly annotated format NCBI provides.
 
     Parameters
     ----------
-    readers: list of strings, default ['entrez']
-      List of backend reader modules
-    writers: list of strings, default []
-      List of backend writer modules
-    database: string, default 'protein'
-        Valid NCBI sequence database
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    sleep_between_tries: int, default 1
-      Number of seconds to wait between download attempts
-    batch_size: int, default 1
-      Number of accessions per batch
-    threads: integer, default 3
-      Number of simultaneous threads to run
+    readers : list of str, default ``['entrez']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    database : str, default 'protein'
+        A valid NCBI sequence database name, such as ``protein`` or
+        ``nucleotide``.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of simultaneous threads.
 
+    See Also
+    --------
+    FastaCursor : faster download without annotations
+    rotifer.db.ncbi.entrez.SequenceCursor : the default backend
+
+    Examples
+    --------
+    Fetch a protein sequence:
+
+    >>> from rotifer.db import ncbi
+    >>> sc = ncbi.SequenceCursor(database="protein")  # doctest: +SKIP
+    >>> seqrec = sc.fetchall("YP_009724395.1")  # doctest: +SKIP
+
+    Fetch several nucleotide entries:
+
+    >>> import sys
+    >>> from Bio import SeqIO
+    >>> query = ['CP084314.1', 'NC_019757.1', 'AAHROG010000026.1']
+    >>> sc = ncbi.SequenceCursor(database="nucleotide")  # doctest: +SKIP
+    >>> for seqrec in sc.fetchone(query):  # doctest: +SKIP
+    ...     SeqIO.write(seqrec, sys.stdout, "genbank")
     """
     def __init__(
             self,
@@ -120,39 +143,46 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, rotifer.db.delegator.Seq
 
 class FastaCursor(rotifer.db.methods.SequenceCursor, rotifer.db.delegator.SequentialDelegatorCursor):
     """
-    Fetch sequences from NCBI.
+    Fetch sequences from local FASTA files or NCBI, without
+    annotations.
 
-    This class downloads FASTA files, i.e. doesn't include
-    sequence annotations but is made available for fast access
-    to sequence data.
-
-    Usage
-    -----
-    >>> from rotifer.db import ncbi
-    >>> sc = ncbi.FastaCursor(database="protein")
-    >>> seqrec = sc.fetchall("YP_009724395.1")
+    Sequences are retrieved as FASTA data, which is much faster than
+    GenBank format but carries no annotation. By default a local
+    ``esl-sfetch`` indexed database is tried before NCBI Entrez.
 
     Parameters
     ----------
-    readers: list of strings, default ['entrez']
-      List of backend reader modules
-    writers: list of strings, default []
-      List of backend writer modules
-    local_database_path: list of strings
-        Path to local FASTA files indexed by esl-sfetch
-    entrez_database: string, default 'protein'
-        Valid NCBI sequence database
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    sleep_between_tries: int, default 1
-      Number of seconds to wait between download attempts
-    batch_size: int, default 1
-      Number of accessions per batch
-    threads: integer, default 3
-      Number of simultaneous threads to run
+    readers : list of str, default ``['easel', 'entrez']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    local_database_path : list of str, optional
+        Paths to local FASTA files indexed by ``esl-sfetch``.
+        Defaults to the ``local_database_path`` configuration entry.
+    entrez_database : str, default 'protein'
+        A valid NCBI sequence database name.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of simultaneous threads.
 
+    See Also
+    --------
+    SequenceCursor : slower download with full annotations
+    rotifer.db.local.easel.FastaCursor : the local backend
+    rotifer.db.ncbi.entrez.FastaCursor : the remote backend
+
+    Examples
+    --------
+    >>> from rotifer.db import ncbi
+    >>> fc = ncbi.FastaCursor()  # doctest: +SKIP
+    >>> seqrec = fc.fetchall("YP_009724395.1")  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -174,33 +204,43 @@ class FastaCursor(rotifer.db.methods.SequenceCursor, rotifer.db.delegator.Sequen
 
 class IPGCursor(rotifer.db.methods.IPGCursor, rotifer.db.delegator.SequentialDelegatorCursor):
     """
-    Fetch identical proteins (IPG) reports.
+    Fetch identical protein group (IPG) reports.
 
-    Usage
-    -----
-    >>> from rotifer.db import ncbi
-    >>> ic = ncbi.IPGCursor(database="protein")
-    >>> df = ic.fetchall("YP_009724395.1")
+    An IPG report lists every protein sequence identical to the
+    query known to NCBI, together with the nucleotide sequences and
+    genome assemblies encoding them. When a local SQLite3 database
+    path is given and exists, it is queried before NCBI Entrez.
 
     Parameters
     ----------
-    readers: list of strings, default ['entrez']
-      List of backend reader modules
-    writers: list of strings, default []
-      List of backend writer modules
-    local_database_path: list of strings
-        Path to local SQLite3 database
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    sleep_between_tries: int, default 1
-      Number of seconds to wait between download attempts
-    batch_size: int, default 1
-      Number of accessions per batch
-    threads: integer, default 3
-      Number of simultaneous threads to run
+    readers : list of str, default ``['entrez']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    local_database_path : str, optional
+        Path to a local SQLite3 database. Appended to the readers
+        when the file exists.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of simultaneous threads.
 
+    See Also
+    --------
+    rotifer.db.ncbi.entrez.IPGCursor : the remote backend
+    rotifer.db.sql.sqlite3.IPGCursor : the local backend
+
+    Examples
+    --------
+    >>> from rotifer.db import ncbi
+    >>> ic = ncbi.IPGCursor()  # doctest: +SKIP
+    >>> df = ic.fetchall("YP_009724395.1")  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -222,6 +262,19 @@ class IPGCursor(rotifer.db.methods.IPGCursor, rotifer.db.delegator.SequentialDel
         super().__init__(readers=readers, writers=writers, progress=progress, tries=tries, batch_size=batch_size, threads=threads, *args, **kwargs)
 
     def fetchall(self, accessions):
+        """
+        Fetch the IPG reports of all accessions as one dataframe.
+
+        Parameters
+        ----------
+        accessions : list of str
+            NCBI protein accessions.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The concatenated IPG reports.
+        """
         df = super().fetchall(accessions)
         if isinstance(df, list):
             df = pd.concat(df, ignore_index=True)
@@ -231,34 +284,50 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.delegator.Sequent
     """
     Fetch annotated genome sequences.
 
-    Usage
-    -----
-    Load a sample of genomes
-
-    >>> q = ['GCA_018744545.1', 'GCA_901308185.1']
-    >>> from rotifer.db as ncbi
-    >>> gfc = ncbi.GenomeCursor(progress=True)
-    >>> g = gfc.fetchall(q)
+    Genomes are located by their assembly accession and parsed from
+    GenBank flat files into Bio.SeqRecord objects. A local mirror of
+    the NCBI genomes repository, when available, is tried before the
+    NCBI FTP site.
 
     Parameters
     ----------
-    readers: list of strings, default ['entrez']
-      List of backend reader modules
-    writers: list of strings, default []
-      List of backend writer modules
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    mirror: string
-      Path to a local mirror of the NCBI's FTP genome repository
-    cache: path-like string
-      Where to place temporary files
+    readers : list of str, default ``['mirror', 'ftp']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel downloads.
+    timeout : int, default 10
+        Maximum time, in seconds, to wait for a server connection.
+    mirror : str, optional
+        Path to a local mirror of the NCBI FTP genomes repository.
+        Defaults to the ``mirror`` configuration entry.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer cache
+        directory.
 
+    See Also
+    --------
+    GenomeFeaturesCursor : genome annotation as dataframes
+    rotifer.db.ncbi.ftp.GenomeCursor : the FTP backend
+    rotifer.db.ncbi.mirror.GenomeCursor : the local mirror backend
+
+    Examples
+    --------
+    Load a sample of genomes:
+
+    >>> from rotifer.db import ncbi
+    >>> q = ['GCA_018744545.1', 'GCA_901308185.1']
+    >>> gc = ncbi.GenomeCursor(progress=True)  # doctest: +SKIP
+    >>> g = gc.fetchall(q)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -285,42 +354,57 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.delegator.Sequent
 
 class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, rotifer.db.delegator.SequentialDelegatorCursor):
     """
-    Fetch genome annotation as dataframes.
+    Fetch genome annotation as feature tables.
 
-    Usage
-    -----
-    Load a random sample of genomes
-
-    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
-    >>> from rotifer.db as ncbi
-    >>> gfc = ncbi.GenomeFeaturesCursor(progress=True)
-    >>> df = gfc.fetchall(g)
+    Genomes are located by their assembly accession and converted to
+    dataframes with one row per annotated feature. A local mirror of
+    the NCBI genomes repository, when available, is tried before the
+    NCBI FTP site.
 
     Parameters
     ----------
-    readers: list of strings, default ['entrez']
-      List of backend reader modules
-    writers: list of strings, default []
-      List of backend writer modules
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    path: string
-      Path to a local mirror of the NCBI's FTP genome repository
-    cache: path-like string
-      Where to place temporary files
+    readers : list of str, default ``['mirror', 'ftp']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel downloads.
+    timeout : int, default 10
+        Maximum time, in seconds, to wait for a server connection.
+    path : str, optional
+        Path to a local mirror of the NCBI FTP genomes repository.
+        Defaults to the ``mirror`` configuration entry.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer cache
+        directory.
 
+    See Also
+    --------
+    GenomeCursor : genomes as annotated sequence records
+    GeneNeighborhoodCursor : only the regions around target genes
+
+    Examples
+    --------
+    Load the feature tables of two genomes:
+
+    >>> from rotifer.db import ncbi
+    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
+    >>> gfc = ncbi.GenomeFeaturesCursor(progress=True)  # doctest: +SKIP
+    >>> df = gfc.fetchall(g)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -353,111 +437,104 @@ class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, rotifer.db.d
 
 class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.db.core.BaseCursor):
     """
-    Fetch gene neighborhoods as dataframes
-    ======================================
+    Fetch gene neighborhoods as dataframes.
 
-    This class implements the logic to search for genomic
-    patches centered around a target coding gene.
+    This class searches for genomic patches centered around target
+    coding genes, identified by the accession numbers of their
+    protein products. Backends are tried in order: a local SQLite3
+    store (when `save` is set), local genome mirrors (when `mirror`
+    is set), the NCBI FTP site and NCBI Entrez.
 
-    The target genes must be identified based on the accession
-    numbers of their proteins.
-
-    For the multi-query methods (fetchone and fetchall)
-    results always return in a random order.
-
-    Usage
-    -----
-    Using the dictionary-like interface, fetch the gene
-    neighborhood around the gene encoding a target protein:
-
-    >>> import rotifer.db a ncbi
-    >>> gnc = ncbi.GeneNeighborhoodCursor()
-    >>> df = gnc["EEE9598493.1"]
-
-    Fetch all gene neighborhoods for a sample of proteins:
-
-    >>> q = ['WP_012291365.1','WP_013208129.1','WP_122330970.1']
-    >>> df = gnc.fetchall(q)
-
-    Process gene neighborhoods while downloading:
-
-    >>> for n in gnc.fetchone(q):
-    >>>     do_something(n)
+    For the multi query methods (:meth:`fetchone` and
+    :meth:`fetchall`) results are returned in random order.
 
     Parameters
     ----------
-    *Important note:*
+    readers : list of str, default ``['ftp', 'entrez']``
+        Backend reader modules, tried in order. The `mirror` and
+        `save` parameters prepend their backends to this list.
+    writers : list of str, default []
+        Backend writer modules.
+    column : str, default 'pid'
+        Name of the column to scan for matches to the accessions.
+        See :class:`rotifer.genome.data.NeighborhoodDF`.
+    before : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, before each target.
+    after : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, after each target.
+    min_block_distance : int, default 0
+        Minimum distance between two consecutive blocks.
+    strand : str, optional
+        How to evaluate rows concerning the value of the strand
+        column. Supported values:
 
-    All parameters for initialization of this class are acessible
-    as mutable attributes and can be modified to tune the cursor's
-    behaviour.
+        * ``None`` : ignore strand
+        * ``same`` : same strand as the targets
+        * ``+`` : positive strand features and targets only
+        * ``-`` : negative strand features and targets only
+    fttype : {'same', 'any'}, default 'same'
+        How to process feature types of neighbors. With ``same``,
+        only features of the same type as the target are considered.
+        With ``any``, all features count when setting neighborhood
+        boundaries.
+    eukaryotes : bool, default False
+        Whether to process eukaryotic genomes.
+    save : str, optional
+        Path to a local SQLite3 database. When set, the database is
+        queried before any remote source. Note: currently the save
+        backend does not write new data; it only reads previously
+        loaded databases.
+    replace : bool, default False
+        When `save` is set, whether to replace that file.
+    mirror : str or list of str, optional
+        Path(s) to local mirrors of the NCBI FTP genomes directory,
+        queried before any remote source.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel downloads.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer cache
+        directory.
 
-    column : string
-      Name of the column to scan for matches to the accessions
-      See rotifer.genome.data.NeighborhoodDF
-    before : int
-      Keep at most this number of features, of the same type as the
-      target, before each target
-    after  : nt
-      Keep at most this number of features, of the same type as the
-      target, after each target
-    min_block_distance : int
-      Minimum distance between two consecutive blocks
-    strand : string
-      How to evaluate rows concerning the value of the strand column
-      Possible values for this option are:
+    Notes
+    -----
+    All initialization parameters are accessible as mutable
+    attributes and may be modified to tune the cursor's behavior.
+    Changes are propagated to the backend cursors. Every fetch
+    method also updates the ``missing`` dataframe, which describes
+    the errors of failed download attempts.
 
-      - None : ignore strand
-      - same : same strand as the targets
-      -    + : positive strand features and targets only
-      -    - : negative strand features and targets only
+    Examples
+    --------
+    Using the dictionary-like interface, fetch the gene neighborhood
+    around the gene encoding a target protein:
 
-    fttype : string
-      How to process feature types of neighbors
-      Supported values:
+    >>> from rotifer.db import ncbi
+    >>> gnc = ncbi.GeneNeighborhoodCursor()  # doctest: +SKIP
+    >>> df = gnc["EEE9598493.1"]  # doctest: +SKIP
 
-      - same : consider only features of the same type as the target
-      - any  : ignore feature type and count all features when
-               setting neighborhood boundaries
+    Fetch all gene neighborhoods for a sample of proteins:
 
-    eukaryotes : boolean, default False
-      If set to True, neighborhood data for eukaryotic genomes
-    save : string, default None
-      If set, the full genome annotation will be saved to a
-      local SQLite3 database for later use.
+    >>> q = ['WP_012291365.1', 'WP_013208129.1', 'WP_122330970.1']
+    >>> df = gnc.fetchall(q)  # doctest: +SKIP
 
-      Note: currently, save won't write data but it can be
-            used to access previously loaded databases
+    Process gene neighborhoods while downloading:
 
-    replace : boolean, default True
-      When save is set, whether to replace that file
-    mirror : path
-      Path to a mirror of the NCBI's FTP genomes directory.
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    cache: path-like string
-      Where to place temporary files
-
-    Internal state attributes
-    -------------------------
-    Objects of this class modify the folllowing read/write
-    attributes when fetch methods are called:
-    * missing
-      A Pandas DataFrame describing errors and messages for
-      failed attempts to download gene neighborhoods.
-
+    >>> for n in gnc.fetchone(q):  # doctest: +SKIP
+    ...     print(n.block_id.nunique())
     """
     def __init__(
             self,
@@ -551,6 +628,22 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
             self.giveup.update(["Eukaryot","eukaryot"])
 
     def __setattr__(self, name, value):
+        """
+        Set an attribute, propagating shared ones to the backends.
+
+        Attributes named in ``_shared_attributes`` are also assigned
+        on every backend cursor that already defines them, so that
+        retuning the delegator keeps its backends in sync. ``None``
+        values are never propagated.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+        value : object
+            Value to assign. Forwarded to the backends only when it
+            is not None.
+        """
         super().__setattr__(name, value)
         if hasattr(self,'cursors') and hasattr(self,'_shared_attributes') and name in self._shared_attributes:
             for cursor in self.cursors.values():
@@ -559,32 +652,37 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
 
     def __getitem__(self, protein, ipgs=None):
         """
-        Dictionary-like access to gene neighbors.
+        Fetch gene neighborhoods for one or more proteins,
+        dictionary style.
 
-        Usage
-        -----
-        >>> import rotifer.db as ncbi
-        >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)
-        >>> n = gnc["WP_063732599.1"]
+        Backends are tried in order until one returns data.
 
         Parameters
         ----------
-        proteins: list of strings
-          Database identifiers.
-        ipgs : Pandas dataframe
-          This parameter may be used to avoid downloading IPGs
-          from NCBI several times. Example:
-
-          >>> from rotifer.db as ncbi
-          >>> ic = ncbi.IPGCursor(batch_size=1)
-          >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)
-          >>> i = ic.fetchall(['WP_063732599.1'])
-          >>> n = gnc.__getitem__(['WP_063732599.1'], ipgs=i)
+        protein : str or iterable of str
+            NCBI protein accessions.
+        ipgs : pandas.DataFrame, optional
+            Precomputed identical protein group reports, used to
+            avoid downloading IPGs several times.
 
         Returns
         -------
-        Generator of rotifer.genome.data.NeighborhoodDF
-         """
+        rotifer.genome.data.NeighborhoodDF
+            The neighborhoods found. Empty when nothing could be
+            retrieved.
+
+        Examples
+        --------
+        >>> from rotifer.db import ncbi
+        >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+        >>> n = gnc["WP_063732599.1"]  # doctest: +SKIP
+
+        Reuse previously downloaded IPGs:
+
+        >>> ic = ncbi.IPGCursor(batch_size=1)  # doctest: +SKIP
+        >>> i = ic.fetchall(['WP_063732599.1'])  # doctest: +SKIP
+        >>> n = gnc.__getitem__(['WP_063732599.1'], ipgs=i)  # doctest: +SKIP
+        """
         from rotifer.genome.utils import seqrecords_to_dataframe
         result = seqrecords_to_dataframe([])
         targets = self.parse_ids(protein)
@@ -608,26 +706,32 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
 
     def fetchone(self, accessions, ipgs=None):
         """
-        Fetch each gene neighborhood iteratively.
+        Iterate over gene neighborhoods as they are retrieved.
+
+        Backends are tried in order; each one only receives the
+        identifiers that previous backends could not resolve.
 
         Parameters
         ----------
-        accessions: list of strings
-          Database identifiers.
-        ipgs : Pandas dataframe
-          This parameter may be used to avoid downloading IPGs
-          from NCBI several times. Example:
+        accessions : list of str
+            NCBI protein accessions.
+        ipgs : pandas.DataFrame, optional
+            Precomputed identical protein group reports, used to
+            avoid downloading IPGs several times.
 
-          >>> from rotifer.db as ncbi
-          >>> ic = ncbi.IPGCursor(batch_size=1)
-          >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)
-          >>> i = ic.fetchall(['WP_063732599.1'])
-          >>> for x in gnc.fetchone(['WP_063732599.1'], ipgs=i):
-          >>>    do_something(x)
+        Yields
+        ------
+        rotifer.genome.data.NeighborhoodDF
+            One dataframe per retrieved gene neighborhood.
 
-        Returns
-        -------
-        Generator of rotifer.genome.data.NeighborhoodDF
+        Examples
+        --------
+        >>> from rotifer.db import ncbi
+        >>> ic = ncbi.IPGCursor(batch_size=1)  # doctest: +SKIP
+        >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+        >>> i = ic.fetchall(['WP_063732599.1'])  # doctest: +SKIP
+        >>> for x in gnc.fetchone(['WP_063732599.1'], ipgs=i):  # doctest: +SKIP
+        ...     print(len(x))
         """
         from rotifer.genome.utils import seqrecords_to_dataframe
 
@@ -678,25 +782,29 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
 
     def fetchall(self, proteins, ipgs=None):
         """
-        Fetch all gene neighborhoods in a single dataframe.
+        Fetch all gene neighborhoods as a single dataframe.
 
         Parameters
         ----------
-        proteins: list of strings
-          Database identifiers.
-        ipgs : Pandas dataframe
-          This parameter may be used to avoid downloading IPGs
-          from NCBI several times. Example:
-
-          >>> from rotifer.db as ncbi
-          >>> ic = ncbi.IPGCursor(batch_size=1)
-          >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)
-          >>> i = ic.fetchall(['WP_063732599.1'])
-          >>> n = gnc.fetchall(['WP_063732599.1'], ipgs=i)
+        proteins : list of str
+            NCBI protein accessions.
+        ipgs : pandas.DataFrame, optional
+            Precomputed identical protein group reports, used to
+            avoid downloading IPGs several times.
 
         Returns
         -------
         rotifer.genome.data.NeighborhoodDF
+            The concatenated neighborhoods. Empty when nothing could
+            be retrieved.
+
+        Examples
+        --------
+        >>> from rotifer.db import ncbi
+        >>> ic = ncbi.IPGCursor(batch_size=1)  # doctest: +SKIP
+        >>> gnc = ncbi.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+        >>> i = ic.fetchall(['WP_063732599.1'])  # doctest: +SKIP
+        >>> n = gnc.fetchall(['WP_063732599.1'], ipgs=i)  # doctest: +SKIP
         """
         from rotifer.genome.utils import seqrecords_to_dataframe
         stack = []
@@ -708,6 +816,49 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
             return seqrecords_to_dataframe([])
 
 class TaxonomyCursor(rotifer.db.delegator.SequentialDelegatorCursor):
+    """
+    Fetch NCBI Taxonomy data as dataframes.
+
+    Taxonomy identifiers are first searched in the local ETE toolkit
+    copy of the NCBI Taxonomy database and only the identifiers not
+    found there are sent to NCBI Entrez.
+
+    Parameters
+    ----------
+    readers : list of str, default ``['ete3', 'entrez']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    sleep_between_tries : int, default 1
+        Number of seconds to wait between download attempts.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of simultaneous threads.
+
+    Attributes
+    ----------
+    taxcols : list of str
+        Columns of the returned dataframes: ``taxid``, ``organism``,
+        ``superkingdom``, ``lineage``, ``classification`` and
+        ``alternative_taxids``.
+
+    See Also
+    --------
+    rotifer.db.local.ete3.TaxonomyCursor : the local backend
+    rotifer.db.ncbi.entrez.TaxonomyCursor : the remote backend
+
+    Examples
+    --------
+    >>> from rotifer.db import ncbi
+    >>> tc = ncbi.TaxonomyCursor(progress=False)  # doctest: +SKIP
+    >>> t = tc.fetchall([2599])  # doctest: +SKIP
+    """
+
     def __init__(self, readers=['ete3','entrez'], writers=[], progress=True, tries=3, sleep_between_tries=1, batch_size=None, threads=None, *args, **kwargs):
         self._shared_attributes = ['progress','tries','sleep_between_tries','batch_size','threads']
         self.sleep_between_tries = sleep_between_tries
@@ -715,6 +866,20 @@ class TaxonomyCursor(rotifer.db.delegator.SequentialDelegatorCursor):
         self.taxcols = ['taxid','organism','superkingdom','lineage','classification','alternative_taxids']
 
     def getids(self, obj, *args, **kwargs):
+        """
+        Extract taxonomy identifiers from taxonomy dataframes.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame or list of pandas.DataFrame
+            Taxonomy dataframes produced by the cursor.
+
+        Returns
+        -------
+        set of str
+            All identifiers in the ``taxid`` and
+            ``alternative_taxids`` columns.
+        """
         if not (isinstance(obj,list) or isinstance(obj,tuple)):
             obj = [ obj ]
         ids = set()
@@ -728,22 +893,25 @@ class TaxonomyCursor(rotifer.db.delegator.SequentialDelegatorCursor):
 
     def __getitem__(self, accessions, *args, **kwargs):
         """
-        Dictionary-like access to data.
-
-        Usage
-        -----
-        >>> from rotifer.db import ncbi
-        >>> tc = ncbi.TaxonomyCursor(progress=True)
-        >>> t = tc[2599]
+        Fetch taxonomy data for one or more taxids, dictionary
+        style.
 
         Parameters
         ----------
-        accessions: list of strings
-          Database identifiers.
+        accessions : int, str or iterable
+            NCBI Taxonomy identifiers.
 
         Returns
         -------
-        Pandas dataframe
+        pandas.DataFrame
+            One row per taxon, with the columns listed in
+            ``taxcols``.
+
+        Examples
+        --------
+        >>> from rotifer.db import ncbi
+        >>> tc = ncbi.TaxonomyCursor(progress=False)  # doctest: +SKIP
+        >>> t = tc[2599]  # doctest: +SKIP
         """
         result = super().__getitem__(accessions, *args, **kwargs)
         if len(result) == 0:
@@ -755,16 +923,18 @@ class TaxonomyCursor(rotifer.db.delegator.SequentialDelegatorCursor):
 
     def fetchall(self, accessions, *args, **kwargs):
         """
-        Fetch data for all accessions.
+        Fetch taxonomy data for all taxids as one dataframe.
 
         Parameters
         ----------
-        accessions: list of database identifiers
-          Database identifiers.
+        accessions : list
+            NCBI Taxonomy identifiers.
 
         Returns
         -------
-        Pandas dataframe
+        pandas.DataFrame
+            One row per taxon, with the columns listed in
+            ``taxcols``.
         """
         df = super().fetchall(accessions, *args, **kwargs)
         if len(df) == 0:
@@ -779,46 +949,48 @@ def assemblies(baseurl=f'ftp://{config["ftpserver"]}/genomes/ASSEMBLY_REPORTS', 
     '''
     Load a table documenting all NCBI genome assemblies.
 
-    By default, these concatenated tables are downloaded
-    from the genomes/ASSEMBLY_REPORTS directory at NCBI's
-    FTP site.
-
-    Usage
-    -----
-    Download from NCBI's FTP site
-
-    >>> from rotifer.db import ncbi
-    >>> a = ncbi.assembly_reports()
-
-    Load local files at /db/ncbi
-
-    >>> b = ncbi.assembly_reports(baseurl="/db/ncbi")
-      
-    If working at NIH servers use
-
-    >>> a = ncbi.assembly_reports(baseurl="/am/ftp-genomes/ASSEMBLY_REPORTS")
+    By default, the concatenated assembly summary tables are
+    downloaded from the ``genomes/ASSEMBLY_REPORTS`` directory of the
+    NCBI FTP site. A local directory containing
+    ``assembly_summary_*.txt`` files may be used instead.
 
     Parameters
     ----------
-    baseurl: string
-      URL or directory with assembly_summary_*.txt files
-    targets: list
-      List of genome database sections to load.
-      Options are: refseq, genbank, genbank_historical, refseq_historical
-    taxonomy: boolean, default True
-      If set to true, taxonomy data is added to the table
-    progress: boolean
-      Display progress messages.
+    baseurl : str, optional
+        URL or directory with ``assembly_summary_*.txt`` files.
+        Defaults to the NCBI FTP site named in the configuration.
+    targets : list of str, optional
+        Genome database sections to load. Options are ``refseq``,
+        ``genbank``, ``refseq_historical`` and
+        ``genbank_historical``. All four are loaded by default.
+    taxonomy : bool, default True
+        Whether to add taxonomy data to the table, using
+        :class:`TaxonomyCursor`.
+    progress : bool, default True
+        Display progress messages.
 
     Returns
     -------
-    Pandas DataFrame
+    pandas.DataFrame
+        One row per assembly.
 
     Notes
     -----
-    Some columns are added to the original table:
-    source : NCBI's source database
-    loaded_from : data source (same as baseurl)
+    Two columns are added to the original table: ``source`` (the
+    genome database section) and ``loaded_from`` (the URL or path
+    each row was read from). The ``ftp_path`` column is rewritten to
+    use the ``ftp`` scheme.
+
+    Examples
+    --------
+    Download from the NCBI FTP site:
+
+    >>> from rotifer.db import ncbi
+    >>> a = ncbi.assemblies()  # doctest: +SKIP
+
+    Load local copies stored in ``/db/ncbi``:
+
+    >>> b = ncbi.assemblies(baseurl="/db/ncbi")  # doctest: +SKIP
     '''
 
     # Method dependencies
