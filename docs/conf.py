@@ -150,7 +150,6 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "OPEN_QUESTIONS.md",  # working notes, not part of the site
-    "STEP-BY-STEP.md",  # superseded scratch notes kept for history
     "_intersphinx",
 ]
 
