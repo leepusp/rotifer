@@ -2613,7 +2613,6 @@ $stats_selector
       pinTip(el, e);
     });
   });
-  });
 
   // ── neighborhood selection (single merged figure + single merged table) ──
   var figBlocks = qsa('.nb-fig-block');
