@@ -139,6 +139,19 @@ import seaborn as sns
 # transmembrane regions, etc.) or simply mean "no annotation".
 DEFAULT_IGNORE_DOMAINS = ['TM', 'SP', 'LP', 'LIPO', 'SIG']
 
+# Label for a gene with no domain annotation. Free-text 'product'
+# descriptions are deliberately NOT used as a fallback -- they are
+# sentence-length, never repeat between genes, and so blow up both the
+# arrow labels and the color/statistics counts. Anything without a real
+# domain hit is simply Unknown, and stays uncolored (see
+# `build_color_map`) and uncounted (see `compute_domain_stats`).
+UNKNOWN_DOMAIN_LABEL = 'Unknown'
+
+# Raw annotation values that mean "nothing here", whatever column they
+# come from. Compared case-insensitively against the stripped value.
+BLANK_ANNOTATION_VALUES = ('', 'nan', 'none', 'na', 'n/a', '-', '?', 'unk',
+                           'unknown', 'no hit', 'nohit')
+
 # Default header branding logo: the SVG file loaded into the report's
 # top-nav brand slot. `build_html_report` resolves it through
 # `resolve_logo`, so `header_logo` accepts either a path (with `~`
@@ -151,19 +164,31 @@ SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
 # Column preparation
 # ---------------------------------------------------------------------------
 
+def _blank_annotation_mask(series):
+    """
+    Which entries of a raw annotation column mean "no annotation":
+    missing values, blanks, and the placeholder strings in
+    `BLANK_ANNOTATION_VALUES`.
+    """
+    text = series.astype(str).str.strip().str.lower()
+    return series.isna() | text.isin(BLANK_ANNOTATION_VALUES)
+
+
 def resolve_domain_labels(df, label_col='pfam'):
     """
     Build the 'domain' column that gene node labels/colors are based on.
 
     When `label_col == 'pfam'` (the default), a gene with no Pfam hit
-    falls back to its 'aravind' annotation, then to its free-text
-    'product' description, and finally to the literal string 'unk' if
-    none of those are available either. This mirrors the common
-    situation where only some genes in a neighborhood have a Pfam domain.
+    falls back to its 'aravind' annotation, and to `UNKNOWN_DOMAIN_LABEL`
+    if that is missing too. The free-text 'product' description is *not*
+    used as a fallback: it is prose, effectively unique per gene, so it
+    turns arrow labels into sentences and inflates the color map and the
+    domain statistics with values that are not domains at all.
 
-    For any other `label_col`, that column is used as-is (missing values
-    become 'unk'); if the column does not exist at all, every gene gets
-    'unk'.
+    For any other `label_col`, that column is used as-is; if the column
+    does not exist at all, every gene gets `UNKNOWN_DOMAIN_LABEL`. In
+    every case a blank/placeholder value (see `BLANK_ANNOTATION_VALUES`)
+    counts as missing, not as a domain of its own.
 
     Parameters
     ----------
@@ -179,15 +204,16 @@ def resolve_domain_labels(df, label_col='pfam'):
 
     if label_col == 'pfam':
         domain = out['pfam'] if 'pfam' in out.columns else pd.Series(np.nan, index=out.index)
+        domain = domain.mask(_blank_annotation_mask(domain))
         if 'aravind' in out.columns:
-            domain = domain.fillna(out['aravind'])
-        if 'product' in out.columns:
-            domain = domain.fillna(out['product'])
-        out['domain'] = domain.fillna('unk')
+            aravind = out['aravind'].mask(_blank_annotation_mask(out['aravind']))
+            domain = domain.fillna(aravind)
+        out['domain'] = domain.fillna(UNKNOWN_DOMAIN_LABEL)
     elif label_col in out.columns:
-        out['domain'] = out[label_col].fillna('unk')
+        column = out[label_col]
+        out['domain'] = column.mask(_blank_annotation_mask(column)).fillna(UNKNOWN_DOMAIN_LABEL)
     else:
-        out['domain'] = 'unk'
+        out['domain'] = UNKNOWN_DOMAIN_LABEL
 
     return out
 
@@ -350,8 +376,8 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
     3. The remaining `max_colors` slots go to the most frequent of the
        remaining domains, by gene count.
     4. Everything else -- including anything in `ignore_domains`, the
-       literal value 'unk'/blank/'-'/'?', and anything containing the
-       word "hypothetical" -- is left white (no color).
+       literal value 'unk'/'Unknown'/blank/'-'/'?', and anything
+       containing the word "hypothetical" -- is left white (no color).
 
     Parameters
     ----------
@@ -381,7 +407,7 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
         ignore_domains = DEFAULT_IGNORE_DOMAINS
     custom_colors = dict(custom_colors) if custom_colors else {}
 
-    ignore_lower = [d.lower() for d in ignore_domains] + ['unk', ' ', '-', '?']
+    ignore_lower = [d.lower() for d in ignore_domains] + ['unk', 'unknown', ' ', '-', '?']
     domain_str = df['domain'].astype(str)
     is_ignorable = (
         domain_str.str.lower().isin(ignore_lower)
@@ -1386,13 +1412,10 @@ def build_gene_tooltip_html(meta):
     Build the inner HTML of the hover "info window" for a single protein
     in a neighborhood figure.
 
-    The title is the protein id. Then a role line:
-
-      * the query gene shows a "query" marker (this is the
-        "change domain for query" behavior -- where a neighbor would
-        list its domain, the query instead announces that it *is* the
-        query);
-      * a neighbor lists its domain/architecture.
+    The title is the protein id, followed by a star/"query" marker on
+    query genes only. Every gene -- query included -- then lists its
+    domain/architecture, so the query's own domain is never hidden
+    behind the fact that it is the query.
 
     Followed by genomic coordinates, strand, length and product when
     those fields are available.
@@ -1416,10 +1439,10 @@ def build_gene_tooltip_html(meta):
 
     if meta.get('is_query'):
         rows.append("<span class='t-row t-query'>&#9733;&nbsp;query</span>")
-    else:
-        domain = meta.get('domain')
-        domain = '-' if domain is None or (isinstance(domain, float) and pd.isna(domain)) else domain
-        rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>")
+
+    domain = meta.get('domain')
+    domain = '-' if domain is None or (isinstance(domain, float) and pd.isna(domain)) else domain
+    rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>")
 
     start, end = meta.get('start'), meta.get('end')
     if start is not None or end is not None:
@@ -1937,7 +1960,7 @@ def compute_domain_stats(working, scope='all', ignore_domains=None):
         actually surrounds the queries, with the query's own domain
         removed from the count entirely.
 
-    Generic/uninformative values (`ignore_domains`, plus 'unk'/'-'/'?' and
+    Generic/uninformative values (`ignore_domains`, plus 'unk'/'Unknown'/'-'/'?' and
     anything containing "hypothetical") are dropped. For architectures a
     component is dropped from the composite; if nothing meaningful remains,
     the whole architecture is skipped.
@@ -1959,7 +1982,8 @@ def compute_domain_stats(working, scope='all', ignore_domains=None):
         'domain' and 'count', sorted by count descending. (The first is
         atomic single domains; the second is composite architectures.)
     """
-    ignore = {d.lower() for d in (ignore_domains or DEFAULT_IGNORE_DOMAINS)} | {'unk', '-', '?', ''}
+    ignore = ({d.lower() for d in (ignore_domains or DEFAULT_IGNORE_DOMAINS)}
+              | {'unk', 'unknown', '-', '?', ''})
 
     if scope == 'query' and 'is_query' in working.columns:
         subset = working[working['is_query']]
