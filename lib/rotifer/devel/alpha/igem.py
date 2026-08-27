@@ -86,9 +86,11 @@ pipeline.
     genome_overview_fig           genome-wide-figure orchestrator
     render_dataframe_html         a dataframe as a plain <table>
     render_neighborhood_svgs_by_block  one SVG per block (per-result views)
+    build_scaled_block_svg        one block drawn to real genomic scale
+    render_scaled_svgs_by_block   one to-scale SVG per block
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
-    build_neighborhood_panels     pop-up selector + single merged figure stack
+    build_neighborhood_panels     pop-up selector + merged figure/to-scale stacks
     render_table_card             sortable/filterable/downloadable table widget
     render_neighborhood_table_card single merged, block-tagged table (all blocks)
     compute_domain_stats          reference-query + full-architecture domain counts
@@ -120,6 +122,7 @@ server-side or in a desktop toolkit.
 """
 
 import html
+import math
 import os
 import re
 import shutil
@@ -1539,6 +1542,289 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
     return svgs
 
 
+# ---------------------------------------------------------------------------
+# To-scale ("biological scale") neighborhood view
+# ---------------------------------------------------------------------------
+
+def _nice_tick_step(span, target_ticks=6):
+    """
+    Pick a round tick interval (1/2/5 x 10^n) that puts roughly
+    `target_ticks` ticks across `span` base pairs.
+    """
+    if span <= 0:
+        return 1
+    raw = span / max(target_ticks, 1)
+    magnitude = 10 ** math.floor(math.log10(raw))
+    for multiple in (1, 2, 5):
+        if raw <= multiple * magnitude:
+            return multiple * magnitude
+    return 10 * magnitude
+
+
+def _format_bp_tick(value, step):
+    """
+    Format a genomic coordinate for an axis tick: plain bp for small
+    steps, kb once the ticks are 1 kb or more apart.
+    """
+    if step >= 1000:
+        text = f'{value / 1000:,.1f}'.rstrip('0').rstrip('.')
+        return f'{text} kb'
+    return f'{value:,.0f}'
+
+
+def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide',
+                            start_col='start', end_col='end',
+                            normalize_orientation=True, highlight_query=True,
+                            track_width=900, left_margin=210, right_margin=30,
+                            gene_height=26, font_size=11, min_gene_width=2.0,
+                            show_row_label=True):
+    """
+    Draw one block to *biological scale*: genes placed by their real
+    genomic coordinates, so arrow widths are proportional to gene
+    lengths and the gaps between arrows are the real intergenic
+    distances.
+
+    This is the counterpart to `neighborhood_figure`, which lays genes
+    out by Graphviz in even, text-sized boxes -- great for reading
+    domain labels across rows, but it says nothing about how long a
+    gene is or how far apart two genes sit. Here the x axis *is* the
+    contig, in base pairs, with a labeled ruler underneath.
+
+    Genes keep the same fill colors (`color_map`) and the same red query
+    outline as the Graphviz figure, and each one is wrapped in the same
+    `class="node nb-gene" data-tip="..."` group the report's JavaScript
+    uses for its per-protein info window -- so hovering and click-to-pin
+    work here exactly as they do in the Figure view.
+
+    Orientation follows the same rule as `normalize_block_strand`: when
+    `normalize_orientation` is True and the block's reference query is
+    on the minus strand, the whole block is drawn reverse-complemented
+    (coordinates mirrored, arrows flipped) so the query reads
+    left-to-right. The ruler still shows real coordinates -- they simply
+    count down from left to right -- and the header says so.
+
+    Parameters
+    ----------
+    block_df : pandas.DataFrame
+        One block, already through `prepare_dataframe` (needs 'pid',
+        'domain', 'is_query', 'strand', plus `start_col`/`end_col`).
+    color_map : dict[str, str] or None
+        Domain -> fill color, as everywhere else (see `build_color_map`).
+    nucleotide_col, start_col, end_col : str
+        Per-gene contig and genomic span columns.
+    normalize_orientation : bool, default True
+        Mirror the block so its reference query points right.
+    highlight_query : bool, default True
+        Outline query genes in red.
+    track_width, left_margin, right_margin, gene_height, font_size : float
+        Layout, in SVG user units (effectively pixels at 100% zoom).
+    min_gene_width : float
+        Floor on how narrow an arrow may get, so a very short gene in a
+        very wide block stays visible (and hoverable).
+    show_row_label : bool, default True
+        Draw the left-hand query-id / block-id / organism label column.
+
+    Returns
+    -------
+    str
+        A self-contained `<svg>...</svg>` fragment.
+    """
+    color_map = color_map or {}
+    block = block_df.reset_index(drop=True)
+
+    starts = pd.to_numeric(block.get(start_col), errors='coerce') if start_col in block.columns else None
+    ends = pd.to_numeric(block.get(end_col), errors='coerce') if end_col in block.columns else None
+    if starts is None or ends is None:
+        spans = None
+    else:
+        lows = np.fmin(starts, ends)
+        highs = np.fmax(starts, ends)
+        spans = [(lo, hi) for lo, hi in zip(lows, highs)]
+
+    valid = [s for s in (spans or []) if not (pd.isna(s[0]) or pd.isna(s[1]))]
+    if not valid:
+        return ('<svg viewBox="0 0 420 40" xmlns="http://www.w3.org/2000/svg" '
+                'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="11">'
+                '<text x="8" y="24" fill="#888">No genomic coordinates for this block.</text></svg>')
+
+    lo = min(s[0] for s in valid)
+    hi = max(s[1] for s in valid)
+    span = max(hi - lo, 1)
+
+    ref_idx = select_reference_query_index(block)
+    flip = bool(
+        normalize_orientation and ref_idx is not None
+        and block.loc[ref_idx, 'strand'] == -1
+    )
+
+    if not show_row_label:
+        left_margin = 20
+
+    def to_x(pos):
+        frac = (hi - pos) / span if flip else (pos - lo) / span
+        return left_margin + frac * track_width
+
+    header_y = 16
+    band_top = 30
+    band_bottom = band_top + gene_height
+    band_mid = (band_top + band_bottom) / 2
+    axis_y = band_bottom + 22
+    fig_width = left_margin + track_width + right_margin
+    fig_height = axis_y + 26
+
+    parts = [
+        f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
+        f'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="{font_size}">',
+        f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
+    ]
+
+    # header: contig, span, and whether we mirrored the block
+    nucleotide = block[nucleotide_col].iloc[0] if nucleotide_col in block.columns else ''
+    header = f'{nucleotide}  {lo:,.0f}-{hi:,.0f}  ({span:,.0f} bp)'
+    if flip:
+        header += '  · reverse-complemented'
+    parts.append(
+        f'<text x="{left_margin:.0f}" y="{header_y}" fill="#888" font-size="{font_size - 1}">'
+        f'{html.escape(header)}</text>'
+    )
+
+    # left-hand label column, same three lines as the Graphviz figure
+    if show_row_label:
+        query_pid = block.loc[ref_idx, 'pid'] if ref_idx is not None else ''
+        label_lines = [
+            (str(query_pid), 'bold', '#111'),
+            (str(block['ID'].iloc[0]) if 'ID' in block.columns else '', 'normal', '#333'),
+            (str(block['org_name'].iloc[0]) if 'org_name' in block.columns else '', 'italic', '#555'),
+        ]
+        for i, (text, style, fill) in enumerate(label_lines):
+            style_attr = ' font-weight="700"' if style == 'bold' else (
+                ' font-style="italic"' if style == 'italic' else '')
+            parts.append(
+                f'<text x="8" y="{band_top - 2 + i * (font_size + 3):.0f}" fill="{fill}"'
+                f'{style_attr}>{html.escape(text)}</text>'
+            )
+
+    # the contig line every gene sits on
+    parts.append(
+        f'<line x1="{left_margin:.1f}" y1="{band_mid:.1f}" '
+        f'x2="{left_margin + track_width:.1f}" y2="{band_mid:.1f}" '
+        f'stroke="#d0d0d0" stroke-width="1.5"/>'
+    )
+
+    # ---- genes ----
+    for i, row in block.iterrows():
+        g_lo, g_hi = spans[i]
+        if pd.isna(g_lo) or pd.isna(g_hi):
+            continue
+        x_a, x_b = sorted((to_x(g_lo), to_x(g_hi)))
+        width = max(x_b - x_a, min_gene_width)
+        x_b = x_a + width
+
+        strand_val = row.get('strand', 1)
+        drawn_strand = -strand_val if (flip and strand_val in (1, -1)) else strand_val
+        head = min(9.0, width * 0.45)
+        if drawn_strand == -1:
+            pts = [(x_b, band_top), (x_a + head, band_top), (x_a, band_mid),
+                   (x_a + head, band_bottom), (x_b, band_bottom)]
+        elif drawn_strand == 1:
+            pts = [(x_a, band_top), (x_b - head, band_top), (x_b, band_mid),
+                   (x_b - head, band_bottom), (x_a, band_bottom)]
+        else:
+            pts = [(x_a, band_top), (x_b, band_top), (x_b, band_bottom), (x_a, band_bottom)]
+        points = ' '.join(f'{x:.1f},{y:.1f}' for x, y in pts)
+
+        is_target = bool(row['is_query'])
+        stroke = 'red' if (highlight_query and is_target) else '#333'
+        stroke_width = '2.4' if (highlight_query and is_target) else '1'
+        fill = color_map.get(row.get('domain'), '#ffffff')
+
+        meta = dict(
+            pid=row.get('pid'),
+            start=row.get(start_col),
+            end=row.get(end_col),
+            strand=strand_val,
+            domain=row.get('domain'),
+            product=row.get('product'),
+            plen=row.get('plen'),
+            is_query=is_target,
+        )
+        tip = html.escape(build_gene_tooltip_html(meta), quote=True)
+
+        parts.append(f'<g class="node nb-gene" data-tip="{tip}">')
+        parts.append(
+            f'<polygon points="{points}" fill="{fill}" stroke="{stroke}" '
+            f'stroke-width="{stroke_width}"/>'
+        )
+        # the domain label only fits inside wide-enough arrows; the rest
+        # rely on the hover/click info window
+        label = str(row.get('domain', ''))
+        if label and width >= len(label) * font_size * 0.62 + 8:
+            parts.append(
+                f'<text x="{(x_a + x_b) / 2:.1f}" y="{band_mid + font_size / 3:.1f}" '
+                f'text-anchor="middle" fill="#111" pointer-events="none">'
+                f'{html.escape(label)}</text>'
+            )
+        parts.append('</g>')
+
+    # ---- ruler ----
+    parts.append(
+        f'<line x1="{left_margin:.1f}" y1="{axis_y:.1f}" '
+        f'x2="{left_margin + track_width:.1f}" y2="{axis_y:.1f}" '
+        f'stroke="#999" stroke-width="1"/>'
+    )
+    step = _nice_tick_step(span)
+    first_tick = math.ceil(lo / step) * step
+    tick = first_tick
+    while tick <= hi:
+        x = to_x(tick)
+        parts.append(
+            f'<line x1="{x:.1f}" y1="{axis_y:.1f}" x2="{x:.1f}" y2="{axis_y + 5:.1f}" '
+            f'stroke="#999" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{x:.1f}" y="{axis_y + 17:.1f}" text-anchor="middle" fill="#777" '
+            f'font-size="{font_size - 1}">{_format_bp_tick(tick, step)}</text>'
+        )
+        tick += step
+
+    parts.append('</svg>')
+    return '\n'.join(parts)
+
+
+def render_scaled_svgs_by_block(working, color_map=None, nucleotide_col='nucleotide',
+                                 start_col='start', end_col='end', **kwargs):
+    """
+    Render one to-scale figure per block (see `build_scaled_block_svg`).
+
+    Parameters
+    ----------
+    working : pandas.DataFrame
+        The prepared table from `prepare_dataframe` (blocks are taken
+        from its 'pid_order'/'ID' columns, so block order matches
+        `compute_block_extents`).
+    color_map : dict[str, str] or None
+        Shared domain -> color mapping, so a domain is the same color
+        here, in the Graphviz figures and in the genome overview.
+    nucleotide_col, start_col, end_col : str
+        Coordinate columns, passed through.
+    **kwargs
+        Any other `build_scaled_block_svg` option.
+
+    Returns
+    -------
+    dict[str, str]
+        Block slug (see `_slug`) -> SVG markup.
+    """
+    svgs = {}
+    for _, block_df in working.groupby('pid_order', sort=True):
+        slug = _slug(block_df['ID'].iloc[0])
+        svgs[slug] = build_scaled_block_svg(
+            block_df, color_map=color_map, nucleotide_col=nucleotide_col,
+            start_col=start_col, end_col=end_col, **kwargs,
+        )
+    return svgs
+
+
 def render_dataframe_html(df, table_id='data-table', max_rows=None, css_class=None):
     """
     Render `df` as a plain HTML `<table>` (every value HTML-escaped),
@@ -1955,7 +2241,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .top-logo-wrap svg{height:40px;width:auto;display:block;}
   .brand-name{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:-.01em;}
 
-  .top-tabs{display:flex;flex:1;gap:0;overflow-x:auto;}
+  .top-tabs{display:flex;flex:1;gap:0;}
   .top-tab{
     display:flex;align-items:center;gap:7px;padding:13px 20px;
     font-size:13px;cursor:pointer;border:none;background:none;color:var(--muted);
@@ -2095,11 +2381,21 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
      so figure vs table applies to the whole merged selection at once */
   .nb-window.view-figure .nb-view-figure{display:block;}
   .nb-window.view-table  .nb-view-table{display:block;}
+  .nb-window.view-scale  .nb-view-scale{display:block;}
 
   /* one block's row inside the single merged figure stack */
   .nb-fig-block{display:none;}
   .nb-fig-block.active{display:block;}
   .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;}
+
+  /* same, for the to-scale stack (its own class so block selection can
+     toggle both stacks without the slug list being counted twice) */
+  .nb-scale-block{display:none;}
+  .nb-scale-block.active{display:block;}
+  .nb-scale-block.active ~ .nb-scale-block.active{
+    margin-top:18px;border-top:1px solid var(--line);padding-top:14px;
+  }
+  .nb-scale-note{color:var(--muted);font-size:12px;margin:0 0 12px;}
 
   /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
   .nb-fig-scroll{overflow-x:auto;}
@@ -2376,7 +2672,7 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>Table</b> toggle switches every visible block at once. Hover any gene arrow for its info window.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or click it to keep the window open.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
@@ -2406,12 +2702,17 @@ $genome_overview
 
   <div class="nb-view-tabs" id="nb-view-tabs">
     <button type="button" class="nb-subtab active" data-view="nb-view-figure">&#9654; Figure</button>
+    <button type="button" class="nb-subtab" data-view="nb-view-scale">&#8596; To scale</button>
     <button type="button" class="nb-subtab" data-view="nb-view-table">&#9776; Table</button>
   </div>
 
   <div class="nb-window view-figure" id="nb-window">
     <div class="nb-view nb-view-figure">
 $nb_fig_stack
+    </div>
+    <div class="nb-view nb-view-scale">
+      <p class="nb-scale-note">Genes drawn to <b>biological scale</b>: arrow width is the real gene length and the gaps are the real intergenic distances, along a base-pair ruler. Blocks whose query sits on the minus strand are shown reverse-complemented, so the ruler counts down.</p>
+$nb_scale_stack
     </div>
     <div class="nb-view nb-view-table">
 $nb_table_card
@@ -2615,8 +2916,9 @@ $stats_selector
   });
 
   // ── neighborhood selection (single merged figure + single merged table) ──
-  var figBlocks = qsa('.nb-fig-block');
-  var selItems  = qsa('.nb-sel-item');
+  var figBlocks   = qsa('.nb-fig-block');
+  var scaleBlocks = qsa('.nb-scale-block');
+  var selItems    = qsa('.nb-sel-item');
   var allSlugs  = figBlocks.map(function(f){ return f.dataset.block; });
 
   // Which slugs are currently shown (set by applySelection)
@@ -2626,7 +2928,7 @@ $stats_selector
   // window at once via a class on .nb-window.
   var nbWindowEl = qs('#nb-window');
   function setNbView(name) {
-    if (nbWindowEl) nbWindowEl.className = 'nb-window ' + (name === 'nb-view-table' ? 'view-table' : 'view-figure');
+    if (nbWindowEl) nbWindowEl.className = 'nb-window ' + name.replace('nb-view-', 'view-');
     qsa('#nb-view-tabs .nb-subtab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === name); });
   }
   qsa('#nb-view-tabs .nb-subtab').forEach(function (t) {
@@ -2646,6 +2948,7 @@ $stats_selector
     activeSet = {};
     slugs.forEach(function(s){ activeSet[s]=true; });
     figBlocks.forEach(function(f){ f.classList.toggle('active', !!activeSet[f.dataset.block]); });
+    scaleBlocks.forEach(function(f){ f.classList.toggle('active', !!activeSet[f.dataset.block]); });
     selItems.forEach(function(i){
       i.classList.toggle('active', !!activeSet[i.dataset.block]);
       var cb = i.querySelector('input[type=checkbox]');
@@ -2703,7 +3006,7 @@ $stats_selector
     return fig._natW;
   }
   function nbLayout() {
-    qsa('.nb-fig-block .nb-fig').forEach(function(f){
+    qsa('.nb-fig').forEach(function(f){
       var w = nbNaturalWidth(f) * nbZoom;
       f.style.width = Math.max(60, Math.round(w)) + 'px';
     });
@@ -3307,7 +3610,8 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
     )
 
 
-def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all'):
+def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all',
+                               scale_svgs=None):
     """
     Build the neighborhoods section's inner fragments for the pop-up
     (icon) multi-select model.
@@ -3335,19 +3639,27 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
     default_view : str
         Which blocks are active on load: 'all' (every block) or 'first'
         (just the first block).
+    scale_svgs : dict[str, str] or None
+        Slug -> to-scale SVG markup (see `render_scaled_svgs_by_block`),
+        for the window's "To scale" sub-view. None leaves that stack
+        empty.
 
     Returns
     -------
-    (str, str)
-        (fig_stack_html, selector_items_html).
+    (str, str, str)
+        (fig_stack_html, scale_stack_html, selector_items_html).
     """
     if extents.empty:
-        return '<div class="nb-empty">No blocks to show.</div>', ''
+        empty = '<div class="nb-empty">No blocks to show.</div>'
+        return empty, empty, ''
+
+    scale_svgs = scale_svgs or {}
 
     nucleotides = list(dict.fromkeys(extents['nucleotide']))
     first_slug = _slug(extents.iloc[0]['ID'])
 
     fig_blocks = []
+    scale_blocks = []
     selector_items = []
 
     for nucleotide in nucleotides:
@@ -3365,6 +3677,10 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
                 f'<div class="nb-fig-block{active}" data-block="{slug}">'
                 f'<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
             )
+            scale_blocks.append(
+                f'<div class="nb-scale-block{active}" data-block="{slug}">'
+                f'<div class="nb-fig">{scale_svgs.get(slug, "")}</div></div>'
+            )
             selector_items.append(
                 f'<div class="nb-sel-item" data-block="{slug}" role="button" tabindex="0" '
                 f'title="{html.escape(str(block["ID"]))}">'
@@ -3376,7 +3692,10 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
     fig_stack = (
         f'<div class="nb-fig-scroll"><div id="nb-fig-stack">{"".join(fig_blocks)}</div></div>'
     )
-    return fig_stack, ''.join(selector_items)
+    scale_stack = (
+        f'<div class="nb-fig-scroll"><div id="nb-scale-stack">{"".join(scale_blocks)}</div></div>'
+    )
+    return fig_stack, scale_stack, ''.join(selector_items)
 
 
 def read_svg_logo(path):
@@ -3556,8 +3875,16 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         df, group_col=group_col, filename='neighborhoods.csv', max_rows=max_table_rows,
     )
 
-    nb_fig_stack, nb_selector = build_neighborhood_panels(
+    # Same blocks, drawn to real genomic scale for the "To scale" sub-view.
+    scale_svgs = render_scaled_svgs_by_block(
+        working, color_map=color_map, nucleotide_col=nucleotide_col,
+        start_col=start_col, end_col=end_col,
+        normalize_orientation=operon_kwargs.get('normalize_orientation', True),
+    )
+
+    nb_fig_stack, nb_scale_stack, nb_selector = build_neighborhood_panels(
         extents, block_svgs, nb_table_card, default_view=default_view,
+        scale_svgs=scale_svgs,
     )
 
     # Statistics (granularity x scope, all computed inside build_stats_section_html)
@@ -3572,6 +3899,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         n_blocks=n_blocks,
         genome_overview=genome_overview,
         nb_fig_stack=nb_fig_stack,
+        nb_scale_stack=nb_scale_stack,
         nb_table_card=nb_table_card,
         nb_selector=nb_selector,
         stats_html=stats_html,
