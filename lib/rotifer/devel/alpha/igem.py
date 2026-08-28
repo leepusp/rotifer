@@ -82,8 +82,9 @@ pipeline.
     has_repeat_region             does a row carry a regulatory-region span
     repeat_region_span            (low, high, strand) from the repeat_* columns
     repeat_region_tooltip         one-line "regulatory region a-b (+ strand)"
+    build_repeat_tooltip_html     pop-up body: label + coordinates + strand
     repeat_region_node_style      Graphviz attributes for the pink DNA square
-    scaled_repeat_region_svg      the same pink square for the to-scale figure
+    scaled_repeat_region_svg      the same pink square (own lane) for to-scale
     block_is_ascending            is a block drawn 5'->3' left-to-right
     count_genes_before_repeat     how many genes sit left of a repeat square
     add_block_to_graph            add one full row (label + genes) to the
@@ -653,6 +654,10 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
 REPEAT_REGION_FILL = '#ff9ecb'
 REPEAT_REGION_OUTLINE = '#c2185b'
 
+# What the regulatory regions detected by the pipeline are: FIMO hits of
+# the heptarepeat motif. Used as the title of the marker's info window.
+REPEAT_REGION_LABEL = 'Heptarepeat'
+
 
 def has_repeat_region(row, start_col='repeat_start', end_col='repeat_end'):
     """
@@ -708,22 +713,39 @@ def repeat_region_tooltip(repeat_start, repeat_end, repeat_strand=None):
     return text
 
 
-def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end',
-                             strand_col='repeat_strand'):
+def build_repeat_tooltip_html(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Inner HTML of the hover/click info window ("pop-up") for a
+    regulatory-region marker: a bold `REPEAT_REGION_LABEL` title, then
+    `.t-row` spans for the genomic coordinates and the strand.
+
+    Same shape as `build_gene_tooltip_html`, so the report's tooltip
+    card renders it with identical styling. `repeat_strand` should
+    already be the strand *as drawn* (flipped for a reverse-complemented
+    block); pass +1 / -1 / None.
+    """
+    lo, hi, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    strand_str = '+' if strand == 1 else '&minus;' if strand == -1 else '?'
+    return ''.join([
+        f"<b>{html.escape(REPEAT_REGION_LABEL)}</b>",
+        "<span class='t-row'>regulatory region &middot; protein-binding site</span>",
+        f"<span class='t-row'>coords&nbsp;&middot;&nbsp;{_fmt_int(lo)}&ndash;{_fmt_int(hi)} bp</span>",
+        f"<span class='t-row'>strand&nbsp;&middot;&nbsp;{strand_str}</span>",
+    ])
+
+
+def repeat_region_node_style():
     """
     Graphviz node attributes for the pink square that marks a regulatory
     region (a stretch of DNA a protein binds) next to its gene in a
     neighborhood row.
 
     It is deliberately a small fixed-size square, not an arrow: it is a
-    DNA feature, not a gene, so it must not read as one. The square's
-    size and position are set by coordinate only; `repeat_strand`, if
-    present, is surfaced on the tooltip but does not move the marker.
-    By the time this runs `normalize_block_strand` has already flipped
-    `repeat_strand` for a reverse-complemented block, so the tooltip
-    shows the strand as drawn.
+    DNA feature, not a gene, so it must not read as one. The style is
+    constant -- size and position carry no data, and the hover/click
+    pop-up is attached later by `annotate_neighborhood_svg` (same
+    mechanism as the gene nodes), so no graphviz `tooltip` is set here.
     """
-    tooltip = repeat_region_tooltip(row[start_col], row[end_col], row.get(strand_col))
     return dict(
         label='',
         shape='box',
@@ -734,7 +756,6 @@ def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'
         fillcolor=REPEAT_REGION_FILL,
         color=REPEAT_REGION_OUTLINE,
         penwidth='1.5',
-        tooltip=tooltip,
     )
 
 
@@ -744,42 +765,53 @@ def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'
 REPEAT_REGION_MARKER_MIN_PX = 12.0
 
 
-def scaled_repeat_region_svg(x_start, x_end, band_top, band_bottom,
+def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
                              repeat_start, repeat_end, repeat_strand=None,
                              flip=False):
     """
     SVG markup for the pink square that marks a regulatory region in a
     *to-scale* block figure (`build_scaled_block_svg`).
 
-    `x_start`/`x_end` are the region's genomic endpoints already
+    The square sits in its own lane *above* the gene band (y from
+    `lane_top` to `lane_bottom`) so it never sits on top of a gene
+    arrow, with a thin connector line dropped from it down to
+    `connector_y` (the top edge of the gene band) to show which locus it
+    marks. `x_start`/`x_end` are the region's endpoints already
     projected to SVG user units (that function's `to_x`); they may
     arrive in either order when the block is reverse-complemented. The
-    marker is centred on the region, spans the full gene band in height
-    and is at least `REPEAT_REGION_MARKER_MIN_PX` wide -- so a few-bp
-    region still reads as a square, and only an unusually long region
-    widens into a pink bar.
+    marker is centred on the region and at least
+    `REPEAT_REGION_MARKER_MIN_PX` wide, so a few-bp region still reads as
+    a square and only an unusually long region widens into a pink bar.
 
-    `repeat_strand` (+1/-1) and the block's `flip` do not affect the
-    marker's shape or position -- placement is by coordinate. They only
-    decide the strand shown in the `<title>`: on a reverse-complemented
-    block (`flip=True`) the drawn strand is the opposite of the input
-    `repeat_strand`, matching how the genes are flipped.
+    The group is `class="node nb-repeat"` with a `data-tip` pop-up
+    (`build_repeat_tooltip_html`: label, coordinates, strand), picked up
+    by the report's tooltip JS exactly like a gene. `repeat_strand`
+    (+1/-1) and the block's `flip` change only that pop-up / the
+    `<title>`, never the geometry: on a reverse-complemented block
+    (`flip=True`) the strand shown is the opposite of the input.
     """
     lo, hi = sorted((x_start, x_end))
     mid = (lo + hi) / 2
     width = max(hi - lo, REPEAT_REGION_MARKER_MIN_PX)
-    height = band_bottom - band_top
+    height = lane_bottom - lane_top
     _, _, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
     if flip and strand in (1, -1):
         strand = -strand
-    tip = repeat_region_tooltip(repeat_start, repeat_end, strand)
-    return (
-        f'<g class="repeat-region"><title>{html.escape(tip)}</title>'
-        f'<rect x="{mid - width / 2:.1f}" y="{band_top:.1f}" '
+    tip_attr = html.escape(build_repeat_tooltip_html(repeat_start, repeat_end, strand), quote=True)
+    title = html.escape(repeat_region_tooltip(repeat_start, repeat_end, strand))
+    parts = [f'<g class="node nb-repeat" data-tip="{tip_attr}"><title>{title}</title>']
+    if connector_y is not None and connector_y > lane_bottom:
+        parts.append(
+            f'<line x1="{mid:.1f}" y1="{lane_bottom:.1f}" x2="{mid:.1f}" y2="{connector_y:.1f}" '
+            f'stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1" stroke-opacity="0.45"/>'
+        )
+    parts.append(
+        f'<rect x="{mid - width / 2:.1f}" y="{lane_top:.1f}" '
         f'width="{width:.1f}" height="{height:.1f}" rx="1.5" '
-        f'fill="{REPEAT_REGION_FILL}" stroke="{REPEAT_REGION_OUTLINE}" '
-        f'stroke-width="1.2"/></g>'
+        f'fill="{REPEAT_REGION_FILL}" stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1.2"/>'
     )
+    parts.append('</g>')
+    return ''.join(parts)
 
 
 def block_is_ascending(positions):
@@ -877,7 +909,9 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
          query (see `select_reference_query_index`), or None if this
          block has no query gene, 'gene_nodes': [node ids, left-to-right],
          'gene_meta': {node id -> per-gene info dict (pid, start, end,
-         strand, domain, product, plen, is_query)}}.
+         strand, domain, product, plen, is_query); regulatory-region
+         nodes get {is_repeat, repeat_start, repeat_end, repeat_strand}
+         instead}}.
     """
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is not None:
@@ -946,11 +980,20 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         if row_idx == ref_idx:
             query_node_id = node_id
         # A pink square for the regulatory region this protein binds. It
-        # carries no domain label/color and is not a gene, so it stays
-        # out of gene_node_ids/gene_meta and the query-alignment machinery.
+        # is not a gene: no domain label/color, and it stays out of
+        # gene_node_ids and the query-alignment machinery. It does get a
+        # gene_meta entry, but only so the pop-up can be attached later.
         if has_repeat_region(row):
             repeat_id = f'repeat_{block_index}_{row_position}'
-            graph.add_node(repeat_id, **repeat_region_node_style(row))
+            graph.add_node(repeat_id, **repeat_region_node_style())
+            # Carried only so annotate_neighborhood_svg can build the
+            # pop-up; kept out of gene_node_ids / query alignment.
+            gene_meta[repeat_id] = dict(
+                is_repeat=True,
+                repeat_start=row.get('repeat_start'),
+                repeat_end=row.get('repeat_end'),
+                repeat_strand=row.get('repeat_strand'),
+            )
             r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
             repeat_mid = (r_lo + r_hi) / 2
             if has_coords:
@@ -1712,8 +1755,11 @@ def annotate_neighborhood_svg(svg, node_meta):
 
     For every `<g class="node">` whose `<title>` names a gene that has
     metadata, this adds `class="node nb-gene"` and a `data-tip`
-    attribute (the HTML from `build_gene_tooltip_html`). Label boxes,
-    spacers and any node without metadata are left untouched.
+    attribute (the HTML from `build_gene_tooltip_html`). A
+    regulatory-region node (`is_repeat` meta) instead gets
+    `class="node nb-repeat"` and the `build_repeat_tooltip_html` pop-up.
+    Label boxes, spacers and any node without metadata are left
+    untouched.
 
     This is plain text surgery on graphviz's SVG output rather than a
     graphviz feature: graphviz can attach a `tooltip` (which becomes a
@@ -1738,9 +1784,15 @@ def annotate_neighborhood_svg(svg, node_meta):
         meta = node_meta.get(name)
         if not meta:
             return match.group(0)
-        tip = html.escape(build_gene_tooltip_html(meta), quote=True)
         gid = match.group('gid')
-        new_header = f'<g id="{gid}" class="node nb-gene" data-tip="{tip}">'
+        if meta.get('is_repeat'):
+            tip = html.escape(build_repeat_tooltip_html(
+                meta.get('repeat_start'), meta.get('repeat_end'),
+                meta.get('repeat_strand')), quote=True)
+            new_header = f'<g id="{gid}" class="node nb-repeat" data-tip="{tip}">'
+        else:
+            tip = html.escape(build_gene_tooltip_html(meta), quote=True)
+            new_header = f'<g id="{gid}" class="node nb-gene" data-tip="{tip}">'
         return match.group(0).replace(f'<g id="{gid}" class="node">', new_header, 1)
 
     return _NODE_GROUP_RE.sub(repl, svg)
@@ -1850,12 +1902,14 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
     work here exactly as they do in the Figure view.
 
     Rows carrying `repeat_start`/`repeat_end` also get a pink square
-    marking that regulatory region, placed at its real coordinates (see
-    `scaled_repeat_region_svg`); it matches the marker the Graphviz
-    figure adds via `repeat_region_node_style`. `repeat_strand`, if
-    given, only sets the strand shown on the marker's tooltip (flipped
-    with the block when reverse-complemented) -- it does not move the
-    square.
+    marking that regulatory region, in a dedicated lane *above* the gene
+    band (so it never overlaps an arrow) at the region's real x, with a
+    connector line down to the band -- see `scaled_repeat_region_svg`.
+    It carries the same hover/click pop-up as a gene
+    (`build_repeat_tooltip_html`: label, coordinates, strand).
+    `repeat_strand`, if given, only sets the strand shown in that pop-up
+    (flipped with the block when reverse-complemented) -- it does not
+    move the square.
 
     Orientation follows the same rule as `normalize_block_strand`: when
     `normalize_orientation` is True and the block's reference query is
@@ -1925,8 +1979,16 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         frac = (hi - pos) / span if flip else (pos - lo) / span
         return left_margin + frac * track_width
 
+    # Regulatory-region squares get their own lane above the gene band
+    # (only reserved when the block actually has one), so they never sit
+    # on top of a gene arrow.
+    has_any_repeat = any(has_repeat_region(r) for _, r in block.iterrows())
+    repeat_lane_top = 24
+    repeat_lane_h = 12 if has_any_repeat else 0
+    repeat_reserve = (repeat_lane_h + 8) if has_any_repeat else 0
+
     header_y = 16
-    band_top = 30
+    band_top = 30 + repeat_reserve
     band_bottom = band_top + gene_height
     band_mid = (band_top + band_bottom) / 2
     axis_y = band_bottom + 22
@@ -2028,16 +2090,17 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         parts.append('</g>')
 
     # ---- regulatory regions ----
-    # Drawn after the genes so a small marker sits on top of the arrow it
-    # overlaps, and placed by real coordinates via to_x() (so it follows
-    # the same reverse-complement flip as the genes).
+    # In their own lane above the gene band (x by real coordinate via
+    # to_x(), so they follow the same reverse-complement flip as the
+    # genes); a connector line drops to the top of the band.
     for _, row in block.iterrows():
         if not has_repeat_region(row):
             continue
         rs = float(row['repeat_start'])
         re_ = float(row['repeat_end'])
         parts.append(scaled_repeat_region_svg(
-            to_x(rs), to_x(re_), band_top, band_bottom, rs, re_,
+            to_x(rs), to_x(re_), repeat_lane_top, repeat_lane_top + repeat_lane_h,
+            band_top, rs, re_,
             repeat_strand=row.get('repeat_strand'), flip=flip,
         ))
 
@@ -2571,6 +2634,8 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .go-tooltip .tip-close:hover{color:#fff;}
   .nb-gene{cursor:pointer;}
   .nb-gene:hover polygon,.nb-gene:hover ellipse{stroke-width:2.4px;}
+  .nb-repeat{cursor:pointer;}
+  .nb-repeat:hover rect,.nb-repeat:hover polygon{stroke-width:2.2px;}
 
   /* ---- genome overview ---- */
   .go-controls{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
@@ -3181,9 +3246,9 @@ $stats_selector
   on(document, 'click', function () { if (tipPinned) unpinTip(); });
   var goMarkers = qsa('.go-marker');
   goMarkers.forEach(function(m){ attachTip(m); on(m,'click',function(){ unpinTip(); openNeighborhood(m.dataset.block); }); });
-  // ── per-protein info window (same card as the genome overview) ───────
+  // ── per-protein / regulatory-region info window (same card as the genome overview) ──
   // Hover → the card follows the mouse; click → it stays put until closed.
-  qsa('.nb-gene').forEach(function (el) {
+  qsa('.nb-gene, .nb-repeat').forEach(function (el) {
     attachTip(el);
     on(el, 'click', function (e) {
       e.stopPropagation();         // don't let the document handler unpin it
