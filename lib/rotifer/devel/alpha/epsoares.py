@@ -1137,7 +1137,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
-    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv'):
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None):
     ''' 
     Doc
     '''
@@ -1158,6 +1158,11 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
     ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
                                  max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
+    ndf['repeat_start'] = ndf.pid.map(fimo[fimo.pid.isin(ndf.query('query == 1').pid)].set_index('pid').start.to_dict())
+    ndf['repeat_end'] = ndf.pid.map(fimo[fimo.pid.isin(ndf.query('query == 1').pid)].set_index('pid').stop.to_dict())
+
+    if organism:
+        ndf['organism'] = organism
 
     if make_figure:
         rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict)
