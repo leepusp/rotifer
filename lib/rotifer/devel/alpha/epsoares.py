@@ -1173,7 +1173,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
 
     if filter_columns:
-        ndf = ndf[filter_columns]
+        ndf = ndf.drop(columns=[c for c in filter_columns if c in ndf.columns])
 
     if organism:
         ndf['organism'] = organism
