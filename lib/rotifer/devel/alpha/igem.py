@@ -72,6 +72,10 @@ pipeline.
     normalize_block_strand       optionally mirror a block to a common
                                   query orientation
     gene_node_style               Graphviz node attributes for one gene
+    has_repeat_region             does a row carry a regulatory-region span
+    repeat_region_node_style      Graphviz attributes for the pink DNA square
+    block_is_ascending            is a block drawn 5'->3' left-to-right
+    count_genes_before_repeat     how many genes sit left of a repeat square
     add_block_to_graph            add one full row (label + genes) to the
                                   graph, with optional left/right padding
     chain_align_nodes             pull one node per row into the same
@@ -586,6 +590,96 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
 
 
 # ---------------------------------------------------------------------------
+# Regulatory ("repeat") region marker
+# ---------------------------------------------------------------------------
+
+REPEAT_REGION_FILL = '#ff9ecb'
+REPEAT_REGION_OUTLINE = '#c2185b'
+
+
+def has_repeat_region(row, start_col='repeat_start', end_col='repeat_end'):
+    """
+    True when `row` carries a usable regulatory-region span -- i.e. both
+    `repeat_start` and `repeat_end` are present and non-null.
+
+    Those two columns are optional. They give the genomic coordinates of
+    a regulatory region of DNA that a protein binds to (a "repeat"); a
+    row without them, or with NaN in either, simply gets no marker drawn.
+    """
+    if start_col not in row.index or end_col not in row.index:
+        return False
+    return pd.notna(row[start_col]) and pd.notna(row[end_col])
+
+
+def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'):
+    """
+    Graphviz node attributes for the pink square that marks a regulatory
+    region (a stretch of DNA a protein binds) next to its gene in a
+    neighborhood row.
+
+    It is deliberately a small fixed-size square, not an arrow: it is a
+    DNA feature, not a gene, so it must not read as one. The square's
+    size is constant -- these regions are only a handful of bp, far too
+    small to draw to scale next to kb-long gene arrows -- but the real
+    `repeat_start`/`repeat_end` coordinates are kept on the node tooltip.
+    """
+    try:
+        tooltip = f'regulatory region {int(row[start_col])}-{int(row[end_col])}'
+    except (TypeError, ValueError):
+        tooltip = 'regulatory region'
+    return dict(
+        label='',
+        shape='box',
+        style='filled',
+        fixedsize='true',
+        width='0.22',
+        height='0.22',
+        fillcolor=REPEAT_REGION_FILL,
+        color=REPEAT_REGION_OUTLINE,
+        penwidth='1.5',
+        tooltip=tooltip,
+    )
+
+
+def block_is_ascending(positions):
+    """
+    True if a block's genes run left-to-right in *increasing* genomic
+    coordinate (the usual case), False if the block was mirrored by
+    `normalize_block_strand` (reference query on the minus strand), which
+    reverses the rows so coordinates decrease left-to-right.
+
+    `positions` is a per-gene coordinate (midpoint, or `start`) in
+    row/draw order. A block with fewer than two usable coordinates is
+    treated as ascending.
+    """
+    finite = [float(p) for p in positions if pd.notna(p)]
+    return len(finite) < 2 or finite[-1] >= finite[0]
+
+
+def count_genes_before_repeat(gene_positions, repeat_position, ascending=True):
+    """
+    How many gene arrows sit to the left of a regulatory-region square --
+    i.e. the index at which to splice the square into the gene sequence
+    so it lands where the region actually falls among the genes.
+
+    `gene_positions` and `repeat_position` are comparable genomic
+    coordinates in the same frame; `neighborhood_figure` passes gene and
+    region *midpoints*, so a region that falls inside a gene snaps to
+    whichever side of that gene its centre is closer to. Ascending block:
+    a gene is to the left when its position is below the region's.
+    Mirrored (descending) block: the comparison flips. Genes with an
+    unknown position never count as being to the left.
+    """
+    n = 0
+    for p in gene_positions:
+        if pd.isna(p):
+            continue
+        if (float(p) < repeat_position) if ascending else (float(p) > repeat_position):
+            n += 1
+    return n
+
+
+# ---------------------------------------------------------------------------
 # Graph assembly
 # ---------------------------------------------------------------------------
 
@@ -668,6 +762,22 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
     gene_node_ids = []
     gene_meta = {}
     query_node_id = None
+    # Regulatory-region squares are collected here as
+    # (insertion_index_into_gene_sequence, region_midpoint, node_id) and
+    # spliced in *after* every gene node exists, so each square lands
+    # where its region actually falls relative to the gene coordinates
+    # rather than always right after the gene it is annotated on.
+    repeat_placements = []
+    if {'start', 'end'} <= set(block_df.columns):
+        gene_positions = ((block_df['start'].astype('float64')
+                           + block_df['end'].astype('float64')) / 2).tolist()
+    elif 'start' in block_df.columns:
+        gene_positions = block_df['start'].astype('float64').tolist()
+    else:
+        gene_positions = [None] * len(block_df)
+    has_coords = any(pd.notna(p) for p in gene_positions)
+    ascending = block_is_ascending(gene_positions)
+
     for row_position, (row_idx, row) in enumerate(block_df.iterrows()):
         node_id = f'gene_{block_index}_{row_position}'
         style = gene_node_style(
@@ -694,6 +804,28 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         )
         if row_idx == ref_idx:
             query_node_id = node_id
+        # A pink square for the regulatory region this protein binds. It
+        # carries no domain label/color and is not a gene, so it stays
+        # out of gene_node_ids/gene_meta and the query-alignment machinery.
+        if has_repeat_region(row):
+            repeat_id = f'repeat_{block_index}_{row_position}'
+            graph.add_node(repeat_id, **repeat_region_node_style(row))
+            repeat_mid = (float(row['repeat_start']) + float(row['repeat_end'])) / 2
+            if has_coords:
+                insert_at = count_genes_before_repeat(gene_positions, repeat_mid, ascending)
+            else:
+                insert_at = row_position + 1  # no coordinates: keep it beside its gene
+            repeat_placements.append((insert_at, repeat_mid, repeat_id))
+
+    # gene arrows plus any regulatory-region squares, in left-to-right draw
+    # order. Splice right-to-left so earlier indices stay valid; on an
+    # index tie the more downstream region ends up further right (further
+    # left for a mirrored block).
+    row_sequence_ids = list(gene_node_ids)
+    tie_key = lambda p: (p[0], p[1] if ascending else -p[1], p[2])
+    for insert_at, _region_mid, repeat_id in sorted(repeat_placements, key=tie_key, reverse=True):
+        insert_at = max(0, min(insert_at, len(row_sequence_ids)))
+        row_sequence_ids.insert(insert_at, repeat_id)
 
     spacer_ids_left = [f'spacer_{block_index}_L{i}' for i in range(left_pad)]
     spacer_ids_right = [f'spacer_{block_index}_R{i}' for i in range(right_pad)]
@@ -701,7 +833,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         graph.add_node(spacer_id, label='', shape='box', style='invis',
                         width=spacer_width, height=0.01)
 
-    row_node_ids = [label_node_id] + spacer_ids_left + gene_node_ids + spacer_ids_right
+    row_node_ids = [label_node_id] + spacer_ids_left + row_sequence_ids + spacer_ids_right
     graph.add_subgraph(row_node_ids, rank='same')
     for a, b in zip(row_node_ids[:-1], row_node_ids[1:]):
         graph.add_edge(a, b, style='invis', penwidth=0)
