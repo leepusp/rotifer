@@ -1,0 +1,94 @@
+name: Feature Request
+description: Suggest an idea or enhancement for ROTIFER
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to ROTIFER. Please describe the
+        problem you're trying to solve before the solution. It helps us
+        understand the use case and consider alternatives.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem description
+      description: A clear and concise description of the problem you're trying to solve. What are you unable to do today, or what is harder than it should be?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you'd like, and how you imagine it working (e.g. a new command, a new function, an added option).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative solutions, workarounds, or existing tools you've considered, and why they fall short.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of ROTIFER would this affect?
+      description: If you're not sure, choose "Not sure" and describe the use case below.
+      options:
+        - Python library (lib/rotifer)
+        - Perl library (perl/lib)
+        - Command-line tool (bin/ or sbin/)
+        - Installation / packaging (conda)
+        - Documentation
+        - New tool or module
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: functionality
+    attributes:
+      label: What functionality would this affect?
+      description: The functional area(s) this feature relates to. Select all that apply.
+      multiple: true
+      options:
+        - Data access & retrieval
+        - Import / export / format conversion
+        - Sequence & alignment analysis
+        - Homology & profile search
+        - Genomic neighborhood & domain architecture
+        - Clustering
+        - Taxonomy
+        - Tabular data manipulation
+        - Graphic / figure generation
+        - 3D structure analysis
+        - Configuration / installation / runtime
+        - Other (describe below)
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps. The biological/analysis use case, example inputs and outputs, references, or links to related issues.
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Before you submit
+      description: Please confirm the following before filing.
+      options:
+        - label: I have read the [Contributing Guidelines](https://github.com/leepusp/rotifer/blob/master/CONTRIBUTING.md) for this project.
+          required: true
+        - label: I agree to follow the [Code of Conduct](https://github.com/leepusp/rotifer/blob/master/CODE_OF_CONDUCT.md) that this project adheres to.
+          required: true
+        - label: I have searched the [issue tracker](https://github.com/leepusp/rotifer/issues) for a feature request that matches the one I want to file, without success.
+          required: true

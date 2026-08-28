@@ -318,3 +318,495 @@ def make_hist(df, column, bins=10):
           print(line)
 
 
+### Igem 2026
+
+
+def filter_fimo(fimoraw, gentab, repdist=2, gensize=5):
+    """
+    Apply the repeat-distance filter and mark repeats that overlap genes
+    on the same nucleotide and strand.
+
+    Parameters
+    ----------
+    fimoraw : pandas.DataFrame
+        Must contain sequence_name, strand, start, stop, and distance.
+
+    gentab : pandas.DataFrame
+        Must contain nucleotide, strand, start, end, plen, and type.
+
+    repdist : int or float, default=2
+        Minimum repeat distance retained.
+
+    gensize : int or float, default=5
+        Minimum protein length used in the overlap check.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Distance-filtered repeats with an ``intragenic`` column.
+    """
+    import numpy as np
+    import pandas as pd
+
+    # Doing .copy() to avoid pandas' warnings
+
+    distfilt = fimoraw.loc[fimoraw["distance"] >= repdist].copy()
+    
+    # I'm  only interested in genes, so I grab only the CDS and while I am at it, I will ignore proteins that are smaller than 5 AA
+    
+    genfil = gentab.loc[(gentab["type"] == "CDS") & (gentab["plen"] >= gensize)].copy()
+
+    # I need to compare repeats with genes on the same strand, but FIMO has "+" and "-" representation, so I'll change that on the fly
+    
+    distfilt["strand"] = distfilt["strand"].map({"+": 1,"-": -1})
+    
+    # Crash if there are unexpected values in strand
+    
+    if distfilt["strand"].isna().any():
+        raise ValueError("FIMO strand contains values other than '+' and '-'")
+
+    # Now, the operation I intend to do wants the df to be ordered
+
+    distfilt = distfilt.sort_values(["sequence_name", "start", "stop","strand"])
+    genfil = genfil.sort_values(["nucleotide", "start", "end","strand"])
+
+    # Create gene groups where only one strand is present
+    
+    gene_groups = {key: group for key, group in genfil.groupby(["nucleotide", "strand"],sort=False,dropna=False)}
+
+    # Initialize  series to store results defaulting to False
+    
+    result = pd.Series(False,index=distfilt.index,dtype=bool)
+
+    # Iterate for every matching key 
+    
+    for key, repeats in distfilt.groupby(["sequence_name", "strand"],sort=False,dropna=False):
+        
+        # Grab the matching key
+        genes = gene_groups.get(key)
+        
+        # Handling if it continues
+        if genes is None or genes.empty:
+            continue
+
+        # NP arrays from each group
+        
+        gene_starts = genes["start"].to_numpy()
+        gene_ends = genes["end"].to_numpy()
+
+        repeat_starts = repeats["start"].to_numpy()
+        repeat_stops = repeats["stop"].to_numpy()
+
+        # Largest gene end observed at or before each gene position.
+        max_end_so_far = np.maximum.accumulate(gene_ends)
+
+        # Last gene whose start is <= repeat stop.
+        pos = np.searchsorted(gene_starts, repeat_stops,side="right") - 1
+
+        valid = pos >= 0
+        overlap = np.zeros(len(repeats), dtype=bool)
+
+        overlap[valid] = (
+            max_end_so_far[pos[valid]]
+            >= repeat_starts[valid]
+        )
+
+        # Assign the value
+        result.loc[repeats.index] = overlap
+
+    distfilt["intragenic"] = result
+
+    return distfilt
+
+def filter_neighbors(ndf, pids = None, reqdom = 'defaults.tsv', customdoms = False, after = 15, before = 15, max_distance = 200, genome_protein_fasta=None, models_path=None, annotate=False):
+    
+    import numpy as np
+    import pandas as pd
+    from rotifer.genome import utils as rgu
+    from rotifer.genome import io as rgio
+    from rotifer.genome.data import NeighborhoodDF
+    from rotifer.devel.alpha import epsoares as rdae
+
+    if annotate:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
+        rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True, file = genome_protein_fasta, models_path = models_path)
+    else:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=after, before=before)
+
+    hlist = pd.read_table(reqdom, names=['model','source'])
+    
+    if customdoms:
+        nhlist = pd.read_table(customdoms, names=['model','source'])
+        hlist = pd.concat([hlist,nhlist])
+
+    model_set = set(hlist['model'])
+    domain_mask = ndff["pfam"].fillna("").str.split("+").apply(lambda architecture: bool(model_set.intersection(architecture)))
+
+    print(f"Analyzing {ndff.block_id.nunique()} block(s)")
+
+    print(f"{ndff.loc[domain_mask,['block_id']]['block_id'].nunique()} block(s) with target domains")
+    print(f"Found {ndff.query('query == 1')['block_id'].value_counts().gt(1).sum()} block(s) with more than 1 pid hit")
+
+    queries = ndff.loc[ndff["query"] == 1, ["nucleotide","block_id","feature_order","pid"]].copy()
+
+    queries["keep"] = False
+
+    print(f"Processing blocks and dropping pids that are over {max_distance} CDS features from a domain of interest")
+
+    # For each block, store the sorted feature_order values looking at CDS
+    
+    hit_groups = {key: np.sort(group["feature_order"].drop_duplicates().to_numpy()) for key, group in ndff.loc[(ndff["type"] == "CDS") & domain_mask].groupby(["nucleotide", "block_id"],sort=False)}
+
+    # Iterate block by block
+    for key, query_group in queries.groupby(["nucleotide", "block_id"], sort=False):
+    
+        hit_orders = hit_groups.get(key)
+
+    # Skips if there's no domain of interest hits on the block
+        if hit_orders is None:
+            continue
+
+        query_orders = query_group["feature_order"].to_numpy()
+
+    # np.searchsorted looks at the numerical array and checks where the value would be placed
+    # feature_order is used to keep consistency to how neighbors takes cds instead of indexes
+
+        pos = np.searchsorted( hit_orders, query_orders, side="left")
+
+        nearby = np.zeros(len(query_group), dtype=bool)
+
+    # Check the nearest hit at or to the right of each query
+        has_right = pos < len(hit_orders)
+        
+    # Check if this is within max distance chosen 
+        nearby[has_right] |= (hit_orders[pos[has_right]] - query_orders[has_right]) <= max_distance
+
+    # Check the nearest hit strictly to the left of each query
+        has_left = pos > 0
+
+        nearby[has_left] |= (query_orders[has_left]- hit_orders[pos[has_left] - 1]) <= max_distance
+
+        queries.loc[query_group.index, "keep"] = nearby
+
+    print(f"Dropped {len(queries.query('keep == False'))}")
+    print("Updating ndf")
+    #Saving the annotation so I don't have to run it again
+    ndff = ndff.neighbors(ndff.pid.isin(queries.query('keep == True').pid), after=after, before=before)
+
+    return ndff
+
+    
+def filter_neighbors_plus(ndf, pids=None, reqdom='defaults.tsv', customdoms=False,
+                      after=15, before=15, max_distance=200,
+                      genome_protein_fasta=None, models_path=None, annotate=True,
+                      mode='loose', seed=3, patience=2, max_extend=30):
+    """
+    mode='loose'  : original fixed-window behavior (after/before, max_distance).
+    mode='strict' : adaptive per-query window -- grab `seed` neighbors
+                    unconditionally on each side, then keep extending one
+                    at a time while hits keep appearing, tolerating up to
+                    `patience - 1` consecutive misses before stopping that
+                    side. A query with a hit on itself but nothing
+                    supporting nearby is treated as isolated and dropped --
+                    this is intentional, not a bug.
+
+                    Still a single hmmscan call, on a window capped at
+                    `max_extend`. block_id is recomputed correctly by
+                    letting .neighbors() re-run its own merge logic per
+                    connected component of overlapping survived windows,
+                    rather than reusing block_ids assigned at fetch time.
+    """
+    import numpy as np
+    import pandas as pd
+    from rotifer.devel.alpha import epsoares as rdae
+
+    fetch_span = max_extend if mode == 'strict' else max(after, before)
+
+    if annotate:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=fetch_span, before=fetch_span)
+        rdae.add_arch_to_df(ndff, run_hmmscan=True, inplace=True,
+                             file=genome_protein_fasta, models_path=models_path)
+    else:
+        ndff = ndf.neighbors(ndf.pid.isin(pids), after=fetch_span, before=fetch_span)
+
+    hlist = pd.read_table(reqdom, names=['model', 'source'])
+    if customdoms:
+        nhlist = pd.read_table(customdoms, names=['model', 'source'])
+        hlist = pd.concat([hlist, nhlist])
+    model_set = set(hlist['model'])
+    domain_mask = ndff["pfam"].fillna("").str.split("+").apply(
+        lambda architecture: bool(model_set.intersection(architecture))
+    )
+
+    print(f"Analyzing {ndff.block_id.nunique()} block(s)")
+    print(f"{ndff.loc[domain_mask, ['block_id']]['block_id'].nunique()} block(s) with target domains")
+
+    queries = ndff.loc[ndff["query"] == 1, ["nucleotide", "block_id", "feature_order", "pid"]].copy()
+
+    if mode == 'loose':
+        queries["keep"] = False
+        print(f"Processing blocks and dropping queries that are over {max_distance} CDS features from a domain of interest")
+
+        hit_groups = {key: np.sort(group["feature_order"].drop_duplicates().to_numpy())
+                      for key, group in ndff.loc[(ndff["type"] == "CDS") & domain_mask]
+                      .groupby(["nucleotide", "block_id"], sort=False)}
+
+        for key, query_group in queries.groupby(["nucleotide", "block_id"], sort=False):
+            hit_orders = hit_groups.get(key)
+            if hit_orders is None:
+                continue
+            query_orders = query_group["feature_order"].to_numpy()
+            pos = np.searchsorted(hit_orders, query_orders, side="left")
+            nearby = np.zeros(len(query_group), dtype=bool)
+            has_right = pos < len(hit_orders)
+            nearby[has_right] |= (hit_orders[pos[has_right]] - query_orders[has_right]) <= max_distance
+            has_left = pos > 0
+            nearby[has_left] |= (query_orders[has_left] - hit_orders[pos[has_left] - 1]) <= max_distance
+            queries.loc[query_group.index, "keep"] = nearby
+
+        print(f"Dropped {len(queries.query('keep == False'))}")
+        print("Updating ndf")
+        ndff = ndff.neighbors(ndff.pid.isin(queries.query('keep == True').pid), after=after, before=before)
+        return ndff
+
+    elif mode == 'strict':
+        cds = ndff.loc[ndff["type"] == "CDS"].copy()
+        cds["hit"] = domain_mask.reindex(cds.index).fillna(False)
+
+        rows = []
+        for key, block in cds.groupby(["nucleotide", "block_id"], sort=False):
+            block = block.sort_values("feature_order")
+            orders = block["feature_order"].to_numpy()
+            hits = block["hit"].to_numpy()
+
+            qblock = queries[(queries["nucleotide"] == key[0]) & (queries["block_id"] == key[1])]
+            for qidx, qorder, qpid in zip(qblock.index, qblock["feature_order"], qblock["pid"]):
+                pos0 = np.searchsorted(orders, qorder)
+                b_steps, lower_fo, hit_lo = _walk(orders, hits, pos0, -1, seed, patience)
+                a_steps, upper_fo, hit_hi = _walk(orders, hits, pos0, +1, seed, patience)
+                rows.append({
+                    "qidx": qidx, "pid": qpid, "nucleotide": key[0],
+                    "before_steps": b_steps, "after_steps": a_steps,
+                    "lower_fo": lower_fo, "upper_fo": upper_fo,
+                    # isolated query (hit on itself, nothing supporting nearby) -> drop, by design
+                    "keep": hit_lo or hit_hi,
+                })
+
+        wdf = pd.DataFrame(rows)
+        print(f"Dropped {len(wdf.query('keep == False'))} pid(s) with no supporting hits found while expanding")
+        kept = wdf.query("keep == True").copy()
+
+        # connected components of overlapping [lower_fo, upper_fo] intervals,
+        # per nucleotide -- this decides whether two queries share a
+        # .neighbors() call, so their blocks get merged by the library's own
+        # logic instead of guessed at with a diff-based heuristic
+        frames = []
+        for nucleotide, grp in kept.groupby("nucleotide", sort=False):
+            grp = grp.sort_values("lower_fo")
+            running_end = -np.inf
+            component = -1
+            comp_ids = []
+            for lo, hi in zip(grp["lower_fo"], grp["upper_fo"]):
+                if lo > running_end:
+                    component += 1
+                comp_ids.append(component)
+                running_end = max(running_end, hi)
+            grp = grp.assign(component=comp_ids)
+
+            for _, comp in grp.groupby("component"):
+                before_n = int(comp["before_steps"].max())
+                after_n = int(comp["after_steps"].max())
+                mask = ndf.pid.isin(comp["pid"])
+                fetched = ndf.neighbors(targets=[mask], before=before_n, after=after_n)
+
+                # trim back to the union of each member's own survived window
+                covered = np.zeros(len(fetched), dtype=bool)
+                fo = fetched["feature_order"]
+                for lo, hi in zip(comp["lower_fo"], comp["upper_fo"]):
+                    covered |= (fo >= lo) & (fo <= hi)
+                frames.append(fetched.loc[covered])
+
+        result = pd.concat(frames, ignore_index=True) if frames else ndf.iloc[0:0].copy()
+        result = result.merge(ndff[['pid','pfam']], how = "left")
+
+        # components are disjoint by construction (that's the whole point of
+        # the trim above) -- assert rather than silently drop_duplicates, so
+        # a broken disjointness assumption surfaces loudly instead of
+        # quietly discarding rows
+        assert not result.duplicated(subset=["assembly", "nucleotide", "feature_order"]).any(), \
+            "components should be disjoint by construction -- investigate before trusting output"
+
+        return result
+
+    else:
+        raise ValueError(f"Unknown mode: {mode!r}, expected 'loose' or 'strict'")
+
+
+def _walk(orders, hits, pos0, direction, seed, patience):
+    """
+    Walk outward from pos0 in `orders`/`hits`, applying the seed/patience
+    rule. Deliberately never checks hits[pos0] -- a query's own domain hit
+    doesn't count as support; only hits found while walking do, so an
+    isolated query correctly resolves to saw_hit=False.
+
+    Returns (n_steps, last_kept_feature_order, saw_a_hit_past_the_seed).
+    """
+    n = len(orders)
+    idx = pos0
+    n_kept = 0
+    last_kept = orders[pos0]
+    steps_taken = 0
+    misses_in_a_row = 0
+    saw_hit = False
+
+    while True:
+        idx += direction
+        if idx < 0 or idx >= n:
+            break
+        steps_taken += 1
+
+        if steps_taken <= seed:
+            n_kept, last_kept = steps_taken, orders[idx]
+            if hits[idx]:
+                saw_hit = True
+            continue
+
+        if hits[idx]:
+            n_kept, last_kept = steps_taken, orders[idx]
+            misses_in_a_row = 0
+            saw_hit = True
+        else:
+            misses_in_a_row += 1
+            if misses_in_a_row >= patience:
+                break
+            n_kept, last_kept = steps_taken, orders[idx]
+
+    return n_kept, last_kept, saw_hit
+
+def plot_block_minimap(
+    ndf,
+    block_id,
+    models=None,
+    label_queries=True,
+    figsize=(12, 2),
+):
+    """
+    Plot an equally spaced minimap of one NeighborhoodDF block.
+
+    Black lines
+        Features containing at least one domain. If `models` is supplied,
+        only domains present in that collection are marked.
+
+    Red lines
+        Query features.
+
+    Parameters
+    ----------
+    ndf : pandas.DataFrame
+        NeighborhoodDF containing block_id, internal_id, pid, pfam, and query.
+
+    block_id : str
+        Block to plot.
+
+    models : iterable or pandas.Series, optional
+        Domain models of interest. When None, every feature with a non-null
+        pfam architecture is marked.
+
+    label_queries : bool, default=True
+        Add the query PID above its line.
+
+    figsize : tuple, default=(12, 2)
+        Matplotlib figure size.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    block = (
+        ndf.loc[
+            ndf["block_id"] == block_id,
+            ["internal_id", "pid", "pfam", "query"],
+        ]
+        .sort_values("internal_id")
+        .drop_duplicates("internal_id")
+        .copy()
+    )
+
+    if block.empty:
+        raise ValueError(f"No rows found for block_id: {block_id}")
+
+    # Equally spaced positions, independent of genomic coordinate distances.
+    if len(block) == 1:
+        block["plot_position"] = 0.5
+    else:
+        block["plot_position"] = np.linspace(0, 1, len(block))
+
+    if models is None:
+        domain_mask = block["pfam"].notna()
+    else:
+        model_set = set(models)
+
+        domain_mask = (
+            block["pfam"]
+            .fillna("")
+            .str.split("+")
+            .apply(lambda architecture: bool(model_set.intersection(architecture)))
+        )
+
+    query_mask = block["query"].eq(1)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Baseline representing the neighborhood.
+    ax.hlines(
+        y=0,
+        xmin=0,
+        xmax=1,
+        linewidth=1,
+    )
+
+    # Features containing domains.
+    ax.vlines(
+        block.loc[domain_mask, "plot_position"],
+        ymin=-0.25,
+        ymax=0.25,
+        color="black",
+        linewidth=1.2,
+    )
+
+    # Query features.
+    ax.vlines(
+        block.loc[query_mask, "plot_position"],
+        ymin=-0.4,
+        ymax=0.4,
+        color="red",
+        linewidth=2.2,
+    )
+
+    if label_queries:
+        for row in block.loc[query_mask].itertuples():
+            label = row.pid if row.pid == row.pid else "query"
+
+            ax.text(
+                row.plot_position,
+                0.48,
+                str(label),
+                rotation=45,
+                ha="left",
+                va="bottom",
+                fontsize=8,
+            )
+
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.55, 0.85)
+
+    ax.set_xlabel(
+        f"Relative feature position ({len(block)} features)"
+    )
+    ax.set_yticks([])
+    ax.set_title(block_id)
+
+    ax.spines[["left", "right", "top"]].set_visible(False)
+
+    plt.tight_layout()
+
+    return fig, ax

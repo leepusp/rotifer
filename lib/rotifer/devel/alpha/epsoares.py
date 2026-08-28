@@ -26,6 +26,7 @@ from multiprocessing import Pool, pool
 from rotifer.genome import utils as rgu
 from rotifer.genome import io as rgio
 from rotifer.devel.alpha import igem as rdai
+from rotifer.devel.alpha import malu as rdam
 
 def get_matrix(df, filter_list, rows, columns, n=10, filter_by='pid'):
         filtered_df = df[df[filter_by].isin(filter_list)]
@@ -1132,24 +1133,32 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20):
 
     return df
 
-def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm'], return_hmmscan=False,
-    after=10, before=10, run_fimo=True, meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True,
-    output_report='neighborhood_report.html', color_dict=None, domain_dict=None):
+def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
+    sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
+    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
+    color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv'):
     ''' 
     Doc
     '''
 
-    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 <= distance <= 15')
+    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 < distance <= 15')
     gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
     
-    if genome_format == 'genbank':
-        gen['pid'] = gen.locus
+    if genome_format == 'gff':
+        fimo['pid'] = fimo.pid.str.split('ID=', expand=True)[1]
 
+    fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
+    hsearch = hmmsearch(sarp_model, genome_protein_fasta)
+    l = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3').sequence.tolist()
+    pids_list = fimo.pid.tolist() + l
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
-    ndf = gen.neighbors(gen.pid.isin(fimo.sequence_name), after=after, before=before)
-    
+    # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
+    ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
+                                 max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
+
     if make_figure:
         rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict)
         print(f'figure saved in {output_report}')
