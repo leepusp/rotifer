@@ -1053,7 +1053,9 @@ def build_gff_index(gffs):
 
 def get_next_protein(df, gff_dict):
     """
-    Annotate each FIMO hit with the nearest downstream/upstream CDS.
+    Annotate each FIMO hit with the nearest downstream CDS on the same
+    strand as the repeat (i.e. the gene lying after the last repeat in the
+    direction of transcription).
 
     Also extracts a normalized protein ID (pid) from GFF attributes.
 
@@ -1079,6 +1081,14 @@ def get_next_protein(df, gff_dict):
             return None
 
         cds = gff_dict[seq]
+
+        # Only genes co-oriented with the repeat can be regulated by it, so the
+        # downstream gene is picked from the same strand as the repeat. This also
+        # guarantees the gene lies after the last repeat of a tandem array rather
+        # than a convergent/divergent CDS that happens to sit closer.
+        cds = cds[cds["strand"].values == row["strand"]]
+        if cds.empty:
+            return None
 
         if row["strand"] == "+":
             hits = cds[cds["start"].values > row["stop"]]
@@ -1137,7 +1147,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
-    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None):
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
     '''
@@ -1158,8 +1168,12 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
     ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
                                  max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
-    ndf['repeat_start'] = ndf.pid.map(fimo[fimo.pid.isin(ndf.query('query == 1').pid)].set_index('pid').start.to_dict())
-    ndf['repeat_end'] = ndf.pid.map(fimo[fimo.pid.isin(ndf.query('query == 1').pid)].set_index('pid').stop.to_dict())
+    ndf['repeat_start'] = ndf.pid.map(fimo.set_index('pid').start.to_dict())
+    ndf['repeat_end'] = ndf.pid.map(fimo.set_index('pid').stop.to_dict())
+    ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
+
+    if filter_columns:
+        ndf = ndf[filter_columns]
 
     if organism:
         ndf['organism'] = organism

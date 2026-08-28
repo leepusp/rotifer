@@ -31,6 +31,12 @@ strand  : +1 / -1 (controls arrow direction and orientation normalization)
 query   : 1/'1'/True marks the query gene of a block; everything else is
           treated as a non-query gene. Optional -- if absent, no gene is
           treated as a query.
+repeat_start / repeat_end : optional. Genomic coordinates of a
+          regulatory region of DNA a protein binds; a row with both set
+          gets a pink square drawn at that position in both neighborhood
+          figures (Graphviz and to-scale). `repeat_strand` (+1/-1),
+          also optional, only labels the marker's strand -- it does not
+          move it.
 ... plus whatever `group_col`, `org_col` and `label_col` point at.
 
 `genome_overview_fig` additionally uses `nucleotide`, `start`, `end`
@@ -74,7 +80,10 @@ pipeline.
                                   query orientation
     gene_node_style               Graphviz node attributes for one gene
     has_repeat_region             does a row carry a regulatory-region span
+    repeat_region_span            (low, high, strand) from the repeat_* columns
+    repeat_region_tooltip         one-line "regulatory region a-b (+ strand)"
     repeat_region_node_style      Graphviz attributes for the pink DNA square
+    scaled_repeat_region_svg      the same pink square for the to-scale figure
     block_is_ascending            is a block drawn 5'->3' left-to-right
     count_genes_before_repeat     how many genes sit left of a repeat square
     add_block_to_graph            add one full row (label + genes) to the
@@ -508,7 +517,9 @@ def normalize_block_strand(block_df, normalize_orientation=True):
     Returns
     -------
     pandas.DataFrame
-        `block_df` unchanged, or a reversed/strand-flipped copy.
+        `block_df` unchanged, or a reversed/strand-flipped copy. A
+        `repeat_strand` column (regulatory-region orientation), if
+        present, is flipped along with `strand`.
     """
     if not normalize_orientation:
         return block_df
@@ -519,6 +530,8 @@ def normalize_block_strand(block_df, normalize_orientation=True):
 
     flipped = block_df.iloc[::-1].copy()
     flipped['strand'] = -flipped['strand']
+    if 'repeat_strand' in flipped.columns:
+        flipped['repeat_strand'] = -pd.to_numeric(flipped['repeat_strand'], errors='coerce')
     return flipped
 
 
@@ -655,7 +668,48 @@ def has_repeat_region(row, start_col='repeat_start', end_col='repeat_end'):
     return pd.notna(row[start_col]) and pd.notna(row[end_col])
 
 
-def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'):
+def repeat_region_span(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Parse the regulatory-region columns into a clean
+    ``(low_coord, high_coord, strand)`` triple.
+
+    The two endpoints may be entered in either order, so they are
+    returned sorted low..high; positioning of the marker is therefore
+    independent of the order they were given in. `repeat_strand` is
+    coerced to +1, -1 or None (anything not clearly a strand sign).
+    The strand does not move the square -- placement is by coordinate --
+    it is only carried through for labelling/tooltips and is what
+    `normalize_block_strand` flips when a block is reverse-complemented.
+    """
+    lo, hi = sorted((float(repeat_start), float(repeat_end)))
+    strand = None
+    if repeat_strand is not None and pd.notna(repeat_strand):
+        try:
+            s = int(repeat_strand)
+            strand = s if s in (1, -1) else None
+        except (TypeError, ValueError):
+            strand = None
+    return lo, hi, strand
+
+
+def repeat_region_tooltip(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Human-readable one-liner for a regulatory region: its low..high
+    coordinates plus the strand when known (e.g.
+    ``regulatory region 116,121-116,127 (- strand)``).
+    """
+    try:
+        lo, hi, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    except (TypeError, ValueError):
+        return 'regulatory region'
+    text = f'regulatory region {lo:,.0f}-{hi:,.0f}'
+    if strand in (1, -1):
+        text += f' ({"+" if strand == 1 else "-"} strand)'
+    return text
+
+
+def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end',
+                             strand_col='repeat_strand'):
     """
     Graphviz node attributes for the pink square that marks a regulatory
     region (a stretch of DNA a protein binds) next to its gene in a
@@ -663,14 +717,13 @@ def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'
 
     It is deliberately a small fixed-size square, not an arrow: it is a
     DNA feature, not a gene, so it must not read as one. The square's
-    size is constant -- these regions are only a handful of bp, far too
-    small to draw to scale next to kb-long gene arrows -- but the real
-    `repeat_start`/`repeat_end` coordinates are kept on the node tooltip.
+    size and position are set by coordinate only; `repeat_strand`, if
+    present, is surfaced on the tooltip but does not move the marker.
+    By the time this runs `normalize_block_strand` has already flipped
+    `repeat_strand` for a reverse-complemented block, so the tooltip
+    shows the strand as drawn.
     """
-    try:
-        tooltip = f'regulatory region {int(row[start_col])}-{int(row[end_col])}'
-    except (TypeError, ValueError):
-        tooltip = 'regulatory region'
+    tooltip = repeat_region_tooltip(row[start_col], row[end_col], row.get(strand_col))
     return dict(
         label='',
         shape='box',
@@ -682,6 +735,50 @@ def repeat_region_node_style(row, start_col='repeat_start', end_col='repeat_end'
         color=REPEAT_REGION_OUTLINE,
         penwidth='1.5',
         tooltip=tooltip,
+    )
+
+
+# Minimum on-screen width (SVG user units) of a regulatory-region marker
+# in the to-scale figure: these regions are only a handful of bp and
+# would otherwise collapse to an invisible hairline at contig scale.
+REPEAT_REGION_MARKER_MIN_PX = 12.0
+
+
+def scaled_repeat_region_svg(x_start, x_end, band_top, band_bottom,
+                             repeat_start, repeat_end, repeat_strand=None,
+                             flip=False):
+    """
+    SVG markup for the pink square that marks a regulatory region in a
+    *to-scale* block figure (`build_scaled_block_svg`).
+
+    `x_start`/`x_end` are the region's genomic endpoints already
+    projected to SVG user units (that function's `to_x`); they may
+    arrive in either order when the block is reverse-complemented. The
+    marker is centred on the region, spans the full gene band in height
+    and is at least `REPEAT_REGION_MARKER_MIN_PX` wide -- so a few-bp
+    region still reads as a square, and only an unusually long region
+    widens into a pink bar.
+
+    `repeat_strand` (+1/-1) and the block's `flip` do not affect the
+    marker's shape or position -- placement is by coordinate. They only
+    decide the strand shown in the `<title>`: on a reverse-complemented
+    block (`flip=True`) the drawn strand is the opposite of the input
+    `repeat_strand`, matching how the genes are flipped.
+    """
+    lo, hi = sorted((x_start, x_end))
+    mid = (lo + hi) / 2
+    width = max(hi - lo, REPEAT_REGION_MARKER_MIN_PX)
+    height = band_bottom - band_top
+    _, _, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    if flip and strand in (1, -1):
+        strand = -strand
+    tip = repeat_region_tooltip(repeat_start, repeat_end, strand)
+    return (
+        f'<g class="repeat-region"><title>{html.escape(tip)}</title>'
+        f'<rect x="{mid - width / 2:.1f}" y="{band_top:.1f}" '
+        f'width="{width:.1f}" height="{height:.1f}" rx="1.5" '
+        f'fill="{REPEAT_REGION_FILL}" stroke="{REPEAT_REGION_OUTLINE}" '
+        f'stroke-width="1.2"/></g>'
     )
 
 
@@ -854,7 +951,8 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         if has_repeat_region(row):
             repeat_id = f'repeat_{block_index}_{row_position}'
             graph.add_node(repeat_id, **repeat_region_node_style(row))
-            repeat_mid = (float(row['repeat_start']) + float(row['repeat_end'])) / 2
+            r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
+            repeat_mid = (r_lo + r_hi) / 2
             if has_coords:
                 insert_at = count_genes_before_repeat(gene_positions, repeat_mid, ascending)
             else:
@@ -1751,6 +1849,14 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
     uses for its per-protein info window -- so hovering and click-to-pin
     work here exactly as they do in the Figure view.
 
+    Rows carrying `repeat_start`/`repeat_end` also get a pink square
+    marking that regulatory region, placed at its real coordinates (see
+    `scaled_repeat_region_svg`); it matches the marker the Graphviz
+    figure adds via `repeat_region_node_style`. `repeat_strand`, if
+    given, only sets the strand shown on the marker's tooltip (flipped
+    with the block when reverse-complemented) -- it does not move the
+    square.
+
     Orientation follows the same rule as `normalize_block_strand`: when
     `normalize_orientation` is True and the block's reference query is
     on the minus strand, the whole block is drawn reverse-complemented
@@ -1920,6 +2026,20 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
                 f'{html.escape(label)}</text>'
             )
         parts.append('</g>')
+
+    # ---- regulatory regions ----
+    # Drawn after the genes so a small marker sits on top of the arrow it
+    # overlaps, and placed by real coordinates via to_x() (so it follows
+    # the same reverse-complement flip as the genes).
+    for _, row in block.iterrows():
+        if not has_repeat_region(row):
+            continue
+        rs = float(row['repeat_start'])
+        re_ = float(row['repeat_end'])
+        parts.append(scaled_repeat_region_svg(
+            to_x(rs), to_x(re_), band_top, band_bottom, rs, re_,
+            repeat_strand=row.get('repeat_strand'), flip=flip,
+        ))
 
     # ---- ruler ----
     parts.append(
