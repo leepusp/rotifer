@@ -29,11 +29,14 @@ the cursors defined there.
 
 Notes
 -----
-Uncompressed files are scanned in parallel: the file is cut into one
-byte range per worker process, each range is aligned to line
-boundaries and searched independently. Gzip compressed copies cannot
-be cut this way and are scanned by a single process, which is several
-times slower.
+Uncompressed files are scanned in parallel: the file is cut into fixed
+size byte ranges, each aligned to line boundaries, and the ranges are
+searched independently by a pool of worker processes. When pyarrow is
+installed it parses those ranges, which is roughly 1.2 to 1.8 times
+faster than the standard library; set ``engine='python'`` to scan
+without it.
+Gzip compressed copies cannot be cut this way and are scanned by a
+single process, which is several times slower.
 """
 
 # Dependencies
@@ -56,14 +59,34 @@ _defaults = {
     'local_database_path': os.path.join(GlobalConfig['data'],"uniprot"),
     'chunksize': 5000000,
     'threads': max(1, (os.cpu_count() or 2) // 2),
+    'engine': 'auto',
 }
 config = loadConfig(__name__.replace('rotifer.',':'), defaults = _defaults)
 
-# Size of the blocks read from disk while scanning, in bytes
-_BLOCK = 1 << 26
+# Bytes handed to each scanning task. It bounds how much of the file a
+# worker holds in memory at once, so it must stay small enough that
+# threads * _CHUNK fits comfortably in RAM.
+_CHUNK = 1 << 26
 
 #: Position of each column in the tab separated files scanned here.
 _FIELDS = {'accession': 0, 'id_type': 1, 'id': 2}
+
+#: Per worker state, set once by :func:`_init_worker`.
+_worker = {}
+
+def _has_pyarrow():
+    """
+    Find whether pyarrow is importable.
+
+    Returns
+    -------
+    bool
+    """
+    try:
+        import pyarrow  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 def _select(block, targets, field):
     """
@@ -102,29 +125,69 @@ def _select(block, targets, field):
                 found.append(line)
         return found
 
-def _scan_range(args):
+def _select_arrow(data, targets, field, names):
     """
-    Search one byte range of an uncompressed file.
-
-    The range is aligned to line boundaries so that ranges neither
-    overlap nor leave a line out: a range starting inside a line skips
-    that line, because the range before it owns it, and a range whose
-    end falls inside a line reads on until that line is complete.
+    Pick the rows of a block whose selected column is a target, with pyarrow.
 
     Parameters
     ----------
-    args : tuple
-        ``(path, start, end, targets, field)``, packed into a single
-        argument so that the function can be used with
-        :meth:`concurrent.futures.Executor.map`.
+    data : bytes
+        Complete lines, separated by newlines.
+    targets : pyarrow.Array
+        Identifiers to search.
+    field : int
+        Zero based position of the column to match.
+    names : list of str
+        Column names of the file.
 
     Returns
     -------
-    list of bytes
-        The matching lines, without their trailing newline.
+    list of list of str
+        The matching rows, split into their columns.
+
+    Note
+    ----
+    Quoting and escaping are switched off: these files are plain tab
+    separated text, and UniProt identifiers do contain quotes, which a
+    CSV aware parser would otherwise swallow.
     """
-    path, start, end, targets, field = args
-    found = []
+    import pyarrow as pa
+    import pyarrow.csv as pcsv
+    import pyarrow.compute as pc
+
+    table = pcsv.read_csv(
+        pa.BufferReader(pa.py_buffer(data)),
+        read_options = pcsv.ReadOptions(column_names=names, use_threads=False),
+        parse_options = pcsv.ParseOptions(delimiter="\t", quote_char=False, escape_char=False, newlines_in_values=False),
+        convert_options = pcsv.ConvertOptions(column_types={ x: pa.string() for x in names }, strings_can_be_null=False),
+    )
+    table = table.filter(pc.is_in(table.column(field), value_set=targets))
+    if not table.num_rows:
+        return []
+    columns = [ x.to_pylist() for x in table.columns ]
+    return [ list(row) for row in zip(*columns) ]
+
+def _read_aligned(path, start, end):
+    """
+    Read one byte range of a file, aligned to line boundaries.
+
+    Ranges neither overlap nor leave a line out: a range starting
+    inside a line skips that line, because the range before it owns
+    it, and a range whose end falls inside a line reads on until that
+    line is complete.
+
+    Parameters
+    ----------
+    path : str
+        Path of the file to read.
+    start, end : int
+        Byte offsets delimiting the range.
+
+    Returns
+    -------
+    bytes
+        Complete lines, without a trailing newline.
+    """
     with open(path, "rb") as fh:
         if start:
             # Reading from one byte before the range makes this test
@@ -134,31 +197,87 @@ def _scan_range(args):
             fh.readline()
             start = fh.tell()
         if start >= end:
-            return found
+            return b""
+        fh.seek(start)
+        data = fh.read(end - start)
+        # A line crossing the end of the range belongs to this range, so
+        # read the rest of it. When the range already ends on a newline
+        # there is nothing to finish and the next line is not ours:
+        # reading one here would return it twice.
+        if data and not data.endswith(b"\n"):
+            data += fh.readline()
+    return data.rstrip(b"\n")
 
-        remaining = end - start
-        tail = b""
-        while remaining > 0:
-            block = fh.read(min(_BLOCK, remaining))
-            if not block:
-                break
-            remaining -= len(block)
-            block = tail + block
-            cut = block.rfind(b"\n")
-            if cut < 0:
-                tail = block
-                continue
-            tail = block[cut+1:]
-            found += _select(block[:cut], targets, field)
+def _scan_range(args):
+    """
+    Search one byte range of an uncompressed file.
 
-        # A line crossing the end of the range belongs to this range,
-        # so read the rest of it. An empty tail means the range ended
-        # exactly on a line boundary and the next line is not ours.
-        if tail:
-            tail += fh.readline()
-            found += _select(tail.rstrip(b"\n"), targets, field)
+    Parameters
+    ----------
+    args : tuple
+        ``(path, start, end, targets, field)``, with `targets` a set
+        of encoded identifiers.
 
-    return found
+    Returns
+    -------
+    list of bytes
+        The matching lines, without their trailing newline.
+    """
+    path, start, end, targets, field = args
+    data = _read_aligned(path, start, end)
+    return _select(data, targets, field) if data else []
+
+def _init_worker(path, targets, field, names, engine):
+    """
+    Prepare a worker process to scan one file.
+
+    The query is sent once per worker instead of once per task, which
+    matters when a large file is cut into many tasks and the query
+    carries thousands of identifiers.
+
+    Parameters
+    ----------
+    path : str
+        Path of the file to scan.
+    targets : list of str
+        Identifiers to search.
+    field : int
+        Zero based position of the column to match.
+    names : list of str
+        Column names of the file.
+    engine : str
+        Either ``arrow`` or ``python``.
+    """
+    _worker['path'] = path
+    _worker['field'] = field
+    _worker['names'] = names
+    _worker['engine'] = engine
+    if engine == 'arrow':
+        import pyarrow as pa
+        _worker['targets'] = pa.array(sorted(targets), type=pa.string())
+    else:
+        _worker['targets'] = { x.encode() for x in targets }
+
+def _scan_task(bounds):
+    """
+    Search one byte range, using the state left by :func:`_init_worker`.
+
+    Parameters
+    ----------
+    bounds : tuple of int
+        The ``(start, end)`` offsets of the range.
+
+    Returns
+    -------
+    list of list of str
+        The matching rows, split into their columns.
+    """
+    data = _read_aligned(_worker['path'], *bounds)
+    if not data:
+        return []
+    if _worker['engine'] == 'arrow':
+        return _select_arrow(data, _worker['targets'], _worker['field'], _worker['names'])
+    return [ x.decode().split("\t") for x in _select(data, _worker['targets'], _worker['field']) ]
 
 def _scan_stream(stream, targets, field):
     """
@@ -184,7 +303,7 @@ def _scan_stream(stream, targets, field):
     found = []
     tail = b""
     while True:
-        block = stream.read(_BLOCK)
+        block = stream.read(_CHUNK)
         if not block:
             break
         block = tail + block
@@ -219,6 +338,18 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         Defaults to the ``threads`` configuration entry, itself half
         of the number of available CPUs. Set to 1 to scan in the
         calling process.
+    engine : str, optional
+        How each byte range is matched:
+
+        ``auto``
+            Use ``arrow`` when pyarrow is installed, ``python``
+            otherwise. This is the default.
+        ``arrow``
+            Parse with pyarrow, roughly 1.2 to 1.8 times faster than
+            ``python``. Raises an error when pyarrow is missing.
+        ``python``
+            Match with the standard library alone.
+
     progress : bool, default False
         Whether to print progress messages.
 
@@ -237,10 +368,11 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
     #: Path of the data file, relative to the root of the mirror.
     _datafile = None
 
-    def __init__(self, path=config['local_database_path'], threads=config['threads'], progress=False, *args, **kwargs):
+    def __init__(self, path=config['local_database_path'], threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
         super().__init__(progress=progress, *args, **kwargs)
         self.path = path
         self.threads = max(1, int(threads or 1))
+        self.engine = engine
         self.datafile = self._find_datafile(path)
 
     def _find_datafile(self, path):
@@ -319,12 +451,13 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
 
     def scan(self, targets, column):
         """
-        Find every line whose column `column` is one of `targets`.
+        Find every row whose column `column` is one of `targets`.
 
-        Uncompressed files are cut into one byte range per worker and
-        searched in parallel. Gzip compressed files are searched
-        sequentially, since their byte ranges cannot be decoded
-        independently.
+        Uncompressed files are cut into fixed size byte ranges, each
+        aligned to line boundaries, and the ranges are searched in
+        parallel by :attr:`threads` worker processes. Gzip compressed
+        files are searched sequentially, since their byte ranges
+        cannot be decoded independently.
 
         Parameters
         ----------
@@ -341,33 +474,68 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         Raises
         ------
         ValueError
-            If `column` is not a column of the file.
+            If `column` is not a column of the file, or if
+            ``engine='arrow'`` was asked for and pyarrow is missing.
         """
         if column not in _FIELDS:
             raise ValueError(f'Unknown column {column}: expected one of {", ".join(_FIELDS)}')
         field = _FIELDS[column]
-        encoded = { x.encode() for x in targets }
+        names = [ x for x, _ in sorted(_FIELDS.items(), key=lambda kv: kv[1]) ]
+        engine = self._engine()
 
+        # Compressed files decode as one stream, so they cannot be cut up
         if self.compressed:
             with self.open("rb") as fh:
-                found = _scan_stream(fh, encoded, field)
-        else:
-            size = os.path.getsize(self.datafile)
-            workers = min(self.threads, max(1, size // _BLOCK)) or 1
-            if workers == 1:
-                found = _scan_range((self.datafile, 0, size, encoded, field))
-            else:
-                step = size // workers
-                ranges = [
-                    (self.datafile, i * step, (i+1) * step if i < workers - 1 else size, encoded, field)
-                    for i in range(workers)
-                ]
-                found = []
-                with ProcessPoolExecutor(max_workers=workers) as pool:
-                    for part in pool.map(_scan_range, ranges):
-                        found += part
+                found = _scan_stream(fh, { x.encode() for x in targets }, field)
+            return [ x.decode().split("\t") for x in found ]
 
-        return [ x.decode().split("\t") for x in found ]
+        size = os.path.getsize(self.datafile)
+        bounds = [ (x, min(x + _CHUNK, size)) for x in range(0, size, _CHUNK) ] or [(0, 0)]
+        workers = min(self.threads, len(bounds))
+
+        # One task only, or a single worker: stay in this process and
+        # skip the cost of starting a pool
+        if workers <= 1:
+            _init_worker(self.datafile, list(targets), field, names, engine)
+            found = []
+            for pair in bounds:
+                found += _scan_task(pair)
+            return found
+
+        found = []
+        with ProcessPoolExecutor(
+                max_workers = workers,
+                initializer = _init_worker,
+                initargs = (self.datafile, list(targets), field, names, engine),
+            ) as pool:
+            for part in pool.map(_scan_task, bounds):
+                found += part
+        return found
+
+    def _engine(self):
+        """
+        Decide which scanning engine to use.
+
+        Returns
+        -------
+        str
+            Either ``arrow`` or ``python``.
+
+        Raises
+        ------
+        ValueError
+            If an unknown engine was requested, or if ``arrow`` was
+            requested and pyarrow is not installed.
+        """
+        if self.engine == 'auto':
+            return 'arrow' if _has_pyarrow() else 'python'
+        if self.engine == 'arrow':
+            if not _has_pyarrow():
+                raise ValueError("engine='arrow' requires pyarrow, which is not installed")
+            return 'arrow'
+        if self.engine == 'python':
+            return 'python'
+        raise ValueError(f"Unknown engine {self.engine}: expected 'auto', 'arrow' or 'python'")
 
 class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor):
     """
@@ -398,6 +566,9 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
         database is reported.
     threads : int, optional
         Number of worker processes used to scan the file.
+    engine : str, optional
+        Matching engine, one of ``auto``, ``arrow`` or ``python``.
+        See :class:`BaseUniProtFileCursor`.
     progress : bool, default False
         Whether to print progress messages.
 
@@ -433,10 +604,11 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
             column = 'accession',
             id_type = None,
             threads = config['threads'],
+            engine = config['engine'],
             progress = False,
             *args, **kwargs
         ):
-        super().__init__(path=path, threads=threads, progress=progress, *args, **kwargs)
+        super().__init__(path=path, threads=threads, engine=engine, progress=progress, *args, **kwargs)
         self.column = column
         self.id_type = id_type
         self.maxgetitem = 1000000

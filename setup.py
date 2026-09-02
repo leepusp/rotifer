@@ -16,6 +16,11 @@ setup(
         "numpy",   # Add your dependencies here
         "pandas",
     ],
+    extras_require={
+        # pyarrow speeds up the scans in rotifer.db.uniprot.io, which
+        # fall back to the standard library when it is absent
+        "speedups": ["pyarrow"],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",  # Update license if different
