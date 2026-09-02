@@ -217,3 +217,123 @@ class GeneNeighborhoodCursor:
         else:
             return seqrecords_to_dataframe([])
 
+
+class IdMappingCursor:
+    """
+    Mixin for cursors that return UniProt identifier mappings.
+
+    UniProt distributes the correspondence between its own accessions
+    and the identifiers of every database it cross-references as a
+    three column table (``idmapping.dat``). Cursors mixing this class
+    in return that table as a
+    :class:`pandas.DataFrame` with the columns listed in
+    :attr:`columns`, regardless of whether the rows were read from the
+    flat file (:mod:`rotifer.db.uniprot.io`) or from a database
+    (:mod:`rotifer.db.uniprot.clickhouse`).
+
+    Attributes
+    ----------
+    column : str or list of str
+        Name of the column(s) matched against the queried
+        identifiers. Cursors that search UniProtKB accessions set it
+        to ``accession``; cursors that search the identifiers of
+        other databases set it to ``id``.
+    """
+
+    _columns = ['accession','id_type','id']
+
+    @property
+    def columns(self):
+        """
+        Column names of the identifier mapping dataframe.
+
+        Returns
+        -------
+        list of str
+            ``['accession', 'id_type', 'id']``, i.e. the UniProtKB
+            accession, the name of the cross-referenced database and
+            the identifier in that database.
+        """
+        return list(self._columns)
+
+    def empty(self):
+        """
+        Build an empty identifier mapping dataframe.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A dataframe with no rows and the columns listed in
+            :attr:`columns`.
+        """
+        return pd.DataFrame([], columns=self.columns)
+
+    def getids(self, obj):
+        """
+        Extract identifiers from identifier mapping dataframes.
+
+        Only the columns named by the cursor's ``column`` attribute
+        are scanned, so that a cursor searching UniProtKB accessions
+        does not report the cross-referenced identifiers as found,
+        and vice-versa. When ``column`` is not set, both the
+        ``accession`` and the ``id`` columns are used.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame, list, set, str or None
+            Identifier mappings produced by the cursor, or a
+            collection of identifiers, which is returned as a set.
+
+        Returns
+        -------
+        set of str
+            The identifiers found in `obj`.
+
+        Raises
+        ------
+        TypeError
+            If `obj` is of an unsupported type.
+        """
+        if isinstance(obj,types.NoneType):
+            return set()
+        elif isinstance(obj,set):
+            return deepcopy(obj)
+        elif isinstance(obj,pd.DataFrame):
+            columns = getattr(self, "column", None) or ['accession','id']
+            if isinstance(columns,str) or not isinstance(columns,typing.Iterable):
+                columns = [columns]
+            ids = set()
+            for col in columns:
+                if col in obj.columns:
+                    ids.update(obj[col].dropna().astype(str))
+            return ids
+        elif isinstance(obj,str):
+            return {obj}
+        elif isinstance(obj,typing.Iterable):
+            return set([ str(x) for x in obj ])
+        else:
+            raise TypeError(f'Unknown object type {type(obj)}: {obj}')
+
+    def fetchall(self, accessions, *args, **kwargs):
+        """
+        Fetch all identifier mappings as a single dataframe.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The concatenation of every batch produced by
+            :meth:`fetchone`. Empty, but with the expected columns,
+            when nothing is found.
+        """
+        stack = []
+        for df in self.fetchone(accessions, *args, **kwargs):
+            stack.append(df)
+        if stack:
+            return pd.concat(stack, ignore_index=True)
+        else:
+            return self.empty()
