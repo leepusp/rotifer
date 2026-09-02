@@ -30,7 +30,16 @@ The generated reference for every documented module in the package.
 :link: contributing/index
 :link-type: doc
 
-How to write docstrings, build this site, and keep the design consistent.
+How to write docstrings, build this site, keep the design
+consistent, and find which file controls what.
+:::
+
+:::{grid-item-card} {iconify}`tabler:license` License
+:link: licensing/index
+:link-type: doc
+
+The BSD 3-Clause License ROTIFER is distributed under, with
+unofficial Spanish, French and Portuguese translations.
 :::
 ::::
 
@@ -41,4 +50,5 @@ How to write docstrings, build this site, and keep the design consistent.
 db/index
 api/index
 contributing/index
+licensing/index
 ```
