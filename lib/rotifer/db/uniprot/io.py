@@ -782,5 +782,179 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
         """
         return self.__getitem__(accessions)
 
+class CrossReferenceCursor(IdMappingCursor):
+    """
+    Find the UniProtKB accessions of identifiers from other databases.
+
+    This is :class:`IdMappingCursor` searching the third column of
+    ``idmapping.dat`` instead of the first, which costs exactly the
+    same, since either way the whole file is scanned.
+
+    Parameters
+    ----------
+    path : str, optional
+        Root directory of the local UniProt mirror or the full path
+        of an ``idmapping.dat`` file.
+    id_type : str or list of str, optional
+        Restrict the search to these cross-referenced databases.
+    threads : int, optional
+        Number of worker processes used to scan the file.
+    engine : str, optional
+        Matching engine, one of ``auto``, ``arrow`` or ``python``.
+    progress : bool, default False
+        Whether to print progress messages.
+
+    See Also
+    --------
+    rotifer.db.uniprot.clickhouse.CrossReferenceCursor : same query, indexed and fast
+
+    Examples
+    --------
+    >>> from rotifer.db.uniprot import io as ruio
+    >>> xc = ruio.CrossReferenceCursor(id_type='RefSeq')  # doctest: +SKIP
+    >>> xc.fetchall(["YP_031579.1"])  # doctest: +SKIP
+    """
+    def __init__(self, path=config['local_database_path'], id_type=None,
+                 threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
+        kwargs.pop('column', None)
+        super().__init__(path=path, column='id', id_type=id_type, threads=threads,
+                         engine=engine, progress=progress, *args, **kwargs)
+
+class MappingCursor(IdMappingCursor):
+    """
+    Translate identifiers from one database into another.
+
+    This is the query UniProt's online ID mapping service answers.
+    Without an index it takes two passes over the file: the first
+    finds the UniProtKB accessions of the queried identifiers, the
+    second collects the identifiers those accessions have in the
+    target database. Expect it to cost twice a plain lookup.
+
+    Parameters
+    ----------
+    from_type : str
+        Name of the database the queried identifiers belong to, as
+        written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
+        ``UniProtKB-AC`` to start from UniProtKB accessions
+        themselves, which skips the first pass.
+    to_type : str
+        Name of the database to translate into, e.g. ``RefSeq``. Use
+        ``UniProtKB-AC`` to translate into UniProtKB accessions,
+        which skips the second pass.
+    path : str, optional
+        Root directory of the local UniProt mirror or the full path
+        of an ``idmapping.dat`` file.
+    threads : int, optional
+        Number of worker processes used to scan the file.
+    engine : str, optional
+        Matching engine, one of ``auto``, ``arrow`` or ``python``.
+    progress : bool, default False
+        Whether to print progress messages.
+
+    Attributes
+    ----------
+    columns : list of str
+        ``['from', 'accession', 'to']``.
+
+    See Also
+    --------
+    rotifer.db.uniprot.clickhouse.MappingCursor : same query, as one server side join
+
+    Examples
+    --------
+    >>> from rotifer.db.uniprot import io as ruio
+    >>> mc = ruio.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
+    >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
+    """
+
+    _columns = ['from','accession','to']
+
+    def __init__(self, from_type, to_type, path=config['local_database_path'],
+                 threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
+        kwargs.pop('column', None)
+        kwargs.pop('id_type', None)
+        super().__init__(path=path, column='from', id_type=None, threads=threads,
+                         engine=engine, progress=progress, *args, **kwargs)
+        self.from_type = from_type
+        self.to_type = to_type
+
+    def _rows(self, targets, column):
+        """
+        Scan the file and return well formed rows as a dataframe.
+
+        Parameters
+        ----------
+        targets : set of str
+            Identifiers to search.
+        column : str
+            Name of the column to match.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``accession``, ``id_type`` and ``id``.
+        """
+        names = [ x for x, _ in sorted(_FIELDS.items(), key=lambda kv: kv[1]) ]
+        if not targets:
+            return pd.DataFrame([], columns=names)
+        rows = [ x for x in self.scan(targets, column) if len(x) == len(names) ]
+        return pd.DataFrame(rows, columns=names)
+
+    def __getitem__(self, accessions):
+        """
+        Translate identifiers, dictionary style.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Identifiers of the database named by ``from_type``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``from``, ``accession`` and ``to``. Identifiers
+            with no translation are registered in
+            :attr:`~rotifer.db.core.BaseCursor.missing`.
+        """
+        targets = self.parse_ids(accessions)
+        if not targets:
+            return self.empty()
+        if isinstance(self.datafile, types.NoneType):
+            self.update_missing(targets, error=f'No idmapping file found under {self.path}', retry=False)
+            return self.empty()
+
+        # First pass: the UniProtKB accessions of the queried identifiers
+        if self.from_type == "UniProtKB-AC":
+            pairs = pd.DataFrame({'from': sorted(targets), 'accession': sorted(targets)})
+        else:
+            if self.progress:
+                logger.warn(f'Scanning {self.datafile} for {len(targets)} {self.from_type} identifier(s)...')
+            found = self._rows(targets, 'id')
+            found = found[(found.id_type == self.from_type) & found.id.isin(targets)]
+            pairs = found[['id','accession']].rename(columns={'id':'from'}).drop_duplicates()
+
+        # Second pass: what those accessions are called in the target database
+        if self.to_type == "UniProtKB-AC":
+            result = pairs.assign(to=pairs.accession)
+        else:
+            accessions_found = set(pairs.accession)
+            if self.progress:
+                logger.warn(f'Scanning {self.datafile} for the {self.to_type} identifiers of {len(accessions_found)} accession(s)...')
+            found = self._rows(accessions_found, 'accession')
+            found = found[found.id_type == self.to_type]
+            result = pairs.merge(
+                found[['accession','id']].rename(columns={'id':'to'}),
+                on = 'accession',
+                how = 'inner',
+            )
+
+        result = result[self.columns].drop_duplicates().reset_index(drop=True)
+
+        missing = targets.difference(self.getids(result))
+        if missing:
+            self.update_missing(missing, error=f'No {self.to_type} identifier found for this {self.from_type} identifier', retry=False)
+
+        return result
+
 if __name__ == '__main__':
     pass

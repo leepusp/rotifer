@@ -610,15 +610,24 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             return self.empty()
 
         stack = []
-        for batch in self._batches(targets, self.batch_size):
-            parameters = {'targets': batch}
-            conditions = [f'{self.column} IN {{targets:Array(String)}}'] + self._filters(parameters)
-            stack.append(self.query(
-                f'SELECT accession, id_type, id FROM {self.qualified_name}'
-                f' WHERE {" AND ".join(conditions)}'
-                f' ORDER BY accession, id_type, id',
-                parameters = parameters,
-            ))
+        try:
+            for batch in self._batches(targets, self.batch_size):
+                parameters = {'targets': batch}
+                conditions = [f'{self.column} IN {{targets:Array(String)}}'] + self._filters(parameters)
+                stack.append(self.query(
+                    f'SELECT accession, id_type, id FROM {self.qualified_name}'
+                    f' WHERE {" AND ".join(conditions)}'
+                    f' ORDER BY accession, id_type, id',
+                    parameters = parameters,
+                ))
+        except Exception as error:
+            # An unreachable or broken server must not abort the caller:
+            # registering the query as missing lets a delegator hand it
+            # to the next backend, and retry stays True because another
+            # attempt may well succeed.
+            logger.error(f'Query to {self.qualified_name} at {self.host} failed: {error}')
+            self.update_missing(targets, error=f'ClickHouse query failed: {error}', retry=True)
+            return self.empty()
 
         df = pd.concat(stack, ignore_index=True) if stack else self.empty()
 
@@ -808,6 +817,39 @@ class MappingCursor(BaseIdMappingCursor):
         target = "accession" if self.to_type == "UniProtKB-AC" else "id"
 
         stack = []
+        try:
+            stack = self._mapping_batches(targets, source, target)
+        except Exception as error:
+            logger.error(f'Query to {self.qualified_name} at {self.host} failed: {error}')
+            self.update_missing(targets, error=f'ClickHouse query failed: {error}', retry=True)
+            return self.empty()
+
+        df = pd.concat(stack, ignore_index=True) if stack else self.empty()
+
+        missing = targets.difference(self.getids(df))
+        if missing:
+            self.update_missing(missing, error=f'No {self.to_type} identifier found for this {self.from_type} identifier', retry=False)
+
+        return df
+
+    def _mapping_batches(self, targets, source, target):
+        """
+        Run the join, one batch of identifiers at a time.
+
+        Parameters
+        ----------
+        targets : set of str
+            Identifiers to translate.
+        source, target : str
+            Names of the columns holding the queried and the returned
+            identifiers, either ``accession`` or ``id``.
+
+        Returns
+        -------
+        list of pandas.DataFrame
+            One dataframe per batch.
+        """
+        stack = []
         for batch in self._batches(targets, self.batch_size):
             parameters = {'targets': batch}
             left = [f'f.{source} IN {{targets:Array(String)}}']
@@ -831,14 +873,7 @@ class MappingCursor(BaseIdMappingCursor):
                 f' ORDER BY `from`, accession, `to`',
                 parameters = parameters,
             ))
-
-        df = pd.concat(stack, ignore_index=True) if stack else self.empty()
-
-        missing = targets.difference(self.getids(df))
-        if missing:
-            self.update_missing(missing, error=f'No {self.to_type} identifier found for this {self.from_type} identifier', retry=False)
-
-        return df
+        return stack
 
 if __name__ == '__main__':
     pass
