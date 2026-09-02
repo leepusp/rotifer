@@ -228,7 +228,7 @@ class IdMappingCursor:
     in return that table as a
     :class:`pandas.DataFrame` with the columns listed in
     :attr:`columns`, regardless of whether the rows were read from the
-    flat file (:mod:`rotifer.db.uniprot.io`) or from a database
+    flat file (:mod:`rotifer.db.uniprot.mirror`) or from a database
     (:mod:`rotifer.db.uniprot.clickhouse`).
 
     Attributes

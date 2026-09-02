@@ -1,5 +1,5 @@
 __doc__ = """
-Read UniProt data from a local copy of the UniProt FTP site.
+Read UniProt data from a local mirror of the UniProt FTP site.
 
 This module gives cursor-style access to the flat files distributed by
 UniProt and mirrored locally, for example by ``rrsw`` using the
@@ -7,15 +7,23 @@ configuration in ``etc/rotifer/rrsw/uniprot.yml``. Nothing here ever
 contacts the network: see :mod:`rotifer.db.uniprot.webapi` for the
 REST API client.
 
-The mirror is described by a single root directory, whose layout
-follows the UniProt FTP site::
+Cursors here find their data by walking the directory tree of the FTP
+site, which is what the module is named after: a mirror is identified
+by its root directory alone, and each cursor knows the path of the
+file it reads relative to that root::
 
     <root>/knowledgebase/idmapping/idmapping.dat
     <root>/knowledgebase/idmapping/idmapping_selected.tab
 
-Cursors accept either the root directory or the full path of a data
-file, so that uncommon layouts and archived releases can be used
-without reconfiguring the package.
+A cursor accepts either that root directory or the full path of a data
+file, so that uncommon layouts and archived releases can still be read
+without reconfiguring the package. Because the layout is UniProt's
+own, pointing a cursor at a fresh ``rrsw`` mirror is all that is
+needed to follow a new release.
+
+See Also
+--------
+rotifer.db.ncbi.mirror : the equivalent module for NCBI genome mirrors
 
 Warning
 -------
@@ -362,7 +370,7 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
 
     See Also
     --------
-    rotifer.db.uniprot.io.IdMappingCursor : identifier mapping cursor
+    rotifer.db.uniprot.mirror.IdMappingCursor : identifier mapping cursor
     """
 
     #: Path of the data file, relative to the root of the mirror.
@@ -586,13 +594,13 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
     --------
     Fetch every cross-reference of two UniProtKB accessions:
 
-    >>> from rotifer.db.uniprot import io as ruio
-    >>> ic = ruio.IdMappingCursor("/scratch/global/databases/uniprot")  # doctest: +SKIP
+    >>> from rotifer.db.uniprot import mirror as rum
+    >>> ic = rum.IdMappingCursor("/scratch/global/databases/uniprot")  # doctest: +SKIP
     >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
 
     Find the UniProtKB accession of a RefSeq protein:
 
-    >>> ic = ruio.IdMappingCursor(column='id', id_type='RefSeq')  # doctest: +SKIP
+    >>> ic = rum.IdMappingCursor(column='id', id_type='RefSeq')  # doctest: +SKIP
     >>> ic.fetchall(["YP_031579.1"])  # doctest: +SKIP
     """
 
@@ -654,8 +662,8 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
         --------
         Count the rows of each cross-referenced database:
 
-        >>> from rotifer.db.uniprot import io as ruio
-        >>> ic = ruio.IdMappingCursor()  # doctest: +SKIP
+        >>> from rotifer.db.uniprot import mirror as rum
+        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
         >>> counts = sum(c.id_type.value_counts() for c in ic.reader())  # doctest: +SKIP
         """
         if isinstance(id_type, types.NoneType):
@@ -748,8 +756,8 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
 
         Examples
         --------
-        >>> from rotifer.db.uniprot import io as ruio
-        >>> ic = ruio.IdMappingCursor()  # doctest: +SKIP
+        >>> from rotifer.db.uniprot import mirror as rum
+        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
         >>> for df in ic.fetchone(["Q6GZX4","Q6GZX3"]):  # doctest: +SKIP
         ...     print(df.accession.iloc[0], len(df))
         """
@@ -776,8 +784,8 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
 
         Examples
         --------
-        >>> from rotifer.db.uniprot import io as ruio
-        >>> ic = ruio.IdMappingCursor()  # doctest: +SKIP
+        >>> from rotifer.db.uniprot import mirror as rum
+        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
         >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
         """
         return self.__getitem__(accessions)
@@ -810,8 +818,8 @@ class CrossReferenceCursor(IdMappingCursor):
 
     Examples
     --------
-    >>> from rotifer.db.uniprot import io as ruio
-    >>> xc = ruio.CrossReferenceCursor(id_type='RefSeq')  # doctest: +SKIP
+    >>> from rotifer.db.uniprot import mirror as rum
+    >>> xc = rum.CrossReferenceCursor(id_type='RefSeq')  # doctest: +SKIP
     >>> xc.fetchall(["YP_031579.1"])  # doctest: +SKIP
     """
     def __init__(self, path=config['local_database_path'], id_type=None,
@@ -862,8 +870,8 @@ class MappingCursor(IdMappingCursor):
 
     Examples
     --------
-    >>> from rotifer.db.uniprot import io as ruio
-    >>> mc = ruio.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
+    >>> from rotifer.db.uniprot import mirror as rum
+    >>> mc = rum.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
     >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
     """
 

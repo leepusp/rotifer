@@ -17,7 +17,7 @@ setup(
         "pandas",
     ],
     extras_require={
-        # pyarrow speeds up the scans in rotifer.db.uniprot.io, which
+        # pyarrow speeds up the scans in rotifer.db.uniprot.mirror, which
         # fall back to the standard library when it is absent
         "speedups": ["pyarrow"],
     },

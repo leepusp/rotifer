@@ -20,7 +20,7 @@ cursors for the queries that table was designed to answer:
 The table itself is created and populated through
 :meth:`IdMappingCursor.create` and :meth:`IdMappingCursor.load`, from
 a local copy of the flat file read by
-:class:`rotifer.db.uniprot.io.IdMappingCursor`. Its schema lives in
+:class:`rotifer.db.uniprot.mirror.IdMappingCursor`. Its schema lives in
 ``share/rotifer/db/uniprot/clickhouse/idmapping.sql``.
 
 Configuration
@@ -299,7 +299,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
     See Also
     --------
-    rotifer.db.uniprot.io.IdMappingCursor : the flat file this table is loaded from
+    rotifer.db.uniprot.mirror.IdMappingCursor : the flat file this table is loaded from
     """
 
     #: Name of the column the cursor's queries search.
@@ -443,7 +443,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         Parameters
         ----------
-        source : str or rotifer.db.uniprot.io.IdMappingCursor
+        source : str or rotifer.db.uniprot.mirror.IdMappingCursor
             The flat file to load: either its path, the root of a
             local UniProt mirror, or a cursor already pointing at one.
         release : str, optional
@@ -460,7 +460,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
                 reach the server.
             ``python``
                 Read the file in chunks with
-                :meth:`rotifer.db.uniprot.io.IdMappingCursor.reader`
+                :meth:`rotifer.db.uniprot.mirror.IdMappingCursor.reader`
                 and insert each chunk through the driver. Slower, but
                 it needs nothing besides this package and it honours
                 the source cursor's ``id_type`` filter, which makes
@@ -499,14 +499,14 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         >>> ic.create()  # doctest: +SKIP
         >>> ic.load("/scratch/global/databases/uniprot")  # doctest: +SKIP
         """
-        from rotifer.db.uniprot import io as ruio
+        from rotifer.db.uniprot import mirror as rum
 
         if isinstance(release, types.NoneType):
             release = self.release
-        if isinstance(source, ruio.IdMappingCursor):
+        if isinstance(source, rum.IdMappingCursor):
             reader = source
         else:
-            reader = ruio.IdMappingCursor(path=source, progress=self.progress)
+            reader = rum.IdMappingCursor(path=source, progress=self.progress)
         if isinstance(reader.datafile, types.NoneType):
             logger.error(f'No idmapping file found for {source}')
             return self.count()
@@ -682,7 +682,7 @@ class IdMappingCursor(BaseIdMappingCursor):
     --------
     rotifer.db.uniprot.clickhouse.CrossReferenceCursor : the reverse lookup
     rotifer.db.uniprot.clickhouse.MappingCursor : translate between two databases
-    rotifer.db.uniprot.io.IdMappingCursor : same data, read from the flat file
+    rotifer.db.uniprot.mirror.IdMappingCursor : same data, read from the flat file
 
     Examples
     --------

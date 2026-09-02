@@ -13,7 +13,7 @@ first:
 :mod:`rotifer.db.uniprot.clickhouse`
     An indexed copy of ``idmapping.dat`` in ClickHouse. Point
     lookups are answered in milliseconds. Tried first.
-:mod:`rotifer.db.uniprot.io`
+:mod:`rotifer.db.uniprot.mirror`
     The flat files of a local UniProt mirror. Every query scans the
     whole file, which costs minutes, so this backend only receives
     the identifiers ClickHouse could not resolve, and covers the
@@ -63,7 +63,7 @@ config = loadConfig(__name__.replace('rotifer.',':'), defaults = {
     'local_database_path': os.path.join(GlobalConfig['data'],"uniprot"),
     'readers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
-        'io': 'rotifer.db.uniprot.io',
+        'mirror': 'rotifer.db.uniprot.mirror',
     },
     'writers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
@@ -122,7 +122,7 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
 
     Parameters
     ----------
-    readers : list of str, default ``['clickhouse', 'io']``
+    readers : list of str, default ``['clickhouse', 'mirror']``
         Backend reader modules, tried in order.
     writers : list of str, default []
         Backend writer modules. Setting this to ``['clickhouse']``
@@ -135,10 +135,10 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
         Restrict the ClickHouse backend to one UniProt release.
     local_database_path : str, optional
         Root directory of the local UniProt mirror, used by the
-        ``io`` backend. Defaults to the ``local_database_path``
+        ``mirror`` backend. Defaults to the ``local_database_path``
         configuration entry.
     engine : str, optional
-        Matching engine of the ``io`` backend, one of ``auto``,
+        Matching engine of the ``mirror`` backend, one of ``auto``,
         ``arrow`` or ``python``.
     host, port, database, table : optional
         Where the ClickHouse backend should look. Each defaults to
@@ -151,12 +151,12 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
         Number of identifiers per query, used by the ClickHouse
         backend.
     threads : int, optional
-        Number of worker processes, used by the ``io`` backend.
+        Number of worker processes, used by the ``mirror`` backend.
 
     See Also
     --------
     rotifer.db.uniprot.clickhouse.IdMappingCursor : the fast backend
-    rotifer.db.uniprot.io.IdMappingCursor : the fallback backend
+    rotifer.db.uniprot.mirror.IdMappingCursor : the fallback backend
     CrossReferenceCursor : the reverse lookup
 
     Examples
@@ -167,7 +167,7 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
 
     Only their RefSeq proteins, straight from the flat file:
 
-    >>> ic = uniprot.IdMappingCursor(readers=['io'], id_type='RefSeq')  # doctest: +SKIP
+    >>> ic = uniprot.IdMappingCursor(readers=['mirror'], id_type='RefSeq')  # doctest: +SKIP
     >>> df = ic.fetchall(["Q6GZX4"])  # doctest: +SKIP
     """
 
@@ -175,7 +175,7 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
 
     def __init__(
             self,
-            readers = ['clickhouse','io'],
+            readers = ['clickhouse','mirror'],
             writers = [],
             id_type = None,
             release = None,
@@ -212,7 +212,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
 
     Parameters
     ----------
-    readers : list of str, default ``['clickhouse', 'io']``
+    readers : list of str, default ``['clickhouse', 'mirror']``
         Backend reader modules, tried in order.
     writers : list of str, default []
         Backend writer modules.
@@ -224,7 +224,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
     local_database_path : str, optional
         Root directory of the local UniProt mirror.
     engine : str, optional
-        Matching engine of the ``io`` backend.
+        Matching engine of the ``mirror`` backend.
     host, port, database, table : optional
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
@@ -234,7 +234,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
     batch_size : int, optional
         Number of identifiers per query.
     threads : int, optional
-        Number of worker processes used by the ``io`` backend.
+        Number of worker processes used by the ``mirror`` backend.
 
     See Also
     --------
@@ -252,7 +252,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
 
     def __init__(
             self,
-            readers = ['clickhouse','io'],
+            readers = ['clickhouse','mirror'],
             writers = [],
             id_type = None,
             release = None,
@@ -296,7 +296,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
     to_type : str
         Name of the database to translate into, e.g. ``RefSeq``. Use
         ``UniProtKB-AC`` to translate into UniProtKB accessions.
-    readers : list of str, default ``['clickhouse', 'io']``
+    readers : list of str, default ``['clickhouse', 'mirror']``
         Backend reader modules, tried in order.
     writers : list of str, default []
         Backend writer modules. Leave this empty: the rows this
@@ -307,7 +307,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
     local_database_path : str, optional
         Root directory of the local UniProt mirror.
     engine : str, optional
-        Matching engine of the ``io`` backend.
+        Matching engine of the ``mirror`` backend.
     host, port, database, table : optional
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
@@ -317,7 +317,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
     batch_size : int, optional
         Number of identifiers per query.
     threads : int, optional
-        Number of worker processes used by the ``io`` backend.
+        Number of worker processes used by the ``mirror`` backend.
 
     Attributes
     ----------
@@ -343,7 +343,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             self,
             from_type,
             to_type,
-            readers = ['clickhouse','io'],
+            readers = ['clickhouse','mirror'],
             writers = [],
             release = None,
             local_database_path = config['local_database_path'],
