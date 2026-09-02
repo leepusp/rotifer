@@ -260,6 +260,7 @@ html_theme_options = {
         {"title": "Data access", "url": "db/index"},
         {"title": "API", "url": "api/index"},
         {"title": "Contributing", "url": "contributing/index"},
+        {"title": "License", "url": "licensing/index"},
     ],
 }
 
