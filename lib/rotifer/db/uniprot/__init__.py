@@ -42,12 +42,30 @@ ClickHouse if it has them and from the flat file otherwise:
 Ask which backend answered, and what is still missing:
 
 >>> ic.missing  # doctest: +SKIP
+
+Starting from a mirror and an empty ClickHouse database, fill the
+table once and query it from then on:
+
+>>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
+...     local_database_path="/scratch/global/databases/uniprot",
+...     database="uniprot", release="2026_01", initialize='load')
+
+The same thing on demand, instead of in one sitting: every query
+answered by the mirror is stored, so the second time it is answered by
+the table.
+
+>>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
+...     local_database_path="/scratch/global/databases/uniprot",
+...     database="uniprot", release="2026_01", cache=True)
+>>> ic.fetchall(["Q6GZX4"])   # scans the file, then stores what it found
+>>> ic.fetchall(["Q6GZX4"])   # answered by ClickHouse
 """
 
 # Import external modules
 import os
 import types
 import pandas as pd
+from copy import deepcopy
 
 # Import rotifer modules
 import rotifer
@@ -86,9 +104,15 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
     rotifer.db.delegator.SequentialDelegatorCursor : the delegation logic
     """
 
+    #: Name of the backend that stores data, used by ``cache``.
+    _store_backend = 'clickhouse'
+
     def __getitem__(self, accessions, *args, **kwargs):
         """
         Fetch identifier mappings, dictionary style.
+
+        Equivalent to :meth:`fetchall`, so that dictionary style
+        access caches its results like the other two access styles.
 
         Parameters
         ----------
@@ -102,15 +126,230 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
             Identifiers no backend could resolve are registered in
             :attr:`~rotifer.db.core.BaseCursor.missing`.
         """
-        data = super().__getitem__(accessions, *args, **kwargs)
-        if isinstance(data, pd.DataFrame):
-            return data
-        if isinstance(data, types.NoneType):
-            return self.empty()
-        if not isinstance(data, list):
-            data = [data]
-        data = [ x for x in data if isinstance(x, pd.DataFrame) and not x.empty ]
-        return pd.concat(data, ignore_index=True) if data else self.empty()
+        return self.fetchall(accessions, *args, **kwargs)
+
+    def fetchone(self, accessions, *args, **kwargs):
+        """
+        Iterate over identifier mappings, trying each backend in turn.
+
+        Backends listed in ``readers`` are consulted in order and each
+        one receives only the identifiers its predecessors could not
+        resolve. Rows are handed to the backends listed in
+        ``writers``, which is how ``cache`` stores what a query just
+        retrieved.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Yields
+        ------
+        pandas.DataFrame
+            One block of rows, as produced by the backend that found
+            them.
+
+        Note
+        ----
+        This overrides
+        :meth:`rotifer.db.delegator.SequentialDelegatorCursor.fetchone`
+        for one reason: the generic version hands every result to
+        every writer, including results a writer just returned as a
+        reader. Here the same backend can be both, so rows are never
+        written back to the backend they came from, which would
+        duplicate them.
+        """
+        targets = self.parse_ids(accessions)
+        todo = deepcopy(targets)
+        for position, name in enumerate(self.readers):
+            if not todo:
+                break
+            if name not in self.cursors:
+                continue
+            cursor = self.cursors[name]
+            for result in cursor.fetchone(todo, *args, **kwargs):
+                found = self.getids(result, *args, **kwargs)
+                done = todo.intersection(found)
+                for earlier in self.readers[:position+1]:
+                    if earlier in self.cursors:
+                        self.cursors[earlier].remove_missing(done)
+                self.remove_missing(done)
+                self.update_missing(data=cursor._missing)
+                for writer in self.writers:
+                    if writer == name or writer not in self.cursors:
+                        continue
+                    rows = self._rows_to_store(result, name)
+                    if not rows.empty:
+                        self.cursors[writer].insert(rows)
+                todo = todo - done
+                yield result
+
+    def _rows_to_store(self, result, source):
+        """
+        Choose which rows to hand to the writers.
+
+        Parameters
+        ----------
+        result : pandas.DataFrame
+            Rows a reader just returned.
+        source : str
+            Name of the backend that produced them.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Rows laid out like the storage table.
+        """
+        return result
+
+    @property
+    def store(self):
+        """
+        The backend cursor that stores data.
+
+        Returns
+        -------
+        object or None
+            The ClickHouse cursor, or None when it is not among this
+            delegator's backends.
+        """
+        return self.cursors.get(self._store_backend)
+
+    def create(self, replace=False):
+        """
+        Create the ClickHouse database and table.
+
+        Parameters
+        ----------
+        replace : bool, default False
+            If True, drop an existing table before creating it. Every
+            row it holds is lost.
+
+        Returns
+        -------
+        bool
+            Whether the table exists after the call.
+
+        Raises
+        ------
+        ValueError
+            If the ClickHouse backend is not among this delegator's
+            readers or writers.
+
+        Examples
+        --------
+        >>> from rotifer.db import uniprot
+        >>> ic = uniprot.IdMappingCursor(database='uniprot')  # doctest: +SKIP
+        >>> ic.create()  # doctest: +SKIP
+        """
+        store = self.store
+        if isinstance(store, types.NoneType):
+            raise ValueError(f'No {self._store_backend} backend: add it to readers or writers')
+        return store.create(replace=replace)
+
+    def load(self, source=None, release=None, method='auto', **kwargs):
+        """
+        Load a whole release from the mirror into ClickHouse.
+
+        The table is created when it does not exist yet, then every
+        row of the mirror's ``idmapping.dat`` is inserted. This is the
+        one call that turns an empty database into one worth querying.
+
+        Parameters
+        ----------
+        source : str or cursor, optional
+            Where to read the mappings from. Defaults to this
+            delegator's own mirror backend, so that the path given at
+            construction is used.
+        release : str, optional
+            Value stored in the ``release`` column of every row
+            loaded. Defaults to the delegator's ``release``.
+        method : str, default 'auto'
+            How to send the data. See
+            :meth:`rotifer.db.uniprot.clickhouse.BaseIdMappingCursor.load`.
+        **kwargs
+            Passed on to the ClickHouse backend's ``load``.
+
+        Returns
+        -------
+        int
+            Number of rows in the table after the load.
+
+        Raises
+        ------
+        ValueError
+            If the ClickHouse backend, or a source to read from, is
+            missing.
+
+        Note
+        ----
+        A full release is a few billion rows and takes about an hour.
+        The table is partitioned by release, so an interrupted load is
+        cleaned up with
+        ``ALTER TABLE ... DROP PARTITION '<release>'`` before trying
+        again.
+
+        Examples
+        --------
+        Point a cursor at a mirror and an empty database, then fill it:
+
+        >>> from rotifer.db import uniprot
+        >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
+        ...     local_database_path="/scratch/global/databases/uniprot",
+        ...     database="uniprot", release="2026_01")
+        >>> ic.load()  # doctest: +SKIP
+        2647104040
+        """
+        store = self.store
+        if isinstance(store, types.NoneType):
+            raise ValueError(f'No {self._store_backend} backend: add it to readers or writers')
+        if isinstance(source, types.NoneType):
+            source = self.cursors.get('mirror')
+            if isinstance(source, types.NoneType):
+                source = self.path
+        if isinstance(source, types.NoneType):
+            raise ValueError('No mirror backend and no source given: nothing to load from')
+        if self.progress:
+            logger.warn(f'Loading the whole mapping table into {store.qualified_name}. This takes about an hour.')
+        return store.load(source, release=release, method=method, **kwargs)
+
+    def _initialize(self, initialize, strict=True):
+        """
+        Prepare the storage backend at construction time.
+
+        Parameters
+        ----------
+        initialize : bool or str
+            One of False, ``create`` or ``load``. See the
+            ``initialize`` parameter of the cursors in this module.
+
+        Raises
+        ------
+        ValueError
+            If `initialize` is not one of the accepted values.
+        """
+        if not initialize:
+            return
+        if initialize is True:
+            initialize = 'create'
+        if initialize not in ('create','load'):
+            raise ValueError(f"Unknown initialize {initialize}: expected False, 'create' or 'load'")
+        store = self.store
+        if isinstance(store, types.NoneType):
+            raise ValueError(f'No {self._store_backend} backend: add it to readers or writers')
+        try:
+            if not store.has_table():
+                self.create()
+            if initialize == 'load' and store.is_empty():
+                self.load()
+        except Exception as error:
+            # An explicit request must fail loudly; the create implied
+            # by cache must not stop a session that can still read the
+            # mirror
+            if strict:
+                raise
+            logger.error(f'Could not prepare {store.qualified_name}, caching is off: {error}')
+            self.writers = [ x for x in self.writers if x != self._store_backend ]
 
 class IdMappingCursor(BaseUniProtDelegatorCursor):
     """
@@ -145,6 +384,27 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration, which is
         also where credentials belong.
+    initialize : bool or str, default False
+        What to do about the ClickHouse table when the cursor is
+        built:
+
+        ``False``
+            Nothing. The table is expected to exist.
+        ``'create'`` or True
+            Create the database and table when they are missing, so
+            that a cursor can be pointed at an empty database.
+        ``'load'``
+            Create them, and when no row of the release is present,
+            read the whole mirror into the table. This is the one
+            call that turns an empty database into one worth
+            querying, and it takes about an hour.
+
+    cache : bool, default False
+        Store rows retrieved from the mirror into ClickHouse as
+        ``fetchall``, ``fetchone`` and item access return them, so
+        that repeating a query is answered by the table. Implies
+        ``initialize='create'``, and never writes rows back to the
+        backend that produced them.
     progress : bool, default True
         Whether to print progress messages.
     batch_size : int, optional
@@ -185,6 +445,8 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
             port = None,
             database = None,
             table = None,
+            initialize = False,
+            cache = False,
             progress = True,
             tries = None,
             batch_size = None,
@@ -200,7 +462,13 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
         self.port = port
         self.database = database
         self.table = table
+        writers = list(writers)
+        if cache and self._store_backend not in writers:
+            writers.append(self._store_backend)
+        self.cache = cache
         super().__init__(readers=readers, writers=writers, progress=progress, tries=tries, batch_size=batch_size, threads=threads, *args, **kwargs)
+        # Caching needs somewhere to write, so it implies a table
+        self._initialize(initialize or (cache and 'create'), strict=bool(initialize))
 
 class CrossReferenceCursor(BaseUniProtDelegatorCursor):
     """
@@ -229,6 +497,27 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration.
+    initialize : bool or str, default False
+        What to do about the ClickHouse table when the cursor is
+        built:
+
+        ``False``
+            Nothing. The table is expected to exist.
+        ``'create'`` or True
+            Create the database and table when they are missing, so
+            that a cursor can be pointed at an empty database.
+        ``'load'``
+            Create them, and when no row of the release is present,
+            read the whole mirror into the table. This is the one
+            call that turns an empty database into one worth
+            querying, and it takes about an hour.
+
+    cache : bool, default False
+        Store rows retrieved from the mirror into ClickHouse as
+        ``fetchall``, ``fetchone`` and item access return them, so
+        that repeating a query is answered by the table. Implies
+        ``initialize='create'``, and never writes rows back to the
+        backend that produced them.
     progress : bool, default True
         Whether to print progress messages.
     batch_size : int, optional
@@ -250,6 +539,44 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
 
     column = 'id'
 
+    def _rows_to_store(self, result, source):
+        """
+        Expand reverse lookup rows into whole accession groups.
+
+        A reverse lookup returns only the rows whose identifier was
+        queried, not every row of the accessions behind them. Storing
+        those as they are would break the invariant the forward lookup
+        depends on, that an accession present in the table is present
+        in full: a later
+        :class:`IdMappingCursor` query for one of these accessions
+        would be answered from the table alone and silently return a
+        fraction of its cross-references. So the mirror is asked for
+        the complete rows of every accession found, which costs one
+        further scan of the file.
+
+        Parameters
+        ----------
+        result : pandas.DataFrame
+            Rows a reader just returned.
+        source : str
+            Name of the backend that produced them.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Every row of the accessions named in `result`.
+        """
+        if result.empty:
+            return result
+        from rotifer.db.uniprot import mirror as rum
+        settings = { k: v for k, v in (
+            ('path', self.path), ('threads', self.threads),
+            ('engine', self.engine), ('progress', self.progress),
+        ) if not isinstance(v, types.NoneType) }
+        if self.progress:
+            logger.warn('Caching a reverse lookup: scanning the mirror again to store whole accession groups')
+        return rum.IdMappingCursor(**settings).fetchall(set(result.accession))
+
     def __init__(
             self,
             readers = ['clickhouse','mirror'],
@@ -262,6 +589,8 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
             port = None,
             database = None,
             table = None,
+            initialize = False,
+            cache = False,
             progress = True,
             tries = None,
             batch_size = None,
@@ -277,7 +606,13 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
         self.port = port
         self.database = database
         self.table = table
+        writers = list(writers)
+        if cache and self._store_backend not in writers:
+            writers.append(self._store_backend)
+        self.cache = cache
         super().__init__(readers=readers, writers=writers, progress=progress, tries=tries, batch_size=batch_size, threads=threads, *args, **kwargs)
+        # Caching needs somewhere to write, so it implies a table
+        self._initialize(initialize or (cache and 'create'), strict=bool(initialize))
 
 class MappingCursor(BaseUniProtDelegatorCursor):
     """
@@ -312,6 +647,27 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration.
+    initialize : bool or str, default False
+        What to do about the ClickHouse table when the cursor is
+        built:
+
+        ``False``
+            Nothing. The table is expected to exist.
+        ``'create'`` or True
+            Create the database and table when they are missing, so
+            that a cursor can be pointed at an empty database.
+        ``'load'``
+            Create them, and when no row of the release is present,
+            read the whole mirror into the table. This is the one
+            call that turns an empty database into one worth
+            querying, and it takes about an hour.
+
+    cache : bool, default False
+        Store rows retrieved from the mirror into ClickHouse as
+        ``fetchall``, ``fetchone`` and item access return them, so
+        that repeating a query is answered by the table. Implies
+        ``initialize='create'``, and never writes rows back to the
+        backend that produced them.
     progress : bool, default True
         Whether to print progress messages.
     batch_size : int, optional
@@ -352,12 +708,20 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             port = None,
             database = None,
             table = None,
+            initialize = False,
+            cache = False,
             progress = True,
             tries = None,
             batch_size = None,
             threads = None,
             *args, **kwargs
         ):
+        if cache:
+            raise ValueError(
+                'MappingCursor cannot cache: its rows are from/accession/to, which do not '
+                'match the layout of the storage table. Cache with IdMappingCursor, or load '
+                'the whole release with load().'
+            )
         self._shared_attributes = ['progress','from_type','to_type','release','path','engine','host','port','database','table','batch_size','threads']
         self.from_type = from_type
         self.to_type = to_type
@@ -368,7 +732,13 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         self.port = port
         self.database = database
         self.table = table
+        writers = list(writers)
+        if cache and self._store_backend not in writers:
+            writers.append(self._store_backend)
+        self.cache = cache
         super().__init__(readers=readers, writers=writers, progress=progress, tries=tries, batch_size=batch_size, threads=threads, *args, **kwargs)
+        # Caching needs somewhere to write, so it implies a table
+        self._initialize(initialize or (cache and 'create'), strict=bool(initialize))
 
 if __name__ == '__main__':
     pass

@@ -140,12 +140,16 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         """
         if isinstance(self._client, types.NoneType):
             import clickhouse_connect
+            # The session is deliberately not bound to self.database:
+            # the driver refuses to connect at all when the database
+            # does not exist yet, which would make it impossible to
+            # create one. Every statement here names its table in
+            # full, so the session database is never consulted.
             self._client = clickhouse_connect.get_client(
                 host = self.host,
                 port = self.port,
                 username = self.user,
                 password = self.password,
-                database = self.database,
                 secure = self.secure,
             )
         return self._client
@@ -437,7 +441,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         return self.has_table()
 
-    def load(self, source, release=None, method='client', chunksize=config['chunksize'], executable=config['executable']):
+    def load(self, source, release=None, method='auto', chunksize=config['chunksize'], executable=config['executable']):
         """
         Load a copy of ``idmapping.dat`` into the table.
 
@@ -449,9 +453,12 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         release : str, optional
             Value stored in the ``release`` column of every row
             loaded. Defaults to the cursor's ``release``.
-        method : str, default 'client'
+        method : str, default 'auto'
             How to send the data:
 
+            ``auto``
+                Use ``client`` when the ClickHouse program is on the
+                PATH, and ``python`` otherwise.
             ``client``
                 Pipe the file through the ``clickhouse client``
                 command line program. This is by far the fastest
@@ -482,7 +489,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         Raises
         ------
         ValueError
-            If `method` is not ``client`` or ``python``.
+            If `method` is not ``auto``, ``client`` or ``python``.
 
         Note
         ----
@@ -513,6 +520,12 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         if not self.has_table():
             self.create(release=release)
+
+        if method == 'auto':
+            import shutil
+            method = 'client' if shutil.which(executable) else 'python'
+            if self.progress:
+                logger.warn(f'Loading with method={method}')
 
         if method == 'client':
             insert = (
@@ -548,9 +561,37 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
                 self.insert(chunk)
 
         else:
-            raise ValueError(f'Unknown load method {method}: use "client" or "python"')
+            raise ValueError(f'Unknown load method {method}: use "auto", "client" or "python"')
 
         return self.count()
+
+    def is_empty(self, release=None):
+        """
+        Find whether the table holds no rows for a release.
+
+        Parameters
+        ----------
+        release : str, optional
+            The release to look for. Defaults to the cursor's
+            ``release``; when neither is set, the whole table is
+            considered.
+
+        Returns
+        -------
+        bool
+            True when the table does not exist, or holds no matching
+            row.
+        """
+        if not self.has_table():
+            return True
+        release = release if not isinstance(release, types.NoneType) else self.release
+        if release:
+            found = self.query(
+                f'SELECT count() AS n FROM {self.qualified_name} WHERE release = {{release:String}}',
+                parameters = {'release': release},
+            )
+            return not int(found.n.iloc[0])
+        return not self.count()
 
     def insert(self, data, release=None):
         """
