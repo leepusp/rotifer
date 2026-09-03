@@ -33,6 +33,7 @@ necessarily the port a given server listens on.
 
 # Dependencies
 import os
+import uuid
 import types
 import typing
 import subprocess
@@ -54,7 +55,8 @@ _defaults = {
     'database': 'uniprot',
     'table': 'idmapping',
     'release': '',
-    'batch_size': 10000,
+    'batch_size': 5000,
+    'submit_threshold': 1000,
     'chunksize': 5000000,
     'executable': 'clickhouse',
 }
@@ -123,6 +125,9 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         self.table = table
         self.secure = secure
         self._client = None
+        # Each cursor owns a differently named temporary table, so that
+        # cursors sharing a session cannot overwrite each other's query
+        self._query_table = '_rotifer_query_' + uuid.uuid4().hex[:12]
 
     @property
     def client(self):
@@ -173,9 +178,12 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Parameters
         ----------
         sql : str
-            A SELECT statement. Use ClickHouse's server side binding
-            syntax, e.g. ``{ids:Array(String)}``, to refer to
-            `parameters`.
+            A SELECT statement. Queries that carry a list of
+            identifiers must use client side binding, ``%(name)s``,
+            so that the values travel in the request body: server
+            side binding puts them in the URL, which the server
+            rejects as "Field value too long" beyond roughly 6000
+            identifiers.
         parameters : dict, optional
             Values bound to the placeholders in `sql`.
 
@@ -253,6 +261,58 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             return 0
         return int(self.query(f'SELECT count() AS n FROM {self.qualified_name}').n.iloc[0])
 
+    def submit(self, accessions):
+        """
+        Send a list of identifiers to a temporary table.
+
+        Queries then refer to that table instead of listing the
+        identifiers in the SQL text, which is what makes an
+        arbitrarily long query possible: values written into the
+        statement are bounded by ClickHouse's ``max_query_size``, 256
+        KiB by default, or about 18000 accessions.
+
+        The table is temporary and lives in the connection's session,
+        so it disappears when the connection does and is invisible to
+        every other client.
+
+        Parameters
+        ----------
+        accessions : iterable of str
+            The identifiers to make available to the next query.
+
+        Returns
+        -------
+        str
+            Name of the table holding them.
+
+        Note
+        ----
+        A ClickHouse session serves one query at a time, so a cursor
+        that has submitted a list must not be shared between threads
+        until the query using it has finished.
+
+        Examples
+        --------
+        >>> from rotifer.db.uniprot import clickhouse as ruch
+        >>> c = ruch.IdMappingCursor()  # doctest: +SKIP
+        >>> table = c.submit(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
+        >>> c.query(f"SELECT count() FROM {table}")  # doctest: +SKIP
+        """
+        import pandas as pd
+        self.cleanup()
+        self.command(f'CREATE TEMPORARY TABLE {self._query_table} (id String) ENGINE = Memory')
+        ids = pd.DataFrame({'id': [ str(x) for x in accessions ]})
+        self.client.insert_df(table=self._query_table, df=ids)
+        return self._query_table
+
+    def cleanup(self):
+        """
+        Drop this cursor's temporary table of identifiers.
+
+        Safe to call when nothing was submitted.
+        """
+        self.command(f'DROP TEMPORARY TABLE IF EXISTS {self._query_table}')
+
     def _batches(self, targets, batch_size):
         """
         Split a set of identifiers into batches.
@@ -295,8 +355,16 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         queries read a single partition. By default every release
         stored in the table is searched.
     batch_size : int, optional
-        Number of identifiers sent to the server per query. Defaults
-        to the ``batch_size`` configuration entry.
+        Number of identifiers written into one query, for queries
+        small enough to list them. Defaults to the ``batch_size``
+        configuration entry.
+    submit_threshold : int, optional
+        Queries carrying at least this many identifiers send them to a
+        temporary table with :meth:`~BaseClickHouseCursor.submit`
+        instead of listing them in the SQL, which removes the limit on
+        how many can be asked for at once. Below it, listing them is
+        one round trip instead of three and therefore quicker.
+        Defaults to the ``submit_threshold`` configuration entry.
     **kwargs
         Connection parameters, passed to
         :class:`BaseClickHouseCursor`.
@@ -314,12 +382,14 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             id_type = None,
             release = config['release'],
             batch_size = config['batch_size'],
+            submit_threshold = config['submit_threshold'],
             *args, **kwargs
         ):
         super().__init__(*args, **kwargs)
         self.id_type = id_type
         self.release = release
         self.batch_size = batch_size
+        self.submit_threshold = submit_threshold
         self.maxgetitem = 1000000
 
     def _id_types(self):
@@ -355,10 +425,10 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         conditions = []
         id_type = self._id_types()
         if id_type:
-            conditions.append("id_type IN {id_type:Array(String)}")
-            parameters['id_type'] = id_type
+            conditions.append("id_type IN %(id_type)s")
+            parameters['id_type'] = tuple(id_type)
         if self.release:
-            conditions.append("release = {release:String}")
+            conditions.append("release = %(release)s")
             parameters['release'] = self.release
         return conditions
 
@@ -380,7 +450,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         parameters = {}
         conditions = []
         if self.release:
-            conditions.append("release = {release:String}")
+            conditions.append("release = %(release)s")
             parameters['release'] = self.release
         where = f'WHERE {" AND ".join(conditions)}' if conditions else ""
         return self.query(
@@ -654,15 +724,31 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         stack = []
         try:
-            for batch in self._batches(targets, self.batch_size):
-                parameters = {'targets': batch}
-                conditions = [f'{self.column} IN {{targets:Array(String)}}'] + self._filters(parameters)
-                stack.append(self.query(
-                    f'SELECT accession, id_type, id FROM {self.qualified_name}'
-                    f' WHERE {" AND ".join(conditions)}'
-                    f' ORDER BY accession, id_type, id',
-                    parameters = parameters,
-                ))
+            if len(targets) >= self.submit_threshold:
+                # Too many to write into the statement: hand them over
+                # as a table and let the query refer to it
+                table = self.submit(targets)
+                try:
+                    parameters = {}
+                    conditions = [f'{self.column} IN (SELECT id FROM {table})'] + self._filters(parameters)
+                    stack.append(self.query(
+                        f'SELECT accession, id_type, id FROM {self.qualified_name}'
+                        f' WHERE {" AND ".join(conditions)}'
+                        f' ORDER BY accession, id_type, id',
+                        parameters = parameters,
+                    ))
+                finally:
+                    self.cleanup()
+            else:
+                for batch in self._batches(targets, self.batch_size):
+                    parameters = {'targets': tuple(batch)}
+                    conditions = [f'{self.column} IN %(targets)s'] + self._filters(parameters)
+                    stack.append(self.query(
+                        f'SELECT accession, id_type, id FROM {self.qualified_name}'
+                        f' WHERE {" AND ".join(conditions)}'
+                        f' ORDER BY accession, id_type, id',
+                        parameters = parameters,
+                    ))
         except Exception as error:
             # An unreachable or broken server must not abort the caller:
             # registering the query as missing lets a delegator hand it
@@ -892,31 +978,64 @@ class MappingCursor(BaseIdMappingCursor):
         list of pandas.DataFrame
             One dataframe per batch.
         """
+        if len(targets) >= self.submit_threshold:
+            # Too many to write into the statement: hand them over as a
+            # table and let the join refer to it
+            table = self.submit(targets)
+            try:
+                return [ self._mapping_query(f'f.{source} IN (SELECT id FROM {table})', {}, source, target) ]
+            finally:
+                self.cleanup()
+
         stack = []
         for batch in self._batches(targets, self.batch_size):
-            parameters = {'targets': batch}
-            left = [f'f.{source} IN {{targets:Array(String)}}']
-            if source == "id":
-                left.append("f.id_type = {from_type:String}")
-                parameters['from_type'] = self.from_type
-            right = []
-            if target == "id":
-                right.append("t.id_type = {to_type:String}")
-                parameters['to_type'] = self.to_type
-            if self.release:
-                left.append("f.release = {release:String}")
-                right.append("t.release = {release:String}")
-                parameters['release'] = self.release
-            where = " AND ".join(left + right)
-            stack.append(self.query(
-                f'SELECT DISTINCT f.{source} AS `from`, f.accession AS accession, t.{target} AS `to`'
-                f' FROM {self.qualified_name} AS f'
-                f' INNER JOIN {self.qualified_name} AS t ON f.accession = t.accession'
-                f' WHERE {where}'
-                f' ORDER BY `from`, accession, `to`',
-                parameters = parameters,
-            ))
+            parameters = {'targets': tuple(batch)}
+            stack.append(self._mapping_query(f'f.{source} IN %(targets)s', parameters, source, target))
         return stack
+
+    def _mapping_query(self, restriction, parameters, source, target):
+        """
+        Run the join for one set of queried identifiers.
+
+        Parameters
+        ----------
+        restriction : str
+            The SQL condition selecting them, either an inline list or
+            a reference to the table filled by
+            :meth:`~BaseClickHouseCursor.submit`.
+        parameters : dict
+            Query parameters, extended in place with the values bound
+            by the conditions this method adds.
+        source, target : str
+            Names of the columns holding the queried and the returned
+            identifiers, either ``accession`` or ``id``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``from``, ``accession`` and ``to``.
+        """
+        left = [restriction]
+        if source == "id":
+            left.append("f.id_type = %(from_type)s")
+            parameters['from_type'] = self.from_type
+        right = []
+        if target == "id":
+            right.append("t.id_type = %(to_type)s")
+            parameters['to_type'] = self.to_type
+        if self.release:
+            left.append("f.release = %(release)s")
+            right.append("t.release = %(release)s")
+            parameters['release'] = self.release
+        where = " AND ".join(left + right)
+        return self.query(
+            f'SELECT DISTINCT f.{source} AS `from`, f.accession AS accession, t.{target} AS `to`'
+            f' FROM {self.qualified_name} AS f'
+            f' INNER JOIN {self.qualified_name} AS t ON f.accession = t.accession'
+            f' WHERE {where}'
+            f' ORDER BY `from`, accession, `to`',
+            parameters = parameters,
+        )
 
 if __name__ == '__main__':
     pass
