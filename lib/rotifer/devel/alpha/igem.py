@@ -74,10 +74,13 @@ pipeline.
     compute_label_width          shared padding width for row labels
     pad_and_escape               pad + HTML-escape one label string
     build_row_label_html         the 3-line HTML label for one block
+    normalize_color_value        repair a hex code missing its '#'
     build_color_map              domain -> fill color (user dict or auto)
     resolve_domain_color         one gene's fill, matching whole
                                   architectures and single domains alike
-    build_color_legend_html      swatch/name legend for a color map
+    resolve_fallback_color       the 'Other' catch-all color, if any
+    build_color_legend_html      legend grouped by color, named by
+                                  functional category
     select_reference_query_index which query anchors a multi-query block
     normalize_block_strand       optionally mirror a block to a common
                                   query orientation
@@ -170,6 +173,29 @@ UNKNOWN_DOMAIN_LABEL = 'Unknown'
 # come from. Compared case-insensitively against the stripped value.
 BLANK_ANNOTATION_VALUES = ('', 'nan', 'none', 'na', 'n/a', '-', '?', 'unk',
                            'unknown', 'no hit', 'nohit')
+
+# Functional categories a gene can fall into, and the color each one is
+# painted with. This is the palette a color dictionary is normally built
+# from: `custom_colors` maps each domain (or, via `rename_map`, each
+# domain already renamed to its category) onto one of these colors, and
+# the report legend groups every domain sharing a color back under the
+# category name here -- so a legend has six readable rows instead of one
+# row per Pfam id. Order matters: it is the order the legend lists in.
+DEFAULT_DOMAIN_CATEGORIES = {
+    'Biosynthesis': '#8F003C',
+    'Tailoring':    '#FFDAF1',
+    'Regulatory':   '#1B6B26',
+    'Transport':    '#2F80ED',
+    'Immunity':     '#FFF3CD',
+    'Other':        '#808080',
+}
+
+# The catch-all category. When a color map contains this key, genes that
+# match no other entry are painted with it instead of being left white --
+# that is what an "Other" bucket is for, and it keeps a figure from
+# looking uncolored just because the dictionary does not name every
+# domain in the data. See `resolve_domain_color`.
+FALLBACK_COLOR_KEY = 'Other'
 
 # Default header branding logo: the SVG file loaded into the report's
 # top-nav brand slot. `build_html_report` resolves it through
@@ -404,6 +430,44 @@ def build_row_label_html(query_pid, block_id, org_name, width, font_size):
 # Colors
 # ---------------------------------------------------------------------------
 
+# A bare 3/6/8-digit hex string ('2F80ED') is a very easy thing to write
+# in a color dictionary and a completely silent failure downstream:
+# Graphviz warns "not a known color" and fills the gene BLACK, while an
+# SVG `fill="2F80ED"` is invalid and paints it black too -- so the gene
+# reads as "not colored". Anything else (a named color, 'rgb(...)', an
+# already-'#'-prefixed hex) is passed through untouched.
+_BARE_HEX_RE = re.compile(r'^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$')
+
+
+def normalize_color_value(value):
+    """
+    Repair a color string that is a hex code missing its leading '#'.
+
+    Parameters
+    ----------
+    value : str
+        A color as written in a color dictionary.
+
+    Returns
+    -------
+    str
+        The same color, with '#' prepended when it was a bare hex code.
+
+    Examples
+    --------
+    >>> normalize_color_value('2F80ED')
+    '#2F80ED'
+    >>> normalize_color_value('#8F003C')
+    '#8F003C'
+    >>> normalize_color_value('tomato')
+    'tomato'
+    """
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    return f'#{text}' if _BARE_HEX_RE.match(text) else text
+
+
 def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
     """
     Decide which fill color each domain/annotation value gets.
@@ -465,9 +529,12 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
         written (which is the order the report legend lists it in).
     """
     # A user dictionary is the whole scheme, not a set of overrides on
-    # top of an automatic one -- see the docstring.
+    # top of an automatic one -- see the docstring. Values are repaired
+    # on the way in (see `normalize_color_value`) so one hex code written
+    # without its '#' doesn't silently turn its genes black.
     if custom_colors:
-        return dict(custom_colors)
+        return {key: normalize_color_value(value)
+                for key, value in custom_colors.items()}
 
     if ignore_domains is None:
         ignore_domains = DEFAULT_IGNORE_DOMAINS
@@ -514,22 +581,31 @@ def resolve_domain_color(domain, color_map, default='#ffffff'):
        first one with an entry wins and the WHOLE gene is painted that
        color, not just "the part that matched";
     3. both of the above again, case-insensitively;
-    4. `default` when nothing matches.
+    4. the catch-all `FALLBACK_COLOR_KEY` ('Other') entry, if the map
+       has one -- a dictionary that names an "Other" category is saying
+       every gene belongs somewhere, so unmatched genes go there instead
+       of staying white;
+    5. `default` when there is no catch-all either.
 
     Left-to-right component order makes the result deterministic when an
     architecture carries more than one colored domain: the leading
     domain, which is what the architecture is usually named for, wins.
 
+    The color that comes back is always run through
+    `normalize_color_value`, so a dictionary entry written as a bare hex
+    ('2F80ED') still paints instead of turning the gene black.
+
     Parameters
     ----------
     domain : str or None
-        The value of the gene's 'domain' column. None/NaN gives
-        `default`.
+        The value of the gene's 'domain' column. None/NaN falls through
+        to the catch-all/`default` like any other unmatched gene.
     color_map : dict[str, str]
         Domain -> color, from `build_color_map` (or given directly).
     default : str
-        Color for a gene no key matched -- white for gene arrows, the
-        neutral marker color for the genome overview.
+        Color for a gene that matched nothing and had no catch-all to
+        fall back on -- white for gene arrows, the neutral marker color
+        for the genome overview.
 
     Returns
     -------
@@ -542,67 +618,129 @@ def resolve_domain_color(domain, color_map, default='#ffffff'):
     'tomato'
     >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato'})
     '#ffffff'
+    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato', 'Other': '#808080'})
+    '#808080'
     """
+    fallback = resolve_fallback_color(color_map, default)
     if not color_map or domain is None:
-        return default
+        return fallback
     if isinstance(domain, float) and pd.isna(domain):
-        return default
+        return fallback
 
     text = str(domain)
     if text in color_map:
-        return color_map[text]
+        return normalize_color_value(color_map[text])
 
     parts = [part.strip() for part in text.split('+') if part.strip()]
     for part in parts:
         if part in color_map:
-            return color_map[part]
+            return normalize_color_value(color_map[part])
 
     lowered = {str(key).lower(): value for key, value in color_map.items()}
     for candidate in [text] + parts:
         hit = lowered.get(candidate.lower())
         if hit is not None:
-            return hit
+            return normalize_color_value(hit)
+    return fallback
+
+
+def resolve_fallback_color(color_map, default='#ffffff'):
+    """
+    The color a gene gets when no entry of `color_map` matches it: the
+    map's catch-all `FALLBACK_COLOR_KEY` ('Other', matched case
+    insensitively) when it has one, else `default`.
+
+    Kept separate from `resolve_domain_color` so the legend can ask the
+    same question -- "is there an Other bucket, and what color is it" --
+    without re-deriving the rule.
+    """
+    if not color_map:
+        return default
+    for key, value in color_map.items():
+        if str(key).lower() == FALLBACK_COLOR_KEY.lower():
+            return normalize_color_value(value)
     return default
 
 
-def build_color_legend_html(color_map, title='Domains'):
+def build_color_legend_html(color_map, categories=None, include_repeat=False,
+                             title='Legend', max_names=3):
     """
-    Render the domain color legend shown beside the neighborhoods
-    sub-tabs (Figure / To scale / Table).
+    Render the color legend shown beside the neighborhoods sub-tabs
+    (Figure / To scale / Table).
 
-    One swatch + name per entry of `color_map`, in the map's own
-    insertion order -- which for a user-supplied `custom_colors`
-    dictionary is the order it was written in, so the legend reads the
-    way the user described their scheme rather than in some order this
-    module invented.
+    The legend is grouped BY COLOR, not by domain: every domain painted
+    the same color collapses into one row. With a category palette like
+    `DEFAULT_DOMAIN_CATEGORIES` -- where dozens of Pfam domains share
+    the six category colors -- that turns an unreadable wall of ids into
+    six rows named "Biosynthesis", "Tailoring", and so on.
 
-    Since every figure in the report is filled through
-    `resolve_domain_color`, a legend entry naming a single domain also
-    stands for every architecture containing it; the entry is the
-    domain, not the exact label printed on any one arrow.
+    A group is named after whichever entry of `categories` carries its
+    color; a color that is in no category (an automatic palette, or a
+    one-off the user picked) is named by the domains themselves, up to
+    `max_names` of them, with the full list in the row's tooltip.
+
+    Row order follows `categories` first -- so the legend reads in the
+    order the category dictionary was written -- and then any remaining
+    colors in `color_map` order. A category whose color is nowhere in
+    `color_map` is left out: the legend describes the scheme actually in
+    force, not every category that exists.
 
     Parameters
     ----------
     color_map : dict[str, str]
-        Domain -> color (see `build_color_map`). Empty/None gives '',
-        so a report with no colors simply grows no legend.
+        Domain -> color (see `build_color_map`). Empty/None gives '' --
+        a report with no colors simply grows no legend.
+    categories : dict[str, str] or None
+        {category name: color}, e.g. `DEFAULT_DOMAIN_CATEGORIES`. Used
+        only to name and order the groups; it never changes what any
+        gene is painted. None means "name every group by its domains".
+    include_repeat : bool
+        Append a row for the heptarepeat marker (`REPEAT_REGION_LABEL`
+        in `REPEAT_REGION_FILL`). It is drawn in both neighborhood
+        views but is not a gene, so it is not in `color_map` and has to
+        be added here. Pass True only when the data actually has repeat
+        regions.
     title : str
         Small caption in front of the swatches.
+    max_names : int
+        How many domain names an uncategorized group spells out before
+        it falls back to "+N more".
 
     Returns
     -------
     str
         HTML markup, or '' when there is nothing to show.
     """
-    if not color_map:
+    groups = {}
+    for domain, color in (color_map or {}).items():
+        groups.setdefault(normalize_color_value(color), []).append(str(domain))
+
+    rows = []
+    if categories:
+        for name, color in categories.items():
+            key = normalize_color_value(color)
+            members = groups.pop(key, None)
+            if members is not None:
+                rows.append((key, str(name), members))
+    # colors the category dictionary said nothing about, in map order
+    for key, members in groups.items():
+        shown = ', '.join(members[:max_names])
+        if len(members) > max_names:
+            shown += f' +{len(members) - max_names} more'
+        rows.append((key, shown, members))
+
+    if include_repeat:
+        rows.append((REPEAT_REGION_FILL, REPEAT_REGION_LABEL, [REPEAT_REGION_LABEL]))
+
+    if not rows:
         return ''
 
     items = ''.join(
-        f'<span class="nb-legend-item" title="{html.escape(str(domain), quote=True)}">'
+        f'<span class="nb-legend-item" title="{html.escape(", ".join(members), quote=True)}">'
         f'<span class="nb-legend-swatch" '
-        f'style="background:{html.escape(str(color), quote=True)}"></span>'
-        f'<span class="nb-legend-name">{html.escape(str(domain))}</span></span>'
-        for domain, color in color_map.items()
+        f'style="background:{html.escape(color, quote=True)}"></span>'
+        f'<span class="nb-legend-name">{html.escape(name)}</span></span>'
+        for color, name, members in rows
     )
     return (
         '<div class="nb-legend" id="nb-legend">'
@@ -4326,6 +4464,7 @@ def resolve_logo(value):
 def build_html_report(df, output_file='operon_report.html', title='Gene Neighborhood Report',
                        group_col='block_id', org_col='organism', label_col='pfam',
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
+                       color_categories=DEFAULT_DOMAIN_CATEGORIES,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
@@ -4358,11 +4497,13 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     `ignore_domains`) and reused for the genome overview and every
     per-block figure, so a given domain is the same color everywhere.
     Passing `custom_colors` makes that dictionary the *only* color
-    scheme -- no automatic palette is added (see `build_color_map`) --
-    and its entries are listed as a legend beside the neighborhoods
-    Figure/To scale/Table sub-tabs, in the order the dictionary was
-    written. A key naming a single domain paints every gene whose
-    architecture contains it (see `resolve_domain_color`).
+    scheme -- no automatic palette is added (see `build_color_map`).
+    A key naming a single domain paints every gene whose architecture
+    contains it, and a dictionary carrying an 'Other' entry paints every
+    remaining gene with it rather than leaving it white (see
+    `resolve_domain_color`). The colors in use are listed as a legend
+    beside the neighborhoods Figure/To scale/Table sub-tabs, grouped by
+    color and named through `color_categories`.
 
     Parameters
     ----------
@@ -4376,6 +4517,14 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     rename_map, custom_colors, max_colors, ignore_domains :
         Color/label controls, identical in meaning to
         `neighborhood_figure`; applied once, globally.
+    color_categories : dict[str, str] or None
+        {category name: color} used to name and order the legend rows --
+        every domain sharing a category's color is listed under that one
+        name (see `build_color_legend_html`). Defaults to
+        `DEFAULT_DOMAIN_CATEGORIES`, which is the palette
+        `custom_colors` is normally built from; pass None to name each
+        legend row by its domains instead. This never changes what a
+        gene is painted, only how the legend reads.
     nucleotide_col, start_col, end_col, length_col : str
         Genomic-coordinate columns for the overview (see
         `compute_block_extents`).
@@ -4423,6 +4572,14 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     )
 
     genome_overview = build_genome_overview_interactive_html(extents, color_map=color_map)
+
+    # The heptarepeat marker is drawn in both neighborhood views but is
+    # not a gene, so it is absent from `color_map` and has to be told to
+    # the legend -- and only when this table actually has repeat spans.
+    has_repeat = bool(
+        not working.empty
+        and working.apply(has_repeat_region, axis=1).any()
+    )
 
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
@@ -4474,7 +4631,10 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         font_sans=SANS_FONT_STACK,
         font_mono=MONO_FONT_STACK,
         genome_overview=genome_overview,
-        nb_legend=build_color_legend_html(color_map),
+        nb_legend=build_color_legend_html(
+            color_map, categories=color_categories,
+            include_repeat=has_repeat,
+        ),
         nb_fig_stack=nb_fig_stack,
         nb_scale_stack=nb_scale_stack,
         nb_table_card=nb_table_card,
