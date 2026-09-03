@@ -1051,17 +1051,42 @@ def build_gff_index(gffs):
     return gff_dict
 
 
+_STRAND_ALIASES = {"+": "+", "1": "+", 1: "+", "-": "-", "-1": "-", -1: "-"}
+
+
+def normalize_strand(value):
+    """
+    Map the several strand conventions found in FIMO/GFF/rotifer tables
+    ('+'/'-', 1/-1, '1'/'-1') to '+' or '-'. Anything else, missing values
+    included, becomes None so it can be skipped instead of silently matching.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+    elif value is None or value is pd.NA:
+        return None
+    elif pd.isna(value):
+        return None
+
+    return _STRAND_ALIASES.get(value)
+
+
 def get_next_protein(df, gff_dict, max_distance=50):
     """
     Annotate each FIMO hit with the nearest downstream CDS on the same
     strand as the repeat (i.e. the gene lying after the last repeat in the
     direction of transcription).
 
-    The CDS is only accepted when it starts within ``max_distance`` bp of the
-    end of the repeat. Without this cutoff any hit would be assigned the next
-    CDS on the replicon, no matter how far away it is; the cutoff also means
-    that in a tandem array only the last repeat -- the one actually abutting
-    the gene -- gets annotated, while the upstream copies are left empty.
+    Two constraints are enforced:
+
+    * strand: only CDSs transcribed in the same direction as the repeat are
+      eligible, and "downstream" is read in that direction (higher coordinates
+      for '+', lower coordinates for '-'). A convergent or divergent gene that
+      happens to sit closer is never picked.
+    * distance: the CDS must start within ``max_distance`` bp of the end of the
+      repeat. Without this cutoff any hit would be assigned the next CDS on the
+      replicon, no matter how far away it is; the cutoff also means that in a
+      tandem array only the last repeat -- the one actually abutting the gene --
+      gets annotated, while the upstream copies are left empty.
 
     Also extracts a normalized protein ID (pid) from GFF attributes.
 
@@ -1082,45 +1107,59 @@ def get_next_protein(df, gff_dict, max_distance=50):
         Original dataframe with:
         - next_protein : raw GFF attributes
         - next_protein_distance : gap in bp between repeat and CDS
+        - next_protein_strand : strand of the CDS, always equal to the repeat's
         - pid : extracted protein ID
     """
 
+    # Index the CDSs by (seqid, strand) once, so a repeat can only ever look at
+    # genes co-oriented with it. Rows whose strand is missing or unrecognized
+    # are dropped here instead of leaking into the comparisons below.
+    by_strand = {}
+    for seqid, cds in gff_dict.items():
+        strands = cds["strand"].map(normalize_strand).values
+        for strand in ("+", "-"):
+            sub = cds[strands == strand]
+            if not sub.empty:
+                by_strand[(seqid, strand)] = (
+                    sub.sort_values(["start", "end"], kind="mergesort")
+                    .reset_index(drop=True)
+                )
+
     def _get(row):
-        seq = row["sequence_name"]
-        if seq not in gff_dict:
-            return None, None
+        strand = normalize_strand(row["strand"])
+        if strand is None:
+            return None, None, None
 
-        cds = gff_dict[seq]
+        cds = by_strand.get((row["sequence_name"], strand))
+        if cds is None:
+            return None, None, None
 
-        # Only genes co-oriented with the repeat can be regulated by it, so the
-        # downstream gene is picked from the same strand as the repeat. This also
-        # guarantees the gene lies after the last repeat of a tandem array rather
-        # than a convergent/divergent CDS that happens to sit closer.
-        cds = cds[cds["strand"].values == row["strand"]]
-        if cds.empty:
-            return None, None
-
-        if row["strand"] == "+":
+        if strand == "+":
+            # Transcription runs left to right: take the first CDS starting
+            # after the end of the repeat.
             hits = cds[cds["start"].values > row["stop"]]
             if hits.empty:
-                return None, None
+                return None, None, None
             hit = hits.iloc[0]
             distance = hit["start"] - row["stop"]
 
         else:
+            # Transcription runs right to left: "downstream" means the last CDS
+            # ending before the repeat, and the repeat's own start is its 3' end
+            # in FIMO's plus-strand coordinates.
             hits = cds[cds["end"].values < row["start"]]
             if hits.empty:
-                return None, None
+                return None, None, None
             hit = hits.iloc[-1]
             distance = row["start"] - hit["end"]
 
         if max_distance is not None and distance > max_distance:
-            return None, None
+            return None, None, None
 
-        return hit["attributes"], distance
+        return hit["attributes"], distance, strand
 
     df = df.copy()
-    df[["next_protein", "next_protein_distance"]] = df.apply(
+    df[["next_protein", "next_protein_distance", "next_protein_strand"]] = df.apply(
         _get, axis=1, result_type="expand"
     )
 
@@ -1146,6 +1185,72 @@ def get_distances_repeats(df, inplace=True, filter=False, length=20):
 
     return df
 
+def filter_repeat_arrays(df, min_distance=2, max_distance=15, min_repeats=2, inplace=False):
+    """
+    Keep only repeats that belong to a valid tandem array.
+
+    A heptarepeat is only meaningful as a regulatory element when it occurs as
+    an array: consecutive copies must be spaced within
+    ``min_distance < gap <= max_distance`` bp, and the array must contain at
+    least ``min_repeats`` copies. Isolated hits, and hits whose spacing breaks
+    the array, are discarded.
+
+    Note this is a different condition from the repeat-to-CDS cutoff applied by
+    get_next_protein(): that one says how far the gene may be from the last
+    repeat, this one says how the repeats must be arranged among themselves.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        FIMO output, with a 'distance' column as produced by
+        get_distances_repeats(). It is computed on the fly when absent.
+    min_distance : int, default 2
+        Exclusive lower bound for the gap between consecutive repeats.
+    max_distance : int, default 15
+        Inclusive upper bound for the gap between consecutive repeats.
+    min_repeats : int, default 2
+        Minimum number of copies for an array to be valid.
+    inplace : bool, default False
+        Operate on the input dataframe instead of a copy.
+
+    Returns
+    -------
+    pd.DataFrame
+        Rows of the valid arrays only, with:
+        - repeat_array : array identifier
+        - repeat_count : number of copies in that array
+
+        'distance' is back-filled for the first copy of each array with the gap
+        to its neighbour, so every member of a valid array carries an in-window
+        spacing instead of the NaN that opens the array. Otherwise the copy
+        adjacent to the gene on the minus strand -- which is the leftmost, hence
+        the one with no predecessor by coordinate -- would be silently dropped
+        by downstream distance filters such as malu.filter_fimo().
+    """
+    if not inplace:
+        df = df.copy()
+
+    if "distance" not in df.columns:
+        df = get_distances_repeats(df, inplace=True)
+
+    df.sort_values(["sequence_name", "strand", "start"], inplace=True)
+
+    # A repeat continues the previous array only when the gap to its predecessor
+    # falls inside the allowed window. The first hit of each sequence/strand has
+    # a NaN distance, so it always opens a new array.
+    linked = (df["distance"] > min_distance) & (df["distance"] <= max_distance)
+    df["repeat_array"] = (~linked).cumsum()
+    df["repeat_count"] = df.groupby("repeat_array")["repeat_array"].transform("size")
+
+    # The copy opening an array has no predecessor by coordinate; give it the
+    # gap to the next copy so its spacing is defined in both orientations.
+    df["distance"] = df["distance"].fillna(
+        df.groupby("repeat_array")["distance"].shift(-1)
+    )
+
+    return df[df["repeat_count"] >= min_repeats]
+
+
 def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, max_distance=50):
     """
     End-to-end execution:
@@ -1170,14 +1275,18 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, ma
 
 def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
     sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
-    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', repeat_max_distance=50, 
+    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', repeat_max_distance=50,
+    repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
     color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
     domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
     '''
 
-    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation, max_distance=repeat_max_distance).query('2 < distance <= 15')
+    # filter=False: filter_repeat_arrays() needs every hit, including the first
+    # copy of each array (whose distance is NaN), to count array sizes.
+    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation, max_distance=repeat_max_distance, filter=False)
+    fimo = filter_repeat_arrays(fimo, min_distance=repeat_min_spacing, max_distance=repeat_max_spacing, min_repeats=min_repeats)
     gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
     
     if genome_format == 'gff':
@@ -1187,7 +1296,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
     hsearch = hmmsearch(sarp_model, genome_protein_fasta)
     l = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3').sequence.tolist()
-    pids_list = fimo.pid.tolist() + l
+    pids_list = fimo.pid.dropna().tolist() + l
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
     # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
