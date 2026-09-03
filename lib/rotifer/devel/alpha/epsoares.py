@@ -1275,10 +1275,11 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, ma
 
 def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
     sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
-    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', repeat_max_distance=50,
-    repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
+    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
+    repeat_max_distance=50, repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
     color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
-    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, 
+    filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
     '''
