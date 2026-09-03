@@ -107,6 +107,11 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
     #: Name of the backend that stores data, used by ``cache``.
     _store_backend = 'clickhouse'
 
+    #: Both are query filters, so None means "no filter" and has to
+    #: reach the backends. Without this a filter set on the delegator
+    #: could be changed but never cleared.
+    _nullable_attributes = frozenset({'id_type','release'})
+
     def __getitem__(self, accessions, *args, **kwargs):
         """
         Fetch identifier mappings, dictionary style.

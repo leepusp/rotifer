@@ -610,7 +610,9 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         if data.empty:
             return
         data = data[self.columns].copy()
-        data['release'] = release if not isinstance(release, types.NoneType) else self.release
+        # release may have been cleared to None to widen queries, but
+        # the column is a String and never takes None
+        data['release'] = (release if not isinstance(release, types.NoneType) else self.release) or ''
         self.client.insert_df(table=self.table, df=data, database=self.database)
 
     def drop_release(self, release):

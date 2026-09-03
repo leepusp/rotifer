@@ -75,12 +75,30 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
                 continue
             self.cursors[modulename] = cursorClass(**kwargs)
 
+    # Shared attributes for which None is a value in its own right,
+    # rather than a request to use the backend's own default. Only
+    # these can be cleared on the backends after construction.
+    _nullable_attributes = frozenset()
+
     def __setattr__(self, name, value):
+        """
+        Set an attribute, propagating shared ones to the backends.
+
+        None is only forwarded for the attributes named in
+        _nullable_attributes. For every other shared attribute None
+        means "use whatever the backend chose for itself", which is
+        how it is read at construction time, so forwarding it would
+        replace a working default with nothing.
+        """
         super().__setattr__(name, value)
         if hasattr(self,'cursors') and hasattr(self,'_shared_attributes') and name in self._shared_attributes:
+            nullable = getattr(self, '_nullable_attributes', frozenset())
             for cursor in self.cursors.values():
-                if hasattr(cursor,name) and not isinstance(value,types.NoneType):
-                    cursor.__setattr__(name,value)
+                if not hasattr(cursor,name):
+                    continue
+                if isinstance(value,types.NoneType) and name not in nullable:
+                    continue
+                cursor.__setattr__(name,value)
 
 class SequentialDelegatorCursor(DelegatorCursor):
     def __init__(self, readers=[], writers=[], progress=True, tries=None, batch_size=None, threads=None, *args, **kwargs):
