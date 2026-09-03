@@ -74,7 +74,10 @@ pipeline.
     compute_label_width          shared padding width for row labels
     pad_and_escape               pad + HTML-escape one label string
     build_row_label_html         the 3-line HTML label for one block
-    build_color_map              domain -> fill color, incl. user overrides
+    build_color_map              domain -> fill color (user dict or auto)
+    resolve_domain_color         one gene's fill, matching whole
+                                  architectures and single domains alike
+    build_color_legend_html      swatch/name legend for a color map
     select_reference_query_index which query anchors a multi-query block
     normalize_block_strand       optionally mirror a block to a common
                                   query orientation
@@ -104,6 +107,8 @@ pipeline.
     render_scaled_svgs_by_block   one to-scale SVG per block
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
+    normalize_svg_fonts           widen graphviz's bare font name into
+                                   the shared font stack
     build_neighborhood_panels     pop-up selector + merged figure/to-scale stacks
     render_table_card             sortable/filterable/downloadable table widget
     render_neighborhood_table_card single merged, block-tagged table (all blocks)
@@ -171,6 +176,23 @@ BLANK_ANNOTATION_VALUES = ('', 'nan', 'none', 'na', 'n/a', '-', '?', 'unk',
 # `resolve_logo`, so `header_logo` accepts either a path (with `~`
 # expanded) or ready-to-embed SVG markup.
 SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
+
+# ---------------------------------------------------------------------------
+# Typography
+# ---------------------------------------------------------------------------
+# Every piece of generated markup -- the report stylesheet, the
+# hand-written SVGs and the Graphviz figures -- pulls its fonts from
+# here, so a gene label, a table cell and a tooltip are all set in the
+# same face. Written with single quotes inside so the same string is
+# valid both in CSS (`font-family: ...`) and inside a double-quoted SVG
+# attribute (`font-family="..."`).
+MONO_FONT_STACK = "Consolas, 'SF Mono', Menlo, monospace"
+SANS_FONT_STACK = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+# Graphviz resolves a single font name, not a CSS stack; this is the
+# first entry of MONO_FONT_STACK so Graphviz nodes match the SVG text
+# drawn around them (it falls back to its own default if unavailable).
+GRAPHVIZ_FONT_NAME = 'Consolas'
 
 
 
@@ -361,14 +383,19 @@ def build_row_label_html(query_pid, block_id, org_name, width, font_size):
     query_str = pad_and_escape(query_pid, width)
     block_str = pad_and_escape(block_id, width)
     org_str = pad_and_escape(org_name, width)
+    # One FACE for all three lines (`GRAPHVIZ_FONT_NAME`, the same face
+    # the gene arrows use); emphasis comes from <B>/<I> rather than from
+    # a face name like "Consolas italic", which Graphviz cannot resolve
+    # and silently falls back to a default font for.
+    face = GRAPHVIZ_FONT_NAME
     return (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0">'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas" POINT-SIZE="{font_size}">'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
         f'<B>{query_str}</B></FONT></TD></TR>'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas" POINT-SIZE="{font_size}">'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
         f'{block_str}</FONT></TD></TR>'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas italic" POINT-SIZE="{font_size}">'
-        f'{org_str}</FONT></TD></TR>'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
+        f'<I>{org_str}</I></FONT></TD></TR>'
         '</TABLE>>'
     )
 
@@ -381,17 +408,30 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
     """
     Decide which fill color each domain/annotation value gets.
 
-    Priority order:
+    There are two mutually exclusive modes:
 
-    1. Anything explicitly listed in `custom_colors` keeps that exact
-       color. These do not count against `max_colors`.
-    2. Domains seen on a query gene get an automatic color next (these
-       are usually the reason the figure exists).
-    3. The remaining `max_colors` slots go to the most frequent of the
+    **User dictionary** -- if `custom_colors` is given, the returned map
+    is exactly that dictionary and nothing else. No palette is generated
+    and `max_colors`/`ignore_domains` are not consulted: the figure uses
+    only the colors the user asked for, every other gene stays white.
+    That keeps a hand-picked scheme readable -- an auto-palette filling
+    the remaining slots competes with it for attention and makes the
+    legend meaningless.
+
+    **Automatic** -- with no `custom_colors`, colors are assigned in this
+    priority order:
+
+    1. Domains seen on a query gene get a color first (these are usually
+       the reason the figure exists).
+    2. The remaining `max_colors` slots go to the most frequent of the
        remaining domains, by gene count.
-    4. Everything else -- including anything in `ignore_domains`, the
+    3. Everything else -- including anything in `ignore_domains`, the
        literal value 'unk'/'Unknown'/blank/'-'/'?', and anything
        containing the word "hypothetical" -- is left white (no color).
+
+    Either way the keys need not be whole architecture strings: a key
+    naming a single domain colors every gene whose architecture contains
+    it, because the lookup itself is done by `resolve_domain_color`.
 
     Parameters
     ----------
@@ -399,27 +439,38 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
         Must already have 'domain' and 'is_query' columns (see
         `prepare_dataframe`).
     max_colors : int
-        Number of *automatically chosen* colors, on top of any fixed via
-        `custom_colors`.
+        Number of automatically chosen colors. Ignored entirely when
+        `custom_colors` is given.
     ignore_domains : list[str] or None
         Domain values that never get an automatic color (case
-        insensitive). Defaults to `DEFAULT_IGNORE_DOMAINS`.
+        insensitive). Defaults to `DEFAULT_IGNORE_DOMAINS`. Ignored
+        entirely when `custom_colors` is given.
     custom_colors : dict[str, str] or None
-        Explicit {domain_value: color} overrides. Keys should match the
-        values that appear in the 'domain' column -- i.e. typically the
-        raw Pfam identifiers when `label_col='pfam'` (the default).
-        Values can be any color Graphviz/seaborn understands, e.g.
-        '#ff8800' or 'tomato'.
+        Explicit {domain: color} dictionary. A key can be either a whole
+        architecture string ('HTH_1+LysR_substrate') or a single domain
+        ('LysR_substrate'), in which case every gene whose architecture
+        contains that domain is painted with it -- see
+        `resolve_domain_color`. Keys are matched against the *renamed*
+        values (see `rename_label_values`), i.e. typically raw Pfam
+        identifiers when `label_col='pfam'` (the default). Values can be
+        any color Graphviz/seaborn understands, e.g. '#ff8800' or
+        'tomato'.
         Example: `custom_colors={'LysR_substrate': '#ff8800', 'PrpF': 'tomato'}`
 
     Returns
     -------
     dict[str, str]
-        Mapping from domain value to color string.
+        Mapping from domain value to color string. Insertion order is
+        preserved, so a user dictionary comes back in the order it was
+        written (which is the order the report legend lists it in).
     """
+    # A user dictionary is the whole scheme, not a set of overrides on
+    # top of an automatic one -- see the docstring.
+    if custom_colors:
+        return dict(custom_colors)
+
     if ignore_domains is None:
         ignore_domains = DEFAULT_IGNORE_DOMAINS
-    custom_colors = dict(custom_colors) if custom_colors else {}
 
     ignore_lower = [d.lower() for d in ignore_domains] + ['unk', 'unknown', ' ', '-', '?']
     domain_str = df['domain'].astype(str)
@@ -427,17 +478,16 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
         domain_str.str.lower().isin(ignore_lower)
         | domain_str.str.lower().str.contains('hypothetical', na=False)
     )
-    already_colored = domain_str.isin(custom_colors)
 
     query_domains = (
-        df.loc[df['is_query'] & ~is_ignorable & ~already_colored, 'domain']
+        df.loc[df['is_query'] & ~is_ignorable, 'domain']
         .unique()
         .tolist()
     )
 
     remaining_slots = max(0, max_colors - len(query_domains))
     freq_domains = (
-        df.loc[~is_ignorable & ~already_colored & ~domain_str.isin(query_domains), 'domain']
+        df.loc[~is_ignorable & ~domain_str.isin(query_domains), 'domain']
         .value_counts()
         .head(remaining_slots)
         .index
@@ -446,10 +496,119 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
 
     auto_domains = query_domains + freq_domains
     palette = sns.color_palette('pastel', len(auto_domains)).as_hex() if auto_domains else []
+    return dict(zip(auto_domains, palette))
 
-    color_map = dict(custom_colors)
-    color_map.update(dict(zip(auto_domains, palette)))
-    return color_map
+
+def resolve_domain_color(domain, color_map, default='#ffffff'):
+    """
+    Look up the fill color for one gene's domain/architecture value.
+
+    A gene's 'domain' is often a multi-domain architecture string
+    ('HTH_1+LysR_substrate'), while the keys of a user's `custom_colors`
+    dictionary usually name a single domain. Matching whole strings only
+    would leave such a gene white even though the domain the user asked
+    to color is right there in it, so the lookup goes:
+
+    1. the whole value, exactly as it appears;
+    2. otherwise each '+'-separated component, left to right -- the
+       first one with an entry wins and the WHOLE gene is painted that
+       color, not just "the part that matched";
+    3. both of the above again, case-insensitively;
+    4. `default` when nothing matches.
+
+    Left-to-right component order makes the result deterministic when an
+    architecture carries more than one colored domain: the leading
+    domain, which is what the architecture is usually named for, wins.
+
+    Parameters
+    ----------
+    domain : str or None
+        The value of the gene's 'domain' column. None/NaN gives
+        `default`.
+    color_map : dict[str, str]
+        Domain -> color, from `build_color_map` (or given directly).
+    default : str
+        Color for a gene no key matched -- white for gene arrows, the
+        neutral marker color for the genome overview.
+
+    Returns
+    -------
+    str
+        A color string.
+
+    Examples
+    --------
+    >>> resolve_domain_color('HTH_1+LysR_substrate', {'LysR_substrate': 'tomato'})
+    'tomato'
+    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato'})
+    '#ffffff'
+    """
+    if not color_map or domain is None:
+        return default
+    if isinstance(domain, float) and pd.isna(domain):
+        return default
+
+    text = str(domain)
+    if text in color_map:
+        return color_map[text]
+
+    parts = [part.strip() for part in text.split('+') if part.strip()]
+    for part in parts:
+        if part in color_map:
+            return color_map[part]
+
+    lowered = {str(key).lower(): value for key, value in color_map.items()}
+    for candidate in [text] + parts:
+        hit = lowered.get(candidate.lower())
+        if hit is not None:
+            return hit
+    return default
+
+
+def build_color_legend_html(color_map, title='Domains'):
+    """
+    Render the domain color legend shown beside the neighborhoods
+    sub-tabs (Figure / To scale / Table).
+
+    One swatch + name per entry of `color_map`, in the map's own
+    insertion order -- which for a user-supplied `custom_colors`
+    dictionary is the order it was written in, so the legend reads the
+    way the user described their scheme rather than in some order this
+    module invented.
+
+    Since every figure in the report is filled through
+    `resolve_domain_color`, a legend entry naming a single domain also
+    stands for every architecture containing it; the entry is the
+    domain, not the exact label printed on any one arrow.
+
+    Parameters
+    ----------
+    color_map : dict[str, str]
+        Domain -> color (see `build_color_map`). Empty/None gives '',
+        so a report with no colors simply grows no legend.
+    title : str
+        Small caption in front of the swatches.
+
+    Returns
+    -------
+    str
+        HTML markup, or '' when there is nothing to show.
+    """
+    if not color_map:
+        return ''
+
+    items = ''.join(
+        f'<span class="nb-legend-item" title="{html.escape(str(domain), quote=True)}">'
+        f'<span class="nb-legend-swatch" '
+        f'style="background:{html.escape(str(color), quote=True)}"></span>'
+        f'<span class="nb-legend-name">{html.escape(str(domain))}</span></span>'
+        for domain, color in color_map.items()
+    )
+    return (
+        '<div class="nb-legend" id="nb-legend">'
+        f'<span class="nb-legend-title">{html.escape(str(title))}</span>'
+        f'{items}</div>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -569,9 +728,11 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
     `normalize_block_strand` has usually already mirrored the block onto
     the reference query's strand, a row reads left-to-right along the
     query's transcription direction, and genes transcribed the other way
-    visibly point back at it. Every gene is filled per `color_map` and
-    labeled with its domain/annotation; the query additionally gets a
-    red, thicker outline when `highlight_query` is True.
+    visibly point back at it. Every gene is filled per `color_map` --
+    through `resolve_domain_color`, so a color keyed on a single domain
+    fills the whole arrow of every multi-domain architecture containing
+    it -- and labeled with its domain/annotation; the query additionally
+    gets a red, thicker outline when `highlight_query` is True.
 
     When `collapse_opposite_strand` is True, neighbors on the strand
     *opposite* the query's (`query_canonical_strand`) are drawn instead
@@ -641,9 +802,9 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
         height='0.4',
         color='red' if (highlight_query and is_target) else 'black',
         penwidth='3' if (highlight_query and is_target) else '1',
-        fillcolor=color_map.get(row['domain'], '#ffffff'),
+        fillcolor=resolve_domain_color(row['domain'], color_map),
         fontsize=font_size,
-        fontname='Consolas',
+        fontname=GRAPHVIZ_FONT_NAME,
     )
 
 
@@ -1224,6 +1385,15 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
 
     graph.draw(output_file, prog='dot')
 
+    # A standalone figure gets the same font widening the report applies
+    # to its embedded copies (see `normalize_svg_fonts`), so opening the
+    # file on its own doesn't render in some other face.
+    if str(output_file).lower().endswith('.svg'):
+        with open(output_file) as handle:
+            svg = handle.read()
+        with open(output_file, 'w') as handle:
+            handle.write(normalize_svg_fonts(svg))
+
     if collect_node_meta:
         node_meta = {}
         for info in blocks_info:
@@ -1410,7 +1580,7 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
 
     parts = [
         f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
-        f'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="{font_size}">',
+        f'font-family="{MONO_FONT_STACK}" font-size="{font_size}">',
         f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
     ]
 
@@ -1447,7 +1617,8 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
             x0 = to_x(block['block_start'])
             x1 = to_x(block['block_end'])
             marker_w = max(4.0, x1 - x0)
-            fill = color_map.get(block['query_domain'], marker_color)
+            fill = resolve_domain_color(block['query_domain'], color_map,
+                                        default=marker_color)
 
             parts.append(
                 f'<rect x="{x0:.1f}" y="{track_y - 3:.1f}" width="{marker_w:.1f}" '
@@ -1542,7 +1713,8 @@ def build_genome_overview_interactive_html(extents, color_map=None,
             fe = max(0.0, min(1.0, block['block_end'] / contig_length))
             if fe < fs:
                 fs, fe = fe, fs
-            fill = color_map.get(block['query_domain'], marker_color)
+            fill = resolve_domain_color(block['query_domain'], color_map,
+                                        default=marker_color)
 
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
             domain = block['query_domain'] if block['query_domain'] is not None else '-'
@@ -1668,6 +1840,34 @@ def _strip_svg_prolog(svg):
     """
     idx = svg.find('<svg')
     return svg[idx:] if idx != -1 else svg
+
+
+# Graphviz writes the single font name it was given (`GRAPHVIZ_FONT_NAME`)
+# straight into the SVG, with no fallbacks -- so a browser on a machine
+# without that exact face silently drops to its default (usually a serif),
+# and the Graphviz figures stop matching the hand-written SVGs next to
+# them. `normalize_svg_fonts` widens it back into the full stack.
+_GRAPHVIZ_FONT_ATTR_RE = re.compile(r'font-family="%s"' % re.escape(GRAPHVIZ_FONT_NAME))
+
+
+def normalize_svg_fonts(svg):
+    """
+    Give Graphviz's bare `font-family="<name>"` the same fallback chain
+    (`MONO_FONT_STACK`) every other piece of the report uses, so gene
+    labels, ruler ticks, table cells and tooltips all render in one face.
+
+    Parameters
+    ----------
+    svg : str
+        SVG markup as written by Graphviz.
+
+    Returns
+    -------
+    str
+        The same markup with the font attribute widened. Text already
+        carrying a full stack is left alone.
+    """
+    return _GRAPHVIZ_FONT_ATTR_RE.sub(f'font-family="{MONO_FONT_STACK}"', svg)
 
 
 def _fmt_int(value):
@@ -1842,7 +2042,7 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
             block_df, group_col=group_col, output_file=path,
             color_map=color_map, collect_node_meta=True, **kw)
         with open(path) as f:
-            svg = _strip_svg_prolog(f.read())
+            svg = normalize_svg_fonts(_strip_svg_prolog(f.read()))
         svgs[slug] = annotate_neighborhood_svg(svg, node_meta)
     return svgs
 
@@ -1959,7 +2159,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
     valid = [s for s in (spans or []) if not (pd.isna(s[0]) or pd.isna(s[1]))]
     if not valid:
         return ('<svg viewBox="0 0 420 40" xmlns="http://www.w3.org/2000/svg" '
-                'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="11">'
+                f'font-family="{MONO_FONT_STACK}" font-size="11">'
                 '<text x="8" y="24" fill="#888">No genomic coordinates for this block.</text></svg>')
 
     lo = min(s[0] for s in valid)
@@ -1997,7 +2197,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
 
     parts = [
         f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
-        f'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="{font_size}">',
+        f'font-family="{MONO_FONT_STACK}" font-size="{font_size}">',
         f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
     ]
 
@@ -2059,7 +2259,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         is_target = bool(row['is_query'])
         stroke = 'red' if (highlight_query and is_target) else '#333'
         stroke_width = '2.4' if (highlight_query and is_target) else '1'
-        fill = color_map.get(row.get('domain'), '#ffffff')
+        fill = resolve_domain_color(row.get('domain'), color_map)
 
         meta = dict(
             pid=row.get('pid'),
@@ -2376,7 +2576,7 @@ def build_bar_list_html(counts_df, color_map=None, marker_color='#2a6f77'):
         domain = str(row['domain'])
         count = int(row['count'])
         pct = (count / max_count * 100) if max_count else 0
-        fill = color_map.get(domain, marker_color)
+        fill = resolve_domain_color(domain, color_map, default=marker_color)
         rows.append(
             '<div class="bar-row" data-domain="' + html.escape(domain.lower()) + '" '
             'data-count="' + str(count) + '" data-name="' + html.escape(domain) + '">'
@@ -2559,10 +2759,18 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     --accent-soft: #e4f0f1;
     --selected: #fdecdc;
     --selected-line: #e07b39;
+    /* two faces for the whole page: sans for chrome/prose, mono for
+       every piece of data (ids, domains, coordinates, table cells) --
+       both injected from MONO_FONT_STACK/SANS_FONT_STACK so the HTML,
+       the SVGs and the Graphviz figures agree */
+    --font-sans: $font_sans;
+    --font-mono: $font_mono;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.45;}
+    font-family:var(--font-sans);line-height:1.45;}
+  /* form controls do not inherit the page font by default */
+  button,input,select,textarea{font-family:inherit;}
 
   /* ---- top nav ---- */
   .top-nav{
@@ -2615,7 +2823,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     position:fixed;display:none;z-index:1000;pointer-events:none;
     background:#1f2430;color:#fff;border-radius:8px;padding:10px 13px;
     font-size:12px;max-width:330px;box-shadow:0 6px 22px rgba(0,0,0,.28);
-    font-family:Consolas,"SF Mono",Menlo,monospace;line-height:1.5;
+    font-family:var(--font-mono);line-height:1.5;
   }
   .go-tooltip b{display:block;margin-bottom:3px;font-size:12.5px;}
   .go-tooltip .t-row{display:block;color:#cdd3da;}
@@ -2644,10 +2852,10 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;
   }
   .go-controls button:hover{background:var(--accent-soft);border-color:var(--accent);}
-  #go-zoom-val{font-family:Consolas,"SF Mono",Menlo,monospace;font-size:13px;min-width:38px;text-align:center;}
+  #go-zoom-val{font-family:var(--font-mono);font-size:13px;min-width:38px;text-align:center;}
   .go-hint{color:var(--muted);font-size:12px;margin-left:6px;}
   .go-track{display:grid;grid-template-columns:150px 1fr;align-items:center;margin:14px 0;gap:12px;}
-  .go-track-label{text-align:right;font-family:Consolas,"SF Mono",Menlo,monospace;overflow:hidden;}
+  .go-track-label{text-align:right;font-family:var(--font-mono);overflow:hidden;}
   .go-contig{font-size:13px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .go-len{font-size:11px;color:var(--muted);}
   .go-viewport{overflow-x:auto;overflow-y:hidden;cursor:grab;padding:18px 0;}
@@ -2686,13 +2894,13 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-zoom-group button:last-child{border-right:none;}
   .nb-zoom-group button:hover{background:var(--accent-soft);}
   #nb-zoom-val{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12px;
+    font-family:var(--font-mono);font-size:12px;
     min-width:44px;text-align:center;padding:0 4px;background:#fff;border-right:1px solid var(--line);
   }
 
   /* current-block breadcrumb */
   .nb-crumb{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
+    font-family:var(--font-mono);font-size:12.5px;
     color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   }
   .nb-crumb b{color:var(--ink);}
@@ -2711,6 +2919,24 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-subtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
   .nb-subtab:hover{color:var(--ink);}
+
+  /* color legend, on the same line as the sub-tabs but pushed to the
+     far side; wraps onto more rows rather than pushing the tabs around */
+  .nb-legend{
+    display:flex;align-items:center;gap:6px 12px;margin-left:auto;
+    flex-wrap:wrap;justify-content:flex-end;max-width:60%;padding:0 2px 6px;
+  }
+  .nb-legend-title{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  }
+  .nb-legend-item{
+    display:inline-flex;align-items:center;gap:5px;
+    font-family:var(--font-mono);font-size:11.5px;color:var(--ink);white-space:nowrap;
+  }
+  .nb-legend-swatch{
+    width:11px;height:11px;border-radius:3px;flex-shrink:0;
+    border:1px solid rgba(31,36,48,.28);
+  }
 
   /* ONE window holds every currently-selected neighborhood -- no separate
      boxed "windows" per block, just a divider between stacked blocks */
@@ -2770,7 +2996,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-sel-search{
     margin:12px 16px 0;padding:8px 12px;border:1px solid var(--line);
-    border-radius:7px;font-size:13px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    border-radius:7px;font-size:13px;font-family:var(--font-mono);
   }
   .nb-sel-actions{display:flex;gap:8px;padding:8px 16px;align-items:center;}
   .nb-sel-actions button{
@@ -2789,14 +3015,14 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-sel-list{overflow-y:auto;padding:4px 8px 16px;}
   .nb-sel-group-title{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:11px;
+    font-family:var(--font-mono);font-size:11px;
     color:var(--accent);margin:12px 8px 4px;letter-spacing:.05em;
   }
   .nb-sel-count{color:var(--muted);}
   .nb-sel-item{
     display:flex;align-items:center;gap:10px;padding:8px 10px;
     border-radius:7px;cursor:pointer;font-size:13px;
-    font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-family:var(--font-mono);
   }
   .nb-sel-item:hover{background:var(--accent-soft);}
   .nb-sel-item.active{background:var(--selected);color:#7a3b12;}
@@ -2813,7 +3039,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .tbl-filter{
     flex:1 1 200px;padding:6px 10px;border:1px solid var(--line);
-    border-radius:6px;font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    border-radius:6px;font-size:12.5px;font-family:var(--font-mono);
   }
   .tbl-filter:focus{outline:2px solid var(--accent);outline-offset:1px;}
   .tbl-count{font-size:12px;color:var(--muted);white-space:nowrap;}
@@ -2827,7 +3053,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .tbl-dl-btn:hover{opacity:.88;}
   .tbl-scroll{max-height:420px;overflow:auto;}
   table{border-collapse:collapse;width:100%;
-    font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;}
+    font-size:12.5px;font-family:var(--font-mono);}
   /* header row 1: column names (sticky row 0) */
   thead tr.tbl-head-labels th{
     position:sticky;top:0;z-index:3;background:var(--accent-soft);color:var(--ink);
@@ -2844,7 +3070,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .tbl-col-filter{
     width:100%;padding:3px 6px;font-size:11.5px;
-    font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-family:var(--font-mono);
     border:1px solid var(--line);border-radius:4px;background:#fff;
   }
   .tbl-col-filter:focus{outline:1px solid var(--accent);}
@@ -2883,7 +3109,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .bar-list{display:flex;flex-direction:column;gap:3px;max-height:480px;overflow-y:auto;padding-right:6px;}
   .bar-row{
     display:grid;grid-template-columns:190px 1fr 48px;align-items:center;gap:10px;
-    font-size:12px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-size:12px;font-family:var(--font-mono);
   }
   .bar-row.hidden-row{display:none;}
   .bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:#222;}
@@ -2900,7 +3126,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     position:fixed;z-index:801;background:#fff;border:1px solid var(--line);
     border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);
     min-width:240px;max-width:300px;max-height:80vh;overflow-y:auto;
-    font-size:13px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-size:13px;font-family:var(--font-mono);
   }
   .cfp-head{
     display:flex;align-items:center;padding:10px 14px 8px;
@@ -2912,21 +3138,21 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .cfp-num-ops{display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px;}
   .cfp-op-btn{
     padding:4px 9px;border:1px solid var(--line);background:#fff;
-    border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;
+    border-radius:20px;font-size:12px;cursor:pointer;
   }
   .cfp-op-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
   .cfp-op-btn:hover:not(.active){background:var(--accent-soft);}
   .cfp-num-inputs{padding:0 14px 10px;display:flex;gap:6px;align-items:center;}
   .cfp-num-inputs input{
     flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:6px;
-    font-size:13px;font-family:inherit;
+    font-size:13px;
   }
   .cfp-num-inputs input:focus{outline:1px solid var(--accent);}
   .cfp-num-inputs .cfp-between-sep{color:var(--muted);font-size:11px;}
   /* text/categorical mode */
   .cfp-text-search{
     margin:10px 14px 6px;padding:6px 10px;border:1px solid var(--line);
-    border-radius:6px;font-size:12.5px;font-family:inherit;display:block;width:calc(100% - 28px);
+    border-radius:6px;font-size:12.5px;display:block;width:calc(100% - 28px);
   }
   .cfp-text-search:focus{outline:1px solid var(--accent);}
   .cfp-val-actions{display:flex;gap:6px;padding:0 14px 6px;}
@@ -3045,6 +3271,7 @@ $genome_overview
     <button type="button" class="nb-subtab active" data-view="nb-view-figure">&#9654; Figure</button>
     <button type="button" class="nb-subtab" data-view="nb-view-scale">&#8596; To scale</button>
     <button type="button" class="nb-subtab" data-view="nb-view-table">&#9776; Table</button>
+$nb_legend
   </div>
 
   <div class="nb-window view-figure" id="nb-window">
@@ -4130,6 +4357,12 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     table, honoring `rename_map`/`custom_colors`/`max_colors`/
     `ignore_domains`) and reused for the genome overview and every
     per-block figure, so a given domain is the same color everywhere.
+    Passing `custom_colors` makes that dictionary the *only* color
+    scheme -- no automatic palette is added (see `build_color_map`) --
+    and its entries are listed as a legend beside the neighborhoods
+    Figure/To scale/Table sub-tabs, in the order the dictionary was
+    written. A key naming a single domain paints every gene whose
+    architecture contains it (see `resolve_domain_color`).
 
     Parameters
     ----------
@@ -4238,7 +4471,10 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         title=html.escape(title),
         n_genes=f'{len(df):,}',
         n_blocks=n_blocks,
+        font_sans=SANS_FONT_STACK,
+        font_mono=MONO_FONT_STACK,
         genome_overview=genome_overview,
+        nb_legend=build_color_legend_html(color_map),
         nb_fig_stack=nb_fig_stack,
         nb_scale_stack=nb_scale_stack,
         nb_table_card=nb_table_card,
