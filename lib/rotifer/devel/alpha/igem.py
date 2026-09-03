@@ -78,7 +78,10 @@ pipeline.
     build_color_map              domain -> fill color (user dict or auto)
     resolve_domain_color         one gene's fill, matching whole
                                   architectures and single domains alike
+    resolve_gene_color           a gene row's fill, matching both its
+                                  display label and its real annotation
     resolve_fallback_color       the 'Other' catch-all color, if any
+    build_label_color_map        re-key a color dict onto display labels
     build_color_legend_html      legend grouped by color, named by
                                   functional category
     select_reference_query_index which query anchors a multi-query block
@@ -352,9 +355,18 @@ def prepare_dataframe(df, group_col='block_id', org_col='organism', label_col='p
                        rename_map=None):
     """
     Normalize a raw input table into the columns the rest of this module
-    relies on: 'ID' (block id), 'org_name', 'domain', 'is_query' and
-    'pid_order' (an integer 0..n_blocks-1, in first-seen order, used to
-    group rows into figure rows).
+    relies on: 'ID' (block id), 'org_name', 'domain', 'domain_raw',
+    'is_query' and 'pid_order' (an integer 0..n_blocks-1, in first-seen
+    order, used to group rows into figure rows).
+
+    'domain' is the label the figures print -- after `rename_map` has
+    been applied. 'domain_raw' is the same annotation BEFORE renaming,
+    i.e. the real HMM/Pfam match. Both are kept because they answer
+    different questions: the renamed one is what a reader should see on
+    an arrow, the raw one is what a color dictionary is usually keyed on
+    (`custom_colors={'methyltransferase_bgc': ...}`) and what the hover
+    info window must report, since "which model actually hit this
+    protein" is not something a display label can answer.
 
     Parameters mirror `neighborhood_figure`.
 
@@ -365,8 +377,12 @@ def prepare_dataframe(df, group_col='block_id', org_col='organism', label_col='p
     out = df.copy()
     out['ID'] = out[group_col] if group_col in out.columns else 'Unknown_Block'
     out['org_name'] = out[org_col] if org_col in out.columns else 'Unknown Organism'
+    # Resolve the annotation once before renaming and once after, so the
+    # real model names survive alongside the display labels.
+    raw_domain = resolve_domain_labels(out, label_col)['domain']
     out = rename_label_values(out, label_col=label_col, rename_map=rename_map)
     out = resolve_domain_labels(out, label_col)
+    out['domain_raw'] = raw_domain
     out = flag_query_rows(out)
     out['pid_order'] = pd.factorize(out['ID'])[0]
     return out.reset_index(drop=True)
@@ -566,11 +582,43 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
     return dict(zip(auto_domains, palette))
 
 
+def _lookup_color(domain, color_map):
+    """
+    The raw color-map lookup behind `resolve_domain_color` and
+    `resolve_gene_color`: returns None -- not a default -- when nothing
+    matched, so a caller can try a second candidate value before giving
+    up and falling back.
+
+    Match order: the whole value, then each '+'-separated component left
+    to right, then both again case-insensitively.
+    """
+    if not color_map or domain is None:
+        return None
+    if isinstance(domain, float) and pd.isna(domain):
+        return None
+
+    text = str(domain)
+    if text in color_map:
+        return normalize_color_value(color_map[text])
+
+    parts = [part.strip() for part in text.split('+') if part.strip()]
+    for part in parts:
+        if part in color_map:
+            return normalize_color_value(color_map[part])
+
+    lowered = {str(key).lower(): value for key, value in color_map.items()}
+    for candidate in [text] + parts:
+        hit = lowered.get(candidate.lower())
+        if hit is not None:
+            return normalize_color_value(hit)
+    return None
+
+
 def resolve_domain_color(domain, color_map, default='#ffffff'):
     """
-    Look up the fill color for one gene's domain/architecture value.
+    Look up the fill color for one domain/architecture value.
 
-    A gene's 'domain' is often a multi-domain architecture string
+    A gene's domain is often a multi-domain architecture string
     ('HTH_1+LysR_substrate'), while the keys of a user's `custom_colors`
     dictionary usually name a single domain. Matching whole strings only
     would leave such a gene white even though the domain the user asked
@@ -595,15 +643,19 @@ def resolve_domain_color(domain, color_map, default='#ffffff'):
     `normalize_color_value`, so a dictionary entry written as a bare hex
     ('2F80ED') still paints instead of turning the gene black.
 
+    For a gene row use `resolve_gene_color` instead -- it also matches
+    the pre-rename annotation, which is what a color dictionary keyed on
+    HMM model names needs.
+
     Parameters
     ----------
     domain : str or None
-        The value of the gene's 'domain' column. None/NaN falls through
-        to the catch-all/`default` like any other unmatched gene.
+        A domain/architecture value. None/NaN falls through to the
+        catch-all/`default` like any other unmatched value.
     color_map : dict[str, str]
         Domain -> color, from `build_color_map` (or given directly).
     default : str
-        Color for a gene that matched nothing and had no catch-all to
+        Color for a value that matched nothing and had no catch-all to
         fall back on -- white for gene arrows, the neutral marker color
         for the genome overview.
 
@@ -621,27 +673,50 @@ def resolve_domain_color(domain, color_map, default='#ffffff'):
     >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato', 'Other': '#808080'})
     '#808080'
     """
-    fallback = resolve_fallback_color(color_map, default)
-    if not color_map or domain is None:
-        return fallback
-    if isinstance(domain, float) and pd.isna(domain):
-        return fallback
+    hit = _lookup_color(domain, color_map)
+    return hit if hit is not None else resolve_fallback_color(color_map, default)
 
-    text = str(domain)
-    if text in color_map:
-        return normalize_color_value(color_map[text])
 
-    parts = [part.strip() for part in text.split('+') if part.strip()]
-    for part in parts:
-        if part in color_map:
-            return normalize_color_value(color_map[part])
+def resolve_gene_color(row, color_map, default='#ffffff',
+                        keys=('domain', 'domain_raw')):
+    """
+    Fill color for one gene row, matched against BOTH the label the
+    figure prints and the original annotation behind it.
 
-    lowered = {str(key).lower(): value for key, value in color_map.items()}
-    for candidate in [text] + parts:
-        hit = lowered.get(candidate.lower())
+    This is the lookup every gene arrow goes through, and the reason it
+    exists is `rename_map`: renaming runs before coloring, so a table
+    whose 'pfam' column said 'methyltransferase_bgc' carries
+    'Methyltransferase' by the time a color is chosen. A color
+    dictionary keyed on the HMM model names -- which is how these
+    dictionaries are normally written, because that is what the models
+    are called -- would then match nothing at all and the whole figure
+    would come out white. Trying 'domain' first and 'domain_raw' second
+    means a dictionary may be keyed on either name, or a mix of the two.
+
+    Falls back to the map's 'Other' bucket, then to `default`, exactly
+    like `resolve_domain_color`.
+
+    Parameters
+    ----------
+    row : pandas.Series or dict
+        A prepared gene row (see `prepare_dataframe`).
+    color_map : dict[str, str]
+    default : str
+    keys : sequence[str]
+        Which fields to try, in order. The default pair suits gene rows;
+        the genome overview passes its own ('query_domain',
+        'query_domain_raw').
+
+    Returns
+    -------
+    str
+        A color string.
+    """
+    for key in keys:
+        hit = _lookup_color(row.get(key), color_map)
         if hit is not None:
-            return normalize_color_value(hit)
-    return fallback
+            return hit
+    return resolve_fallback_color(color_map, default)
 
 
 def resolve_fallback_color(color_map, default='#ffffff'):
@@ -660,6 +735,55 @@ def resolve_fallback_color(color_map, default='#ffffff'):
         if str(key).lower() == FALLBACK_COLOR_KEY.lower():
             return normalize_color_value(value)
     return default
+
+
+def build_label_color_map(working, color_map):
+    """
+    Translate a color dictionary keyed on raw annotations into one keyed
+    on the labels the report actually displays.
+
+    The statistics section counts the DISPLAY labels ('Methyltransferase'),
+    while a color dictionary is usually keyed on the raw HMM model names
+    ('methyltransferase_bgc') -- so the bars would come out uncolored
+    even though the gene arrows are right. This walks the distinct
+    (label, raw) pairs in the data, resolves each pair the way
+    `resolve_gene_color` resolves a gene, and keys the result by the
+    label and by each of its '+'-separated components (which is what the
+    "Domains" granularity counts).
+
+    Only labels that actually matched are included, so anything unmatched
+    keeps the bar list's own neutral default instead of being painted
+    white on a white card.
+
+    Parameters
+    ----------
+    working : pandas.DataFrame
+        Prepared table with 'domain' and (optionally) 'domain_raw'.
+    color_map : dict[str, str]
+
+    Returns
+    -------
+    dict[str, str]
+        Display label (whole and per component) -> color.
+    """
+    if not color_map or working.empty or 'domain' not in working.columns:
+        return dict(color_map or {})
+
+    columns = ['domain'] + (['domain_raw'] if 'domain_raw' in working.columns else [])
+    out = {}
+    for pair in working[columns].drop_duplicates().to_dict('records'):
+        color = _lookup_color(pair.get('domain'), color_map)
+        if color is None:
+            color = _lookup_color(pair.get('domain_raw'), color_map)
+        if color is None:
+            continue
+        label = str(pair.get('domain'))
+        out.setdefault(label, color)
+        for part in label.split('+'):
+            part = part.strip()
+            if part:
+                out.setdefault(part, color)
+    return out
 
 
 def build_color_legend_html(color_map, categories=None, include_repeat=False,
@@ -940,7 +1064,7 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
         height='0.4',
         color='red' if (highlight_query and is_target) else 'black',
         penwidth='3' if (highlight_query and is_target) else '1',
-        fillcolor=resolve_domain_color(row['domain'], color_map),
+        fillcolor=resolve_gene_color(row, color_map),
         fontsize=font_size,
         fontname=GRAPHVIZ_FONT_NAME,
     )
@@ -1272,6 +1396,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
             end=row.get('end'),
             strand=row.get('strand'),
             domain=row.get('domain'),
+            domain_raw=row.get('domain_raw'),
             product=row.get('product'),
             plen=row.get('plen'),
             is_query=bool(row['is_query']),
@@ -1576,8 +1701,11 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
     -------
     pandas.DataFrame
         One row per block, columns: ID, nucleotide, block_start,
-        block_end, contig_length, query_pid, query_domain, org_name,
-        n_genes. `query_pid`/`query_domain` are None for a block with
+        block_end, contig_length, query_pid, query_domain,
+        query_domain_raw, org_name, n_genes. `query_domain` is the
+        renamed display label and `query_domain_raw` the original
+        annotation behind it (see `prepare_dataframe`); both are None
+        for a block with
         no query.
     """
     records = []
@@ -1591,9 +1719,14 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
         if ref_idx is not None:
             query_pid = block_df.loc[ref_idx, 'pid']
             query_domain = block_df.loc[ref_idx, 'domain']
+            # the pre-rename annotation too, so the overview marker can
+            # be colored by a dictionary keyed on HMM model names
+            query_domain_raw = (block_df.loc[ref_idx, 'domain_raw']
+                                if 'domain_raw' in block_df.columns else query_domain)
         else:
             query_pid = None
             query_domain = None
+            query_domain_raw = None
 
         records.append(dict(
             ID=block_df['ID'].iloc[0],
@@ -1603,6 +1736,7 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
             contig_length=contig_length,
             query_pid=query_pid,
             query_domain=query_domain,
+            query_domain_raw=query_domain_raw,
             org_name=block_df['org_name'].iloc[0],
             n_genes=len(block_df),
         ))
@@ -1755,8 +1889,8 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
             x0 = to_x(block['block_start'])
             x1 = to_x(block['block_end'])
             marker_w = max(4.0, x1 - x0)
-            fill = resolve_domain_color(block['query_domain'], color_map,
-                                        default=marker_color)
+            fill = resolve_gene_color(block, color_map, default=marker_color,
+                                      keys=('query_domain', 'query_domain_raw'))
 
             parts.append(
                 f'<rect x="{x0:.1f}" y="{track_y - 3:.1f}" width="{marker_w:.1f}" '
@@ -1851,11 +1985,13 @@ def build_genome_overview_interactive_html(extents, color_map=None,
             fe = max(0.0, min(1.0, block['block_end'] / contig_length))
             if fe < fs:
                 fs, fe = fe, fs
-            fill = resolve_domain_color(block['query_domain'], color_map,
-                                        default=marker_color)
+            fill = resolve_gene_color(block, color_map, default=marker_color,
+                                      keys=('query_domain', 'query_domain_raw'))
 
             label = block['query_pid'] if block['query_pid'] is not None else block['ID']
-            domain = block['query_domain'] if block['query_domain'] is not None else '-'
+            # the real HMM match, like the neighborhood pop-ups (see
+            # `build_gene_tooltip_html`) -- not a rename_map label
+            domain = block.get('query_domain_raw') or block['query_domain'] or '-'
             tip_html = (
                 f"<b>{html.escape(str(label))}</b>"
                 f"<span class='t-row'>block&nbsp;&middot;&nbsp;{html.escape(str(block['ID']))}</span>"
@@ -2028,6 +2164,15 @@ def build_gene_tooltip_html(meta):
     domain/architecture, so the query's own domain is never hidden
     behind the fact that it is the query.
 
+    The domain line reports the REAL match -- the HMM/Pfam model names
+    as they came out of the search ('domain_raw'), never a `rename_map`
+    display label. An arrow is short and has to read at a glance, so a
+    rename is right there; the info window is where someone goes to find
+    out what actually hit the protein, and answering that with a
+    renamed label would make the model impossible to look up. When a
+    rename did change the value, the label the arrow shows is added on
+    its own line so the two are easy to connect.
+
     Followed by genomic coordinates, strand, length and product when
     those fields are available.
 
@@ -2051,9 +2196,20 @@ def build_gene_tooltip_html(meta):
     if meta.get('is_query'):
         rows.append("<span class='t-row t-query'>&#9733;&nbsp;query</span>")
 
-    domain = meta.get('domain')
-    domain = '-' if domain is None or (isinstance(domain, float) and pd.isna(domain)) else domain
-    rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>")
+    def _clean(value):
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        return str(value)
+
+    label = _clean(meta.get('domain'))
+    # 'domain_raw' is only absent for metadata built before renaming was
+    # tracked; fall back to the label so the row never disappears.
+    matched = _clean(meta.get('domain_raw')) or label or '-'
+    rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(matched)}</span>")
+    if label and label != matched:
+        rows.append(
+            f"<span class='t-row'>shown&nbsp;as&nbsp;&middot;&nbsp;{html.escape(label)}</span>"
+        )
 
     start, end = meta.get('start'), meta.get('end')
     if start is not None or end is not None:
@@ -2397,7 +2553,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         is_target = bool(row['is_query'])
         stroke = 'red' if (highlight_query and is_target) else '#333'
         stroke_width = '2.4' if (highlight_query and is_target) else '1'
-        fill = resolve_domain_color(row.get('domain'), color_map)
+        fill = resolve_gene_color(row, color_map)
 
         meta = dict(
             pid=row.get('pid'),
@@ -2405,6 +2561,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
             end=row.get(end_col),
             strand=strand_val,
             domain=row.get('domain'),
+            domain_raw=row.get('domain_raw'),
             product=row.get('product'),
             plen=row.get('plen'),
             is_query=is_target,
@@ -4619,8 +4776,11 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     )
 
     # Statistics (granularity x scope, all computed inside build_stats_section_html)
+    # The stats bars count display labels, so they need the color
+    # dictionary re-keyed onto those (see `build_label_color_map`).
     stats_html, stats_selector = build_stats_section_html(
-        working, color_map=color_map, ignore_domains=ignore_domains,
+        working, color_map=build_label_color_map(working, color_map),
+        ignore_domains=ignore_domains,
     )
 
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
