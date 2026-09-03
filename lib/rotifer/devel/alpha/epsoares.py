@@ -1051,11 +1051,17 @@ def build_gff_index(gffs):
     return gff_dict
 
 
-def get_next_protein(df, gff_dict):
+def get_next_protein(df, gff_dict, max_distance=50):
     """
     Annotate each FIMO hit with the nearest downstream CDS on the same
     strand as the repeat (i.e. the gene lying after the last repeat in the
     direction of transcription).
+
+    The CDS is only accepted when it starts within ``max_distance`` bp of the
+    end of the repeat. Without this cutoff any hit would be assigned the next
+    CDS on the replicon, no matter how far away it is; the cutoff also means
+    that in a tandem array only the last repeat -- the one actually abutting
+    the gene -- gets annotated, while the upstream copies are left empty.
 
     Also extracts a normalized protein ID (pid) from GFF attributes.
 
@@ -1066,19 +1072,23 @@ def get_next_protein(df, gff_dict):
         ['sequence_name', 'start', 'stop', 'strand']
     gff_dict : dict[str, pd.DataFrame]
         Output of build_gff_index().
+    max_distance : int, default 50
+        Maximum number of base pairs allowed between the end of the repeat and
+        the start of the downstream CDS. Use None to disable the cutoff.
 
     Returns
     -------
     pd.DataFrame
         Original dataframe with:
         - next_protein : raw GFF attributes
+        - next_protein_distance : gap in bp between repeat and CDS
         - pid : extracted protein ID
     """
 
     def _get(row):
         seq = row["sequence_name"]
         if seq not in gff_dict:
-            return None
+            return None, None
 
         cds = gff_dict[seq]
 
@@ -1088,22 +1098,31 @@ def get_next_protein(df, gff_dict):
         # than a convergent/divergent CDS that happens to sit closer.
         cds = cds[cds["strand"].values == row["strand"]]
         if cds.empty:
-            return None
+            return None, None
 
         if row["strand"] == "+":
             hits = cds[cds["start"].values > row["stop"]]
             if hits.empty:
-                return None
-            return hits.iloc[0]["attributes"]
+                return None, None
+            hit = hits.iloc[0]
+            distance = hit["start"] - row["stop"]
 
         else:
             hits = cds[cds["end"].values < row["start"]]
             if hits.empty:
-                return None
-            return hits.iloc[-1]["attributes"]
+                return None, None
+            hit = hits.iloc[-1]
+            distance = row["start"] - hit["end"]
+
+        if max_distance is not None and distance > max_distance:
+            return None, None
+
+        return hit["attributes"], distance
 
     df = df.copy()
-    df["next_protein"] = df.apply(_get, axis=1)
+    df[["next_protein", "next_protein_distance"]] = df.apply(
+        _get, axis=1, result_type="expand"
+    )
 
     # parse ID (vectorized)
     df["pid"] = df["next_protein"].str.split(";", expand=True)[0].str.replace("ID=cds-", "", regex=False)
@@ -1127,10 +1146,16 @@ def get_distances_repeats(df, inplace=True, filter=False, length=20):
 
     return df
 
-def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20):
+def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, max_distance=50):
     """
     End-to-end execution:
     FIMO → annotate next protein → cluster hits.
+
+    Parameters
+    ----------
+    max_distance : int, default 50
+        Maximum distance, in bp, between the end of the repeat and the start of
+        the downstream CDS (see get_next_protein). Use None to disable.
 
     Returns
     -------
@@ -1138,21 +1163,21 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20):
     """
     df = run_fimo_batch(meme_file, genomes, n_jobs=n_jobs)
     gff_dict = build_gff_index(gffs)
-    df = get_next_protein(df, gff_dict)
+    df = get_next_protein(df, gff_dict, max_distance=max_distance)
     df = get_distances_repeats(df, filter=filter, length=length)
 
     return df
 
 def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
     sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
-    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
+    meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', repeat_max_distance=50, 
     color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
     domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
     '''
 
-    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation).query('2 < distance <= 15')
+    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation, max_distance=repeat_max_distance).query('2 < distance <= 15')
     gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
     
     if genome_format == 'gff':
