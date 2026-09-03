@@ -54,7 +54,7 @@ _defaults = {
     'database': 'uniprot',
     'table': 'idmapping',
     'release': '',
-    'batch_size': 10000,
+    'batch_size': 5000,
     'chunksize': 5000000,
     'executable': 'clickhouse',
 }
@@ -173,9 +173,12 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Parameters
         ----------
         sql : str
-            A SELECT statement. Use ClickHouse's server side binding
-            syntax, e.g. ``{ids:Array(String)}``, to refer to
-            `parameters`.
+            A SELECT statement. Queries that carry a list of
+            identifiers must use client side binding, ``%(name)s``,
+            so that the values travel in the request body: server
+            side binding puts them in the URL, which the server
+            rejects as "Field value too long" beyond roughly 6000
+            identifiers.
         parameters : dict, optional
             Values bound to the placeholders in `sql`.
 
@@ -355,10 +358,10 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         conditions = []
         id_type = self._id_types()
         if id_type:
-            conditions.append("id_type IN {id_type:Array(String)}")
-            parameters['id_type'] = id_type
+            conditions.append("id_type IN %(id_type)s")
+            parameters['id_type'] = tuple(id_type)
         if self.release:
-            conditions.append("release = {release:String}")
+            conditions.append("release = %(release)s")
             parameters['release'] = self.release
         return conditions
 
@@ -380,7 +383,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         parameters = {}
         conditions = []
         if self.release:
-            conditions.append("release = {release:String}")
+            conditions.append("release = %(release)s")
             parameters['release'] = self.release
         where = f'WHERE {" AND ".join(conditions)}' if conditions else ""
         return self.query(
@@ -655,8 +658,8 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         stack = []
         try:
             for batch in self._batches(targets, self.batch_size):
-                parameters = {'targets': batch}
-                conditions = [f'{self.column} IN {{targets:Array(String)}}'] + self._filters(parameters)
+                parameters = {'targets': tuple(batch)}
+                conditions = [f'{self.column} IN %(targets)s'] + self._filters(parameters)
                 stack.append(self.query(
                     f'SELECT accession, id_type, id FROM {self.qualified_name}'
                     f' WHERE {" AND ".join(conditions)}'
@@ -894,18 +897,18 @@ class MappingCursor(BaseIdMappingCursor):
         """
         stack = []
         for batch in self._batches(targets, self.batch_size):
-            parameters = {'targets': batch}
-            left = [f'f.{source} IN {{targets:Array(String)}}']
+            parameters = {'targets': tuple(batch)}
+            left = [f'f.{source} IN %(targets)s']
             if source == "id":
-                left.append("f.id_type = {from_type:String}")
+                left.append("f.id_type = %(from_type)s")
                 parameters['from_type'] = self.from_type
             right = []
             if target == "id":
-                right.append("t.id_type = {to_type:String}")
+                right.append("t.id_type = %(to_type)s")
                 parameters['to_type'] = self.to_type
             if self.release:
-                left.append("f.release = {release:String}")
-                right.append("t.release = {release:String}")
+                left.append("f.release = %(release)s")
+                right.append("t.release = %(release)s")
                 parameters['release'] = self.release
             where = " AND ".join(left + right)
             stack.append(self.query(
