@@ -38,3 +38,9 @@ pip-delete-this-directory.txt
 
 # Vim swap
 *.swp
+
+# Virtual environments
+.venv/
+
+# Distribution / packaging
+lib/rotifer.egg-info/
