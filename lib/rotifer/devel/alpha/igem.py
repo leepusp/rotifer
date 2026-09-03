@@ -185,12 +185,12 @@ BLANK_ANNOTATION_VALUES = ('', 'nan', 'none', 'na', 'n/a', '-', '?', 'unk',
 # category name here -- so a legend has six readable rows instead of one
 # row per Pfam id. Order matters: it is the order the legend lists in.
 DEFAULT_DOMAIN_CATEGORIES = {
-    'Biosynthesis': '#8F003C',
-    'Tailoring':    '#FFDAF1',
-    'Regulatory':   '#1B6B26',
-    'Transport':    '#2F80ED',
-    'Immunity':     '#FFF3CD',
-    'Other':        '#808080',
+    'Biosynthesis': '#F7AA9D',
+    'Tailoring':    '#F8D5C8',
+    'Regulatory':   '#A8D5A8',
+    'Transport':    '#A9C9E8',
+    'Immunity':     '#FFE9A8',
+    'Other':        '#D0D0D0',
 }
 
 # The catch-all category. When a color map contains this key, genes that
@@ -670,8 +670,8 @@ def resolve_domain_color(domain, color_map, default='#ffffff'):
     'tomato'
     >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato'})
     '#ffffff'
-    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato', 'Other': '#808080'})
-    '#808080'
+    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato', 'Other': '#D0D0D0'})
+    '#D0D0D0'
     """
     hit = _lookup_color(domain, color_map)
     return hit if hit is not None else resolve_fallback_color(color_map, default)
