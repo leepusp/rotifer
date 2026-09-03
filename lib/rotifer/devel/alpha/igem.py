@@ -34,9 +34,14 @@ query   : 1/'1'/True marks the query gene of a block; everything else is
 repeat_start / repeat_end : optional. Genomic coordinates of a
           regulatory region of DNA a protein binds; a row with both set
           gets a pink square drawn at that position in both neighborhood
-          figures (Graphviz and to-scale). `repeat_strand` (+1/-1),
-          also optional, only labels the marker's strand -- it does not
-          move it.
+          figures (Graphviz and to-scale). `repeat_strand` (+1/-1 or
+          '+'/'-'), also optional, only labels the marker's strand -- it
+          does not move it.
+
+Strands shown to the reader (gene and regulatory-region pop-ups) are
+always genomic, in the same frame as the coordinates printed next to
+them. Mirroring a block onto its query's orientation
+(`normalize_block_strand`) changes only how the arrows are drawn.
 ... plus whatever `group_col`, `org_col` and `label_col` point at.
 
 `genome_overview_fig` additionally uses `nucleotide`, `start`, `end`
@@ -283,6 +288,35 @@ def resolve_domain_labels(df, label_col='pfam'):
     return out
 
 
+_STRAND_SIGNS = {1: 1, '1': 1, '+': 1, '+1': 1, -1: -1, '-1': -1, '-': -1}
+
+
+def coerce_strand(value):
+    """
+    Normalize any of the strand conventions this module has to deal with
+    -- +1/-1 integers (rotifer tables), '+'/'-' characters (FIMO/GFF) or
+    their string forms -- to +1, -1, or None when the value is missing
+    or not a strand.
+
+    Used for both gene and regulatory-region strands so a '+'/'-' column
+    is never silently dropped on one code path and honored on another.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+    elif value is None:
+        return None
+    else:
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            return None
+    try:
+        return _STRAND_SIGNS.get(value)
+    except TypeError:
+        return None
+
+
 def flag_query_rows(df):
     """
     Add a boolean 'is_query' column derived from the raw 'query' column.
@@ -385,7 +419,9 @@ def prepare_dataframe(df, group_col='block_id', org_col='organism', label_col='p
     out['domain_raw'] = raw_domain
     out = flag_query_rows(out)
     out['pid_order'] = pd.factorize(out['ID'])[0]
-    return out.reset_index(drop=True)
+    # Fix each block's anchor query here, so every view agrees on it.
+    out = mark_reference_query(out.reset_index(drop=True))
+    return out
 
 
 def compute_label_width(df):
@@ -883,9 +919,19 @@ def select_reference_query_index(block_df):
     orientation, centering and the row label, when the block contains
     more than one.
 
-    The query closest to the middle of the block, by gene order, is
-    used -- it best represents "the middle of the region". Ties prefer
-    the more upstream (lower position) one.
+    When the block carries an 'is_reference_query' marking (put there by
+    `mark_reference_query`, which `prepare_dataframe` runs once on the
+    table in genomic order), that marked row is returned as-is. This is
+    what keeps every view agreeing on which gene is "the" query: the
+    positional rule below depends on row order, and a block that
+    `normalize_block_strand` has reversed can otherwise resolve a tie to
+    a *different* gene than the unreversed block did -- so the mirrored
+    Graphviz row and the to-scale row would orient on, label, and center
+    on two different proteins.
+
+    Falling back on that marking, the query closest to the middle of the
+    block, by gene order, is used -- it best represents "the middle of
+    the region". Ties prefer the more upstream (lower position) one.
 
     Returns the row's label in `block_df.index` (not a bare position),
     so the same gene can still be found correctly after `block_df` is
@@ -910,10 +956,49 @@ def select_reference_query_index(block_df):
     if len(query_index_labels) == 1:
         return query_index_labels[0]
 
+    if 'is_reference_query' in block_df.columns:
+        marked = block_df.index[block_df['is_reference_query'].fillna(False).astype(bool)]
+        if len(marked):
+            return marked[0]
+
     positions = np.flatnonzero(block_df['is_query'].to_numpy())
     middle = (len(block_df) - 1) / 2
     ranked = sorted(zip(positions, query_index_labels), key=lambda p: (abs(p[0] - middle), p[0]))
     return ranked[0][1]
+
+
+def mark_reference_query(df, group_col='pid_order'):
+    """
+    Resolve, once and for the whole table, which query gene anchors each
+    block, and record it in a boolean 'is_reference_query' column.
+
+    Every view has to answer "which gene is this row about": the
+    Graphviz figure orients and labels on it, the to-scale figure labels
+    and mirrors on it, and the genome overview marks it. Each of them
+    used to re-derive that answer from `select_reference_query_index`,
+    whose middle-of-the-block rule is positional -- so a block with two
+    equally central queries could resolve to one gene before
+    `normalize_block_strand` reversed it and to the other one after,
+    leaving the same block attributed to two different proteins in two
+    different views. Deciding it here, on the table in genomic order,
+    makes all of them read the same answer instead.
+
+    An existing marking is kept, so re-preparing an already prepared
+    table (as the per-block figures do) never reassigns the anchor.
+    """
+    out = df.copy()
+    if 'is_reference_query' not in out.columns:
+        out['is_reference_query'] = False
+    out['is_reference_query'] = out['is_reference_query'].fillna(False).astype(bool)
+
+    group_col = group_col if group_col in out.columns else 'ID'
+    for _, block in out.groupby(group_col, sort=False):
+        if block['is_reference_query'].any():
+            continue
+        ref_idx = select_reference_query_index(block)
+        if ref_idx is not None:
+            out.loc[ref_idx, 'is_reference_query'] = True
+    return out
 
 
 def normalize_block_strand(block_df, normalize_orientation=True):
@@ -936,24 +1021,41 @@ def normalize_block_strand(block_df, normalize_orientation=True):
         Rows for a single block, already in genomic (left-to-right) order.
     normalize_orientation : bool
 
+    'strand' (and 'repeat_strand') afterwards is the strand *as drawn*.
+    The true genomic strands are preserved in 'genomic_strand' and
+    'genomic_repeat_strand', which are always present in the result,
+    flipped or not. Mirroring is a display convention -- the figures
+    still print real, unmirrored coordinates -- so anything reporting a
+    strand to the reader (tooltips, pop-ups) must use the genomic
+    columns; only the arrow geometry follows the flipped ones. Reporting
+    the flipped strand next to unflipped coordinates is what made the
+    same gene read '+' in one view and '-' in the other.
+
     Returns
     -------
     pandas.DataFrame
-        `block_df` unchanged, or a reversed/strand-flipped copy. A
-        `repeat_strand` column (regulatory-region orientation), if
-        present, is flipped along with `strand`.
+        `block_df` with the genomic strand columns added, reversed and
+        strand-flipped when the block had to be mirrored.
     """
+    def _with_genomic_strands(df):
+        out = df.copy()
+        out['genomic_strand'] = pd.to_numeric(out['strand'].map(coerce_strand), errors='coerce')
+        if 'repeat_strand' in out.columns:
+            out['genomic_repeat_strand'] = pd.to_numeric(
+                out['repeat_strand'].map(coerce_strand), errors='coerce')
+        return out
+
     if not normalize_orientation:
-        return block_df
+        return _with_genomic_strands(block_df)
 
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is None or block_df.loc[ref_idx, 'strand'] != -1:
-        return block_df
+        return _with_genomic_strands(block_df)
 
-    flipped = block_df.iloc[::-1].copy()
-    flipped['strand'] = -flipped['strand']
+    flipped = _with_genomic_strands(block_df).iloc[::-1].copy()
+    flipped['strand'] = -flipped['genomic_strand']
     if 'repeat_strand' in flipped.columns:
-        flipped['repeat_strand'] = -pd.to_numeric(flipped['repeat_strand'], errors='coerce')
+        flipped['repeat_strand'] = -flipped['genomic_repeat_strand']
     return flipped
 
 
@@ -1020,7 +1122,7 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
     dict
         Keyword arguments for `AGraph.add_node`.
     """
-    strand_val = row.get('strand', 1)
+    strand_val = coerce_strand(row.get('strand', 1))
     is_target = bool(row['is_query'])
 
     opposite_strand = (
@@ -1104,20 +1206,18 @@ def repeat_region_span(repeat_start, repeat_end, repeat_strand=None):
     The two endpoints may be entered in either order, so they are
     returned sorted low..high; positioning of the marker is therefore
     independent of the order they were given in. `repeat_strand` is
-    coerced to +1, -1 or None (anything not clearly a strand sign).
+    coerced by `coerce_strand`, so both the +1/-1 of a rotifer table and
+    the '+'/'-' straight out of FIMO are understood -- reading it as an
+    int alone silently turned every '+'/'-' heptarepeat strand into an
+    unknown '?'.
+
     The strand does not move the square -- placement is by coordinate --
-    it is only carried through for labelling/tooltips and is what
-    `normalize_block_strand` flips when a block is reverse-complemented.
+    it is only carried through for labelling/tooltips, and it is always
+    the *genomic* strand, matching the genomic coordinates shown beside
+    it, even when the block is drawn reverse-complemented.
     """
     lo, hi = sorted((float(repeat_start), float(repeat_end)))
-    strand = None
-    if repeat_strand is not None and pd.notna(repeat_strand):
-        try:
-            s = int(repeat_strand)
-            strand = s if s in (1, -1) else None
-        except (TypeError, ValueError):
-            strand = None
-    return lo, hi, strand
+    return lo, hi, coerce_strand(repeat_strand)
 
 
 def repeat_region_tooltip(repeat_start, repeat_end, repeat_strand=None):
@@ -1143,9 +1243,10 @@ def build_repeat_tooltip_html(repeat_start, repeat_end, repeat_strand=None):
     `.t-row` spans for the genomic coordinates and the strand.
 
     Same shape as `build_gene_tooltip_html`, so the report's tooltip
-    card renders it with identical styling. `repeat_strand` should
-    already be the strand *as drawn* (flipped for a reverse-complemented
-    block); pass +1 / -1 / None.
+    card renders it with identical styling. `repeat_strand` is the
+    *genomic* strand -- the same frame as the coordinates printed right
+    above it, and never the mirrored one a reverse-complemented block is
+    drawn in; pass +1 / -1 / '+' / '-' / None.
     """
     lo, hi, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
     strand_str = '+' if strand == 1 else '&minus;' if strand == -1 else '?'
@@ -1209,17 +1310,19 @@ def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
     The group is `class="node nb-repeat"` with a `data-tip` pop-up
     (`build_repeat_tooltip_html`: label, coordinates, strand), picked up
     by the report's tooltip JS exactly like a gene. `repeat_strand`
-    (+1/-1) and the block's `flip` change only that pop-up / the
-    `<title>`, never the geometry: on a reverse-complemented block
-    (`flip=True`) the strand shown is the opposite of the input.
+    (+1/-1, or '+'/'-') sets only that pop-up / the `<title>`, never the
+    geometry, and it is reported as the *genomic* strand on mirrored
+    blocks too -- the pop-up prints real coordinates next to it, and the
+    Graphviz view reports the genomic strand as well, so negating it
+    here made the same heptarepeat read '+' beside a '-' coordinate span
+    and disagree between the two views. `flip` is accepted for callers
+    that still pass it and no longer changes anything.
     """
     lo, hi = sorted((x_start, x_end))
     mid = (lo + hi) / 2
     width = max(hi - lo, REPEAT_REGION_MARKER_MIN_PX)
     height = lane_bottom - lane_top
     _, _, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
-    if flip and strand in (1, -1):
-        strand = -strand
     tip_attr = html.escape(build_repeat_tooltip_html(repeat_start, repeat_end, strand), quote=True)
     title = html.escape(repeat_region_tooltip(repeat_start, repeat_end, strand))
     parts = [f'<g class="node nb-repeat" data-tip="{tip_attr}"><title>{title}</title>']
@@ -1278,6 +1381,18 @@ def count_genes_before_repeat(gene_positions, repeat_position, ascending=True):
 # ---------------------------------------------------------------------------
 # Graph assembly
 # ---------------------------------------------------------------------------
+
+def _genomic_strand(row, genomic_col, drawn_col):
+    """
+    The true genomic strand of `row`, preferring the column
+    `normalize_block_strand` preserves and falling back to the drawn one
+    for blocks that never went through it.
+    """
+    value = row.get(genomic_col)
+    if coerce_strand(value) is None:
+        value = row.get(drawn_col)
+    return coerce_strand(value)
+
 
 def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                         highlight_query=True, collapse_opposite_strand=False,
@@ -1339,7 +1454,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is not None:
         query_pid = block_df.loc[ref_idx, 'pid']
-        query_canonical_strand = block_df.loc[ref_idx, 'strand']
+        query_canonical_strand = coerce_strand(block_df.loc[ref_idx, 'strand'])
     else:
         query_pid = 'No Query'
         query_canonical_strand = 1
@@ -1394,7 +1509,10 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
             pid=row.get('pid'),
             start=row.get('start'),
             end=row.get('end'),
-            strand=row.get('strand'),
+            # The genomic strand, not the mirrored one the arrow is drawn
+            # with: the pop-up prints real coordinates, so it must print
+            # the strand those coordinates are on.
+            strand=_genomic_strand(row, 'genomic_strand', 'strand'),
             domain=row.get('domain'),
             domain_raw=row.get('domain_raw'),
             product=row.get('product'),
@@ -1416,7 +1534,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                 is_repeat=True,
                 repeat_start=row.get('repeat_start'),
                 repeat_end=row.get('repeat_end'),
-                repeat_strand=row.get('repeat_strand'),
+                repeat_strand=_genomic_strand(row, 'genomic_repeat_strand', 'repeat_strand'),
             )
             r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
             repeat_mid = (r_lo + r_hi) / 2
@@ -2402,8 +2520,9 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
     It carries the same hover/click pop-up as a gene
     (`build_repeat_tooltip_html`: label, coordinates, strand).
     `repeat_strand`, if given, only sets the strand shown in that pop-up
-    (flipped with the block when reverse-complemented) -- it does not
-    move the square.
+    -- it does not move the square, and it is reported in genomic terms
+    (like every coordinate and gene strand in the pop-ups) even when the
+    block is drawn mirrored.
 
     Orientation follows the same rule as `normalize_block_strand`: when
     `normalize_orientation` is True and the block's reference query is
@@ -2537,7 +2656,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         width = max(x_b - x_a, min_gene_width)
         x_b = x_a + width
 
-        strand_val = row.get('strand', 1)
+        strand_val = coerce_strand(row.get('strand', 1))
         drawn_strand = -strand_val if (flip and strand_val in (1, -1)) else strand_val
         head = min(9.0, width * 0.45)
         if drawn_strand == -1:
@@ -2559,7 +2678,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
             pid=row.get('pid'),
             start=row.get(start_col),
             end=row.get(end_col),
-            strand=strand_val,
+            strand=coerce_strand(strand_val),
             domain=row.get('domain'),
             domain_raw=row.get('domain_raw'),
             product=row.get('product'),
