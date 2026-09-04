@@ -72,7 +72,7 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
             module = cursor_modules[modulename]
             try:
                 cursorClass = getattr(module,myname)
-            except:
+            except AttributeError:
                 logger.error(f'Module {module.__name__} does not define a {myname} class')
                 continue
             self.cursors[modulename] = cursorClass(**kwargs)

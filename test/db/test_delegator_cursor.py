@@ -6,6 +6,8 @@ fallback, missing-accession bookkeeping, and writers without external
 databases, network access, or institutional configuration.
 """
 
+import pytest
+
 from rotifer.db.core import BaseCursor
 from rotifer.db.delegator import SequentialDelegatorCursor
 
@@ -425,3 +427,72 @@ def test_reset_cursors_preserves_backend_default_for_none():
 
     assert cursor.optional is None
     assert backend.optional == "backend-optional-default"
+
+
+# ---------------------------------------------------------------------------
+# Backend class resolution
+# ---------------------------------------------------------------------------
+
+
+class BackendLookupDelegator(SequentialDelegatorCursor):
+    """Delegator used to test backend class lookup in reset_cursors()."""
+
+    def __init__(self, backend_module):
+        self.backend_module = backend_module
+
+        super().__init__(
+            readers=["reader"],
+            writers=[],
+            progress=False,
+        )
+
+    @property
+    def _cursor_modules(self):
+        return {
+            "reader": self.backend_module,
+        }
+
+    def getids(self, obj, *args, **kwargs):
+        if obj is None:
+            return set()
+        if isinstance(obj, str):
+            return {obj}
+        return set(obj)
+
+
+class MissingBackendClassModule:
+    """Module-like object that genuinely lacks the expected cursor class."""
+
+    __name__ = "missing.backend"
+
+
+class BrokenBackendClassModule:
+    """Module-like object whose class lookup fails unexpectedly."""
+
+    __name__ = "broken.backend"
+
+    def __getattr__(self, name):
+        if name == "BackendLookupDelegator":
+            raise RuntimeError(
+                "backend class lookup failed internally"
+            )
+
+        raise AttributeError(name)
+
+
+def test_reset_cursors_skips_backend_without_expected_class():
+    cursor = BackendLookupDelegator(
+        MissingBackendClassModule(),
+    )
+
+    assert cursor.cursors == {}
+
+
+def test_reset_cursors_does_not_mask_backend_class_lookup_runtime_error():
+    with pytest.raises(
+        RuntimeError,
+        match="backend class lookup failed internally",
+    ):
+        BackendLookupDelegator(
+            BrokenBackendClassModule(),
+        )
