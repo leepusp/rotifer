@@ -3486,7 +3486,13 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .go-len{font-size:11px;color:var(--muted);white-space:nowrap;}
   /* contig total, stated once on its first line */
   .go-total{font-size:10px;color:var(--muted);opacity:.75;white-space:nowrap;}
-  .go-viewport{overflow-x:auto;overflow-y:hidden;cursor:grab;padding:10px 0;}
+  /* pans by wheel/drag (see the JS), so its scrollbar is hidden -- one
+     per line would be a stack of grey bars between the contigs */
+  .go-viewport{
+    overflow-x:auto;overflow-y:hidden;cursor:grab;padding:10px 0;
+    scrollbar-width:none;-ms-overflow-style:none;
+  }
+  .go-viewport::-webkit-scrollbar{width:0;height:0;display:none;}
   .go-viewport.grabbing{cursor:grabbing;}
   .go-inner{position:relative;height:var(--track-h,14px);}
   .go-axis{
