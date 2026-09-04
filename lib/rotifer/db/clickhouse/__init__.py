@@ -39,7 +39,7 @@ _defaults = {
     'port': 8123,
     'user': 'default',
     'password': '',
-    'database': 'default',
+    'dbname': 'default',
     'table': '',
     'secure': False,
     'batch_size': 5000,

@@ -56,7 +56,7 @@ BaseClickHouseCursor = rotifer.db.clickhouse.core.BaseClickHouseCursor
 # Defaults: the shared connection settings, with what UniProt adds
 _defaults = dict(clickhouse_config)
 _defaults.update({
-    'database': 'uniprot',
+    'dbname': 'uniprot',
     'table': 'idmapping',
     'release': '',
     'chunksize': 5000000,
@@ -119,7 +119,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         # Connection settings default to this module's configuration
         # rather than the shared one, so that a UniProt server can be
         # named separately from every other ClickHouse table
-        for key in ('host','port','user','password','database','table',
+        for key in ('host','port','user','password','dbname','table',
                     'secure','batch_size','submit_threshold'):
             kwargs.setdefault(key, config[key])
         super().__init__(*args, **kwargs)

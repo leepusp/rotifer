@@ -28,13 +28,13 @@
 -- half precisely because sorting by id gives up that advantage.
 --
 -- Placeholders are filled in by rotifer.db.uniprot.clickhouse:
--- {database}, {table} and {release}.
+-- {dbname}, {table} and {release}.
 --
 
-CREATE DATABASE IF NOT EXISTS {database}
+CREATE DATABASE IF NOT EXISTS {dbname}
 ;
 
-CREATE TABLE IF NOT EXISTS {database}.{table}
+CREATE TABLE IF NOT EXISTS {dbname}.{table}
 (
     `accession` String
         COMMENT 'UniProtKB accession, column 1 of idmapping.dat'
@@ -77,7 +77,7 @@ SETTINGS index_granularity = 8192
 -- straight into the server and stamps every row with the release:
 --
 --   clickhouse client --query "
---     INSERT INTO {database}.{table}
+--     INSERT INTO {dbname}.{table}
 --     SELECT c1, c2, c3, '{release}'
 --     FROM input('c1 String, c2 String, c3 String')
 --     FORMAT TabSeparated" < idmapping.dat
@@ -86,12 +86,12 @@ SETTINGS index_granularity = 8192
 -- fast as possible, drop it from the CREATE TABLE above, load the
 -- data, then build it in the background with:
 --
---   ALTER TABLE {database}.{table}
+--   ALTER TABLE {dbname}.{table}
 --     ADD PROJECTION by_id (SELECT accession, id_type, id, release ORDER BY id, id_type, accession);
---   ALTER TABLE {database}.{table} MATERIALIZE PROJECTION by_id;
+--   ALTER TABLE {dbname}.{table} MATERIALIZE PROJECTION by_id;
 --
 -- Because the table is partitioned by release, an obsolete release
 -- is removed in one atomic, near instantaneous operation:
 --
---   ALTER TABLE {database}.{table} DROP PARTITION '2024_06';
+--   ALTER TABLE {dbname}.{table} DROP PARTITION '2024_06';
 --

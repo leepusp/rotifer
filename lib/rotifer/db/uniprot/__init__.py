@@ -48,7 +48,7 @@ table once and query it from then on:
 
 >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
 ...     local_database_path="/scratch/global/databases/uniprot",
-...     database="uniprot", release="2026_01", initialize='load')
+...     dbname="uniprot", release="2026_01", initialize='load')
 
 The same thing on demand, instead of in one sitting: every query
 answered by the mirror is stored, so the second time it is answered by
@@ -56,7 +56,7 @@ the table.
 
 >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
 ...     local_database_path="/scratch/global/databases/uniprot",
-...     database="uniprot", release="2026_01", cache=True)
+...     dbname="uniprot", release="2026_01", cache=True)
 >>> ic.fetchall(["Q6GZX4"])   # scans the file, then stores what it found
 >>> ic.fetchall(["Q6GZX4"])   # answered by ClickHouse
 """
@@ -111,6 +111,22 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
     #: reach the backends. Without this a filter set on the delegator
     #: could be changed but never cleared.
     _nullable_attributes = frozenset({'id_type','release'})
+
+    def __init__(self, *args, **kwargs):
+        """
+        Build the delegator, rejecting the old name for ``dbname``.
+
+        A delegator keeps its own keywords rather than handing them
+        all to its backends, so a caller still passing ``database``
+        would have it quietly dropped here instead of reaching the
+        ClickHouse cursor that would have complained.
+        """
+        if 'database' in kwargs:
+            raise TypeError(
+                "the 'database' parameter is now called 'dbname'; "
+                f"pass dbname={kwargs['database']!r} instead"
+            )
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, accessions, *args, **kwargs):
         """
@@ -244,7 +260,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         Examples
         --------
         >>> from rotifer.db import uniprot
-        >>> ic = uniprot.IdMappingCursor(database='uniprot')  # doctest: +SKIP
+        >>> ic = uniprot.IdMappingCursor(dbname='uniprot')  # doctest: +SKIP
         >>> ic.create()  # doctest: +SKIP
         """
         store = self.store
@@ -301,7 +317,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         >>> from rotifer.db import uniprot
         >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
         ...     local_database_path="/scratch/global/databases/uniprot",
-        ...     database="uniprot", release="2026_01")
+        ...     dbname="uniprot", release="2026_01")
         >>> ic.load()  # doctest: +SKIP
         2647104040
         """
@@ -384,7 +400,7 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
     engine : str, optional
         Matching engine of the ``mirror`` backend, one of ``auto``,
         ``arrow`` or ``python``.
-    host, port, database, table : optional
+    host, port, dbname, table : optional
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration, which is
@@ -448,7 +464,7 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
             engine = None,
             host = None,
             port = None,
-            database = None,
+            dbname = None,
             table = None,
             initialize = False,
             cache = False,
@@ -458,14 +474,14 @@ class IdMappingCursor(BaseUniProtDelegatorCursor):
             threads = None,
             *args, **kwargs
         ):
-        self._shared_attributes = ['progress','id_type','release','path','engine','host','port','database','table','batch_size','threads']
+        self._shared_attributes = ['progress','id_type','release','path','engine','host','port','dbname','table','batch_size','threads']
         self.id_type = id_type
         self.release = release
         self.path = local_database_path
         self.engine = engine
         self.host = host
         self.port = port
-        self.database = database
+        self.dbname = dbname
         self.table = table
         writers = list(writers)
         if cache and self._store_backend not in writers:
@@ -498,7 +514,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
         Root directory of the local UniProt mirror.
     engine : str, optional
         Matching engine of the ``mirror`` backend.
-    host, port, database, table : optional
+    host, port, dbname, table : optional
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration.
@@ -592,7 +608,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
             engine = None,
             host = None,
             port = None,
-            database = None,
+            dbname = None,
             table = None,
             initialize = False,
             cache = False,
@@ -602,14 +618,14 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
             threads = None,
             *args, **kwargs
         ):
-        self._shared_attributes = ['progress','id_type','release','path','engine','host','port','database','table','batch_size','threads']
+        self._shared_attributes = ['progress','id_type','release','path','engine','host','port','dbname','table','batch_size','threads']
         self.id_type = id_type
         self.release = release
         self.path = local_database_path
         self.engine = engine
         self.host = host
         self.port = port
-        self.database = database
+        self.dbname = dbname
         self.table = table
         writers = list(writers)
         if cache and self._store_backend not in writers:
@@ -648,7 +664,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         Root directory of the local UniProt mirror.
     engine : str, optional
         Matching engine of the ``mirror`` backend.
-    host, port, database, table : optional
+    host, port, dbname, table : optional
         Where the ClickHouse backend should look. Each defaults to
         the matching entry of the
         :mod:`rotifer.db.uniprot.clickhouse` configuration.
@@ -711,7 +727,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             engine = None,
             host = None,
             port = None,
-            database = None,
+            dbname = None,
             table = None,
             initialize = False,
             cache = False,
@@ -727,7 +743,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
                 'match the layout of the storage table. Cache with IdMappingCursor, or load '
                 'the whole release with load().'
             )
-        self._shared_attributes = ['progress','from_type','to_type','release','path','engine','host','port','database','table','batch_size','threads']
+        self._shared_attributes = ['progress','from_type','to_type','release','path','engine','host','port','dbname','table','batch_size','threads']
         self.from_type = from_type
         self.to_type = to_type
         self.release = release
@@ -735,7 +751,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         self.engine = engine
         self.host = host
         self.port = port
-        self.database = database
+        self.dbname = dbname
         self.table = table
         writers = list(writers)
         if cache and self._store_backend not in writers:

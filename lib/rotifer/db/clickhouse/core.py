@@ -48,8 +48,10 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         User name.
     password : str, optional
         Password.
-    database : str, optional
-        Name of the database holding the cursor's table.
+    dbname : str, optional
+        Name of the database holding the cursor's table. This was
+        called ``database`` until it was renamed for clarity; passing
+        the old name now raises rather than being ignored.
     table : str, optional
         Name of the cursor's table.
     secure : bool, optional
@@ -85,7 +87,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             port = config['port'],
             user = config['user'],
             password = config['password'],
-            database = config['database'],
+            dbname = config['dbname'],
             table = config['table'],
             secure = config['secure'],
             batch_size = config['batch_size'],
@@ -93,12 +95,20 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             progress = False,
             *args, **kwargs
         ):
+        # BaseCursor accepts and ignores unknown keywords, so a caller
+        # still passing the old name would silently get the default
+        # database instead of the one they asked for
+        if 'database' in kwargs:
+            raise TypeError(
+                "the 'database' parameter is now called 'dbname'; "
+                f"pass dbname={kwargs['database']!r} instead"
+            )
         super().__init__(progress=progress, *args, **kwargs)
         self.host = host
         self.port = port
         self.user = user
         self.password = password
-        self.database = database
+        self.dbname = dbname
         self.table = table
         self.secure = secure
         self.batch_size = batch_size
@@ -126,7 +136,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         """
         if isinstance(self._client, types.NoneType):
             import clickhouse_connect
-            # The session is deliberately not bound to self.database:
+            # The session is deliberately not bound to self.dbname:
             # the driver refuses to connect at all when the database
             # does not exist yet, which would make it impossible to
             # create one. Every statement here names its table in
@@ -150,7 +160,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         str
             For example, ``uniprot.idmapping``.
         """
-        return f'{self.database}.{self.table}'
+        return f'{self.dbname}.{self.table}'
 
     # Statements
 
@@ -196,7 +206,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
 
     # Introspection
 
-    def has_table(self, name=None, database=None):
+    def has_table(self, name=None, dbname=None):
         """
         Find whether a table exists.
 
@@ -204,18 +214,18 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         ----------
         name : str, optional
             Table name. Defaults to the cursor's table.
-        database : str, optional
-            Database name. Defaults to the cursor's database.
+        dbname : str, optional
+            Database name. Defaults to the cursor's own.
 
         Returns
         -------
         bool
         """
         name = name or self.table
-        database = database or self.database
+        dbname = dbname or self.dbname
         found = self.query(
             "SELECT count() AS n FROM system.tables WHERE database = {db:String} AND name = {tb:String}",
-            parameters = {'db': database, 'tb': name},
+            parameters = {'db': dbname, 'tb': name},
         )
         return bool(found.n.iloc[0])
 
@@ -364,7 +374,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         The statements are read from a SQL file located through
         :func:`rotifer.core.functions.findDataFiles`, so a copy under
         ``~/.rotifer/share`` takes precedence over the one shipped
-        with rotifer. ``{database}`` and ``{table}`` in that file are
+        with rotifer. ``{dbname}`` and ``{table}`` in that file are
         filled in from the cursor; any other placeholder must be given
         in `parameters`.
 
@@ -398,8 +408,11 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             logger.error(f'Could not find the SQL file {schema}')
             return False
         sql = open(sqlfile, "rt").read().format(
-            database = self.database,
+            dbname = self.dbname,
             table = self.table,
+            # accepted too, so that schema files written against the
+            # older placeholder keep working
+            database = self.dbname,
             **parameters,
         )
 
@@ -428,7 +441,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         """
         if data.empty:
             return
-        self.client.insert_df(table=self.table, df=data, database=self.database)
+        self.client.insert_df(table=self.table, df=data, database=self.dbname)
 
     def drop_partition(self, partition):
         """
