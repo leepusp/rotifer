@@ -126,7 +126,9 @@ class FastaCursor(rotifer.db.parallel.SimpleParallelProcessCursor):
             if not targets:
                 break
         if targets:
-            self.update_missing(targets, "Not found")
+            # A local index does not change between attempts, but
+            # another backend may well hold the sequence
+            self.update_missing(targets, "Not found", retry=False)
         return StringIO(data)
 
     def parser(self, stream, accession, *args, **kwargs):

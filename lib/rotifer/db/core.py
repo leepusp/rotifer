@@ -28,6 +28,13 @@ class BaseCursor:
         self.__name__ = str(type(self)).split("'")[1]
         self._missing = dict() # Keys are accessions, values are lists of three elements
         self.giveup = set() # List of errors that will prevent further attempts to use failed accessions
+        # Errors saying the entry will never be found, by this or any
+        # other cursor. Matching one implies giving up here too, so
+        # these need not be repeated in giveup. Reserve it for
+        # statements about the data rather than about one source: a
+        # cursor refusing a kind of accession, or rejecting a
+        # malformed request, is not speaking for the others.
+        self.final_errors = set()
         self.maxgetitem = 1 # Maximum number of arguments accepted by __getitem__()
 
     def parse_ids(self, accessions, as_string=True):
@@ -161,14 +168,14 @@ class BaseCursor:
           are ignored.
         """
         if isinstance(data, types.NoneType):
+            definitive = False
+            gaveup = False
+            if not isinstance(error,types.NoneType):
+                definitive = any([ x in error for x in self.final_errors ])
+                gaveup = definitive or any([ x in error for x in self.giveup ])
             if isinstance(retry,types.NoneType):
-                retry = True
-                if not isinstance(error,types.NoneType):
-                    for x in self.giveup:
-                        if x in error:
-                            retry = False
-                            break
-            err = [error, rcf.who_is_calling(self), retry, bool(final)]
+                retry = not gaveup
+            err = [error, rcf.who_is_calling(self), retry, bool(final) or definitive]
             targets = self.parse_ids(accessions)
             for x in targets:
                 if error == None:

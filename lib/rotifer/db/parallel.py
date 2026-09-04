@@ -102,7 +102,9 @@ class SimpleParallelProcessCursor(rotifer.db.core.BaseCursor):
             self.remove_missing(found)
         missing = targets - found
         if missing:
-            self.update_missing(missing, error or f'Not found.')
+            # Absent from a reply that did arrive: no error to blame
+            # and nothing a further attempt here would change
+            self.update_missing(missing, error or f'Not found.', retry=False if error is None else None)
 
         return obj
 
@@ -279,7 +281,10 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         # Patterns expected in error messages that
         # signal for giving up missing entries
         self.giveup.update(["HTTP Error 400"])
-        self.giveup.update(["no IPG","No IPG"])
+        # A protein with no IPG cannot be placed on a genome, and
+        # every backend of this cursor needs one, so the verdict
+        # binds them all
+        self.final_errors.update(["no IPG","No IPG"])
         if not eukaryotes:
             self.giveup.update(["Eukaryot","eukaryot"])
 

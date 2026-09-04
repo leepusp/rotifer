@@ -546,7 +546,10 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
         self.tries = tries
         self.cache = cache
         self.giveup.update(["HTTP Error 400"])
-        self.giveup.update(["no IPG","No IPG"])
+        # A protein with no IPG cannot be placed on a genome, and
+        # every backend of this cursor needs one, so the verdict
+        # binds them all
+        self.final_errors.update(["no IPG","No IPG"])
         if not eukaryotes:
             self.giveup.update(["Eukaryot","eukaryot"])
 

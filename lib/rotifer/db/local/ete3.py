@@ -83,7 +83,9 @@ class TaxonomyCursor(rotifer.db.core.BaseCursor):
         # Register missing entries
         missing = targets - self.getids(li)
         if len(missing) > 0:
-            self.update_missing(missing,"Accession not found in database")
+            # A local database does not change between attempts, but
+            # another backend may well know the taxon
+            self.update_missing(missing,"Accession not found in database",retry=False)
 
         #logger.info(f'Loaded {len(targets.intersection(self.getids(li)))} taxids from Ete3 database')
         return li

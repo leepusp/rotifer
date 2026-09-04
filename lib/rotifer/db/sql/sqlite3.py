@@ -354,7 +354,9 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         # Find missing entries, if any
         missing = set(accession).difference(self.getids(df, ipgs=ipgs))
         if len(missing):
-            self.update_missing(missing, error=f'Entry not found in SQLite3 database {self.path}', retry=True)
+            # A local file does not change between attempts, but
+            # another backend may well hold the entry
+            self.update_missing(missing, error=f'Entry not found in SQLite3 database {self.path}', retry=False)
 
         return NeighborhoodDF(df)
 
