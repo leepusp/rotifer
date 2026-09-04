@@ -515,7 +515,9 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         ipgs = ipgs[ipgs.nucleotide.isin(best.nucleotide)]
         missing = targets - self.getids(ipgs)
         if missing:
-            self.update_missing(missing, error="No IPGs", retry=False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing, error="No IPGs", retry=False, final=True)
             targets = targets - missing
             if len(targets) == 0:
                 return objlist

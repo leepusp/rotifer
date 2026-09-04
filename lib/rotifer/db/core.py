@@ -63,26 +63,74 @@ class BaseCursor:
         targets = set(targets)
         return targets
 
+    #: Fields kept for every entry of the registry of missing entries.
+    _missing_fields = ("error", "class", "retry", "final")
+
+    @staticmethod
+    def _missing_record(entry):
+        """
+        Pad a registry entry to the current number of fields.
+
+        Entries used to hold three fields, and code outside this class
+        still builds them that way. A record short of ``final`` is
+        read as not final, which is what it meant before the field
+        existed.
+
+        Parameters
+        ----------
+        entry : list
+          One entry of the registry.
+
+        Returns
+        -------
+        list
+          The same entry, extended to four fields when needed.
+        """
+        entry = list(entry)
+        while len(entry) < len(BaseCursor._missing_fields):
+            entry.append(False)
+        return entry
+
     @property
     def missing(self):
-        return pd.DataFrame(self._missing, index="error class retry".split(" ")).T
+        data = { k: self._missing_record(v) for k,v in self._missing.items() }
+        return pd.DataFrame(data, index=list(self._missing_fields)).T
 
-    def missing_ids(self, retry=None):
+    def missing_ids(self, retry=None, final=None):
         """
         Retrieve accessions not found in the target database.
+
+        The two filters answer different questions. `retry` asks
+        whether this cursor might still recover an accession by trying
+        again, which is what its own retry loop consults. `final` asks
+        whether the answer is binding on every other cursor as well,
+        which is what a delegator consults before handing the
+        accession to the next backend.
+
+        An accession absent from one database is normally neither: not
+        worth retrying here, but well worth asking the next backend
+        for.
 
         Parameters
         ----------
         retry: boolean, default None
-          Filter accession based on whether they might
-          still be recovered (retry=True) or not (retry=False)
+          Filter accessions based on whether this cursor might
+          still recover them (retry=True) or not (retry=False)
+        final: boolean, default None
+          Filter accessions based on whether some cursor reported
+          that they will never be recovered, by any backend
         """
-        if isinstance(retry, types.NoneType):
-            return set(sorted(list(self._missing.keys())))
-        else:
-            return set(sorted([ x for x in self._missing.keys() if self._missing[x][2] == retry ]))
+        selected = []
+        for accession, entry in self._missing.items():
+            entry = self._missing_record(entry)
+            if not isinstance(retry, types.NoneType) and entry[2] != retry:
+                continue
+            if not isinstance(final, types.NoneType) and bool(entry[3]) != final:
+                continue
+            selected.append(accession)
+        return set(sorted(selected))
 
-    def update_missing(self, accessions=[], error=None, retry=None, data=None, *args, **kwargs):
+    def update_missing(self, accessions=[], error=None, retry=None, final=False, data=None, *args, **kwargs):
         """
         Update or add entries to the registry of missing entries.
 
@@ -93,13 +141,23 @@ class BaseCursor:
         error: string, default None
           A string describing the latest error
         retry: boolean, default None
-          Whether the error is recoverable or not
+          Whether this cursor might still recover the entry by
+          trying again. When not given, it is inferred by matching
+          the error against the giveup patterns.
+        final: boolean, default False
+          Whether the entry will never be recovered, by this or any
+          other cursor. Only set this when the cursor has the
+          authority to say so: an accession simply absent from one
+          database is not final, because another backend may still
+          hold it, and a delegator skips every remaining backend for
+          entries that are.
         data: dictionary, default None
           A dictionary that matches the internal
           registry, with accessions as keys and
-          three-elements lists as values.
+          lists of fields as values. Entries of three
+          fields are accepted and read as not final.
 
-          If using this parameter, error and retry
+          If using this parameter, error, retry and final
           are ignored.
         """
         if isinstance(data, types.NoneType):
@@ -110,7 +168,7 @@ class BaseCursor:
                         if x in error:
                             retry = False
                             break
-            err = [error, rcf.who_is_calling(self), retry]
+            err = [error, rcf.who_is_calling(self), retry, bool(final)]
             targets = self.parse_ids(accessions)
             for x in targets:
                 if error == None:
@@ -120,8 +178,16 @@ class BaseCursor:
                         err[0] = "Unknown error"
                 self._missing[x] = err
         else:
-            self._missing.update(data)
-            retry = any([ v[2] for k,v in data.items() ])
+            for k,v in data.items():
+                entry = self._missing_record(v)
+                # A final verdict is permanent by definition, so a
+                # later report about the same entry may replace the
+                # message but never downgrade it
+                previous = self._missing.get(k)
+                if previous and self._missing_record(previous)[3]:
+                    entry[3] = True
+                self._missing[k] = entry
+            retry = any([ self._missing_record(v)[2] for k,v in data.items() ])
         return retry
 
     def remove_missing(self, accessions=None):

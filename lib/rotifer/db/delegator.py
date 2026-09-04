@@ -80,6 +80,38 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
     # these can be cleared on the backends after construction.
     _nullable_attributes = frozenset()
 
+    def absorb_missing(self, cursor):
+        """
+        Take note of what a backend could not retrieve.
+
+        Called once a backend has been exhausted rather than for each
+        result it yields, because a backend that finds nothing yields
+        nothing and its reasons would otherwise never be recorded.
+
+        The two flags aggregate differently, because they answer
+        different questions. ``retry`` becomes the disjunction across
+        backends: on a delegator it means that at least one of them
+        might still succeed on another attempt, so an unreachable
+        server leaves the entry worth retrying even after a later
+        backend answers "not found" for good. ``final`` is kept by
+        :meth:`~rotifer.db.core.BaseCursor.update_missing`, which
+        never downgrades it.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend to copy from.
+        """
+        data = dict()
+        for accession, entry in cursor._missing.items():
+            entry = self._missing_record(entry)
+            previous = self._missing.get(accession)
+            if previous and self._missing_record(previous)[2]:
+                entry = [entry[0], entry[1], True, entry[3]]
+            data[accession] = entry
+        if data:
+            self.update_missing(data=data)
+
     def __setattr__(self, name, value):
         """
         Set an attribute, propagating shared ones to the backends.
@@ -156,7 +188,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 data.extend(result)
             else:
                 data.append(result)
-            todo = todo - done
+            todo = todo - done - self.missing_ids(final=True)
         if len(targets) == 1 and len(data) == 1:
             data = data[0]
         return data
@@ -199,9 +231,17 @@ class SequentialDelegatorCursor(DelegatorCursor):
                         continue
                     self.cursors[j].insert(result)
                 self.remove_missing(done)
-                self.update_missing(data=cursor._missing)
                 todo = todo - done
                 yield result
+
+            # A backend that finds nothing yields nothing, so what it
+            # could not do has to be collected once it is exhausted
+            # rather than alongside each result it returns
+            self.absorb_missing(cursor)
+
+            # Entries some backend declared final will not be found by
+            # any of the others either, so stop carrying them along
+            todo = todo - self.missing_ids(final=True)
 
     def fetchall(self, accessions, *args, **kwargs):
         """

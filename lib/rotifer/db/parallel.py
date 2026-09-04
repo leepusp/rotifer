@@ -308,7 +308,9 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         ipgs = ipgs[ipgs[self._target_column].isin(best[self._target_column])]
         missing = targets - self.ipg_proteins(ipgs)
         if missing:
-            self.update_missing(missing,"No IPGs",False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing,"No IPGs",False,final=True)
             targets = targets - missing
             if len(targets) == 0:
                 return objlist
@@ -479,7 +481,9 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         # Check for proteins without IPGs
         missing = targets - self.ipg_proteins(ipgs)
         if missing:
-            self.update_missing(missing, error="Not found in IPGs", retry=False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing, error="Not found in IPGs", retry=False, final=True)
             targets = targets - missing
         if len(ipgs) == 0:
             return [seqrecords_to_dataframe([])]

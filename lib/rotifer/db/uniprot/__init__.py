@@ -195,7 +195,6 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
                     if earlier in self.cursors:
                         self.cursors[earlier].remove_missing(done)
                 self.remove_missing(done)
-                self.update_missing(data=cursor._missing)
                 for writer in self.writers:
                     if writer == name or writer not in self.cursors:
                         continue
@@ -204,6 +203,14 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
                         self.cursors[writer].insert(rows)
                 todo = todo - done
                 yield result
+
+            # A backend that finds nothing yields nothing, so what it
+            # could not do has to be collected once it is exhausted
+            self.absorb_missing(cursor)
+
+            # Entries some backend declared final will not be found by
+            # any of the others either
+            todo = todo - self.missing_ids(final=True)
 
     def _rows_to_store(self, result, source):
         """
