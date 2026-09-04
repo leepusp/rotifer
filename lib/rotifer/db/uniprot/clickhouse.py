@@ -17,321 +17,51 @@ cursors for the queries that table was designed to answer:
     Translate identifiers from one database to another, the
     equivalent of UniProt's online ID mapping service.
 
+Everything here that is not about identifier mappings lives in
+:mod:`rotifer.db.clickhouse.core`, which any other ClickHouse backed
+cursor can build on.
+
 The table itself is created and populated through
-:meth:`IdMappingCursor.create` and :meth:`IdMappingCursor.load`, from
-a local copy of the flat file read by
-:class:`rotifer.db.uniprot.mirror.IdMappingCursor`. Its schema lives in
-``share/rotifer/db/uniprot/clickhouse/idmapping.sql``.
+:meth:`BaseIdMappingCursor.create` and
+:meth:`BaseIdMappingCursor.load`, from a local copy of the flat file
+read by :class:`rotifer.db.uniprot.mirror.IdMappingCursor`. Its schema
+lives in ``share/rotifer/db/uniprot/clickhouse/idmapping.sql``.
 
 Configuration
 -------------
 Connection parameters are read from ``~/.rotifer/etc/db/uniprot/clickhouse.yml``
-and default to a server on ``localhost``. Note that the default
-``port`` below is ClickHouse's HTTP port, 8123, which is not
-necessarily the port a given server listens on.
+and fall back to the shared :mod:`rotifer.db.clickhouse` defaults, so
+a server can be named once for every cursor or separately here.
 """
 
 # Dependencies
-import os
-import uuid
 import types
 import typing
-import subprocess
 import pandas as pd
 
 # Rotifer
 import rotifer
 import rotifer.db.core
 import rotifer.db.methods
+import rotifer.db.clickhouse.core
+from rotifer.db.clickhouse import config as clickhouse_config
 from rotifer.core import functions as rcf
 logger = rotifer.logging.getLogger(__name__)
 
-# Defaults
-_defaults = {
-    'host': 'localhost',
-    'port': 8123,
-    'user': 'default',
-    'password': '',
+#: Kept so that ``from rotifer.db.uniprot.clickhouse import
+#: BaseClickHouseCursor`` still works; the class itself now lives in
+#: :mod:`rotifer.db.clickhouse.core`.
+BaseClickHouseCursor = rotifer.db.clickhouse.core.BaseClickHouseCursor
+
+# Defaults: the shared connection settings, with what UniProt adds
+_defaults = dict(clickhouse_config)
+_defaults.update({
     'database': 'uniprot',
     'table': 'idmapping',
     'release': '',
-    'batch_size': 5000,
-    'submit_threshold': 1000,
     'chunksize': 5000000,
-    'executable': 'clickhouse',
-}
+})
 config = rcf.loadConfig(__name__.replace('rotifer.',':'), defaults = _defaults)
-
-class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
-    """
-    Shared connection and query helpers for ClickHouse cursors.
-
-    This class is not meant to be used directly: it holds the
-    connection parameters, opens the client on first use and wraps the
-    few server calls the subclasses need. Failed lookups are tracked
-    through the inherited
-    :attr:`~rotifer.db.core.BaseCursor.missing` registry.
-
-    Parameters
-    ----------
-    host : str, optional
-        Host name of the ClickHouse server. Defaults to the ``host``
-        configuration entry.
-    port : int, optional
-        Port of the server's HTTP interface. Defaults to the ``port``
-        configuration entry.
-    user : str, optional
-        User name. Defaults to the ``user`` configuration entry.
-    password : str, optional
-        Password. Defaults to the ``password`` configuration entry.
-    database : str, optional
-        Name of the database. Defaults to the ``database``
-        configuration entry.
-    table : str, optional
-        Name of the table. Defaults to the ``table`` configuration
-        entry.
-    secure : bool, default False
-        Whether to connect over HTTPS.
-    progress : bool, default False
-        Whether to print progress messages.
-
-    Attributes
-    ----------
-    client : clickhouse_connect.driver.client.Client
-        The connection, opened on first access.
-
-    See Also
-    --------
-    rotifer.db.uniprot.clickhouse.IdMappingCursor : identifier mapping cursor
-    """
-    def __init__(
-            self,
-            host = config['host'],
-            port = config['port'],
-            user = config['user'],
-            password = config['password'],
-            database = config['database'],
-            table = config['table'],
-            secure = False,
-            progress = False,
-            *args, **kwargs
-        ):
-        super().__init__(progress=progress, *args, **kwargs)
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.database = database
-        self.table = table
-        self.secure = secure
-        self._client = None
-        # Each cursor owns a differently named temporary table, so that
-        # cursors sharing a session cannot overwrite each other's query
-        self._query_table = '_rotifer_query_' + uuid.uuid4().hex[:12]
-
-    @property
-    def client(self):
-        """
-        The ClickHouse client, opened on first access.
-
-        Returns
-        -------
-        clickhouse_connect.driver.client.Client
-
-        Raises
-        ------
-        ImportError
-            If the ``clickhouse_connect`` package is not installed.
-        """
-        if isinstance(self._client, types.NoneType):
-            import clickhouse_connect
-            # The session is deliberately not bound to self.database:
-            # the driver refuses to connect at all when the database
-            # does not exist yet, which would make it impossible to
-            # create one. Every statement here names its table in
-            # full, so the session database is never consulted.
-            self._client = clickhouse_connect.get_client(
-                host = self.host,
-                port = self.port,
-                username = self.user,
-                password = self.password,
-                secure = self.secure,
-            )
-        return self._client
-
-    @property
-    def qualified_name(self):
-        """
-        The table name, qualified by its database.
-
-        Returns
-        -------
-        str
-            For example, ``uniprot.idmapping``.
-        """
-        return f'{self.database}.{self.table}'
-
-    def query(self, sql, parameters=None):
-        """
-        Run a query and return its result as a dataframe.
-
-        Parameters
-        ----------
-        sql : str
-            A SELECT statement. Queries that carry a list of
-            identifiers must use client side binding, ``%(name)s``,
-            so that the values travel in the request body: server
-            side binding puts them in the URL, which the server
-            rejects as "Field value too long" beyond roughly 6000
-            identifiers.
-        parameters : dict, optional
-            Values bound to the placeholders in `sql`.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        return self.client.query_df(sql, parameters=parameters)
-
-    def command(self, sql, parameters=None):
-        """
-        Run a statement that does not return a result set.
-
-        Parameters
-        ----------
-        sql : str
-            Any statement, such as CREATE, ALTER or DROP.
-        parameters : dict, optional
-            Values bound to the placeholders in `sql`.
-
-        Returns
-        -------
-        object
-            Whatever the driver returns for the statement.
-        """
-        return self.client.command(sql, parameters=parameters)
-
-    def has_table(self, name=None, database=None):
-        """
-        Find whether a table exists.
-
-        Parameters
-        ----------
-        name : str, optional
-            Table name. Defaults to the cursor's table.
-        database : str, optional
-            Database name. Defaults to the cursor's database.
-
-        Returns
-        -------
-        bool
-        """
-        name = name or self.table
-        database = database or self.database
-        found = self.query(
-            "SELECT count() AS n FROM system.tables WHERE database = {db:String} AND name = {tb:String}",
-            parameters = {'db': database, 'tb': name},
-        )
-        return bool(found.n.iloc[0])
-
-    @property
-    def schema(self):
-        """
-        The SQL statement that created the cursor's table.
-
-        Returns
-        -------
-        str
-            Empty when the table does not exist.
-        """
-        if not self.has_table():
-            return ""
-        return self.client.command(f'SHOW CREATE TABLE {self.qualified_name}')
-
-    def count(self):
-        """
-        Count the rows of the cursor's table.
-
-        Returns
-        -------
-        int
-            Zero when the table does not exist.
-        """
-        if not self.has_table():
-            return 0
-        return int(self.query(f'SELECT count() AS n FROM {self.qualified_name}').n.iloc[0])
-
-    def submit(self, accessions):
-        """
-        Send a list of identifiers to a temporary table.
-
-        Queries then refer to that table instead of listing the
-        identifiers in the SQL text, which is what makes an
-        arbitrarily long query possible: values written into the
-        statement are bounded by ClickHouse's ``max_query_size``, 256
-        KiB by default, or about 18000 accessions.
-
-        The table is temporary and lives in the connection's session,
-        so it disappears when the connection does and is invisible to
-        every other client.
-
-        Parameters
-        ----------
-        accessions : iterable of str
-            The identifiers to make available to the next query.
-
-        Returns
-        -------
-        str
-            Name of the table holding them.
-
-        Note
-        ----
-        A ClickHouse session serves one query at a time, so a cursor
-        that has submitted a list must not be shared between threads
-        until the query using it has finished.
-
-        Examples
-        --------
-        >>> from rotifer.db.uniprot import clickhouse as ruch
-        >>> c = ruch.IdMappingCursor()  # doctest: +SKIP
-        >>> table = c.submit(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
-        >>> c.query(f"SELECT count() FROM {table}")  # doctest: +SKIP
-        """
-        import pandas as pd
-        self.cleanup()
-        self.command(f'CREATE TEMPORARY TABLE {self._query_table} (id String) ENGINE = Memory')
-        ids = pd.DataFrame({'id': [ str(x) for x in accessions ]})
-        self.client.insert_df(table=self._query_table, df=ids)
-        return self._query_table
-
-    def cleanup(self):
-        """
-        Drop this cursor's temporary table of identifiers.
-
-        Safe to call when nothing was submitted.
-        """
-        self.command(f'DROP TEMPORARY TABLE IF EXISTS {self._query_table}')
-
-    def _batches(self, targets, batch_size):
-        """
-        Split a set of identifiers into batches.
-
-        Parameters
-        ----------
-        targets : iterable
-            Identifiers to split.
-        batch_size : int
-            Maximum number of identifiers per batch.
-
-        Yields
-        ------
-        list
-            One batch of identifiers.
-        """
-        targets = list(targets)
-        for start in range(0, len(targets), batch_size):
-            yield targets[start:start + batch_size]
 
 class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCursor):
     """
@@ -377,19 +107,24 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
     #: Name of the column the cursor's queries search.
     column = 'accession'
 
+    #: Where :meth:`create` reads this table's definition from.
+    _schema_resource = __name__ + ".idmapping.sql"
+
     def __init__(
             self,
             id_type = None,
             release = config['release'],
-            batch_size = config['batch_size'],
-            submit_threshold = config['submit_threshold'],
             *args, **kwargs
         ):
+        # Connection settings default to this module's configuration
+        # rather than the shared one, so that a UniProt server can be
+        # named separately from every other ClickHouse table
+        for key in ('host','port','user','password','database','table',
+                    'secure','batch_size','submit_threshold'):
+            kwargs.setdefault(key, config[key])
         super().__init__(*args, **kwargs)
         self.id_type = id_type
         self.release = release
-        self.batch_size = batch_size
-        self.submit_threshold = submit_threshold
         self.maxgetitem = 1000000
 
     def _id_types(self):
@@ -480,36 +215,20 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         bool
             Whether the table exists after the call.
 
+        See Also
+        --------
+        rotifer.db.clickhouse.core.BaseClickHouseCursor.create : the generic form
+
         Examples
         --------
         >>> from rotifer.db.uniprot import clickhouse as ruch
         >>> ic = ruch.IdMappingCursor(release='2026_01')  # doctest: +SKIP
         >>> ic.create()  # doctest: +SKIP
         """
-        sqlfile = rcf.findDataFiles(__name__ + ".idmapping.sql")
-        if not sqlfile:
-            logger.error("Could not find the SQL file describing the idmapping table")
-            return False
-        sql = open(sqlfile, "rt").read()
-        sql = sql.format(
-            database = self.database,
-            table = self.table,
+        return super().create(
+            replace = replace,
             release = release if not isinstance(release, types.NoneType) else self.release,
         )
-
-        if replace:
-            self.command(f'DROP TABLE IF EXISTS {self.qualified_name}')
-
-        # Comments are stripped before the statements are split apart,
-        # so that a semicolon inside a comment is not mistaken for the
-        # end of a statement
-        body = "\n".join([ x for x in sql.split("\n") if not x.strip().startswith("--") ])
-        for statement in body.split(";"):
-            if not statement.strip():
-                continue
-            self.command(statement)
-
-        return self.has_table()
 
     def load(self, source, release=None, method='auto', chunksize=config['chunksize'], executable=config['executable']):
         """
@@ -598,29 +317,13 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
                 logger.warn(f'Loading with method={method}')
 
         if method == 'client':
-            insert = (
-                f'INSERT INTO {self.qualified_name} '
-                f"SELECT c1, c2, c3, '{release}' "
-                f"FROM input('c1 String, c2 String, c3 String') FORMAT TabSeparated"
+            self.load_file(
+                reader.datafile,
+                select = f"c1, c2, c3, '{release}'",
+                columns = 'c1 String, c2 String, c3 String',
+                compressed = reader.compressed,
+                executable = executable,
             )
-            command = [
-                executable, "client",
-                "--host", str(self.host),
-                "--user", str(self.user),
-                "--query", insert,
-            ]
-            if self.password:
-                command += ["--password", str(self.password)]
-            reading = f'zcat -f -- {reader.datafile}' if reader.compressed else f'cat -- {reader.datafile}'
-            if self.progress:
-                logger.warn(f'Loading {reader.datafile} into {self.qualified_name}, release {release}...')
-            pipeline = subprocess.run(
-                ["/bin/sh","-c", f'{reading} | ' + " ".join([ f"'{x}'" if " " in str(x) else str(x) for x in command ])],
-                capture_output = True,
-                text = True,
-            )
-            if pipeline.returncode != 0:
-                logger.error(f'Failed to load {reader.datafile}: {pipeline.stderr}')
 
         elif method == 'python':
             if self.progress:
@@ -652,16 +355,10 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             True when the table does not exist, or holds no matching
             row.
         """
-        if not self.has_table():
-            return True
         release = release if not isinstance(release, types.NoneType) else self.release
         if release:
-            found = self.query(
-                f'SELECT count() AS n FROM {self.qualified_name} WHERE release = {{release:String}}',
-                parameters = {'release': release},
-            )
-            return not int(found.n.iloc[0])
-        return not self.count()
+            return super().is_empty(where="release = %(release)s", parameters={'release': release})
+        return super().is_empty()
 
     def insert(self, data, release=None):
         """
@@ -683,7 +380,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         # release may have been cleared to None to widen queries, but
         # the column is a String and never takes None
         data['release'] = (release if not isinstance(release, types.NoneType) else self.release) or ''
-        self.client.insert_df(table=self.table, df=data, database=self.database)
+        super().insert(data)
 
     def drop_release(self, release):
         """
@@ -697,7 +394,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         release : str
             The release to remove, e.g. ``2024_06``.
         """
-        self.command(f'ALTER TABLE {self.qualified_name} DROP PARTITION {{release:String}}', parameters={'release': release})
+        self.drop_partition(release)
 
     def __getitem__(self, accessions):
         """
