@@ -149,7 +149,7 @@ class BaseCursor:
         -------
         A set of strings.
         """
-        return NotImplementedError(f'Method getids() must be implemented by descendants')
+        raise NotImplementedError(f'Method getids() must be implemented by descendants')
 
     def __getitem__(self, accession, *args, **kwargs):
         """
