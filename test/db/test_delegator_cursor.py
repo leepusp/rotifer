@@ -246,3 +246,104 @@ def test_fetchall_consumes_sequential_fallback():
 
     assert set(result) == {"A", "B"}
     assert cursor.missing_ids() == set()
+
+
+# ---------------------------------------------------------------------------
+# Shared attribute propagation
+# ---------------------------------------------------------------------------
+
+
+class AttributeCursor(BaseCursor):
+    """Backend exposing attributes used to test delegator propagation."""
+
+    def __init__(
+        self,
+        shared="backend-default",
+        nullable="backend-nullable-default",
+    ):
+        super().__init__(progress=False)
+        self.shared = shared
+        self.nullable = nullable
+        self.local_only = "backend-local"
+
+
+class AttributeDelegator(MemoryDelegator):
+    """In-memory delegator exposing the generic shared-attribute policy."""
+
+    _shared_attributes = [
+        "shared",
+        "nullable",
+    ]
+
+    _nullable_attributes = frozenset({
+        "nullable",
+    })
+
+
+def make_attribute_delegator():
+    backend = AttributeCursor()
+
+    cursor = AttributeDelegator(
+        backends={
+            "reader": backend,
+        },
+        readers=["reader"],
+    )
+
+    return cursor, backend
+
+
+def test_shared_attribute_is_propagated_to_backend():
+    cursor, backend = make_attribute_delegator()
+
+    cursor.shared = "updated"
+
+    assert cursor.shared == "updated"
+    assert backend.shared == "updated"
+
+
+def test_non_nullable_none_preserves_backend_value():
+    cursor, backend = make_attribute_delegator()
+
+    original = backend.shared
+
+    cursor.shared = None
+
+    assert cursor.shared is None
+    assert backend.shared == original
+
+
+def test_nullable_none_is_propagated_to_backend():
+    cursor, backend = make_attribute_delegator()
+
+    cursor.nullable = None
+
+    assert cursor.nullable is None
+    assert backend.nullable is None
+
+
+def test_non_shared_attribute_is_not_propagated():
+    cursor, backend = make_attribute_delegator()
+
+    cursor.local_only = "delegator-value"
+
+    assert cursor.local_only == "delegator-value"
+    assert backend.local_only == "backend-local"
+
+
+def test_shared_attribute_propagates_to_all_backends():
+    first = AttributeCursor()
+    second = AttributeCursor()
+
+    cursor = AttributeDelegator(
+        backends={
+            "first": first,
+            "second": second,
+        },
+        readers=["first", "second"],
+    )
+
+    cursor.shared = "common"
+
+    assert first.shared == "common"
+    assert second.shared == "common"
