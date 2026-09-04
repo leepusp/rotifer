@@ -59,7 +59,7 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
         return cursor_modules
 
     def reset_cursors(self):
-        myname = str(type(self)).split("'")[1].split(".")[-1]
+        myname = type(self).__name__
         if hasattr(self,"_shared_attributes"):
             kwargs = { x: getattr(self,x) for x in self._shared_attributes if not isinstance(getattr(self,x),types.NoneType) }
         else:
