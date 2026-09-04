@@ -27,7 +27,7 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
         # Check configuration
         try:
             myconfig = getattr(mymodule,'config')
-        except:
+        except AttributeError:
             error = f'Module {mymodule.__name__} has no configuration! Blame the developer!'
             logger.error(error)
             raise ValueError(f'No attribute "config" in module {mymodule.__name__}')
@@ -52,9 +52,11 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
                 raise ValueError(error)
             try:
                 cursor_modules[module] = importlib.import_module(module_name)
-            except:
-                logger.error(f'Unable to load module {module_name}: %s.', exc_info=1)
-                raise ImportError(f'Unable to load module {module_name}')
+            except ImportError as exc:
+                logger.error(f'Unable to load module {module_name}', exc_info=1)
+                raise ImportError(
+                    f'Unable to load module {module_name}'
+                ) from exc
 
         return cursor_modules
 

@@ -215,3 +215,85 @@ def test_cursor_modules_reports_backend_import_failure(
         match="Unable to load module fake.backend",
     ):
         cursor._cursor_modules
+
+
+# ---------------------------------------------------------------------------
+# Unexpected configuration/backend failures must not be masked
+# ---------------------------------------------------------------------------
+
+
+def test_cursor_modules_does_not_mask_config_lookup_runtime_error(
+    monkeypatch,
+):
+    test_module = sys.modules[__name__]
+
+    monkeypatch.delattr(
+        test_module,
+        "config",
+        raising=False,
+    )
+
+    def fail_module_attribute_lookup(name):
+        if name == "config":
+            raise RuntimeError(
+                "configuration lookup failed internally"
+            )
+
+        raise AttributeError(name)
+
+    monkeypatch.setattr(
+        test_module,
+        "__getattr__",
+        fail_module_attribute_lookup,
+        raising=False,
+    )
+
+    cursor = ConfigurationDelegator(
+        progress=False,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="configuration lookup failed internally",
+    ):
+        cursor._cursor_modules
+
+
+def test_cursor_modules_does_not_mask_unexpected_import_error(
+    monkeypatch,
+):
+    test_module = sys.modules[__name__]
+
+    monkeypatch.setattr(
+        test_module,
+        "config",
+        {
+            "readers": {
+                "reader": "fake.backend",
+            },
+            "writers": {},
+        },
+        raising=False,
+    )
+
+    def fail_import(name):
+        raise RuntimeError(
+            "backend initialization failed internally"
+        )
+
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        fail_import,
+    )
+
+    cursor = ConfigurationDelegator(
+        readers=["reader"],
+        progress=False,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="backend initialization failed internally",
+    ):
+        cursor._cursor_modules
