@@ -203,6 +203,10 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 todo = todo - done
                 yield result
 
+            # A backend may finish without yielding any result while still
+            # recording unresolved accessions in its missing registry.
+            self.update_missing(data=cursor._missing)
+
     def fetchall(self, accessions, *args, **kwargs):
         """
         Fetch data for all accessions.
