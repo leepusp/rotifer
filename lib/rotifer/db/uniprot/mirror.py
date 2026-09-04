@@ -840,12 +840,12 @@ class MappingCursor(IdMappingCursor):
 
     Parameters
     ----------
-    from_type : str
+    source : str
         Name of the database the queried identifiers belong to, as
         written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
         ``UniProtKB-AC`` to start from UniProtKB accessions
         themselves, which skips the first pass.
-    to_type : str
+    target : str
         Name of the database to translate into, e.g. ``RefSeq``. Use
         ``UniProtKB-AC`` to translate into UniProtKB accessions,
         which skips the second pass.
@@ -871,20 +871,20 @@ class MappingCursor(IdMappingCursor):
     Examples
     --------
     >>> from rotifer.db.uniprot import mirror as rum
-    >>> mc = rum.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
+    >>> mc = rum.MappingCursor(source='EMBL-CDS', target='RefSeq')  # doctest: +SKIP
     >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
     """
 
     _columns = ['from','accession','to']
 
-    def __init__(self, from_type, to_type, path=config['local_database_path'],
+    def __init__(self, source, target, path=config['local_database_path'],
                  threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
         kwargs.pop('column', None)
         kwargs.pop('id_type', None)
         super().__init__(path=path, column='from', id_type=None, threads=threads,
                          engine=engine, progress=progress, *args, **kwargs)
-        self.from_type = from_type
-        self.to_type = to_type
+        self.source = source
+        self.target = target
 
     def _rows(self, targets, column):
         """
@@ -915,7 +915,7 @@ class MappingCursor(IdMappingCursor):
         Parameters
         ----------
         accessions : str or iterable of str
-            Identifiers of the database named by ``from_type``.
+            Identifiers of the database named by ``source``.
 
         Returns
         -------
@@ -932,24 +932,24 @@ class MappingCursor(IdMappingCursor):
             return self.empty()
 
         # First pass: the UniProtKB accessions of the queried identifiers
-        if self.from_type == "UniProtKB-AC":
+        if self.source == "UniProtKB-AC":
             pairs = pd.DataFrame({'from': sorted(targets), 'accession': sorted(targets)})
         else:
             if self.progress:
-                logger.warn(f'Scanning {self.datafile} for {len(targets)} {self.from_type} identifier(s)...')
+                logger.warn(f'Scanning {self.datafile} for {len(targets)} {self.source} identifier(s)...')
             found = self._rows(targets, 'id')
-            found = found[(found.id_type == self.from_type) & found.id.isin(targets)]
+            found = found[(found.id_type == self.source) & found.id.isin(targets)]
             pairs = found[['id','accession']].rename(columns={'id':'from'}).drop_duplicates()
 
         # Second pass: what those accessions are called in the target database
-        if self.to_type == "UniProtKB-AC":
+        if self.target == "UniProtKB-AC":
             result = pairs.assign(to=pairs.accession)
         else:
             accessions_found = set(pairs.accession)
             if self.progress:
-                logger.warn(f'Scanning {self.datafile} for the {self.to_type} identifiers of {len(accessions_found)} accession(s)...')
+                logger.warn(f'Scanning {self.datafile} for the {self.target} identifiers of {len(accessions_found)} accession(s)...')
             found = self._rows(accessions_found, 'accession')
-            found = found[found.id_type == self.to_type]
+            found = found[found.id_type == self.target]
             result = pairs.merge(
                 found[['accession','id']].rename(columns={'id':'to'}),
                 on = 'accession',
@@ -960,7 +960,7 @@ class MappingCursor(IdMappingCursor):
 
         missing = targets.difference(self.getids(result))
         if missing:
-            self.update_missing(missing, error=f'No {self.to_type} identifier found for this {self.from_type} identifier', retry=False)
+            self.update_missing(missing, error=f'No {self.target} identifier found for this {self.source} identifier', retry=False)
 
         return result
 

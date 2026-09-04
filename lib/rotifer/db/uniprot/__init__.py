@@ -645,11 +645,11 @@ class MappingCursor(BaseUniProtDelegatorCursor):
 
     Parameters
     ----------
-    from_type : str
+    source : str
         Name of the database the queried identifiers belong to, as
         written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
         ``UniProtKB-AC`` to start from UniProtKB accessions.
-    to_type : str
+    target : str
         Name of the database to translate into, e.g. ``RefSeq``. Use
         ``UniProtKB-AC`` to translate into UniProtKB accessions.
     readers : list of str, default ``['clickhouse', 'mirror']``
@@ -709,7 +709,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
     Examples
     --------
     >>> from rotifer.db import uniprot
-    >>> mc = uniprot.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
+    >>> mc = uniprot.MappingCursor(source='EMBL-CDS', target='RefSeq')  # doctest: +SKIP
     >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
     """
 
@@ -718,8 +718,8 @@ class MappingCursor(BaseUniProtDelegatorCursor):
 
     def __init__(
             self,
-            from_type,
-            to_type,
+            source,
+            target,
             readers = ['clickhouse','mirror'],
             writers = [],
             release = None,
@@ -743,9 +743,9 @@ class MappingCursor(BaseUniProtDelegatorCursor):
                 'match the layout of the storage table. Cache with IdMappingCursor, or load '
                 'the whole release with load().'
             )
-        self._shared_attributes = ['progress','from_type','to_type','release','path','engine','host','port','dbname','table','batch_size','threads']
-        self.from_type = from_type
-        self.to_type = to_type
+        self._shared_attributes = ['progress','source','target','release','path','engine','host','port','dbname','table','batch_size','threads']
+        self.source = source
+        self.target = target
         self.release = release
         self.path = local_database_path
         self.engine = engine

@@ -230,13 +230,13 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             release = release if not isinstance(release, types.NoneType) else self.release,
         )
 
-    def load(self, source, release=None, method='auto', chunksize=config['chunksize'], executable=config['executable']):
+    def load(self, mirror, release=None, method='auto', chunksize=config['chunksize'], executable=config['executable']):
         """
         Load a copy of ``idmapping.dat`` into the table.
 
         Parameters
         ----------
-        source : str or rotifer.db.uniprot.mirror.IdMappingCursor
+        mirror : str or rotifer.db.uniprot.mirror.IdMappingCursor
             The flat file to load: either its path, the root of a
             local UniProt mirror, or a cursor already pointing at one.
         release : str, optional
@@ -299,12 +299,12 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         if isinstance(release, types.NoneType):
             release = self.release
-        if isinstance(source, rum.IdMappingCursor):
-            reader = source
+        if isinstance(mirror, rum.IdMappingCursor):
+            reader = mirror
         else:
-            reader = rum.IdMappingCursor(path=source, progress=self.progress)
+            reader = rum.IdMappingCursor(path=mirror, progress=self.progress)
         if isinstance(reader.datafile, types.NoneType):
-            logger.error(f'No idmapping file found for {source}')
+            logger.error(f'No idmapping file found for {mirror}')
             return self.count()
 
         if not self.has_table():
@@ -565,19 +565,19 @@ class MappingCursor(BaseIdMappingCursor):
     Translate identifiers from one database into another.
 
     This is the query UniProt's online ID mapping service answers:
-    the identifiers of `from_type` are looked up in the table, and
-    every identifier of `to_type` sharing their UniProtKB accession is
+    the identifiers of `source` are looked up in the table, and
+    every identifier of `target` sharing their UniProtKB accession is
     returned. The two lookups are done in one server side join, so the
     intermediate accessions never travel over the network.
 
     Parameters
     ----------
-    from_type : str
+    source : str
         Name of the database the queried identifiers belong to, as
         written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
         ``UniProtKB-AC`` to start from UniProtKB accessions
         themselves.
-    to_type : str
+    target : str
         Name of the database to translate into, e.g. ``RefSeq``. Use
         ``UniProtKB-AC`` to translate into UniProtKB accessions.
     release : str, optional
@@ -603,17 +603,17 @@ class MappingCursor(BaseIdMappingCursor):
     Map GenBank CDS identifiers to RefSeq proteins:
 
     >>> from rotifer.db.uniprot import clickhouse as ruch
-    >>> mc = ruch.MappingCursor(from_type='EMBL-CDS', to_type='RefSeq')  # doctest: +SKIP
+    >>> mc = ruch.MappingCursor(source='EMBL-CDS', target='RefSeq')  # doctest: +SKIP
     >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
     """
 
     _columns = ['from','accession','to']
     column = 'from'
 
-    def __init__(self, from_type, to_type, *args, **kwargs):
+    def __init__(self, source, target, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.from_type = from_type
-        self.to_type = to_type
+        self.source = source
+        self.target = target
 
     def __getitem__(self, accessions):
         """
@@ -622,7 +622,7 @@ class MappingCursor(BaseIdMappingCursor):
         Parameters
         ----------
         accessions : str or iterable of str
-            Identifiers of the database named by ``from_type``.
+            Identifiers of the database named by ``source``.
 
         Returns
         -------
@@ -630,7 +630,7 @@ class MappingCursor(BaseIdMappingCursor):
             Columns ``from``, ``accession`` and ``to``: the queried
             identifier, the UniProtKB accession that links it to the
             result, and the identifier in the database named by
-            ``to_type``. Identifiers with no translation are
+            ``target``. Identifiers with no translation are
             registered in
             :attr:`~rotifer.db.core.BaseCursor.missing`.
         """
@@ -639,12 +639,12 @@ class MappingCursor(BaseIdMappingCursor):
             return self.empty()
 
         # UniProtKB accessions are the join key, not rows of the table
-        source = "accession" if self.from_type == "UniProtKB-AC" else "id"
-        target = "accession" if self.to_type == "UniProtKB-AC" else "id"
+        source_column = "accession" if self.source == "UniProtKB-AC" else "id"
+        target_column = "accession" if self.target == "UniProtKB-AC" else "id"
 
         stack = []
         try:
-            stack = self._mapping_batches(targets, source, target)
+            stack = self._mapping_batches(targets, source_column, target_column)
         except Exception as error:
             logger.error(f'Query to {self.qualified_name} at {self.host} failed: {error}')
             self.update_missing(targets, error=f'ClickHouse query failed: {error}', retry=True)
@@ -654,11 +654,11 @@ class MappingCursor(BaseIdMappingCursor):
 
         missing = targets.difference(self.getids(df))
         if missing:
-            self.update_missing(missing, error=f'No {self.to_type} identifier found for this {self.from_type} identifier', retry=False)
+            self.update_missing(missing, error=f'No {self.target} identifier found for this {self.source} identifier', retry=False)
 
         return df
 
-    def _mapping_batches(self, targets, source, target):
+    def _mapping_batches(self, targets, source_column, target_column):
         """
         Run the join, one batch of identifiers at a time.
 
@@ -666,7 +666,7 @@ class MappingCursor(BaseIdMappingCursor):
         ----------
         targets : set of str
             Identifiers to translate.
-        source, target : str
+        source_column, target_column : str
             Names of the columns holding the queried and the returned
             identifiers, either ``accession`` or ``id``.
 
@@ -680,17 +680,17 @@ class MappingCursor(BaseIdMappingCursor):
             # table and let the join refer to it
             table = self.submit(targets)
             try:
-                return [ self._mapping_query(f'f.{source} IN (SELECT id FROM {table})', {}, source, target) ]
+                return [ self._mapping_query(f'f.{source_column} IN (SELECT id FROM {table})', {}, source_column, target_column) ]
             finally:
                 self.cleanup()
 
         stack = []
         for batch in self._batches(targets, self.batch_size):
             parameters = {'targets': tuple(batch)}
-            stack.append(self._mapping_query(f'f.{source} IN %(targets)s', parameters, source, target))
+            stack.append(self._mapping_query(f'f.{source_column} IN %(targets)s', parameters, source_column, target_column))
         return stack
 
-    def _mapping_query(self, restriction, parameters, source, target):
+    def _mapping_query(self, restriction, parameters, source_column, target_column):
         """
         Run the join for one set of queried identifiers.
 
@@ -703,7 +703,7 @@ class MappingCursor(BaseIdMappingCursor):
         parameters : dict
             Query parameters, extended in place with the values bound
             by the conditions this method adds.
-        source, target : str
+        source_column, target_column : str
             Names of the columns holding the queried and the returned
             identifiers, either ``accession`` or ``id``.
 
@@ -713,20 +713,20 @@ class MappingCursor(BaseIdMappingCursor):
             Columns ``from``, ``accession`` and ``to``.
         """
         left = [restriction]
-        if source == "id":
-            left.append("f.id_type = %(from_type)s")
-            parameters['from_type'] = self.from_type
+        if source_column == "id":
+            left.append("f.id_type = %(source)s")
+            parameters['source'] = self.source
         right = []
-        if target == "id":
-            right.append("t.id_type = %(to_type)s")
-            parameters['to_type'] = self.to_type
+        if target_column == "id":
+            right.append("t.id_type = %(target)s")
+            parameters['target'] = self.target
         if self.release:
             left.append("f.release = %(release)s")
             right.append("t.release = %(release)s")
             parameters['release'] = self.release
         where = " AND ".join(left + right)
         return self.query(
-            f'SELECT DISTINCT f.{source} AS `from`, f.accession AS accession, t.{target} AS `to`'
+            f'SELECT DISTINCT f.{source_column} AS `from`, f.accession AS accession, t.{target_column} AS `to`'
             f' FROM {self.qualified_name} AS f'
             f' INNER JOIN {self.qualified_name} AS t ON f.accession = t.accession'
             f' WHERE {where}'
