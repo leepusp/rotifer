@@ -54,10 +54,10 @@ neighborhood_figure(df, ...) -> pandas.DataFrame
     Builds the per-block neighborhood figure (one row per block, gene
     detail) and writes it to `output_file`.
 genome_overview_fig(df, ...) -> pandas.DataFrame
-    Builds a genome-wide companion figure: one horizontal track per
-    contig, with every block marked at its actual genomic position --
-    "where are these neighborhoods", as opposed to neighborhood_figure's
-    "what's in each neighborhood".
+    Builds a genome-wide companion figure: every contig wrapped over
+    stacked lines of one megabase each, with every block marked at its
+    actual genomic position -- "where are these neighborhoods", as
+    opposed to neighborhood_figure's "what's in each neighborhood".
 build_html_report(df, ...) -> str
     Runs both of the above and assembles a single, self-contained HTML
     page with the genome overview, the neighborhood figure, and the
@@ -109,6 +109,10 @@ pipeline.
     neighborhood_figure            main neighborhood-figure orchestrator
     compute_block_extents         one row per block: contig, span, ref query
     assign_label_lanes            stagger overlapping labels into lanes
+    resolve_contig_length         a contig's length, with a fallback
+    contig_segments               cut a contig into the 1 Mb windows the
+                                  overview draws one per line
+    blocks_in_segment             the blocks overlapping one such window
     build_genome_overview_svg     static genome-wide SVG from extents
     build_genome_overview_interactive_html  zoomable overview (used in report)
     genome_overview_fig           genome-wide-figure orchestrator
@@ -210,6 +214,14 @@ FALLBACK_COLOR_KEY = 'Other'
 # `resolve_logo`, so `header_logo` accepts either a path (with `~`
 # expanded) or ready-to-embed SVG markup.
 SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
+
+# Bases drawn per line in the genome-wide overview: every contig is cut
+# into windows of this size and wrapped over as many lines as it needs
+# (a 5 Mb chromosome becomes five 1 Mb lines), which keeps one and the
+# same bp-per-pixel scale across every line and every contig. See
+# `contig_segments`; pass `segment_length=None` to draw one line per
+# contig instead, each stretched to its own length.
+DEFAULT_SEGMENT_LENGTH = 1_000_000
 
 # ---------------------------------------------------------------------------
 # Typography
@@ -1909,27 +1921,117 @@ def assign_label_lanes(x_positions, min_gap=280, n_lanes=3):
     return lane_of
 
 
+def resolve_contig_length(contig_blocks):
+    """
+    Best available total length for the contig described by
+    `contig_blocks` (the rows of `compute_block_extents` sharing one
+    nucleotide): its `contig_length`, or -- when that is missing or
+    nonsensical -- the furthest block end seen on it.
+    """
+    contig_length = contig_blocks['contig_length'].iloc[0]
+    if not contig_length or pd.isna(contig_length) or contig_length <= 0:
+        contig_length = contig_blocks['block_end'].max()
+    # a contig with no usable length or coordinates at all still has to
+    # draw *something* -- one line, of nominal length
+    if not contig_length or pd.isna(contig_length) or contig_length <= 0:
+        contig_length = 1
+    return float(contig_length)
+
+
+def contig_segments(contig_length, segment_length=DEFAULT_SEGMENT_LENGTH):
+    """
+    Cut a contig into the consecutive windows the overview draws one
+    per line -- `segment_length` bp each, the last one being whatever
+    is left over.
+
+    This is what turns a 5 Mb chromosome into five stacked 1 Mb lines
+    instead of one squeezed track: every line covers the same number of
+    bases, so the bp-per-pixel scale is identical on every line of
+    every contig and two markers the same width really are the same
+    length.
+
+    Parameters
+    ----------
+    contig_length : float
+    segment_length : float or None
+        Bases per line. `None`/0 (or a negative value) means "don't
+        split" -- a single window covering the whole contig, i.e. the
+        one-track-per-contig layout this figure had before.
+
+    Returns
+    -------
+    list[tuple[float, float]]
+        `[(start, end), ...]`, half-open, in ascending order; always at
+        least one window.
+    """
+    contig_length = float(contig_length or 0)
+    if contig_length <= 0:
+        contig_length = 1.0
+    if not segment_length or segment_length <= 0:
+        return [(0.0, contig_length)]
+    n_segments = max(1, int(math.ceil(contig_length / float(segment_length))))
+    return [(i * float(segment_length), min((i + 1) * float(segment_length), contig_length))
+            for i in range(n_segments)]
+
+
+def blocks_in_segment(contig_blocks, seg_start, seg_end):
+    """
+    The rows of `contig_blocks` whose genomic span overlaps the
+    half-open window `[seg_start, seg_end)`. A block straddling a
+    segment boundary comes back for both segments -- each line draws
+    its own clipped piece of it.
+    """
+    spans = contig_blocks[['block_start', 'block_end']].astype(float)
+    keep = (spans['block_end'] >= seg_start) & (spans['block_start'] < seg_end)
+    return contig_blocks[keep.fillna(False).astype(bool)]
+
+
+def _format_bp_short(value):
+    """Compact bp/kb/Mb rendering of a length, e.g. `5.12 Mb`."""
+    value = float(value)
+    if value >= 1e6:
+        return f'{value / 1e6:.2f} Mb'
+    if value >= 1e3:
+        return f'{value / 1e3:.0f} kb'
+    return f'{value:.0f} bp'
+
+
+def _format_bp_range(start, end):
+    """
+    A segment's coordinate range, both ends in whichever unit suits its
+    upper bound, e.g. `2.00-3.00 Mb`.
+    """
+    if end >= 1e6:
+        return f'{start / 1e6:.2f}\u2013{end / 1e6:.2f} Mb'
+    if end >= 1e3:
+        return f'{start / 1e3:.0f}\u2013{end / 1e3:.0f} kb'
+    return f'{start:.0f}\u2013{end:.0f} bp'
+
+
 def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b',
                                marker_color='#2a6f77', track_width=760, left_margin=190,
                                top_margin=30, row_height=92, track_height=10,
                                font_size=11, label_lanes=3, label_lane_gap=18,
-                               max_labels_per_track=25):
+                               max_labels_per_track=25,
+                               segment_length=DEFAULT_SEGMENT_LENGTH):
     """
     Render a *static* SVG showing where every block/neighborhood sits
-    along its nucleotide (contig), one horizontal track per distinct
-    nucleotide.
+    along its nucleotide (contig).
+
+    Each contig is drawn wrapped over as many lines as it needs, one
+    line per `segment_length` bases (1 Mb by default) -- so a 5 Mb
+    chromosome is five stacked lines and a 0.3 Mb plasmid is a single
+    short one. A full line of sequence always takes `track_width`
+    pixels, which means the scale is the same everywhere in the figure:
+    a marker twice as wide really is twice as long, on any line and on
+    any contig. Pass `segment_length=None` for the old behavior (one
+    line per contig, each stretched to its own length).
 
     This is the standalone/fallback renderer (what `genome_overview_fig`
     writes to a file). For a crowded genome the interactive version in
     `build_html_report` is far more usable -- this static one can only
     fit so many text labels before they collide, which is exactly why
     `max_labels_per_track` exists.
-
-    Each track is scaled independently to its own `contig_length` -- a
-    50 kb plasmid and a 9 Mb chromosome both draw at the same pixel
-    width -- since the point of this figure is "where is this block
-    relative to its own contig", not a comparison of absolute distance
-    across contigs of very different sizes.
 
     Parameters
     ----------
@@ -1945,17 +2047,21 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
     marker_color : str
         Fallback marker fill.
     track_width, left_margin, top_margin, row_height, track_height : float
-        Layout, in SVG user units (effectively pixels).
+        Layout, in SVG user units (effectively pixels). `track_width` is
+        the width of one *full* segment, not of a whole contig.
     font_size : int
     label_lanes, label_lane_gap : int, float
-        Up to this many staggered rows are used above each track for
+        Up to this many staggered rows are used above each line for
         block labels; see `assign_label_lanes`. Increase `row_height`
-        if labels still collide with the row above.
+        if labels still collide with the line above.
     max_labels_per_track : int
-        If a track has more than this many blocks, its text labels are
-        omitted entirely (markers are still drawn) -- a crowded track's
-        labels just turn into noise, as in a whole-chromosome view with
-        hundreds of hits. Set very high to always label.
+        If a single line carries more than this many blocks, its text
+        labels are omitted entirely (markers are still drawn) -- a
+        crowded line's labels just turn into noise. Set very high to
+        always label.
+    segment_length : float or None
+        Bases drawn per line (default 1 Mb); `None` draws each contig
+        on one line scaled to its own length. See `contig_segments`.
 
     Returns
     -------
@@ -1964,9 +2070,59 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
     """
     color_map = color_map or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide'])) if not extents.empty else []
+    track_x0 = left_margin
+    # `row_height` is the height of a *fully labelled* line; a line that
+    # ends up using fewer label lanes (most of them, once a chromosome
+    # is cut into megabases) is that much shorter.
+    base_row_height = max(28.0, row_height - label_lanes * label_lane_gap)
+    group_gap = 12.0
+
+    # Lay every line out first: a contig contributes one per segment,
+    # and each line's height depends on how many label lanes it needs,
+    # so the figure's height only follows from the finished list.
+    rows = []
+    for nucleotide in nucleotides:
+        contig_blocks = extents[extents['nucleotide'] == nucleotide]
+        contig_length = resolve_contig_length(contig_blocks)
+        segments = contig_segments(contig_length, segment_length)
+        # a full line of sequence is always `track_width` wide, so the
+        # bp-per-pixel scale is identical everywhere in the figure; a
+        # short last segment simply draws a stub of a line
+        full_span = float(segment_length) if (segment_length and segment_length > 0) else contig_length
+        full_span = full_span or 1.0
+
+        for seg_index, (seg_start, seg_end) in enumerate(segments):
+            seg_blocks = blocks_in_segment(contig_blocks, seg_start, seg_end)
+
+            def to_x(pos, _start=seg_start, _span=full_span):
+                return track_x0 + ((pos - _start) / _span) * track_width
+
+            # a block is labelled on the line holding its midpoint, so
+            # one cut in two by a segment boundary is still named once
+            labelled = []
+            if len(seg_blocks) <= max_labels_per_track:
+                for _, block in seg_blocks.iterrows():
+                    mid = (float(block['block_start']) + float(block['block_end'])) / 2
+                    if seg_start <= mid < seg_end:
+                        labelled.append((block, to_x(mid)))
+            lanes = assign_label_lanes([x for _, x in labelled],
+                                       min_gap=label_lane_gap * 12, n_lanes=label_lanes)
+            used_lanes = max(lanes) + 1 if lanes else 0
+            lead = group_gap if (seg_index == 0 and rows) else 0.0
+
+            rows.append(dict(
+                nucleotide=nucleotide, contig_length=contig_length,
+                seg_start=seg_start, seg_end=seg_end,
+                seg_index=seg_index, n_segments=len(segments),
+                blocks=seg_blocks, to_x=to_x,
+                seg_width=track_width * (seg_end - seg_start) / full_span,
+                labels=list(zip(labelled, lanes)), lead=lead,
+                height=lead + used_lanes * label_lane_gap + base_row_height,
+                lane_offset=lead + used_lanes * label_lane_gap,
+            ))
 
     fig_width = left_margin + track_width + 40
-    fig_height = top_margin + len(nucleotides) * row_height + 20
+    fig_height = top_margin + sum(row['height'] for row in rows) + 20
 
     parts = [
         f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
@@ -1974,50 +2130,55 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
         f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
     ]
 
-    for row_i, nucleotide in enumerate(nucleotides):
-        row_blocks = extents[extents['nucleotide'] == nucleotide]
-        contig_length = row_blocks['contig_length'].iloc[0]
-        if not contig_length or pd.isna(contig_length) or contig_length <= 0:
-            contig_length = max(row_blocks['block_end'].max(), 1)
+    y = top_margin
+    for row in rows:
+        to_x = row['to_x']
+        seg_start, seg_end = row['seg_start'], row['seg_end']
+        is_first = row['seg_index'] == 0
+        is_wrapped = row['n_segments'] > 1
+        track_y = y + row['lane_offset']
 
-        track_y = top_margin + row_i * row_height + label_lanes * label_lane_gap
-        track_x0 = left_margin
-
-        def to_x(pos, _x0=track_x0, _len=contig_length):
-            return _x0 + (pos / _len) * track_width
+        # hairline between contigs, so a chromosome's stack of lines
+        # reads as one thing
+        if row['lead']:
+            parts.append(
+                f'<line x1="20" y1="{y + row["lead"] / 2:.1f}" x2="{fig_width - 20:.0f}" '
+                f'y2="{y + row["lead"] / 2:.1f}" stroke="#eee" stroke-width="1"/>'
+            )
 
         parts.append(
             f'<text x="{track_x0 - 10:.0f}" y="{track_y + track_height / 2 + 4:.0f}" '
-            f'text-anchor="end" fill="#222">{html.escape(str(nucleotide))}</text>'
+            f'text-anchor="end" fill="{"#222" if is_first else "#999"}">'
+            f'{html.escape(str(row["nucleotide"]))}</text>'
         )
+        if is_wrapped:
+            sub_label = _format_bp_range(seg_start, seg_end)
+            if is_first:
+                sub_label += f' of {_format_bp_short(row["contig_length"])}'
+        else:
+            sub_label = f'{row["contig_length"]:,.0f} bp'
         parts.append(
             f'<text x="{track_x0 - 10:.0f}" y="{track_y + track_height / 2 + 4 + font_size + 2:.0f}" '
-            f'text-anchor="end" fill="#888" font-size="{font_size - 2}">{contig_length:,.0f} bp</text>'
+            f'text-anchor="end" fill="#888" font-size="{font_size - 2}">{html.escape(sub_label)}</text>'
         )
         parts.append(
-            f'<rect x="{track_x0:.1f}" y="{track_y:.1f}" width="{track_width:.1f}" height="{track_height:.1f}" '
-            f'fill="#e3e3e3" stroke="#999" stroke-width="0.5" rx="2"/>'
+            f'<rect x="{track_x0:.1f}" y="{track_y:.1f}" width="{row["seg_width"]:.1f}" '
+            f'height="{track_height:.1f}" fill="#e3e3e3" stroke="#999" stroke-width="0.5" rx="2"/>'
         )
 
-        show_labels = len(row_blocks) <= max_labels_per_track
-        mid_x = [to_x((b['block_start'] + b['block_end']) / 2) for _, b in row_blocks.iterrows()]
-        lanes = assign_label_lanes(mid_x, min_gap=label_lane_gap * 12, n_lanes=label_lanes)
-
-        for (_, block), x_mid, lane in zip(row_blocks.iterrows(), mid_x, lanes):
-            x0 = to_x(block['block_start'])
-            x1 = to_x(block['block_end'])
+        for _, block in row['blocks'].iterrows():
+            x0 = to_x(max(float(block['block_start']), seg_start))
+            x1 = to_x(min(float(block['block_end']), seg_end))
             marker_w = max(4.0, x1 - x0)
             fill = resolve_gene_color(block, color_map, default=marker_color,
                                       keys=('query_domain', 'query_domain_raw'))
-
             parts.append(
                 f'<rect x="{x0:.1f}" y="{track_y - 3:.1f}" width="{marker_w:.1f}" '
                 f'height="{track_height + 6:.1f}" fill="{fill}" stroke="{highlight_color}" '
                 f'stroke-width="1.2" rx="1.5"/>'
             )
 
-            if not show_labels:
-                continue
+        for (block, x_mid), lane in row['labels']:
             label_y = track_y - 10 - lane * label_lane_gap
             parts.append(
                 f'<line x1="{x_mid:.1f}" y1="{label_y + 4:.1f}" x2="{x_mid:.1f}" y2="{track_y - 3:.1f}" '
@@ -2028,6 +2189,8 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
                 f'<text x="{x_mid:.1f}" y="{label_y:.1f}" text-anchor="middle" fill="#222">'
                 f'{html.escape(str(label_text))}</text>'
             )
+
+        y += row['height']
 
     parts.append('</svg>')
     return '\n'.join(parts)
@@ -2048,12 +2211,21 @@ def _slug(text):
 def build_genome_overview_interactive_html(extents, color_map=None,
                                             marker_color='#2a6f77',
                                             highlight_color='#c0392b',
-                                            base_track_height=14):
+                                            base_track_height=14,
+                                            segment_length=DEFAULT_SEGMENT_LENGTH):
     """
     Build the *interactive* genome overview used by `build_html_report`:
-    one horizontal track per nucleotide (contig), where each block is a
-    marker positioned at its genomic span, and where the surrounding
-    report provides zoom/pan and hover tooltips.
+    each block is a marker positioned at its genomic span, and the
+    surrounding report provides zoom/pan and hover tooltips.
+
+    Every contig is drawn wrapped over consecutive lines of
+    `segment_length` bases (1 Mb by default), stacked as one group --
+    so a full line always means the same number of bases and marker
+    widths are comparable across lines and contigs. A block straddling
+    a boundary is drawn as its clipped piece on each of the two lines;
+    both pieces carry the same tooltip and block link, and both light
+    up when that block is selected. Pass `segment_length=None` for the
+    old one-line-per-contig layout.
 
     Unlike `build_genome_overview_svg`, this does NOT bake any text
     labels into the figure -- that is exactly what turns a
@@ -2063,10 +2235,11 @@ def build_genome_overview_interactive_html(extents, color_map=None,
     links it to that block's own panel in the neighborhoods section
     (click a marker to jump to it).
 
-    Each marker stores its position as fractions of its contig length
-    (`data-fs`/`data-fe`), so the report's JS can re-place every marker
-    at any zoom level without this function knowing the final pixel
-    width.
+    Each marker stores its position as fractions of a *full* segment
+    (`data-fs`/`data-fe`), and each line carries the fraction of a full
+    segment it actually covers (`data-frac` on `.go-inner`), so the
+    report's JS can re-place everything at any zoom level without this
+    function knowing the final pixel width.
 
     Parameters
     ----------
@@ -2079,6 +2252,9 @@ def build_genome_overview_interactive_html(extents, color_map=None,
         Fallback fill and the marker border color.
     base_track_height : int
         Marker/track height in pixels.
+    segment_length : float or None
+        Bases per line (default 1 Mb); `None` puts each contig on a
+        single line scaled to its own length. See `contig_segments`.
 
     Returns
     -------
@@ -2090,69 +2266,94 @@ def build_genome_overview_interactive_html(extents, color_map=None,
     color_map = color_map or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide'])) if not extents.empty else []
 
-    rows = []
+    groups = []
     for nucleotide in nucleotides:
-        row_blocks = extents[extents['nucleotide'] == nucleotide]
-        contig_length = row_blocks['contig_length'].iloc[0]
-        if not contig_length or pd.isna(contig_length) or contig_length <= 0:
-            contig_length = max(row_blocks['block_end'].max(), 1)
+        contig_blocks = extents[extents['nucleotide'] == nucleotide]
+        contig_length = resolve_contig_length(contig_blocks)
+        segments = contig_segments(contig_length, segment_length)
+        full_span = float(segment_length) if (segment_length and segment_length > 0) else contig_length
+        full_span = full_span or 1.0
 
-        markers = []
-        for _, block in row_blocks.iterrows():
-            fs = max(0.0, min(1.0, block['block_start'] / contig_length))
-            fe = max(0.0, min(1.0, block['block_end'] / contig_length))
-            if fe < fs:
-                fs, fe = fe, fs
-            fill = resolve_gene_color(block, color_map, default=marker_color,
-                                      keys=('query_domain', 'query_domain_raw'))
+        rows = []
+        for seg_index, (seg_start, seg_end) in enumerate(segments):
+            seg_blocks = blocks_in_segment(contig_blocks, seg_start, seg_end)
 
-            label = block['query_pid'] if block['query_pid'] is not None else block['ID']
-            # the real HMM match, like the neighborhood pop-ups (see
-            # `build_gene_tooltip_html`) -- not a rename_map label
-            domain = block.get('query_domain_raw') or block['query_domain'] or '-'
-            tip_html = (
-                f"<b>{html.escape(str(label))}</b>"
-                f"<span class='t-row'>block&nbsp;&middot;&nbsp;{html.escape(str(block['ID']))}</span>"
-                f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>"
-                f"<span class='t-row'>organism&nbsp;&middot;&nbsp;{html.escape(str(block['org_name']))}</span>"
-                f"<span class='t-row'>position&nbsp;&middot;&nbsp;{block['block_start']:,.0f}&ndash;{block['block_end']:,.0f} bp</span>"
-                f"<span class='t-row'>genes&nbsp;&middot;&nbsp;{int(block['n_genes'])}</span>"
+            markers = []
+            for _, block in seg_blocks.iterrows():
+                # clipped to this line, as a fraction of a full segment
+                fs = (max(float(block['block_start']), seg_start) - seg_start) / full_span
+                fe = (min(float(block['block_end']), seg_end) - seg_start) / full_span
+                fs = max(0.0, min(1.0, fs))
+                fe = max(0.0, min(1.0, fe))
+                if fe < fs:
+                    fs, fe = fe, fs
+                fill = resolve_gene_color(block, color_map, default=marker_color,
+                                          keys=('query_domain', 'query_domain_raw'))
+
+                label = block['query_pid'] if block['query_pid'] is not None else block['ID']
+                # the real HMM match, like the neighborhood pop-ups (see
+                # `build_gene_tooltip_html`) -- not a rename_map label
+                domain = block.get('query_domain_raw') or block['query_domain'] or '-'
+                tip_html = (
+                    f"<b>{html.escape(str(label))}</b>"
+                    f"<span class='t-row'>block&nbsp;&middot;&nbsp;{html.escape(str(block['ID']))}</span>"
+                    f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>"
+                    f"<span class='t-row'>organism&nbsp;&middot;&nbsp;{html.escape(str(block['org_name']))}</span>"
+                    f"<span class='t-row'>position&nbsp;&middot;&nbsp;{block['block_start']:,.0f}&ndash;{block['block_end']:,.0f} bp</span>"
+                    f"<span class='t-row'>genes&nbsp;&middot;&nbsp;{int(block['n_genes'])}</span>"
+                )
+                tip_attr = html.escape(tip_html, quote=True)
+
+                markers.append(
+                    f'<div class="go-marker" data-block="{_slug(block["ID"])}" '
+                    f'data-fs="{fs:.6f}" data-fe="{fe:.6f}" data-tip="{tip_attr}" '
+                    f'style="background:{fill};border-color:{highlight_color};"></div>'
+                )
+
+            is_first = seg_index == 0
+            is_wrapped = len(segments) > 1
+            # each line is named by the slice of the contig it covers;
+            # the contig's total length is stated once, on its first line
+            span_label = _format_bp_range(seg_start, seg_end) if is_wrapped else f'{contig_length:,.0f} bp'
+            total_label = (f'<div class="go-total">of {_format_bp_short(contig_length)}</div>'
+                           if (is_wrapped and is_first) else '')
+
+            rows.append(
+                '<div class="go-track" style="--track-h:%dpx;">'
+                '<div class="go-track-label"><div class="go-contig%s">%s</div>'
+                '<div class="go-len">%s</div>%s</div>'
+                '<div class="go-viewport"><div class="go-inner" data-frac="%.6f">'
+                '<div class="go-axis"></div>%s</div></div>'
+                '</div>' % (
+                    base_track_height,
+                    '' if is_first else ' cont',
+                    html.escape(str(nucleotide)),
+                    html.escape(span_label),
+                    total_label,
+                    (seg_end - seg_start) / full_span,
+                    ''.join(markers),
+                )
             )
-            tip_attr = html.escape(tip_html, quote=True)
 
-            markers.append(
-                f'<div class="go-marker" data-block="{_slug(block["ID"])}" '
-                f'data-fs="{fs:.6f}" data-fe="{fe:.6f}" data-tip="{tip_attr}" '
-                f'style="background:{fill};border-color:{highlight_color};"></div>'
-            )
+        groups.append(f'<div class="go-contig-group">{"".join(rows)}</div>')
 
-        rows.append(
-            '<div class="go-track" style="--track-h:%dpx;">'
-            '<div class="go-track-label"><div class="go-contig">%s</div>'
-            '<div class="go-len">%s bp</div></div>'
-            '<div class="go-viewport"><div class="go-inner"><div class="go-axis"></div>%s</div></div>'
-            '</div>' % (
-                base_track_height,
-                html.escape(str(nucleotide)),
-                f'{contig_length:,.0f}',
-                ''.join(markers),
-            )
-        )
-
+    scale_hint = (f'each line spans {_format_bp_short(segment_length)}'
+                  if segment_length and segment_length > 0 else 'each line spans one contig')
     controls = (
         '<div class="go-controls">'
         '<button type="button" id="go-zoom-out" title="Zoom out">&minus;</button>'
         '<span id="go-zoom-val">1x</span>'
         '<button type="button" id="go-zoom-in" title="Zoom in">+</button>'
         '<button type="button" id="go-zoom-reset" title="Reset zoom and pan">reset</button>'
-        '<span class="go-hint">scroll to pan &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
+        f'<span class="go-hint">{scale_hint} &middot; scroll to pan &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
         '</div>'
     )
 
     # NOTE: the shared tooltip div lives once at <body> level in the report
     # template (outside every page-section), not here -- a page-section is
     # display:none when inactive, which would hide an embedded tooltip too.
-    return f'<div class="go-wrap">{controls}{"".join(rows)}</div>'
+    return f'<div class="go-wrap">{controls}{"".join(groups)}</div>'
+
 
 
 def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col='pfam',
@@ -2169,6 +2370,11 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     `custom_colors`, `max_colors` and `ignore_domains` mean exactly what
     they mean in `neighborhood_figure` -- pass the same values to both if
     you want the two figures to agree on domain colors/renamed names.
+
+    Each contig is wrapped over consecutive lines of one megabase (see
+    `contig_segments` and `build_genome_overview_svg`'s
+    `segment_length`, forwarded through `**svg_kwargs`), so every line
+    of the figure is drawn at the same bp-per-pixel scale.
 
     This writes the *static* SVG version (see `build_genome_overview_svg`).
     The interactive, zoomable version with hover tooltips lives in
@@ -2190,7 +2396,7 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     **svg_kwargs :
         Forwarded to `build_genome_overview_svg` (layout/color tuning,
         e.g. `track_width`, `row_height`, `marker_color`,
-        `max_labels_per_track`).
+        `max_labels_per_track`, `segment_length`).
 
     Returns
     -------
@@ -3268,11 +3474,19 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .go-controls button:hover{background:var(--accent-soft);border-color:var(--accent);}
   #go-zoom-val{font-family:var(--font-mono);font-size:13px;min-width:38px;text-align:center;}
   .go-hint{color:var(--muted);font-size:12px;margin-left:6px;}
-  .go-track{display:grid;grid-template-columns:150px 1fr;align-items:center;margin:14px 0;gap:12px;}
+  /* one contig = one group of stacked lines, each covering the same
+     number of bases; lines of a group sit tight, groups are separated */
+  .go-contig-group{margin:0 0 22px;}
+  .go-contig-group+.go-contig-group{border-top:1px solid var(--line);padding-top:16px;}
+  .go-track{display:grid;grid-template-columns:150px 1fr;align-items:center;margin:2px 0;gap:12px;}
   .go-track-label{text-align:right;font-family:var(--font-mono);overflow:hidden;}
   .go-contig{font-size:13px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .go-len{font-size:11px;color:var(--muted);}
-  .go-viewport{overflow-x:auto;overflow-y:hidden;cursor:grab;padding:18px 0;}
+  /* continuation lines of the same contig repeat its name, muted */
+  .go-contig.cont{color:var(--muted);}
+  .go-len{font-size:11px;color:var(--muted);white-space:nowrap;}
+  /* contig total, stated once on its first line */
+  .go-total{font-size:10px;color:var(--muted);opacity:.75;white-space:nowrap;}
+  .go-viewport{overflow-x:auto;overflow-y:hidden;cursor:grab;padding:10px 0;}
   .go-viewport.grabbing{cursor:grabbing;}
   .go-inner{position:relative;height:var(--track-h,14px);}
   .go-axis{
@@ -3642,7 +3856,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
 <div class="page-section active" data-page="overview">
 <div class="sec-inner">
   <h1 class="sec-title">$title</h1>
-  <p class="sec-desc">Genome-wide position of each neighborhood. One track per contig, scaled to its own length. Hover a marker for details; click to open that neighborhood.</p>
+  <p class="sec-desc">Genome-wide position of each neighborhood. Every contig is wrapped over stacked lines of equal length, so distances are comparable everywhere. Hover a marker for details; click to open that neighborhood.</p>
   <div class="panel">
 $genome_overview
   </div>
@@ -3814,8 +4028,12 @@ $stats_selector
       var vp = tr.querySelector('.go-viewport');
       var inner = tr.querySelector('.go-inner');
       var base = tr._base || vp.clientWidth || 600;
+      // `base * goZoom` is the width of a FULL line (one segment); a
+      // short last segment draws a stub of it, but at the same scale,
+      // so markers are placed against the full width either way.
       var w = base * goZoom;
-      inner.style.width = w + 'px';
+      var frac = parseFloat(inner.dataset.frac || '1') || 1;
+      inner.style.width = (w * frac) + 'px';
       qsa('.go-marker', inner).forEach(function (m) {
         var left = parseFloat(m.dataset.fs) * w;
         var ww = Math.max(5, (parseFloat(m.dataset.fe) - parseFloat(m.dataset.fs)) * w);
@@ -4744,11 +4962,13 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
+                       overview_segment_length=DEFAULT_SEGMENT_LENGTH,
                        software_name='S(H)ARP',
                        header_logo=SHARP_HEADER_LOGO_PATH, footer_logo=None):
     """
     Build one self-contained, interactive HTML page for a single input
-    table: a zoomable genome-wide overview with hover tooltips, a
+    table: a zoomable genome-wide overview with hover tooltips (each
+    contig wrapped over stacked lines of equal length), a
     multi-select neighborhoods section, and a statistics section.
 
     Neighborhoods section behavior:
@@ -4819,6 +5039,12 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     default_view : str, default 'all'
         Which neighborhoods are selected on load: 'all' (every block) or
         'first' (just the first one).
+    overview_segment_length : float or None, default 1 Mb
+        Bases per line in the genome overview: each contig is wrapped
+        over as many lines of this size as it needs, which keeps the
+        same bp-per-pixel scale on every line of every contig. Pass
+        None for one line per contig, scaled to its own length
+        (see `contig_segments`).
     software_name : str, default 'S(H)ARP'
         Name shown in the report footer ("Made by ...").
     header_logo : str or None
@@ -4847,7 +5073,9 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         end_col=end_col, length_col=length_col,
     )
 
-    genome_overview = build_genome_overview_interactive_html(extents, color_map=color_map)
+    genome_overview = build_genome_overview_interactive_html(
+        extents, color_map=color_map, segment_length=overview_segment_length,
+    )
 
     # The heptarepeat marker is drawn in both neighborhood views but is
     # not a gene, so it is absent from `color_map` and has to be told to
