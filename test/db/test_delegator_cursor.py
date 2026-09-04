@@ -347,3 +347,81 @@ def test_shared_attribute_propagates_to_all_backends():
 
     assert first.shared == "common"
     assert second.shared == "common"
+
+
+# ---------------------------------------------------------------------------
+# Shared attributes during backend construction
+# ---------------------------------------------------------------------------
+
+
+class ConstructionBackend(BaseCursor):
+    """Backend recording values received when the delegator constructs it."""
+
+    def __init__(
+        self,
+        shared="backend-default",
+        optional="backend-optional-default",
+    ):
+        super().__init__(progress=False)
+        self.shared = shared
+        self.optional = optional
+
+
+class ConstructionDelegator(SequentialDelegatorCursor):
+    """Delegator exercising the real reset_cursors construction path."""
+
+    _shared_attributes = [
+        "shared",
+        "optional",
+    ]
+
+    def __init__(
+        self,
+        shared="configured",
+        optional=None,
+    ):
+        self.shared = shared
+        self.optional = optional
+
+        super().__init__(
+            readers=["reader"],
+            writers=[],
+            progress=False,
+        )
+
+    @property
+    def _cursor_modules(self):
+        class BackendModule:
+            ConstructionDelegator = ConstructionBackend
+
+        return {
+            "reader": BackendModule,
+        }
+
+    def getids(self, obj, *args, **kwargs):
+        if obj is None:
+            return set()
+        if isinstance(obj, str):
+            return {obj}
+        return set(obj)
+
+
+def test_reset_cursors_passes_non_none_shared_attributes():
+    cursor = ConstructionDelegator(
+        shared="configured-value",
+    )
+
+    backend = cursor.cursors["reader"]
+
+    assert backend.shared == "configured-value"
+
+
+def test_reset_cursors_preserves_backend_default_for_none():
+    cursor = ConstructionDelegator(
+        optional=None,
+    )
+
+    backend = cursor.cursors["reader"]
+
+    assert cursor.optional is None
+    assert backend.optional == "backend-optional-default"
