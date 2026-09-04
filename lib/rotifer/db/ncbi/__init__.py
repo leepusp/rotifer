@@ -676,6 +676,10 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
                 targets = targets - found
                 yield result
 
+            # A backend may finish without yielding a neighborhood while
+            # still recording unresolved accessions in its missing registry.
+            self.update_missing(data=reader._missing)
+
     def fetchall(self, proteins, ipgs=None):
         """
         Fetch all gene neighborhoods in a single dataframe.
