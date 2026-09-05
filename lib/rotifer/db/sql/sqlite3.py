@@ -384,7 +384,7 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         if not isinstance(proteins,typing.Iterable) or isinstance(proteins,str):
             proteins = [proteins]
         if self.progress:
-            logger.warn(f'Searching {len(proteins)} protein(s) in SQLite3 database at {self.path}')
+            logger.warning(f'Searching {len(proteins)} protein(s) in SQLite3 database at {self.path}')
             p = tqdm(total=len(proteins), initial=0)
         found = self.__getitem__(proteins, ipgs=ipgs)
         for bid, block in found.groupby('block_id'):

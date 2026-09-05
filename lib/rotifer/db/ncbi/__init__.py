@@ -641,7 +641,7 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
         if isinstance(ipgs,types.NoneType):
             from rotifer.db.ncbi import entrez
             if self.progress:
-                logger.warn(f'Downloading IPGs for {len(targets)} proteins....')
+                logger.warning(f'Downloading IPGs for {len(targets)} proteins....')
             ic = entrez.IPGCursor(progress=self.progress, tries=self.tries)
             ipgs = ic.fetchall(targets)
             self.update_missing(data=ic.remove_missing())

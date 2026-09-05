@@ -338,7 +338,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         if isinstance(source, types.NoneType):
             raise ValueError('No mirror backend and no source given: nothing to load from')
         if self.progress:
-            logger.warn(f'Loading the whole mapping table into {store.qualified_name}. This takes about an hour.')
+            logger.warning(f'Loading the whole mapping table into {store.qualified_name}. This takes about an hour.')
         return store.load(source, release=release, method=method, **kwargs)
 
     def _initialize(self, initialize, strict=True):
@@ -602,7 +602,7 @@ class CrossReferenceCursor(BaseUniProtDelegatorCursor):
             ('engine', self.engine), ('progress', self.progress),
         ) if not isinstance(v, types.NoneType) }
         if self.progress:
-            logger.warn('Caching a reverse lookup: scanning the mirror again to store whole accession groups')
+            logger.warning('Caching a reverse lookup: scanning the mirror again to store whole accession groups')
         return rum.IdMappingCursor(**settings).fetchall(set(result.accession))
 
     def __init__(

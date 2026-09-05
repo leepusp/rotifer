@@ -48,7 +48,7 @@ class GenomeCursor:
                 if isinstance(s.assembly,str):
                     assemblies.add(s.assembly)
                 else:
-                    logger.warn(f'Unknown assembly type {type(assembly)}: {assembly}')
+                    logger.warning(f'Unknown assembly type {type(assembly)}: {assembly}')
             elif hasattr(s,"dbxrefs") and isinstance(s.dbxrefs,list):
                 for x in s.dbxrefs:
                     if 'Assembly:' in x:

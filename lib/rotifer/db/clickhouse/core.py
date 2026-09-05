@@ -509,7 +509,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             command += ["--password", str(self.password)]
         reading = f'zcat -f -- {path}' if compressed else f'cat -- {path}'
         if self.progress:
-            logger.warn(f'Loading {path} into {self.qualified_name}...')
+            logger.warning(f'Loading {path} into {self.qualified_name}...')
         pipeline = subprocess.run(
             ["/bin/sh","-c", f'{reading} | ' + " ".join([ f"'{x}'" if " " in str(x) else str(x) for x in command ])],
             capture_output = True,

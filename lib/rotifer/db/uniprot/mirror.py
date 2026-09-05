@@ -722,7 +722,7 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
             return self.empty()
 
         if self.progress:
-            logger.warn(f'Scanning {self.datafile} for {len(targets)} identifier(s)...')
+            logger.warning(f'Scanning {self.datafile} for {len(targets)} identifier(s)...')
 
         rows = [ x for x in self.scan(targets, self.column) if len(x) == len(self.columns) ]
         df = pd.DataFrame(rows, columns=self.columns)
@@ -938,7 +938,7 @@ class MappingCursor(IdMappingCursor):
             pairs = pd.DataFrame({'from': sorted(targets), 'accession': sorted(targets)})
         else:
             if self.progress:
-                logger.warn(f'Scanning {self.datafile} for {len(targets)} {self.source} identifier(s)...')
+                logger.warning(f'Scanning {self.datafile} for {len(targets)} {self.source} identifier(s)...')
             found = self._rows(targets, 'id')
             found = found[(found.id_type == self.source) & found.id.isin(targets)]
             pairs = found[['id','accession']].rename(columns={'id':'from'}).drop_duplicates()
@@ -949,7 +949,7 @@ class MappingCursor(IdMappingCursor):
         else:
             accessions_found = set(pairs.accession)
             if self.progress:
-                logger.warn(f'Scanning {self.datafile} for the {self.target} identifiers of {len(accessions_found)} accession(s)...')
+                logger.warning(f'Scanning {self.datafile} for the {self.target} identifiers of {len(accessions_found)} accession(s)...')
             found = self._rows(accessions_found, 'accession')
             found = found[found.id_type == self.target]
             result = pairs.merge(

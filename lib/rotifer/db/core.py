@@ -26,7 +26,7 @@ class BaseCursor:
     def __init__(self, progress=False, *args, **kwargs):
         self.progress = progress
         self.__name__ = str(type(self)).split("'")[1]
-        self._missing = dict() # Keys are accessions, values are lists of three elements
+        self._missing = dict() # Keys are accessions, values are lists of the fields in _missing_fields
         self.giveup = set() # List of errors that will prevent further attempts to use failed accessions
         # Errors saying the entry will never be found, by this or any
         # other cursor. Matching one implies giving up here too, so

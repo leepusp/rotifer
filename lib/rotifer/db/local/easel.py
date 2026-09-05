@@ -62,7 +62,7 @@ class FastaCursor(rotifer.db.parallel.SimpleParallelProcessCursor):
                 logger.error(f'{p}: no such file!')
                 continue
             if not os.path.exists(p + ".ssi"):
-                logger.warn(f'Building {self.executable} index for {p}...')
+                logger.warning(f'Building {self.executable} index for {p}...')
                 try:
                     subprocess.run([self.executable,"--index",p])
                 except:

@@ -71,6 +71,6 @@ def proteins(query, methods=['esl_sfetch','entrez'], local_database_path=config[
         # here too, since no later method will find them either.
         targets = cursor.missing_ids(final=False)
     if targets:
-        logger.warn(f'A total of {len(targets)} sequences could not be found: {sorted(targets)}')
+        logger.warning(f'A total of {len(targets)} sequences could not be found: {sorted(targets)}')
 
     return result

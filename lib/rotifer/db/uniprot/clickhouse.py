@@ -314,7 +314,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             import shutil
             method = 'client' if shutil.which(executable) else 'python'
             if self.progress:
-                logger.warn(f'Loading with method={method}')
+                logger.warning(f'Loading with method={method}')
 
         if method == 'client':
             self.load_file(
@@ -327,7 +327,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         elif method == 'python':
             if self.progress:
-                logger.warn(f'Loading {reader.datafile} into {self.qualified_name} in chunks of {chunksize} rows...')
+                logger.warning(f'Loading {reader.datafile} into {self.qualified_name} in chunks of {chunksize} rows...')
             for chunk in reader.reader(chunksize=chunksize):
                 chunk = chunk.copy()
                 chunk['release'] = release
