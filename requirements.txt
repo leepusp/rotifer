@@ -20,6 +20,7 @@ igraph
 networkx
 oauth2client
 sqlalchemy
+clickhouse-connect
 argcomplete
 blast
 datamash

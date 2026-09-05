@@ -13,14 +13,12 @@ setup(
     package_dir={"": "lib"},  # Root directory for the packages
     python_requires=">=3.6",  # Specify minimum Python version
     install_requires=[
-        "numpy",   # Add your dependencies here
+        "numpy",
         "pandas",
+        "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
+        "tqdm",                # progress bars in rotifer.db
+        "clickhouse-connect",  # rotifer.db.clickhouse
     ],
-    extras_require={
-        # pyarrow speeds up the scans in rotifer.db.uniprot.mirror, which
-        # fall back to the standard library when it is absent
-        "speedups": ["pyarrow"],
-    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",  # Update license if different

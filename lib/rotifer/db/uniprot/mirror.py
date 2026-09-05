@@ -39,10 +39,11 @@ Notes
 -----
 Uncompressed files are scanned in parallel: the file is cut into fixed
 size byte ranges, each aligned to line boundaries, and the ranges are
-searched independently by a pool of worker processes. When pyarrow is
-installed it parses those ranges, which is roughly 1.2 to 1.8 times
-faster than the standard library; set ``engine='python'`` to scan
-without it.
+searched independently by a pool of worker processes. pyarrow parses
+those ranges, roughly 1.2 to 1.8 times faster than the standard
+library. It is a dependency of rotifer, so that is the normal path;
+the standard library scanner remains as a fallback for an environment
+missing it, and can be asked for with ``engine='python'``.
 Gzip compressed copies cannot be cut this way and are scanned by a
 single process, which is several times slower.
 """
@@ -350,8 +351,9 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         How each byte range is matched:
 
         ``auto``
-            Use ``arrow`` when pyarrow is installed, ``python``
-            otherwise. This is the default.
+            Use ``arrow`` when pyarrow is importable, ``python``
+            otherwise. This is the default, and picks ``arrow``
+            wherever rotifer's dependencies are satisfied.
         ``arrow``
             Parse with pyarrow, roughly 1.2 to 1.8 times faster than
             ``python``. Raises an error when pyarrow is missing.
