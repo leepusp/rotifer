@@ -65,8 +65,12 @@ def proteins(query, methods=['esl_sfetch','entrez'], local_database_path=config[
             result.extend(seqs)
         else:
             result.append(seqs)
-        targets = cursor.missing
+        # missing is a dataframe: iterating it yields its column names,
+        # so the next method would be asked for those instead of the
+        # accessions. Entries some cursor declared final are dropped
+        # here too, since no later method will find them either.
+        targets = cursor.missing_ids(final=False)
     if targets:
-        logger.warn(f'A total of {len(targets)} sequences could not be found: {targets}')
+        logger.warn(f'A total of {len(targets)} sequences could not be found: {sorted(targets)}')
 
     return result
