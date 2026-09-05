@@ -31,7 +31,10 @@ def _parse_qualifiers(column, feature, seqrecord):
         if len(feature.qualifiers[column]) == 1:
             return feature.qualifiers[column][0]
         else:
-            return "\cA".join(feature.qualifiers[column][0])
+            # \x01 is what NCBI uses to join the descriptions of
+            # identical sequences, and what rotifer.db.local.easel
+            # splits on when it reads them back
+            return "\x01".join(feature.qualifiers[column])
     return np.nan
 
 def seqrecords_to_dataframe(seqrecs=None, exclude_type=[], autopid=False, assembly=None, codontable='Bacterial', parsers={}):
