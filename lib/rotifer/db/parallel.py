@@ -533,7 +533,7 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
 
             if self.progress:
                 m = f'Downloading {len(genomes)} genomes for {len(targets)} proteins in {len(tasks)} batches, using {self.threads} threads ({self.batch_size} targets/batch)'
-                logger.warn(m)
+                logger.warning(m)
                 tqdmobj = tqdm(total=len(genomes), initial=0)
 
             # Actually processing batches
