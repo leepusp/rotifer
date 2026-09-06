@@ -102,7 +102,7 @@ def test_newline_in_a_cell_is_flattened():
 def test_dtypes_are_inferred():
     rows = yb.read_yaml(document(), merge=False)['rows']
     assert rows['plen'].dtype.kind == 'i'
-    assert rows['pid'].dtype == object
+    assert pd.api.types.is_string_dtype(rows['pid'])
 
 
 # --------------------------------------------------------- caller-defined tables
@@ -283,7 +283,7 @@ def test_merge_suffix_disambiguates_colliding_names():
     means the identifier in one table and its distinct count in the other."""
     merged = yb.read_yaml(document(), merge=True)
     assert 'pid' in merged and 'pid_stats' in merged
-    assert merged['pid'].dtype == object          # identifiers keep the plain name
+    assert pd.api.types.is_string_dtype(merged['pid'])  # identifiers keep the plain name
     assert merged['pid_stats'].dtype.kind == 'i'
 
 

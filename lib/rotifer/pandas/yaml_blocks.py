@@ -100,6 +100,13 @@ _RULE_RE = re.compile(r'^\s*\|[\s:|-]+\|\s*$')
 
 
 # --------------------------------------------------------------------- helpers
+def _is_text(series):
+    """True for a column still holding parsed text. Cells arrive as str, but the
+    dtype carrying them depends on the pandas version: object before 3.0, str
+    from 3.0 on, where text is no longer inferred as object."""
+    return pd.api.types.is_string_dtype(series)
+
+
 def _flow(value):
     """Render a scalar or sequence as a compact YAML flow scalar, letting PyYAML
     handle quoting so values containing commas or brackets stay valid."""
@@ -165,7 +172,7 @@ def read_md_table(text):
     frame = pd.read_csv(io.StringIO('\n'.join(rows)), sep=_CELL_SEP, engine='python',
                         skipinitialspace=True, dtype=None).iloc[:, 1:-1]
     return frame.apply(lambda s: s.str.replace(r'\|', '|', regex=False)
-                       if s.dtype == object else s)
+                       if _is_text(s) else s)
 
 
 # --------------------------------------------------------------------- writing
@@ -448,12 +455,12 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
         frame = pd.DataFrame(table, columns=header[name])
         if escaped[name]:
             frame = frame.apply(lambda s: s.str.replace(r'\|', '|', regex=False)
-                                if s.dtype == object else s)
+                                if _is_text(s) else s)
         # read_csv used to type the columns; do it here instead, per column and
         # all-or-nothing, so an identifier that merely looks numeric is left alone
         # unless the whole column is numeric.
         for c in frame.columns:
-            if frame[c].dtype == object:
+            if _is_text(frame[c]):
                 try:
                     frame[c] = pd.to_numeric(frame[c])
                 except (ValueError, TypeError):
