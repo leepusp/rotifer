@@ -116,7 +116,7 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
 
     #: One registry per database file, shared by every table in it,
     #: naming the file each was loaded from. Spelled and shaped as in
-    #: :class:`rotifer.db.clickhouse.core.BaseClickHouseCursor`, so
+    #: :class:`rotifer.db.sql.clickhouse.core.BaseClickHouseCursor`, so
     #: that provenance reads the same whichever SQL backend holds it.
     _sources_table = 'rotifer_sources'
 

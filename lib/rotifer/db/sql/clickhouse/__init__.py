@@ -6,8 +6,8 @@ regardless of the data it carries: opening a connection, running
 statements, describing and creating tables, moving large files in, and
 submitting long lists of identifiers to query against.
 
-:mod:`rotifer.db.clickhouse.core`
-    :class:`~rotifer.db.clickhouse.core.BaseClickHouseCursor`, the
+:mod:`rotifer.db.sql.clickhouse.core`
+    :class:`~rotifer.db.sql.clickhouse.core.BaseClickHouseCursor`, the
     parent class of the cursors in this and other packages.
 
 The first cursors built on it live in
@@ -16,7 +16,7 @@ to UniProt's identifier mappings.
 
 Configuration
 -------------
-Connection defaults are read from ``~/.rotifer/etc/db/clickhouse.yml``
+Connection defaults are read from ``~/.rotifer/etc/db/sql/clickhouse.yml``
 when that file exists. A package that keeps its data in its own
 database is expected to layer its own configuration on top, as
 :mod:`rotifer.db.uniprot.clickhouse` does, so that a server can be

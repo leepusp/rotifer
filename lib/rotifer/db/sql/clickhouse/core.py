@@ -24,7 +24,7 @@ import pandas as pd
 # Rotifer
 import rotifer
 import rotifer.db.core
-from rotifer.db.clickhouse import config
+from rotifer.db.sql.clickhouse import config
 from rotifer.core import functions as rcf
 logger = rotifer.logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
     ----------
     host : str, optional
         Host name of the ClickHouse server. Defaults to the ``host``
-        entry of the :mod:`rotifer.db.clickhouse` configuration.
+        entry of the :mod:`rotifer.db.sql.clickhouse` configuration.
     port : int, optional
         Port of the server's HTTP interface.
     user : str, optional
@@ -628,7 +628,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         executable : str, optional
             Name or path of the ClickHouse program. Defaults to the
             ``executable`` entry of the
-            :mod:`rotifer.db.clickhouse` configuration.
+            :mod:`rotifer.db.sql.clickhouse` configuration.
 
         Returns
         -------

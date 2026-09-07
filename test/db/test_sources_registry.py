@@ -126,7 +126,7 @@ def test_reloading_replaces_rather_than_accumulates(tmp_path):
 def test_the_registry_is_named_the_same_on_every_sql_backend():
     """The point of the shared name: provenance is looked up the same way
     whichever SQL backend is holding the data."""
-    import rotifer.db.clickhouse.core as ch
+    import rotifer.db.sql.clickhouse.core as ch
     assert rdss.BaseSQLite3Cursor._sources_table == 'rotifer_sources'
     assert ch.BaseClickHouseCursor._sources_table == 'rotifer_sources'
     for name in ('sources_table', 'source_version', 'create_sources',

@@ -18,7 +18,7 @@ cursors for the queries that table was designed to answer:
     equivalent of UniProt's online ID mapping service.
 
 Everything here that is not about identifier mappings lives in
-:mod:`rotifer.db.clickhouse.core`, which any other ClickHouse backed
+:mod:`rotifer.db.sql.clickhouse.core`, which any other ClickHouse backed
 cursor can build on.
 
 The table itself is created and populated through
@@ -30,7 +30,7 @@ lives in ``share/rotifer/db/uniprot/clickhouse/idmapping.sql``.
 Configuration
 -------------
 Connection parameters are read from ``~/.rotifer/etc/db/uniprot/clickhouse.yml``
-and fall back to the shared :mod:`rotifer.db.clickhouse` defaults, so
+and fall back to the shared :mod:`rotifer.db.sql.clickhouse` defaults, so
 a server can be named once for every cursor or separately here.
 """
 
@@ -44,15 +44,15 @@ import pandas as pd
 import rotifer
 import rotifer.db.core
 import rotifer.db.methods
-import rotifer.db.clickhouse.core
-from rotifer.db.clickhouse import config as clickhouse_config
+import rotifer.db.sql.clickhouse.core
+from rotifer.db.sql.clickhouse import config as clickhouse_config
 from rotifer.core import functions as rcf
 logger = rotifer.logging.getLogger(__name__)
 
 #: Kept so that ``from rotifer.db.uniprot.clickhouse import
 #: BaseClickHouseCursor`` still works; the class itself now lives in
-#: :mod:`rotifer.db.clickhouse.core`.
-BaseClickHouseCursor = rotifer.db.clickhouse.core.BaseClickHouseCursor
+#: :mod:`rotifer.db.sql.clickhouse.core`.
+BaseClickHouseCursor = rotifer.db.sql.clickhouse.core.BaseClickHouseCursor
 
 # Defaults: the shared connection settings, with what UniProt adds
 _defaults = dict(clickhouse_config)
@@ -218,7 +218,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         See Also
         --------
-        rotifer.db.clickhouse.core.BaseClickHouseCursor.create : the generic form
+        rotifer.db.sql.clickhouse.core.BaseClickHouseCursor.create : the generic form
 
         Examples
         --------
