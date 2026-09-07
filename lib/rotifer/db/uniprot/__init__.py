@@ -19,9 +19,18 @@ first:
     the identifiers ClickHouse could not resolve, and covers the
     cases where the table is out of date, incomplete or unreachable.
 
-A third source, :mod:`rotifer.db.uniprot.webapi`, queries UniProt's
-REST service. It is not wired in as a backend yet, because it is
-written as functions rather than as cursor classes.
+:mod:`rotifer.db.uniprot.webapi`
+    UniProt's REST service. Always current and needs no local copy,
+    but every query is a round trip, so it is registered as a backend
+    rather than used by default. Ask for it explicitly to fall back on
+    it for whatever the local sources could not answer:
+
+    >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
+    ...     readers=['clickhouse','mirror','webapi'])
+
+    It also covers what the other two do not: sequences, proteomes,
+    taxonomy and UniProt's own search, through the cursors documented
+    in that module.
 
 Configuration
 -------------
@@ -82,6 +91,9 @@ config = loadConfig(__name__.replace('rotifer.',':'), defaults = {
     'readers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
         'mirror': 'rotifer.db.uniprot.mirror',
+        # Registered but not enabled by default: every query is a
+        # round trip to UniProt, so it is opted into per cursor.
+        'webapi': 'rotifer.db.uniprot.webapi',
     },
     'writers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
@@ -182,12 +194,20 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         """
         targets = self.parse_ids(accessions)
         todo = deepcopy(targets)
+        consulted = dict()
         for position, name in enumerate(self.readers):
             if not todo:
                 break
             if name not in self.cursors:
                 continue
             cursor = self.cursors[name]
+            served_by = self.redundant(cursor, consulted)
+            if served_by:
+                logger.info(f'Skipping backend {name}: same data as {served_by}')
+                continue
+            content = self.content_of(cursor)
+            if not isinstance(content, types.NoneType):
+                consulted.setdefault(content, name)
             for result in cursor.fetchone(todo, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)
