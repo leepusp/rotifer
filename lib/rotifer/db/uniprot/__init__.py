@@ -7,30 +7,35 @@ backends and tries them in order until every requested identifier is
 resolved, so that a query is answered by the fastest source that
 knows the answer.
 
-Two backends are available, and the default order puts the fast one
-first:
+Three backends are available, and the default order tries them
+cheapest first:
 
 :mod:`rotifer.db.uniprot.clickhouse`
-    An indexed copy of ``idmapping.dat`` in ClickHouse. Point
-    lookups are answered in milliseconds. Tried first.
-:mod:`rotifer.db.uniprot.mirror`
-    The flat files of a local UniProt mirror. Every query scans the
-    whole file, which costs minutes, so this backend only receives
-    the identifiers ClickHouse could not resolve, and covers the
-    cases where the table is out of date, incomplete or unreachable.
-
+    An indexed copy of ``idmapping.dat``. Point lookups are answered
+    in milliseconds, so it is asked first.
 :mod:`rotifer.db.uniprot.webapi`
     UniProt's REST service. Always current and needs no local copy,
-    but every query is a round trip, so it is registered as a backend
-    rather than used by default. Ask for it explicitly to fall back on
-    it for whatever the local sources could not answer:
+    and answers in seconds. It comes second because it is the only
+    source for what the local table does not carry, and because a
+    round trip is still far cheaper than the alternative.
+:mod:`rotifer.db.uniprot.mirror`
+    The flat files of a local UniProt mirror. Every query scans about
+    90 GB, which costs a minute and a half whatever is asked, so it is
+    asked last: it is the source that has everything, kept for what
+    the other two could not answer and for when they are unreachable
+    or out of date.
 
-    >>> ic = uniprot.MappingCursor(  # doctest: +SKIP
-    ...     readers=['clickhouse','mirror','webapi'])
+The three do not hold the same vocabulary. The table and the mapping
+service each carry databases the other does not, and some, Pfam and GO
+among them, are cross-references of an entry rather than identifier
+mappings and are in neither. A backend is therefore asked only for the
+databases it says it can map, and a database none of them supports is
+reported in ``missing`` under its own name rather than silently
+returning nothing.
 
-    It also covers what the other two do not: sequences, proteomes,
-    taxonomy and UniProt's own search, through the cursors documented
-    in that module.
+The web backend also covers what the other two do not at all:
+sequences, proteomes, taxonomy and UniProt's own search, through the
+cursors documented in that module.
 
 Configuration
 -------------
@@ -539,8 +544,12 @@ class MappingCursor(BaseUniProtDelegatorCursor):
 
     Parameters
     ----------
-    readers : list of str, default ``['clickhouse', 'mirror']``
-        Backend reader modules, tried in order.
+    readers : list of str, default ``['clickhouse', 'webapi', 'mirror']``
+        Backend reader modules, tried in order, cheapest first. The
+        web service comes before the mirror because it answers in
+        seconds where a mirror scan costs about ninety, whatever is
+        asked of it; the mirror stays last as the source that has
+        everything, for whatever the other two could not map.
     writers : list of str, default []
         Backend writer modules.
     release : str, optional
@@ -580,7 +589,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
 
     def __init__(
             self,
-            readers = ['clickhouse','mirror'],
+            readers = ['clickhouse','webapi','mirror'],
             writers = [],
             release = None,
             local_database_path = config['local_database_path'],
