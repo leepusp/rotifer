@@ -218,120 +218,143 @@ class GeneNeighborhoodCursor:
             return seqrecords_to_dataframe([])
 
 
-class IdMappingCursor:
+class MappingCursor:
     """
-    Mixin for cursors that return UniProt identifier mappings.
+    Mixin for cursors that translate identifiers through UniProt.
 
-    UniProt distributes the correspondence between its own accessions
-    and the identifiers of every database it cross-references as a
-    three column table (``idmapping.dat``). Cursors mixing this class
-    in return that table as a
-    :class:`pandas.DataFrame` with the columns listed in
-    :attr:`columns`, regardless of whether the rows were read from the
-    flat file (:mod:`rotifer.db.uniprot.mirror`) or from a database
-    (:mod:`rotifer.db.uniprot.clickhouse`).
+    Every such query has the same shape, whichever direction it runs
+    in: identifiers of one or more databases are matched, their
+    UniProtKB accessions are found, and the identifiers those
+    accessions carry in one or more other databases are returned.
+    Asking for the cross-references of an accession, asking which
+    accession an external identifier belongs to, and translating
+    between two external databases are that one query with different
+    ends pinned, so cursors mixing this class in implement it once.
+
+    The two ends are named by :meth:`fetchall` and :meth:`fetchone`
+    rather than by the constructor, because they describe a question
+    rather than a data source: one cursor can answer many of them.
 
     Attributes
     ----------
-    column : str or list of str
-        Name of the column(s) matched against the queried
-        identifiers. Cursors that search UniProtKB accessions set it
-        to ``accession``; cursors that search the identifiers of
-        other databases set it to ``id``.
+    columns : list of str
+        ``['source', 'source_type', 'accession', 'target',
+        'target_type']``: the queried identifier, the database it
+        belongs to, the UniProtKB accession linking the two ends, the
+        identifier found, and the database that one belongs to.
     """
 
-    _columns = ['accession','id_type','id']
+    #: Name standing for a UniProtKB accession where a database name
+    #: is expected. It is not a row of the mapping table but its join
+    #: key, so both ends accept it and mean the accession itself.
+    UNIPROTKB = 'UniProtKB-AC'
+
+    _columns = ['source','source_type','accession','target','target_type']
 
     @property
     def columns(self):
         """
-        Column names of the identifier mapping dataframe.
+        Column names of the mapping dataframe.
 
         Returns
         -------
         list of str
-            ``['accession', 'id_type', 'id']``, i.e. the UniProtKB
-            accession, the name of the cross-referenced database and
-            the identifier in that database.
         """
         return list(self._columns)
 
+    @staticmethod
+    def parse_databases(databases):
+        """
+        Normalize a ``source`` or ``target`` argument to a list.
+
+        Parameters
+        ----------
+        databases : str, iterable of str or None
+            One database name, several, or None for every database.
+
+        Returns
+        -------
+        list of str or None
+            None when no filter was asked for, which every backend
+            reads as "any database".
+        """
+        if isinstance(databases, types.NoneType):
+            return None
+        if isinstance(databases, str) or not isinstance(databases, typing.Iterable):
+            databases = [databases]
+        names = [ str(x) for x in databases if not isinstance(x, types.NoneType) ]
+        return names or None
+
     def empty(self):
         """
-        Build an empty identifier mapping dataframe.
+        Build an empty mapping dataframe.
 
         Returns
         -------
         pandas.DataFrame
-            A dataframe with no rows and the columns listed in
-            :attr:`columns`.
+            No rows, and the columns listed in :attr:`columns`.
         """
         return pd.DataFrame([], columns=self.columns)
 
-    def getids(self, obj):
+    def getids(self, obj, *args, **kwargs):
         """
-        Extract identifiers from identifier mapping dataframes.
+        Report which queried identifiers were translated.
 
-        Only the columns named by the cursor's ``column`` attribute
-        are scanned, so that a cursor searching UniProtKB accessions
-        does not report the cross-referenced identifiers as found,
-        and vice-versa. When ``column`` is not set, both the
-        ``accession`` and the ``id`` columns are used.
+        Only the ``source`` column is read. It holds what the caller
+        asked about, so what a delegator still has to look for
+        elsewhere is exactly what is missing from it; the identifiers
+        found are answers, not queries, and counting them would mark
+        the wrong things as done.
 
         Parameters
         ----------
-        obj : pandas.DataFrame, list, set, str or None
-            Identifier mappings produced by the cursor, or a
-            collection of identifiers, which is returned as a set.
+        obj : pandas.DataFrame, set, str, iterable or None
+            Mappings produced by the cursor, or a collection of
+            identifiers, returned as a set.
 
         Returns
         -------
         set of str
-            The identifiers found in `obj`.
-
-        Raises
-        ------
-        TypeError
-            If `obj` is of an unsupported type.
         """
-        if isinstance(obj,types.NoneType):
+        if isinstance(obj, types.NoneType):
             return set()
-        elif isinstance(obj,set):
+        elif isinstance(obj, set):
             return deepcopy(obj)
-        elif isinstance(obj,pd.DataFrame):
-            columns = getattr(self, "column", None) or ['accession','id']
-            if isinstance(columns,str) or not isinstance(columns,typing.Iterable):
-                columns = [columns]
-            ids = set()
-            for col in columns:
-                if col in obj.columns:
-                    ids.update(obj[col].dropna().astype(str))
-            return ids
-        elif isinstance(obj,str):
+        elif isinstance(obj, pd.DataFrame):
+            if obj.empty or 'source' not in obj.columns:
+                return set()
+            return set(obj['source'].dropna().astype(str))
+        elif isinstance(obj, str):
             return {obj}
-        elif isinstance(obj,typing.Iterable):
+        elif isinstance(obj, typing.Iterable):
             return set([ str(x) for x in obj ])
         else:
             raise TypeError(f'Unknown object type {type(obj)}: {obj}')
 
-    def fetchall(self, accessions, *args, **kwargs):
+    def fetchall(self, accessions, source=None, target=None, *args, **kwargs):
         """
-        Fetch all identifier mappings as a single dataframe.
+        Translate every identifier, as a single dataframe.
 
         Parameters
         ----------
         accessions : str or iterable of str
-            Database identifiers.
+            Identifiers to translate.
+        source : str or list of str, optional
+            Databases the queried identifiers belong to. None accepts
+            any, and :attr:`UNIPROTKB` means they are UniProtKB
+            accessions.
+        target : str or list of str, optional
+            Databases to translate into. None returns every database,
+            and :attr:`UNIPROTKB` returns the accession itself.
 
         Returns
         -------
         pandas.DataFrame
-            The concatenation of every batch produced by
-            :meth:`fetchone`. Empty, but with the expected columns,
-            when nothing is found.
+            The columns listed in :attr:`columns`. Empty, with those
+            columns, when nothing is found.
         """
         stack = []
-        for df in self.fetchone(accessions, *args, **kwargs):
+        for df in self.fetchone(accessions, source=source, target=target, *args, **kwargs):
             stack.append(df)
         if stack:
             return pd.concat(stack, ignore_index=True)

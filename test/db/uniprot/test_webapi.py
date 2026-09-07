@@ -274,37 +274,65 @@ def test_record_ids_cover_every_name_an_entry_answers_to():
 
 # ----------------------------------------------------------- id mapping
 
-def test_id_mapping_returns_the_shared_three_column_table():
-    """The mirror and clickhouse cursors return this table, so this one must
-    too, or the three cannot be stacked behind one delegator."""
-    cursor = webapi.IdMappingCursor(to_db='RefSeq_Protein', progress=False)
-    frame = cursor.parser([{'from': 'P00750', 'to': 'NP_000921.1'}], [])
-    assert list(frame.columns) == ['accession', 'id_type', 'id']
-    assert frame.to_dict('records') == [
-        {'accession': 'P00750', 'id_type': 'RefSeq_Protein', 'id': 'NP_000921.1'}]
+def test_mapping_returns_the_shared_five_column_table():
+    """Every mapping backend returns this shape, so the three can be stacked
+    behind one delegator."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([{'from': 'P00750', 'to': 'NP_000921.1',
+                            '_source_type': cursor.UNIPROTKB, '_target_type': 'RefSeq'}], [])
+    assert list(frame.columns) == ['source', 'source_type', 'accession',
+                                   'target', 'target_type']
+    assert frame.to_dict('records') == [{
+        'source': 'P00750', 'source_type': 'UniProtKB-AC', 'accession': 'P00750',
+        'target': 'NP_000921.1', 'target_type': 'RefSeq'}]
 
 
-def test_id_mapping_unwraps_uniprotkb_entries():
+def test_mapping_unwraps_uniprotkb_entries():
     """Mapping *to* UniProtKB returns whole entries where other targets return
     a bare identifier."""
-    cursor = webapi.IdMappingCursor(to_db='UniProtKB', progress=False)
-    frame = cursor.parser([{'from': 'BAE76179.1', 'to': {'primaryAccession': 'P00750'}}], [])
-    assert frame['id'].tolist() == ['P00750']
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([{'from': 'BAE76179.1', 'to': {'primaryAccession': 'P00750'},
+                            '_source_type': 'EMBL-CDS',
+                            '_target_type': cursor.UNIPROTKB}], [])
+    assert frame['target'].tolist() == ['P00750']
+    # The accession is whichever end is UniProtKB
+    assert frame['accession'].tolist() == ['P00750']
 
 
-def test_id_mapping_reports_what_was_asked_for():
+def test_mapping_reports_what_was_asked_for():
     """getids answers 'which of my queries came back', so it reads the column
-    the service echoes the query into, not the one holding the answers."""
-    cursor = webapi.IdMappingCursor(progress=False)
-    frame = pd.DataFrame([{'accession': 'P00750', 'id_type': 'RefSeq_Protein', 'id': 'NP_000921.1'}])
+    holding the query, not the one holding the answers."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = pd.DataFrame([{'source': 'P00750', 'source_type': 'UniProtKB-AC',
+                           'accession': 'P00750', 'target': 'NP_000921.1',
+                           'target_type': 'RefSeq'}])
     assert cursor.getids(frame) == {'P00750'}
 
 
 @pytest.mark.parametrize('rows', [[], [{'from': 'P00750'}], [{'to': 'X'}]])
-def test_id_mapping_empty_results_keep_the_columns(rows):
-    cursor = webapi.IdMappingCursor(progress=False)
+def test_mapping_empty_results_keep_the_columns(rows):
+    cursor = webapi.MappingCursor(progress=False)
     frame = cursor.parser(rows, [])
-    assert frame.empty and list(frame.columns) == ['accession', 'id_type', 'id']
+    assert frame.empty
+    assert list(frame.columns) == ['source', 'source_type', 'accession',
+                                   'target', 'target_type']
+
+
+def test_mapping_needs_both_ends_named():
+    """UniProt maps one pair at a time, and there are 94 possible targets, so
+    'every database' is not a question this backend can be asked."""
+    cursor = webapi.MappingCursor(progress=False)
+    with pytest.raises(ValueError, match='both'):
+        cursor.fetcher(['P00750'], source=None, target=None)
+
+
+def test_service_names_are_translated():
+    """idmapping.dat and the mapping service spell some databases differently,
+    and the accession is a field of UniProtKB rather than a database there."""
+    cursor = webapi.MappingCursor(progress=False)
+    assert cursor._service_name(cursor.UNIPROTKB) == 'UniProtKB_AC-ID'
+    assert cursor._service_name('RefSeq') == 'RefSeq_Protein'
+    assert cursor._service_name('KEGG') == 'KEGG'
 
 
 # --------------------------------------------------------------- tabular

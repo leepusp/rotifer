@@ -8,23 +8,21 @@ interactively (about 90 GB and a few billion rows in the 2026_01
 release), so this module keeps it in a ClickHouse table and provides
 cursors for the queries that table was designed to answer:
 
-:class:`IdMappingCursor`
-    Given UniProtKB accessions, return their cross-references.
-:class:`CrossReferenceCursor`
-    Given identifiers of other databases, return the UniProtKB
-    accessions they belong to.
 :class:`MappingCursor`
-    Translate identifiers from one database to another, the
-    equivalent of UniProt's online ID mapping service.
+    Translate identifiers in any direction: from UniProtKB accessions
+    to the databases they cross-reference, from those databases back
+    to the accessions, or between two of them. Which direction is
+    asked for is decided per query by its ``source`` and ``target``,
+    not by picking a different class.
 
 Everything here that is not about identifier mappings lives in
 :mod:`rotifer.db.sql.clickhouse.core`, which any other ClickHouse backed
 cursor can build on.
 
 The table itself is created and populated through
-:meth:`BaseIdMappingCursor.create` and
-:meth:`BaseIdMappingCursor.load`, from a local copy of the flat file
-read by :class:`rotifer.db.uniprot.mirror.IdMappingCursor`. Its schema
+:meth:`BaseMappingCursor.create` and
+:meth:`BaseMappingCursor.load`, from a local copy of the flat file
+read by :class:`rotifer.db.uniprot.mirror.MappingCursor`. Its schema
 lives in ``share/rotifer/db/uniprot/clickhouse/idmapping.sql``.
 
 Configuration
@@ -64,15 +62,12 @@ _defaults.update({
 })
 config = rcf.loadConfig(__name__.replace('rotifer.',':'), defaults = _defaults)
 
-class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCursor):
+class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
     """
     Shared behaviour of the cursors reading the identifier mapping table.
 
     This class is not meant to be used directly: it builds, loads and
-    describes the table that :class:`IdMappingCursor`,
-    :class:`CrossReferenceCursor` and :class:`MappingCursor` query.
-    Subclasses only have to set :attr:`column`, the name of the column
-    their queries search.
+    describes the table that :class:`MappingCursor` queries.
 
     Parameters
     ----------
@@ -102,11 +97,13 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
     See Also
     --------
-    rotifer.db.uniprot.mirror.IdMappingCursor : the flat file this table is loaded from
+    rotifer.db.uniprot.mirror.MappingCursor : the flat file this table is loaded from
     """
 
-    #: Name of the column the cursor's queries search.
-    column = 'accession'
+    #: Columns of the mapping table itself, which are not the columns
+    #: this cursor returns: the table stores one row per
+    #: cross-reference, while a mapping names both of its ends.
+    _table_columns = ['accession','id_type','id']
 
     #: Where :meth:`create` reads this table's definition from.
     _schema_resource = __name__ + ".idmapping.sql"
@@ -181,7 +178,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         Examples
         --------
         >>> from rotifer.db.uniprot import clickhouse as ruch
-        >>> ruch.IdMappingCursor().id_types()  # doctest: +SKIP
+        >>> ruch.MappingCursor().id_types()  # doctest: +SKIP
         """
         parameters = {}
         conditions = []
@@ -223,7 +220,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         Examples
         --------
         >>> from rotifer.db.uniprot import clickhouse as ruch
-        >>> ic = ruch.IdMappingCursor(release='2026_01')  # doctest: +SKIP
+        >>> ic = ruch.MappingCursor(release='2026_01')  # doctest: +SKIP
         >>> ic.create()  # doctest: +SKIP
         """
         return super().create(
@@ -237,7 +234,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         Parameters
         ----------
-        mirror : str or rotifer.db.uniprot.mirror.IdMappingCursor
+        mirror : str or rotifer.db.uniprot.mirror.MappingCursor
             The flat file to load: either its path, the root of a
             local UniProt mirror, or a cursor already pointing at one.
         release : str, optional
@@ -257,7 +254,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
                 reach the server.
             ``python``
                 Read the file in chunks with
-                :meth:`rotifer.db.uniprot.mirror.IdMappingCursor.reader`
+                :meth:`rotifer.db.uniprot.mirror.MappingCursor.reader`
                 and insert each chunk through the driver. Slower, but
                 it needs nothing besides this package and it honours
                 the source cursor's ``id_type`` filter, which makes
@@ -292,7 +289,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         Examples
         --------
         >>> from rotifer.db.uniprot import clickhouse as ruch
-        >>> ic = ruch.IdMappingCursor(release='2026_01')  # doctest: +SKIP
+        >>> ic = ruch.MappingCursor(release='2026_01')  # doctest: +SKIP
         >>> ic.create()  # doctest: +SKIP
         >>> ic.load("/scratch/global/databases/uniprot")  # doctest: +SKIP
         """
@@ -300,10 +297,10 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
 
         if isinstance(release, types.NoneType):
             release = self.release
-        if isinstance(mirror, rum.IdMappingCursor):
+        if isinstance(mirror, rum.MappingCursor):
             reader = mirror
         else:
-            reader = rum.IdMappingCursor(path=mirror, progress=self.progress)
+            reader = rum.MappingCursor(path=mirror, progress=self.progress)
         if isinstance(reader.datafile, types.NoneType):
             logger.error(f'No idmapping file found for {mirror}')
             return self.count()
@@ -390,7 +387,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         ----------
         data : pandas.DataFrame
             Rows to insert. Must have the columns listed in
-            :attr:`~rotifer.db.methods.IdMappingCursor.columns`; a
+            :attr:`_table_columns`; a
             ``release`` column is added when missing.
         release : str, optional
             Value for the ``release`` column of rows that lack one.
@@ -398,7 +395,7 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         """
         if data.empty:
             return
-        data = data[self.columns].copy()
+        data = data[self._table_columns].copy()
         # release may have been cleared to None to widen queries, but
         # the column is a String and never takes None
         data['release'] = (release if not isinstance(release, types.NoneType) else self.release) or ''
@@ -418,56 +415,276 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         """
         self.drop_partition(release)
 
-    def __getitem__(self, accessions):
+class MappingCursor(BaseMappingCursor):
+    """
+    Translate identifiers through UniProt's mapping table.
+
+    One query answers what used to need three cursors. The
+    identifiers given are matched in the databases named by
+    ``source``, their UniProtKB accessions are found, and the
+    identifiers those accessions carry in the databases named by
+    ``target`` are returned. Pinning either end to
+    :attr:`~rotifer.db.methods.MappingCursor.UNIPROTKB` gives the
+    accession itself, so:
+
+    ``source=UNIPROTKB``
+        the cross-references of a UniProtKB accession
+    ``target=UNIPROTKB``
+        the accession an external identifier belongs to
+    neither
+        a translation between two external databases
+
+    Both ends are named per call rather than per cursor, since they
+    describe the question rather than the table.
+
+    Parameters
+    ----------
+    release : str, optional
+        Restrict results to one UniProt release.
+    batch_size : int, optional
+        Number of identifiers sent to the server per query.
+    **kwargs
+        Connection parameters, passed to
+        :class:`~rotifer.db.sql.clickhouse.core.BaseClickHouseCursor`.
+
+    Examples
+    --------
+    Every cross-reference of an accession:
+
+    >>> from rotifer.db.uniprot import clickhouse as ruch
+    >>> mc = ruch.MappingCursor()                                  # doctest: +SKIP
+    >>> mc.fetchall(["Q6GZX4"], source=mc.UNIPROTKB)               # doctest: +SKIP
+
+    Which accession a RefSeq protein belongs to:
+
+    >>> mc.fetchall(["YP_031579.1"], target=mc.UNIPROTKB)          # doctest: +SKIP
+
+    From GenBank CDS to RefSeq and KEGG at once:
+
+    >>> mc.fetchall(["AAT09660.1"], source=['EMBL-CDS'],           # doctest: +SKIP
+    ...             target=['RefSeq','KEGG'])
+    """
+
+    def _release_condition(self, alias, parameters):
         """
-        Fetch identifier mappings, dictionary style.
+        Restrict one side of the query to the cursor's release.
+
+        Parameters
+        ----------
+        alias : str
+            Table alias the condition applies to.
+        parameters : dict
+            Query parameters, extended in place.
+
+        Returns
+        -------
+        list of str
+            Zero or one condition.
+        """
+        if not self.release:
+            return []
+        parameters['release'] = self.release
+        return [f'{alias}.release = %(release)s']
+
+    def _source_query(self, restriction, source, parameters):
+        """
+        Build the subquery naming the queried identifiers.
+
+        Two kinds of identifier can be asked for and they live in
+        different columns, so each becomes its own branch: UniProtKB
+        accessions are the table's join key, everything else is a row
+        of it. Both branches are restricted to the identifiers given,
+        which is what keeps the query from scanning the table.
+
+        Parameters
+        ----------
+        restriction : str
+            SQL condition selecting the queried identifiers, with
+            ``{column}`` where the column name belongs.
+        source : list of str or None
+            Databases the identifiers belong to, or None for any.
+        parameters : dict
+            Query parameters, extended in place.
+
+        Returns
+        -------
+        str
+            A subquery yielding ``value``, ``db`` and ``accession``.
+        """
+        branches = []
+        wants_accession = source is None or self.UNIPROTKB in source
+        others = None if source is None else [ x for x in source if x != self.UNIPROTKB ]
+
+        if wants_accession:
+            where = [restriction.format(column='accession')] + self._release_condition('f', parameters)
+            branches.append(
+                f"SELECT accession AS value, '{self.UNIPROTKB}' AS db, accession"
+                f" FROM {self.qualified_name} AS f WHERE {' AND '.join(where)}"
+            )
+        if source is None or others:
+            where = [restriction.format(column='id')]
+            if others:
+                parameters['source_types'] = tuple(others)
+                where.append('f.id_type IN %(source_types)s')
+            where += self._release_condition('f', parameters)
+            branches.append(
+                f"SELECT id AS value, id_type AS db, accession"
+                f" FROM {self.qualified_name} AS f WHERE {' AND '.join(where)}"
+            )
+        return " UNION ALL ".join(branches)
+
+    def _mapping_query(self, restriction, source, target, parameters):
+        """
+        Build the whole statement, both ends included.
+
+        The target side is a join for real databases and needs no
+        table access at all when the accession itself was asked for,
+        since the subquery already carries it.
+
+        Parameters
+        ----------
+        restriction : str
+            SQL condition selecting the queried identifiers, with
+            ``{column}`` where the column name belongs.
+        source, target : list of str or None
+            The two ends of the mapping.
+        parameters : dict
+            Query parameters, extended in place.
+
+        Returns
+        -------
+        str
+            A SELECT returning this cursor's columns.
+        """
+        # Both ends pinned to a single kind of identifier need no join:
+        # one end is then the table's own key, already carried by every
+        # row the other end matches. This is the shape of the two
+        # commonest questions, and joining for them would cost an order
+        # of magnitude more than reading the rows once.
+        only_source_pivot = source == [self.UNIPROTKB]
+        only_target_pivot = target == [self.UNIPROTKB]
+
+        if only_source_pivot and not only_target_pivot:
+            where = [restriction.format(column='accession')]
+            others = None if target is None else [ x for x in target if x != self.UNIPROTKB ]
+            if others:
+                parameters['target_types'] = tuple(others)
+                where.append('f.id_type IN %(target_types)s')
+            where += self._release_condition('f', parameters)
+            selects = [
+                f"SELECT DISTINCT accession AS source, '{self.UNIPROTKB}' AS source_type,"
+                f' accession AS accession, id AS target, id_type AS target_type'
+                f' FROM {self.qualified_name} AS f WHERE {" AND ".join(where)}'
+            ]
+            if target is not None and self.UNIPROTKB in target:
+                selects.append(
+                    f"SELECT DISTINCT accession AS source, '{self.UNIPROTKB}' AS source_type,"
+                    f" accession AS accession, accession AS target, '{self.UNIPROTKB}' AS target_type"
+                    f' FROM {self.qualified_name} AS f'
+                    f' WHERE {" AND ".join([restriction.format(column="accession")] + self._release_condition("f", parameters))}'
+                )
+            return " UNION ALL ".join(selects)
+
+        if only_target_pivot:
+            selects = []
+            others = None if source is None else [ x for x in source if x != self.UNIPROTKB ]
+            if source is None or others:
+                where = [restriction.format(column='id')]
+                if others:
+                    parameters['source_types'] = tuple(others)
+                    where.append('f.id_type IN %(source_types)s')
+                where += self._release_condition('f', parameters)
+                selects.append(
+                    f'SELECT DISTINCT id AS source, id_type AS source_type, accession AS accession,'
+                    f" accession AS target, '{self.UNIPROTKB}' AS target_type"
+                    f' FROM {self.qualified_name} AS f WHERE {" AND ".join(where)}'
+                )
+            if source is None or self.UNIPROTKB in source:
+                where = [restriction.format(column='accession')] + self._release_condition('f', parameters)
+                selects.append(
+                    f"SELECT DISTINCT accession AS source, '{self.UNIPROTKB}' AS source_type,"
+                    f" accession AS accession, accession AS target, '{self.UNIPROTKB}' AS target_type"
+                    f' FROM {self.qualified_name} AS f WHERE {" AND ".join(where)}'
+                )
+            return " UNION ALL ".join(selects)
+
+        subquery = self._source_query(restriction, source, parameters)
+        wants_accession = target is not None and self.UNIPROTKB in target
+        others = None if target is None else [ x for x in target if x != self.UNIPROTKB ]
+
+        selects = []
+        if target is None or others:
+            # The target side has to be restricted by the accessions the
+            # source side found, not merely joined on them. Without the
+            # IN, ClickHouse builds its hash table from the whole table,
+            # which for a few billion rows never returns.
+            where = [f'accession IN (SELECT accession FROM ({subquery}))']
+            if others:
+                parameters['target_types'] = tuple(others)
+                where.append('id_type IN %(target_types)s')
+            if self.release:
+                parameters['release'] = self.release
+                where.append('release = %(release)s')
+            inner = (f'SELECT accession, id, id_type FROM {self.qualified_name}'
+                     f' WHERE {" AND ".join(where)}')
+            selects.append(
+                f'SELECT DISTINCT s.value AS source, s.db AS source_type, s.accession AS accession,'
+                f' t.id AS target, t.id_type AS target_type'
+                f' FROM ({subquery}) AS s'
+                f' INNER JOIN ({inner}) AS t ON t.accession = s.accession'
+            )
+        if wants_accession:
+            selects.append(
+                f'SELECT DISTINCT s.value AS source, s.db AS source_type, s.accession AS accession,'
+                f" s.accession AS target, '{self.UNIPROTKB}' AS target_type"
+                f' FROM ({subquery}) AS s'
+            )
+        return " UNION ALL ".join(selects)
+
+    def __getitem__(self, accessions, source=None, target=None):
+        """
+        Translate identifiers, dictionary style.
 
         Parameters
         ----------
         accessions : str or iterable of str
-            Identifiers to search in the column named by
-            :attr:`column`.
+            Identifiers to translate.
+        source, target : str or list of str, optional
+            The two ends of the mapping. See
+            :meth:`~rotifer.db.methods.MappingCursor.fetchall`.
 
         Returns
         -------
         pandas.DataFrame
-            Mapping rows for the identifiers found, with the columns
-            listed in
-            :attr:`~rotifer.db.methods.IdMappingCursor.columns`.
-            Identifiers that produced no row are registered in
+            The columns listed in
+            :attr:`~rotifer.db.methods.MappingCursor.columns`.
+            Identifiers with no translation are registered in
             :attr:`~rotifer.db.core.BaseCursor.missing`.
         """
         targets = self.parse_ids(accessions)
         if not targets:
             return self.empty()
+        source = self.parse_databases(source)
+        target = self.parse_databases(target)
 
         stack = []
         try:
             if len(targets) >= self.submit_threshold:
                 # Too many to write into the statement: hand them over
-                # as a table and let the query refer to it
+                # as a table and let both branches refer to it
                 table = self.submit(targets)
                 try:
                     parameters = {}
-                    conditions = [f'{self.column} IN (SELECT id FROM {table})'] + self._filters(parameters)
-                    stack.append(self.query(
-                        f'SELECT accession, id_type, id FROM {self.qualified_name}'
-                        f' WHERE {" AND ".join(conditions)}'
-                        f' ORDER BY accession, id_type, id',
-                        parameters = parameters,
-                    ))
+                    sql = self._mapping_query(
+                        f'f.{{column}} IN (SELECT id FROM {table})', source, target, parameters)
+                    stack.append(self.query(sql, parameters=parameters))
                 finally:
                     self.cleanup()
             else:
                 for batch in self._batches(targets, self.batch_size):
                     parameters = {'targets': tuple(batch)}
-                    conditions = [f'{self.column} IN %(targets)s'] + self._filters(parameters)
-                    stack.append(self.query(
-                        f'SELECT accession, id_type, id FROM {self.qualified_name}'
-                        f' WHERE {" AND ".join(conditions)}'
-                        f' ORDER BY accession, id_type, id',
-                        parameters = parameters,
-                    ))
+                    sql = self._mapping_query('f.{column} IN %(targets)s', source, target, parameters)
+                    stack.append(self.query(sql, parameters=parameters))
         except Exception as error:
             # An unreachable or broken server must not abort the caller:
             # registering the query as missing lets a delegator hand it
@@ -478,283 +695,36 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
             return self.empty()
 
         df = pd.concat(stack, ignore_index=True) if stack else self.empty()
+        if not df.empty:
+            df = df[self.columns].drop_duplicates().reset_index(drop=True)
 
         missing = targets.difference(self.getids(df))
         if missing:
-            self.update_missing(missing, error=f'Identifier not found in {self.qualified_name}', retry=False)
+            self.update_missing(missing, error=f'No mapping found in {self.qualified_name}', retry=False)
 
         return df
 
-    def fetchone(self, accessions):
+    def fetchone(self, accessions, source=None, target=None):
         """
-        Iterate over identifier mappings, one batch at a time.
+        Iterate over mappings, one batch of identifiers at a time.
 
         Parameters
         ----------
         accessions : str or iterable of str
-            Identifiers to search.
+            Identifiers to translate.
+        source, target : str or list of str, optional
+            The two ends of the mapping.
 
         Yields
         ------
         pandas.DataFrame
-            The mapping rows of one batch of at most ``batch_size``
-            identifiers. Input order is not preserved.
+            The mappings of one batch. Input order is not preserved.
         """
         targets = self.parse_ids(accessions)
         for batch in self._batches(targets, self.batch_size):
-            found = self.__getitem__(batch)
+            found = self.__getitem__(batch, source=source, target=target)
             if not found.empty:
                 yield found
-
-class IdMappingCursor(BaseIdMappingCursor):
-    """
-    Fetch the cross-references of UniProtKB accessions.
-
-    This is the forward lookup the table is sorted by, so it is the
-    cheapest query available: ClickHouse reads only the granules that
-    hold the requested accessions.
-
-    Parameters
-    ----------
-    id_type : str or list of str, optional
-        Restrict results to these cross-referenced databases.
-    release : str, optional
-        Restrict results to one UniProt release.
-    batch_size : int, optional
-        Number of accessions sent to the server per query.
-    **kwargs
-        Connection parameters, passed to
-        :class:`BaseClickHouseCursor`.
-
-    See Also
-    --------
-    rotifer.db.uniprot.clickhouse.CrossReferenceCursor : the reverse lookup
-    rotifer.db.uniprot.clickhouse.MappingCursor : translate between two databases
-    rotifer.db.uniprot.mirror.IdMappingCursor : same data, read from the flat file
-
-    Examples
-    --------
-    Every cross-reference of two accessions:
-
-    >>> from rotifer.db.uniprot import clickhouse as ruch
-    >>> ic = ruch.IdMappingCursor()  # doctest: +SKIP
-    >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
-
-    Only their RefSeq proteins:
-
-    >>> ic = ruch.IdMappingCursor(id_type='RefSeq')  # doctest: +SKIP
-    >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
-    """
-    column = 'accession'
-
-class CrossReferenceCursor(BaseIdMappingCursor):
-    """
-    Fetch the UniProtKB accessions of identifiers from other databases.
-
-    This is the reverse lookup, answered by the table's ``by_id``
-    projection, a second copy of the data sorted by identifier that
-    ClickHouse selects on its own. Naming the database in `id_type`
-    makes the query cheaper still.
-
-    Parameters
-    ----------
-    id_type : str or list of str, optional
-        Restrict the search to these cross-referenced databases.
-    release : str, optional
-        Restrict results to one UniProt release.
-    batch_size : int, optional
-        Number of identifiers sent to the server per query.
-    **kwargs
-        Connection parameters, passed to
-        :class:`BaseClickHouseCursor`.
-
-    See Also
-    --------
-    rotifer.db.uniprot.clickhouse.IdMappingCursor : the forward lookup
-
-    Examples
-    --------
-    Which UniProtKB entry is a RefSeq protein part of?
-
-    >>> from rotifer.db.uniprot import clickhouse as ruch
-    >>> xc = ruch.CrossReferenceCursor(id_type='RefSeq')  # doctest: +SKIP
-    >>> xc.fetchall(["YP_031579.1"])  # doctest: +SKIP
-    """
-    column = 'id'
-
-class MappingCursor(BaseIdMappingCursor):
-    """
-    Translate identifiers from one database into another.
-
-    This is the query UniProt's online ID mapping service answers:
-    the identifiers of `source` are looked up in the table, and
-    every identifier of `target` sharing their UniProtKB accession is
-    returned. The two lookups are done in one server side join, so the
-    intermediate accessions never travel over the network.
-
-    Parameters
-    ----------
-    source : str
-        Name of the database the queried identifiers belong to, as
-        written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
-        ``UniProtKB-AC`` to start from UniProtKB accessions
-        themselves.
-    target : str
-        Name of the database to translate into, e.g. ``RefSeq``. Use
-        ``UniProtKB-AC`` to translate into UniProtKB accessions.
-    release : str, optional
-        Restrict results to one UniProt release.
-    batch_size : int, optional
-        Number of identifiers sent to the server per query.
-    **kwargs
-        Connection parameters, passed to
-        :class:`BaseClickHouseCursor`.
-
-    Attributes
-    ----------
-    columns : list of str
-        ``['from', 'accession', 'to']``, overriding the three columns
-        of the mapping table.
-
-    See Also
-    --------
-    rotifer.db.uniprot.webapi.idmapping : the same query, run by UniProt's servers
-
-    Examples
-    --------
-    Map GenBank CDS identifiers to RefSeq proteins:
-
-    >>> from rotifer.db.uniprot import clickhouse as ruch
-    >>> mc = ruch.MappingCursor(source='EMBL-CDS', target='RefSeq')  # doctest: +SKIP
-    >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
-    """
-
-    _columns = ['from','accession','to']
-    column = 'from'
-
-    def __init__(self, source, target, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.source = source
-        self.target = target
-
-    def __getitem__(self, accessions):
-        """
-        Translate identifiers, dictionary style.
-
-        Parameters
-        ----------
-        accessions : str or iterable of str
-            Identifiers of the database named by ``source``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Columns ``from``, ``accession`` and ``to``: the queried
-            identifier, the UniProtKB accession that links it to the
-            result, and the identifier in the database named by
-            ``target``. Identifiers with no translation are
-            registered in
-            :attr:`~rotifer.db.core.BaseCursor.missing`.
-        """
-        targets = self.parse_ids(accessions)
-        if not targets:
-            return self.empty()
-
-        # UniProtKB accessions are the join key, not rows of the table
-        source_column = "accession" if self.source == "UniProtKB-AC" else "id"
-        target_column = "accession" if self.target == "UniProtKB-AC" else "id"
-
-        stack = []
-        try:
-            stack = self._mapping_batches(targets, source_column, target_column)
-        except Exception as error:
-            logger.error(f'Query to {self.qualified_name} at {self.host} failed: {error}')
-            self.update_missing(targets, error=f'ClickHouse query failed: {error}', retry=True)
-            return self.empty()
-
-        df = pd.concat(stack, ignore_index=True) if stack else self.empty()
-
-        missing = targets.difference(self.getids(df))
-        if missing:
-            self.update_missing(missing, error=f'No {self.target} identifier found for this {self.source} identifier', retry=False)
-
-        return df
-
-    def _mapping_batches(self, targets, source_column, target_column):
-        """
-        Run the join, one batch of identifiers at a time.
-
-        Parameters
-        ----------
-        targets : set of str
-            Identifiers to translate.
-        source_column, target_column : str
-            Names of the columns holding the queried and the returned
-            identifiers, either ``accession`` or ``id``.
-
-        Returns
-        -------
-        list of pandas.DataFrame
-            One dataframe per batch.
-        """
-        if len(targets) >= self.submit_threshold:
-            # Too many to write into the statement: hand them over as a
-            # table and let the join refer to it
-            table = self.submit(targets)
-            try:
-                return [ self._mapping_query(f'f.{source_column} IN (SELECT id FROM {table})', {}, source_column, target_column) ]
-            finally:
-                self.cleanup()
-
-        stack = []
-        for batch in self._batches(targets, self.batch_size):
-            parameters = {'targets': tuple(batch)}
-            stack.append(self._mapping_query(f'f.{source_column} IN %(targets)s', parameters, source_column, target_column))
-        return stack
-
-    def _mapping_query(self, restriction, parameters, source_column, target_column):
-        """
-        Run the join for one set of queried identifiers.
-
-        Parameters
-        ----------
-        restriction : str
-            The SQL condition selecting them, either an inline list or
-            a reference to the table filled by
-            :meth:`~BaseClickHouseCursor.submit`.
-        parameters : dict
-            Query parameters, extended in place with the values bound
-            by the conditions this method adds.
-        source_column, target_column : str
-            Names of the columns holding the queried and the returned
-            identifiers, either ``accession`` or ``id``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Columns ``from``, ``accession`` and ``to``.
-        """
-        left = [restriction]
-        if source_column == "id":
-            left.append("f.id_type = %(source)s")
-            parameters['source'] = self.source
-        right = []
-        if target_column == "id":
-            right.append("t.id_type = %(target)s")
-            parameters['target'] = self.target
-        if self.release:
-            left.append("f.release = %(release)s")
-            right.append("t.release = %(release)s")
-            parameters['release'] = self.release
-        where = " AND ".join(left + right)
-        return self.query(
-            f'SELECT DISTINCT f.{source_column} AS `from`, f.accession AS accession, t.{target_column} AS `to`'
-            f' FROM {self.qualified_name} AS f'
-            f' INNER JOIN {self.qualified_name} AS t ON f.accession = t.accession'
-            f' WHERE {where}'
-            f' ORDER BY `from`, accession, `to`',
-            parameters = parameters,
-        )
 
 if __name__ == '__main__':
     pass

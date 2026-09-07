@@ -43,7 +43,7 @@ Cursors
     Proteome descriptions.
 :class:`TaxonomyCursor`
     Taxonomy records.
-:class:`IdMappingCursor`
+:class:`MappingCursor`
     UniProt's asynchronous identifier mapping service.
 
 See Also
@@ -68,14 +68,14 @@ from rotifer.db.uniprot.webapi.search import (
     SearchCursor,
     TaxonomyCursor,
 )
-from rotifer.db.uniprot.webapi.idmapping import IdMappingCursor
+from rotifer.db.uniprot.webapi.idmapping import MappingCursor
 
 logger = rotifer.logging.getLogger(__name__)
 
 __all__ = [
     'API_URL',
     'FastaCursor',
-    'IdMappingCursor',
+    'MappingCursor',
     'ProteomeCursor',
     'RESOURCES',
     'Resource',

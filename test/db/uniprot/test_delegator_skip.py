@@ -23,10 +23,8 @@ import rotifer.db.methods
 from rotifer.db import uniprot
 
 
-class Backend(rotifer.db.methods.IdMappingCursor, rotifer.db.core.BaseCursor):
+class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
     """A mapping backend with a fixed content_id that counts being asked."""
-
-    column = 'accession'
 
     def __init__(self, content=None, accessions=()):
         super().__init__(progress=False)
@@ -37,10 +35,11 @@ class Backend(rotifer.db.methods.IdMappingCursor, rotifer.db.core.BaseCursor):
     def content_id(self):
         return self._content
 
-    def fetchone(self, accessions, *args, **kwargs):
+    def fetchone(self, accessions, source=None, target=None, *args, **kwargs):
         self.asked += 1
         wanted = self.parse_ids(accessions)
-        rows = [{'accession': a, 'id_type': 'RefSeq', 'id': f'{a}_ref'}
+        rows = [{'source': a, 'source_type': self.UNIPROTKB, 'accession': a,
+                 'target': f'{a}_ref', 'target_type': 'RefSeq'}
                 for a in self._accessions if a in wanted]
         if rows:
             yield pd.DataFrame(rows, columns=self.columns)
@@ -80,7 +79,8 @@ def test_the_skip_holds_when_nothing_was_found():
                                 ('mirror', 'idmapping.dat:90:1', []))
     result = delegator.fetchall(['ABSENT'])
     assert backends['mirror'].asked == 0
-    assert result.empty and list(result.columns) == ['accession', 'id_type', 'id']
+    assert result.empty and list(result.columns) == [
+        'source', 'source_type', 'accession', 'target', 'target_type']
 
 
 def test_a_differing_release_still_consults_the_mirror():
@@ -90,7 +90,7 @@ def test_a_differing_release_still_consults_the_mirror():
                                 ('mirror', 'idmapping.dat:91:2', ['P00750']))
     frame = delegator.fetchall(['P00750'])
     assert backends['mirror'].asked == 1
-    assert frame['accession'].tolist() == ['P00750']
+    assert frame['source'].tolist() == ['P00750']
 
 
 def test_an_unrecorded_load_consults_the_mirror():
@@ -111,7 +111,7 @@ def test_webapi_is_still_consulted_after_both_local_backends():
     frame = delegator.fetchall(['P00750'])
     assert backends['mirror'].asked == 0
     assert backends['webapi'].asked == 1
-    assert frame['accession'].tolist() == ['P00750']
+    assert frame['source'].tolist() == ['P00750']
 
 
 def test_getitem_skips_too():

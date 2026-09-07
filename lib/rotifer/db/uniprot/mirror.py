@@ -372,7 +372,7 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
 
     See Also
     --------
-    rotifer.db.uniprot.mirror.IdMappingCursor : identifier mapping cursor
+    rotifer.db.uniprot.mirror.MappingCursor : identifier mapping cursor
     """
 
     #: Path of the data file, relative to the root of the mirror.
@@ -578,18 +578,22 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
             return 'python'
         raise ValueError(f"Unknown engine {self.engine}: expected 'auto', 'arrow' or 'python'")
 
-class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor):
+class MappingCursor(rotifer.db.methods.MappingCursor, BaseUniProtFileCursor):
     """
-    Fetch UniProt identifier mappings from a local ``idmapping.dat``.
+    Translate identifiers by scanning a local ``idmapping.dat``.
 
-    ``idmapping.dat`` lists, for every UniProtKB accession, the
-    identifier of the same protein in each database UniProt
-    cross-references. It is a tab separated file with three columns
-    and no header: the UniProtKB accession, the name of the
-    cross-referenced database and the identifier in that database.
+    One query answers what used to need three cursors: the
+    identifiers given are matched in the databases named by
+    ``source``, their UniProtKB accessions are found, and the
+    identifiers those accessions carry in the databases named by
+    ``target`` are returned. Pinning either end to
+    :attr:`~rotifer.db.methods.MappingCursor.UNIPROTKB` gives the
+    accession itself.
 
-    Queries are answered by scanning the whole file once per call, so
-    a single call should carry as many identifiers as possible.
+    Every query scans the whole file, and translating between two
+    external databases scans it twice, once per end. A single call
+    should therefore carry as many identifiers as possible, and this
+    backend is best kept behind one that can answer from an index.
 
     Parameters
     ----------
@@ -597,77 +601,54 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
         Root directory of the local UniProt mirror or the full path
         of an ``idmapping.dat`` file. Defaults to the
         ``local_database_path`` configuration entry.
-    column : str, default 'accession'
-        Which column the queried identifiers are matched against.
-        Use ``accession`` to search UniProtKB accessions and ``id``
-        to search the identifiers of cross-referenced databases.
-    id_type : str or list of str, optional
-        Restrict results to these cross-referenced databases, e.g.
-        ``RefSeq`` or ``['EMBL-CDS', 'GeneID']``. By default every
-        database is reported.
     threads : int, optional
         Number of worker processes used to scan the file.
     engine : str, optional
         Matching engine, one of ``auto``, ``arrow`` or ``python``.
-        See :class:`BaseUniProtFileCursor`.
     progress : bool, default False
         Whether to print progress messages.
 
-    Attributes
-    ----------
-    columns : list of str
-        ``['accession', 'id_type', 'id']``.
+    Note
+    ----
+    Asking for :attr:`~rotifer.db.methods.MappingCursor.UNIPROTKB` on
+    the source side takes the caller's word that the identifiers are
+    accessions rather than scanning to confirm it, which would double
+    the cost of the commonest query. An accession that does not exist
+    therefore yields no rows rather than an error, unless the target
+    end is the accession itself, in which case it is echoed back.
 
     See Also
     --------
-    rotifer.db.uniprot.clickhouse.IdMappingCursor : same data, indexed and fast
-    rotifer.db.uniprot.webapi.idmapping : UniProt's online mapping service
+    rotifer.db.uniprot.clickhouse.MappingCursor : the same query, indexed
 
     Examples
     --------
-    Fetch every cross-reference of two UniProtKB accessions:
-
     >>> from rotifer.db.uniprot import mirror as rum
-    >>> ic = rum.IdMappingCursor("/scratch/global/databases/uniprot")  # doctest: +SKIP
-    >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
-
-    Find the UniProtKB accession of a RefSeq protein:
-
-    >>> ic = rum.IdMappingCursor(column='id', id_type='RefSeq')  # doctest: +SKIP
-    >>> ic.fetchall(["YP_031579.1"])  # doctest: +SKIP
+    >>> mc = rum.MappingCursor()                                    # doctest: +SKIP
+    >>> mc.fetchall(["Q6GZX4"], source=mc.UNIPROTKB)                # doctest: +SKIP
+    >>> mc.fetchall(["AAT09660.1"], source=['EMBL-CDS'],            # doctest: +SKIP
+    ...             target=['RefSeq'])
     """
 
     _datafile = os.path.join("knowledgebase","idmapping","idmapping.dat")
 
+    #: Columns of the file itself, which are not the columns this
+    #: cursor returns: the file stores one row per cross-reference,
+    #: while a mapping names both of its ends.
+    _table_columns = ['accession','id_type','id']
+
     def __init__(
             self,
             path = config['local_database_path'],
-            column = 'accession',
-            id_type = None,
             threads = config['threads'],
             engine = config['engine'],
             progress = False,
             *args, **kwargs
         ):
+        kwargs.pop('column', None)
+        kwargs.pop('id_type', None)
         super().__init__(path=path, threads=threads, engine=engine, progress=progress, *args, **kwargs)
-        self.column = column
-        self.id_type = id_type
         self.maxgetitem = 1000000
-
-    def _id_types(self):
-        """
-        Normalize the ``id_type`` filter to a list.
-
-        Returns
-        -------
-        list of str
-            Empty when no filter is set.
-        """
-        if isinstance(self.id_type, types.NoneType):
-            return []
-        if isinstance(self.id_type, str) or not isinstance(self.id_type, typing.Iterable):
-            return [str(self.id_type)]
-        return [ str(x) for x in self.id_type ]
 
     def reader(self, chunksize=config['chunksize'], id_type=None):
         """
@@ -684,30 +665,25 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
             configuration entry.
         id_type : str or list of str, optional
             Restrict the chunks to these cross-referenced databases.
-            Defaults to the cursor's ``id_type`` attribute.
 
         Yields
         ------
         pandas.DataFrame
-            Chunks with the columns listed in :attr:`columns`.
+            Chunks with the columns listed in :attr:`_table_columns`.
 
         Examples
         --------
-        Count the rows of each cross-referenced database:
-
         >>> from rotifer.db.uniprot import mirror as rum
-        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
-        >>> counts = sum(c.id_type.value_counts() for c in ic.reader())  # doctest: +SKIP
+        >>> mc = rum.MappingCursor()  # doctest: +SKIP
+        >>> counts = sum(c.id_type.value_counts() for c in mc.reader())  # doctest: +SKIP
         """
-        if isinstance(id_type, types.NoneType):
-            id_type = self._id_types()
-        elif isinstance(id_type, str):
+        if isinstance(id_type, str):
             id_type = [id_type]
 
         stream = pd.read_csv(
             self.datafile,
             sep = "\t",
-            names = self.columns,
+            names = self._table_columns,
             header = None,
             dtype = str,
             keep_default_na = False,
@@ -721,203 +697,6 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseUniProtFileCursor)
                 if chunk.empty:
                     continue
             yield chunk.reset_index(drop=True)
-
-    def __getitem__(self, accessions):
-        """
-        Fetch identifier mappings, dictionary style.
-
-        Parameters
-        ----------
-        accessions : str or iterable of str
-            Identifiers to search in the column named by the
-            cursor's ``column`` attribute.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Mapping rows for the identifiers found, with the columns
-            listed in :attr:`columns`. Identifiers that produced no
-            row are registered in
-            :attr:`~rotifer.db.core.BaseCursor.missing`.
-
-        Note
-        ----
-        This method scans the entire data file, which takes minutes
-        for a full ``idmapping.dat``. Batch your queries.
-        """
-        targets = self.parse_ids(accessions)
-        if not targets:
-            return self.empty()
-        if isinstance(self.datafile, types.NoneType):
-            self.update_missing(targets, error=f'No idmapping file found under {self.path}', retry=False)
-            return self.empty()
-
-        if self.progress:
-            logger.warning(f'Scanning {self.datafile} for {len(targets)} identifier(s)...')
-
-        rows = [ x for x in self.scan(targets, self.column) if len(x) == len(self.columns) ]
-        df = pd.DataFrame(rows, columns=self.columns)
-
-        id_type = self._id_types()
-        if id_type and not df.empty:
-            df = df[df.id_type.isin(id_type)]
-        df = df.reset_index(drop=True)
-
-        missing = targets.difference(self.getids(df))
-        if missing:
-            self.update_missing(missing, error=f'Identifier not found in {self.datafile}', retry=False)
-
-        return df
-
-    def fetchone(self, accessions):
-        """
-        Iterate over identifier mappings, one query at a time.
-
-        The file is scanned once for the whole batch and the result
-        is then split, so this method costs the same as
-        :meth:`fetchall`. Input order is not preserved.
-
-        Parameters
-        ----------
-        accessions : str or iterable of str
-            Identifiers to search.
-
-        Yields
-        ------
-        pandas.DataFrame
-            The mapping rows of one identifier.
-
-        Examples
-        --------
-        >>> from rotifer.db.uniprot import mirror as rum
-        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
-        >>> for df in ic.fetchone(["Q6GZX4","Q6GZX3"]):  # doctest: +SKIP
-        ...     print(df.accession.iloc[0], len(df))
-        """
-        found = self.__getitem__(accessions)
-        if found.empty:
-            return
-        for _, block in found.groupby(self.column, sort=False):
-            yield block.reset_index(drop=True)
-
-    def fetchall(self, accessions):
-        """
-        Fetch the identifier mappings of every query at once.
-
-        Parameters
-        ----------
-        accessions : str or iterable of str
-            Identifiers to search.
-
-        Returns
-        -------
-        pandas.DataFrame
-            All mapping rows found, with the columns listed in
-            :attr:`columns`.
-
-        Examples
-        --------
-        >>> from rotifer.db.uniprot import mirror as rum
-        >>> ic = rum.IdMappingCursor()  # doctest: +SKIP
-        >>> df = ic.fetchall(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
-        """
-        return self.__getitem__(accessions)
-
-class CrossReferenceCursor(IdMappingCursor):
-    """
-    Find the UniProtKB accessions of identifiers from other databases.
-
-    This is :class:`IdMappingCursor` searching the third column of
-    ``idmapping.dat`` instead of the first, which costs exactly the
-    same, since either way the whole file is scanned.
-
-    Parameters
-    ----------
-    path : str, optional
-        Root directory of the local UniProt mirror or the full path
-        of an ``idmapping.dat`` file.
-    id_type : str or list of str, optional
-        Restrict the search to these cross-referenced databases.
-    threads : int, optional
-        Number of worker processes used to scan the file.
-    engine : str, optional
-        Matching engine, one of ``auto``, ``arrow`` or ``python``.
-    progress : bool, default False
-        Whether to print progress messages.
-
-    See Also
-    --------
-    rotifer.db.uniprot.clickhouse.CrossReferenceCursor : same query, indexed and fast
-
-    Examples
-    --------
-    >>> from rotifer.db.uniprot import mirror as rum
-    >>> xc = rum.CrossReferenceCursor(id_type='RefSeq')  # doctest: +SKIP
-    >>> xc.fetchall(["YP_031579.1"])  # doctest: +SKIP
-    """
-    def __init__(self, path=config['local_database_path'], id_type=None,
-                 threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
-        kwargs.pop('column', None)
-        super().__init__(path=path, column='id', id_type=id_type, threads=threads,
-                         engine=engine, progress=progress, *args, **kwargs)
-
-class MappingCursor(IdMappingCursor):
-    """
-    Translate identifiers from one database into another.
-
-    This is the query UniProt's online ID mapping service answers.
-    Without an index it takes two passes over the file: the first
-    finds the UniProtKB accessions of the queried identifiers, the
-    second collects the identifiers those accessions have in the
-    target database. Expect it to cost twice a plain lookup.
-
-    Parameters
-    ----------
-    source : str
-        Name of the database the queried identifiers belong to, as
-        written in ``idmapping.dat``, e.g. ``EMBL-CDS``. Use
-        ``UniProtKB-AC`` to start from UniProtKB accessions
-        themselves, which skips the first pass.
-    target : str
-        Name of the database to translate into, e.g. ``RefSeq``. Use
-        ``UniProtKB-AC`` to translate into UniProtKB accessions,
-        which skips the second pass.
-    path : str, optional
-        Root directory of the local UniProt mirror or the full path
-        of an ``idmapping.dat`` file.
-    threads : int, optional
-        Number of worker processes used to scan the file.
-    engine : str, optional
-        Matching engine, one of ``auto``, ``arrow`` or ``python``.
-    progress : bool, default False
-        Whether to print progress messages.
-
-    Attributes
-    ----------
-    columns : list of str
-        ``['from', 'accession', 'to']``.
-
-    See Also
-    --------
-    rotifer.db.uniprot.clickhouse.MappingCursor : same query, as one server side join
-
-    Examples
-    --------
-    >>> from rotifer.db.uniprot import mirror as rum
-    >>> mc = rum.MappingCursor(source='EMBL-CDS', target='RefSeq')  # doctest: +SKIP
-    >>> mc.fetchall(["AAT09660.1"])  # doctest: +SKIP
-    """
-
-    _columns = ['from','accession','to']
-
-    def __init__(self, source, target, path=config['local_database_path'],
-                 threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
-        kwargs.pop('column', None)
-        kwargs.pop('id_type', None)
-        super().__init__(path=path, column='from', id_type=None, threads=threads,
-                         engine=engine, progress=progress, *args, **kwargs)
-        self.source = source
-        self.target = target
 
     def _rows(self, targets, column):
         """
@@ -933,29 +712,30 @@ class MappingCursor(IdMappingCursor):
         Returns
         -------
         pandas.DataFrame
-            Columns ``accession``, ``id_type`` and ``id``.
+            The columns listed in :attr:`_table_columns`.
         """
-        names = [ x for x, _ in sorted(_FIELDS.items(), key=lambda kv: kv[1]) ]
         if not targets:
-            return pd.DataFrame([], columns=names)
-        rows = [ x for x in self.scan(targets, column) if len(x) == len(names) ]
-        return pd.DataFrame(rows, columns=names)
+            return pd.DataFrame([], columns=self._table_columns)
+        rows = [ x for x in self.scan(targets, column) if len(x) == len(self._table_columns) ]
+        return pd.DataFrame(rows, columns=self._table_columns)
 
-    def __getitem__(self, accessions):
+    def __getitem__(self, accessions, source=None, target=None):
         """
         Translate identifiers, dictionary style.
 
         Parameters
         ----------
         accessions : str or iterable of str
-            Identifiers of the database named by ``source``.
+            Identifiers to translate.
+        source, target : str or list of str, optional
+            The two ends of the mapping. See
+            :meth:`~rotifer.db.methods.MappingCursor.fetchall`.
 
         Returns
         -------
         pandas.DataFrame
-            Columns ``from``, ``accession`` and ``to``. Identifiers
-            with no translation are registered in
-            :attr:`~rotifer.db.core.BaseCursor.missing`.
+            The columns listed in
+            :attr:`~rotifer.db.methods.MappingCursor.columns`.
         """
         targets = self.parse_ids(accessions)
         if not targets:
@@ -963,39 +743,87 @@ class MappingCursor(IdMappingCursor):
         if isinstance(self.datafile, types.NoneType):
             self.update_missing(targets, error=f'No idmapping file found under {self.path}', retry=False)
             return self.empty()
+        source = self.parse_databases(source)
+        target = self.parse_databases(target)
 
-        # First pass: the UniProtKB accessions of the queried identifiers
-        if self.source == "UniProtKB-AC":
-            pairs = pd.DataFrame({'from': sorted(targets), 'accession': sorted(targets)})
-        else:
+        # First pass: what UniProtKB accession each queried identifier
+        # belongs to. Accessions are the file's key rather than rows of
+        # it, so that branch needs no scan.
+        pairs = []
+        if source is None or self.UNIPROTKB in source:
+            pairs.append(pd.DataFrame({
+                'source': sorted(targets),
+                'source_type': self.UNIPROTKB,
+                'accession': sorted(targets),
+            }))
+        others = None if source is None else [ x for x in source if x != self.UNIPROTKB ]
+        if source is None or others:
             if self.progress:
-                logger.warning(f'Scanning {self.datafile} for {len(targets)} {self.source} identifier(s)...')
+                logger.warning(f'Scanning {self.datafile} for {len(targets)} identifier(s)...')
             found = self._rows(targets, 'id')
-            found = found[(found.id_type == self.source) & found.id.isin(targets)]
-            pairs = found[['id','accession']].rename(columns={'id':'from'}).drop_duplicates()
+            found = found[found.id.isin(targets)]
+            if others:
+                found = found[found.id_type.isin(others)]
+            pairs.append(found.rename(columns={'id':'source','id_type':'source_type'})
+                              [['source','source_type','accession']])
+        pairs = pd.concat(pairs, ignore_index=True).drop_duplicates() if pairs else pd.DataFrame(
+            [], columns=['source','source_type','accession'])
 
-        # Second pass: what those accessions are called in the target database
-        if self.target == "UniProtKB-AC":
-            result = pairs.assign(to=pairs.accession)
-        else:
+        # Second pass: what those accessions are called in the target
+        # databases. The accession itself is already in hand.
+        results = []
+        wants_accession = target is not None and self.UNIPROTKB in target
+        others = None if target is None else [ x for x in target if x != self.UNIPROTKB ]
+        if target is None or others:
             accessions_found = set(pairs.accession)
             if self.progress:
-                logger.warning(f'Scanning {self.datafile} for the {self.target} identifiers of {len(accessions_found)} accession(s)...')
+                logger.warning(f'Scanning {self.datafile} for the identifiers of {len(accessions_found)} accession(s)...')
             found = self._rows(accessions_found, 'accession')
-            found = found[found.id_type == self.target]
-            result = pairs.merge(
-                found[['accession','id']].rename(columns={'id':'to'}),
-                on = 'accession',
-                how = 'inner',
-            )
+            if others:
+                found = found[found.id_type.isin(others)]
+            results.append(pairs.merge(
+                found.rename(columns={'id':'target','id_type':'target_type'})
+                     [['accession','target','target_type']],
+                on = 'accession', how = 'inner',
+            ))
+        if wants_accession:
+            results.append(pairs.assign(target=pairs.accession, target_type=self.UNIPROTKB))
 
-        result = result[self.columns].drop_duplicates().reset_index(drop=True)
+        if results:
+            result = pd.concat(results, ignore_index=True)[self.columns]
+            result = result.drop_duplicates().reset_index(drop=True)
+        else:
+            result = self.empty()
 
         missing = targets.difference(self.getids(result))
         if missing:
-            self.update_missing(missing, error=f'No {self.target} identifier found for this {self.source} identifier', retry=False)
+            self.update_missing(missing, error='No mapping found in the local mirror', retry=False)
 
         return result
+
+    def fetchone(self, accessions, source=None, target=None):
+        """
+        Iterate over mappings.
+
+        The whole query is answered by one pair of scans, so this
+        yields a single dataframe rather than streaming batches:
+        splitting the input would mean scanning the file again for
+        each batch.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Identifiers to translate.
+        source, target : str or list of str, optional
+            The two ends of the mapping.
+
+        Yields
+        ------
+        pandas.DataFrame
+        """
+        found = self.__getitem__(accessions, source=source, target=target)
+        if not found.empty:
+            yield found
 
 if __name__ == '__main__':
     pass

@@ -3,10 +3,10 @@ UniProt's identifier mapping service.
 
 UniProt does not answer mapping queries from a URL: a job is submitted,
 polled until it finishes and only then read, possibly over several
-pages. :class:`IdMappingCursor` wraps that exchange so it looks like
+pages. :class:`MappingCursor` wraps that exchange so it looks like
 every other cursor, and returns the same three column table as
-:class:`rotifer.db.uniprot.mirror.IdMappingCursor` and
-:class:`rotifer.db.uniprot.clickhouse.IdMappingCursor`, so the three
+:class:`rotifer.db.uniprot.mirror.MappingCursor` and
+:class:`rotifer.db.uniprot.clickhouse.MappingCursor`, so the three
 can be used interchangeably or stacked behind one delegator.
 
 The module level functions below are the thin wrappers around each
@@ -15,8 +15,8 @@ they are convenient on their own.
 
 See Also
 --------
-rotifer.db.uniprot.mirror.IdMappingCursor : same table, from a local file
-rotifer.db.uniprot.clickhouse.IdMappingCursor : same table, indexed
+rotifer.db.uniprot.mirror.MappingCursor : same table, from a local file
+rotifer.db.uniprot.clickhouse.MappingCursor : same table, indexed
 """
 
 # Import external modules
@@ -46,7 +46,7 @@ session = requests.Session()
 session.mount("https://", HTTPAdapter(max_retries=retries))
 
 
-class IdMappingCursor(rotifer.db.methods.IdMappingCursor, core.BaseUniProtWebCursor):
+class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor):
     """
     Map identifiers between UniProt and the databases it references.
 
@@ -57,17 +57,6 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, core.BaseUniProtWebCur
 
     Parameters
     ----------
-    from_db : str, default 'UniProtKB_AC-ID'
-        Database the queried identifiers belong to, in the spelling
-        UniProt's service expects, e.g. ``RefSeq_Protein`` or
-        ``EMBL-GenBank-DDBJ_CDS``.
-    to_db : str, default 'UniProtKB'
-        Database to map to. Reported in the ``id_type`` column.
-    column : str, default 'accession'
-        Which column the queried identifiers are matched against, kept
-        for compatibility with the other identifier mapping cursors.
-        ``accession`` means the query holds UniProtKB accessions,
-        ``id`` that it holds identifiers of ``from_db``.
     polling_interval : int, default 3
         Seconds between polls of a running job.
     **kwargs
@@ -83,66 +72,121 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, core.BaseUniProtWebCur
     Map GenBank protein identifiers onto UniProtKB:
 
     >>> from rotifer.db.uniprot import webapi            # doctest: +SKIP
-    >>> ic = webapi.IdMappingCursor(                     # doctest: +SKIP
-    ...     from_db='EMBL-GenBank-DDBJ_CDS', to_db='UniProtKB', column='id')
-    >>> df = ic.fetchall(['BAE76179.1'])                 # doctest: +SKIP
+    >>> mc = webapi.MappingCursor()                        # doctest: +SKIP
+    >>> mc.fetchall(['BAE76179.1'], source=['EMBL-CDS'],   # doctest: +SKIP
+    ...             target=mc.UNIPROTKB)
 
     Go the other way, from UniProtKB to RefSeq:
 
-    >>> ic = webapi.IdMappingCursor(to_db='RefSeq_Protein')   # doctest: +SKIP
-    >>> df = ic.fetchall(['P00750'])                          # doctest: +SKIP
+    >>> mc.fetchall(['P00750'], source=mc.UNIPROTKB,       # doctest: +SKIP
+    ...             target=['RefSeq'])
     """
 
+    # Names a delegator shares with its backends, which describe where
+    # to look rather than what to ask, and must not reach UniProt as
+    # query parameters.
     _reserved = core.BaseUniProtWebCursor._reserved | frozenset({
-        'from_db', 'to_db', 'column', 'polling_interval',
+        'polling_interval', 'path', 'engine', 'host', 'port', 'dbname',
+        'table', 'release', 'id_type', 'source', 'target',
     })
 
-    def __init__(
-            self,
-            from_db='UniProtKB_AC-ID',
-            to_db='UniProtKB',
-            column='accession',
-            polling_interval=POLLING_INTERVAL,
-            *args, **kwargs):
-        # Identifiers are named by the service, not detected from
-        # their syntax, so resource detection has nothing to add here.
+    def __init__(self, polling_interval=POLLING_INTERVAL, *args, **kwargs):
+        # Identifiers are named by the caller, not detected from their
+        # syntax, so resource detection has nothing to add here.
         kwargs.setdefault('database', 'uniprotkb')
         kwargs.setdefault('probe', False)
         super().__init__(*args, **kwargs)
-        self.from_db = from_db
-        self.to_db = to_db
-        self.column = column
         self.polling_interval = polling_interval
         # The service takes large batches, and every batch costs a
         # submission and a poll, so few and large is the cheap shape.
         self.maxgetitem = 5000
 
-    def fetcher(self, accession, *args, **kwargs):
+    def fetcher(self, accession, source=None, target=None, *args, **kwargs):
         """
-        Submit a mapping job and read its results.
+        Submit a mapping job per pair of databases and read the results.
+
+        UniProt's service maps between one pair at a time, so a query
+        naming several databases becomes several jobs. Each costs a
+        submission and at least one poll, which is why the ends must be
+        named: there are 94 possible targets, and enumerating them
+        would be minutes of polling for a single query.
 
         Parameters
         ----------
         accession : iterable of str
-            Identifiers to map.
+            Identifiers to translate.
+        source, target : str or list of str
+            The two ends of the mapping. Neither may be omitted.
 
         Returns
         -------
         list of dict
-            The ``results`` array returned by the service.
+            One entry per result row, carrying the pair it came from.
+
+        Raises
+        ------
+        ValueError
+            If either end is left open.
         """
         targets = sorted(self.parse_ids(accession))
         if not targets:
             return []
-        reply = self.session.post(
-            f'{API_URL}/idmapping/run',
-            data={'from': self.from_db, 'to': self.to_db, 'ids': ",".join(targets)},
-            timeout=self.timeout,
-        )
-        reply.raise_for_status()
-        job = reply.json()['jobId']
-        self._wait(job)
-        return self._results(job)
+        source = self.parse_databases(source)
+        target = self.parse_databases(target)
+        if not source or not target:
+            raise ValueError(
+                'UniProt maps between one pair of databases at a time, so both '
+                'source and target must be named: this backend cannot answer '
+                '"every database".'
+            )
+
+        rows = []
+        for from_db in source:
+            for to_db in target:
+                reply = self.session.post(
+                    f'{API_URL}/idmapping/run',
+                    data={'from': self._service_name(from_db),
+                          'to': self._service_name(to_db),
+                          'ids': ",".join(targets)},
+                    timeout=self.timeout,
+                )
+                reply.raise_for_status()
+                job = reply.json()['jobId']
+                self._wait(job)
+                for row in self._results(job):
+                    row = dict(row)
+                    row['_source_type'] = from_db
+                    row['_target_type'] = to_db
+                    rows.append(row)
+        return rows
+
+    def _service_name(self, database):
+        """
+        Spell a database name the way the mapping service expects.
+
+        The service and ``idmapping.dat`` disagree on some names, and
+        on the accession itself, which the service calls a field of
+        UniProtKB rather than a database.
+
+        Parameters
+        ----------
+        database : str
+            Database name.
+
+        Returns
+        -------
+        str
+        """
+        if database == self.UNIPROTKB:
+            return 'UniProtKB_AC-ID'
+        return self._SERVICE_NAMES.get(database, database)
+
+    #: Names that differ between ``idmapping.dat`` and the service.
+    _SERVICE_NAMES = {
+        'RefSeq': 'RefSeq_Protein',
+        'EMBL-CDS': 'EMBL-GenBank-DDBJ_CDS',
+        'EMBL': 'EMBL-GenBank-DDBJ',
+    }
 
     def _wait(self, job):
         """
@@ -195,7 +239,7 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, core.BaseUniProtWebCur
 
     def parser(self, stream, accession, *args, **kwargs):
         """
-        Turn mapping results into the three column table.
+        Turn mapping results into this cursor's table.
 
         Parameters
         ----------
@@ -207,49 +251,39 @@ class IdMappingCursor(rotifer.db.methods.IdMappingCursor, core.BaseUniProtWebCur
         Returns
         -------
         pandas.DataFrame
-            Columns ``accession``, ``id_type`` and ``id``.
+            The columns listed in
+            :attr:`~rotifer.db.methods.MappingCursor.columns`.
         """
         if isinstance(stream, types.NoneType) or not stream:
             return self.empty()
         rows = []
         for entry in stream:
-            source = entry.get('from')
-            target = entry.get('to')
+            queried = entry.get('from')
+            found = entry.get('to')
             # UniProtKB targets arrive as whole entries, everything
             # else as a bare identifier.
-            if isinstance(target, dict):
-                target = target.get('primaryAccession') or target.get('id')
-            if isinstance(source, types.NoneType) or isinstance(target, types.NoneType):
+            if isinstance(found, dict):
+                found = found.get('primaryAccession') or found.get('id')
+            if isinstance(queried, types.NoneType) or isinstance(found, types.NoneType):
                 continue
-            rows.append({'accession': str(source), 'id_type': self.to_db, 'id': str(target)})
+            source_type = entry.get('_source_type')
+            target_type = entry.get('_target_type')
+            # The accession is whichever end is UniProtKB; when neither
+            # is, the service does not report the one it joined through.
+            if source_type == self.UNIPROTKB:
+                accession_value = str(queried)
+            elif target_type == self.UNIPROTKB:
+                accession_value = str(found)
+            else:
+                accession_value = None
+            rows.append({
+                'source': str(queried), 'source_type': source_type,
+                'accession': accession_value,
+                'target': str(found), 'target_type': target_type,
+            })
         if not rows:
             return self.empty()
         return pd.DataFrame(rows, columns=self.columns)
-
-    def getids(self, obj, *args, **kwargs):
-        """
-        Report which queried identifiers were mapped.
-
-        The queried identifiers are always in the ``accession``
-        column, whatever database they belong to, because that is the
-        column the service echoes back.
-
-        Parameters
-        ----------
-        obj : pandas.DataFrame or None
-
-        Returns
-        -------
-        set of str
-        """
-        if isinstance(obj, types.NoneType):
-            return set()
-        if isinstance(obj, pd.DataFrame):
-            if obj.empty or 'accession' not in obj.columns:
-                return set()
-            return set(obj['accession'].dropna().astype(str))
-        return super().getids(obj)
-
 
 # ----------------------------------------------------------------------
 # The original function level interface, kept for callers that use it.

@@ -73,7 +73,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
 
     See Also
     --------
-    rotifer.db.uniprot.clickhouse.BaseIdMappingCursor : a cursor built on this class
+    rotifer.db.uniprot.clickhouse.BaseMappingCursor : a cursor built on this class
     """
 
     #: Resource name of the SQL file describing this cursor's table,
@@ -467,7 +467,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Examples
         --------
         >>> from rotifer.db.uniprot import clickhouse as ruch
-        >>> c = ruch.IdMappingCursor()  # doctest: +SKIP
+        >>> c = ruch.MappingCursor()  # doctest: +SKIP
         >>> table = c.submit(["Q6GZX4","Q6GZX3"])  # doctest: +SKIP
         >>> c.query(f"SELECT count() FROM {table}")  # doctest: +SKIP
         """
