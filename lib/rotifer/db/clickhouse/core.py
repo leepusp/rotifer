@@ -206,6 +206,148 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
 
     # Introspection
 
+    #: One registry per database, shared by every table in it, naming
+    #: the file each table was loaded from. Not per table: provenance
+    #: is the same kind of fact whatever was loaded, and a registry
+    #: per table would multiply bookkeeping tables alongside the data.
+    _sources_table = 'rotifer_sources'
+
+    @property
+    def sources_table(self):
+        """
+        Qualified name of this database's load registry.
+
+        Returns
+        -------
+        str
+        """
+        return f'{self.dbname}.{self._sources_table}'
+
+    @property
+    def source_version(self):
+        """
+        Version label distinguishing loads into the same table.
+
+        Tables that hold several versions at once, e.g. one partition
+        per release, override this so each is recorded separately. The
+        default is a single unversioned body of data.
+
+        Returns
+        -------
+        str
+        """
+        return ''
+
+    def create_sources(self):
+        """
+        Create this database's load registry, if it is missing.
+
+        A row is written only by a load that ran to completion, which
+        is what lets :meth:`content_id` distinguish a table holding a
+        whole copy of a file from one left half filled by a load that
+        was interrupted.
+        """
+        self.command(f"""
+            CREATE TABLE IF NOT EXISTS {self.sources_table} (
+                `table`   String,
+                version   String,
+                source    String,
+                size      UInt64,
+                mtime     Int64,
+                rows      UInt64,
+                checksum  String,
+                loaded_at DateTime DEFAULT now()
+            ) ENGINE = ReplacingMergeTree(loaded_at)
+            ORDER BY (`table`, version, source)
+        """)
+
+    def record_source(self, datafile, rows, version=None, checksum=''):
+        """
+        Record that this table was loaded, whole, from a file.
+
+        Call this only where a load is known to have finished: the
+        presence of a row is the claim of completeness.
+
+        Parameters
+        ----------
+        datafile : str
+            Path of the file the rows came from.
+        rows : int
+            Number of rows in the table afterwards.
+        version : str, optional
+            Version label. Defaults to :attr:`source_version`.
+        checksum : str, optional
+            Checksum of the file, when one was computed. Recorded for
+            verification; routine comparisons use the cheap identity
+            below, which costs a stat() rather than a full read.
+
+        Returns
+        -------
+        bool
+            Whether the record was written.
+        """
+        import os
+        try:
+            info = os.stat(datafile)
+        except OSError:
+            logger.warning(f'Cannot stat {datafile}: load not recorded')
+            return False
+        if isinstance(version, types.NoneType):
+            version = self.source_version
+        self.create_sources()
+        self.client.insert(
+            table = self._sources_table,
+            database = self.dbname,
+            column_names = ['table','version','source','size','mtime','rows','checksum'],
+            data = [[str(self.table), str(version), os.path.basename(datafile),
+                     int(info.st_size), int(info.st_mtime), int(rows), str(checksum)]],
+        )
+        return True
+
+    def content_id(self):
+        """
+        Identify the data this table holds.
+
+        Answers only for a table loaded in full, and then with the
+        identity of the file it was loaded from, so that a cursor
+        reading that same file directly reports the same value and
+        either can stand in for the other. A table never recorded,
+        because its load was interrupted or predates this bookkeeping,
+        yields None and nothing is skipped on its account.
+
+        Returns
+        -------
+        str or None
+            ``<name>:<size>:<mtime>``, or None.
+
+        See Also
+        --------
+        rotifer.db.core.BaseCursor.content_id : what the value means
+        record_source : how the value gets written
+        """
+        try:
+            if not self.has_table(self._sources_table):
+                return None
+            sql = (f'SELECT source, size, mtime FROM {self.sources_table} '
+                   f'WHERE `table` = %(table)s')
+            parameters = {'table': self.table}
+            version = self.source_version
+            if version:
+                sql += ' AND version = %(version)s'
+                parameters['version'] = version
+            frame = self.query(sql + ' ORDER BY loaded_at DESC', parameters=parameters)
+        except Exception:
+            logger.debug('Could not read the load registry', exc_info=1)
+            return None
+        if frame is None or frame.empty:
+            return None
+        # Without a version filter the cursor reads every version at
+        # once, so it only matches a source that is the only one there.
+        if not self.source_version and len(frame.drop_duplicates()) > 1:
+            return None
+        row = frame.iloc[0]
+        return f'{row["source"]}:{int(row["size"])}:{int(row["mtime"])}'
+
     def has_table(self, name=None, dbname=None):
         """
         Find whether a table exists.

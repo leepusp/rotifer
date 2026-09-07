@@ -35,6 +35,7 @@ a server can be named once for every cursor or separately here.
 """
 
 # Dependencies
+import os
 import types
 import typing
 import pandas as pd
@@ -336,7 +337,28 @@ class BaseIdMappingCursor(rotifer.db.methods.IdMappingCursor, BaseClickHouseCurs
         else:
             raise ValueError(f'Unknown load method {method}: use "auto", "client" or "python"')
 
-        return self.count()
+        # Reached only when the load ran to the end, which is what
+        # makes the record meaningful: an interrupted load raises or
+        # dies before this and leaves the release unrecorded, so
+        # nothing will take the half filled partition for a complete
+        # copy of the file.
+        rows = self.count()
+        self.record_source(reader.datafile, rows, version=release)
+        return rows
+
+    @property
+    def source_version(self):
+        """
+        Release distinguishing one load of this table from another.
+
+        The table is partitioned by release, so each release is a
+        separate body of data and is recorded separately.
+
+        Returns
+        -------
+        str
+        """
+        return self.release or ''
 
     def is_empty(self, release=None):
         """
