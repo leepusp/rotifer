@@ -649,14 +649,38 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         ]
         if self.password:
             command += ["--password", str(self.password)]
-        reading = f'zcat -f -- {path}' if compressed else f'cat -- {path}'
         if self.progress:
             logger.warning(f'Loading {path} into {self.qualified_name}...')
-        pipeline = subprocess.run(
-            ["/bin/sh","-c", f'{reading} | ' + " ".join([ f"'{x}'" if " " in str(x) else str(x) for x in command ])],
-            capture_output = True,
-            text = True,
-        )
+
+        # No shell. The statement carries quotes of its own, around the
+        # release and around the input() column list, so any attempt to
+        # quote it into a command line ends with those closing the
+        # quoting rather than being part of it, and the server is sent
+        # something that will not parse.
+        reader = None
+        try:
+            if compressed:
+                reader = subprocess.Popen(['zcat', '-f', '--', path], stdout=subprocess.PIPE)
+                stream = reader.stdout
+            else:
+                stream = open(path, 'rb')
+            try:
+                pipeline = subprocess.run(
+                    command,
+                    stdin = stream,
+                    capture_output = True,
+                    text = True,
+                )
+            finally:
+                stream.close()
+                if reader is not None:
+                    reader.wait()
+        except OSError as error:
+            logger.error(f'Failed to load {path}: {error}')
+            return False
+        if reader is not None and reader.returncode:
+            logger.error(f'Failed to read {path}: zcat exited {reader.returncode}')
+            return False
         if pipeline.returncode != 0:
             logger.error(f'Failed to load {path}: {pipeline.stderr}')
             return False
