@@ -515,6 +515,14 @@ def filter_neighbors_plus(ndf, pids=None, reqdom='defaults.tsv', customdoms=Fals
                     letting .neighbors() re-run its own merge logic per
                     connected component of overlapping survived windows,
                     rather than reusing block_ids assigned at fetch time.
+
+                    Per-side boundaries (lower_fo/upper_fo) are the
+                    feature_order of the *last real hit* found on that side,
+                    not the last position the walk merely visited -- so
+                    seed-region misses and patience-tolerated trailing
+                    misses never themselves extend the kept window. A side
+                    with no hit at all collapses back to the query's own
+                    feature_order.
     """
     import numpy as np
     import pandas as pd
@@ -584,6 +592,13 @@ def filter_neighbors_plus(ndf, pids=None, reqdom='defaults.tsv', customdoms=Fals
                 pos0 = np.searchsorted(orders, qorder)
                 b_steps, lower_fo, hit_lo = _walk(orders, hits, pos0, -1, seed, patience)
                 a_steps, upper_fo, hit_hi = _walk(orders, hits, pos0, +1, seed, patience)
+
+                # a side with no real hit found contributes no evidence --
+                # its boundary collapses back to the query's own position,
+                # instead of inheriting wherever the walk physically stopped
+                lower_fo = qorder if lower_fo is None else lower_fo
+                upper_fo = qorder if upper_fo is None else upper_fo
+
                 rows.append({
                     "qidx": qidx, "pid": qpid, "nucleotide": key[0],
                     "before_steps": b_steps, "after_steps": a_steps,
@@ -645,19 +660,18 @@ def filter_neighbors_plus(ndf, pids=None, reqdom='defaults.tsv', customdoms=Fals
 def _walk(orders, hits, pos0, direction, seed, patience):
     """
     Walk outward from pos0 in `orders`/`hits`, applying the seed/patience
-    rule. Deliberately never checks hits[pos0] -- a query's own domain hit
-    doesn't count as support; only hits found while walking do, so an
-    isolated query correctly resolves to saw_hit=False.
-
-    Returns (n_steps, last_kept_feature_order, saw_a_hit_past_the_seed).
+    rule to decide how far to look. The returned boundary is the feature_order
+    of the last real hit seen (or None if none was found) -- not the last
+    position the walk merely visited. Seed-region misses and patience-region
+    trailing misses are both eligible to be walked *through* (to find a hit
+    further out), but neither ever extends the boundary itself.
     """
     n = len(orders)
     idx = pos0
-    n_kept = 0
-    last_kept = orders[pos0]
     steps_taken = 0
     misses_in_a_row = 0
     saw_hit = False
+    last_hit_fo = None
 
     while True:
         idx += direction
@@ -666,22 +680,21 @@ def _walk(orders, hits, pos0, direction, seed, patience):
         steps_taken += 1
 
         if steps_taken <= seed:
-            n_kept, last_kept = steps_taken, orders[idx]
             if hits[idx]:
                 saw_hit = True
+                last_hit_fo = orders[idx]
             continue
 
         if hits[idx]:
-            n_kept, last_kept = steps_taken, orders[idx]
-            misses_in_a_row = 0
             saw_hit = True
+            last_hit_fo = orders[idx]
+            misses_in_a_row = 0
         else:
             misses_in_a_row += 1
             if misses_in_a_row >= patience:
                 break
-            n_kept, last_kept = steps_taken, orders[idx]
 
-    return n_kept, last_kept, saw_hit
+    return steps_taken, last_hit_fo, saw_hit
 
 def plot_block_minimap(
     ndf,
