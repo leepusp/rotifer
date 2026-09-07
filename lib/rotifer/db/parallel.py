@@ -204,7 +204,11 @@ class SimpleParallelProcessCursor(rotifer.db.core.BaseCursor):
             tasks = []
             missing = self.remove_missing()
             for chunk in self.splitter(list(targets), *args, **kwargs):
-                tasks.append(executor.submit(self.worker, chunk))
+                # worker() and everything below it take these, and a
+                # cursor whose query is described by them -- which
+                # database to map to, say -- gets None instead if they
+                # are dropped here
+                tasks.append(executor.submit(self.worker, chunk, *args, **kwargs))
             self.update_missing(data=missing)
             completed = set()
             for x in as_completed(tasks):

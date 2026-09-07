@@ -97,6 +97,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor)
         kwargs.setdefault('probe', False)
         super().__init__(*args, **kwargs)
         self.polling_interval = polling_interval
+        self._databases = None
         # The service takes large batches, and every batch costs a
         # submission and a poll, so few and large is the cheap shape.
         self.maxgetitem = 5000
@@ -160,6 +161,61 @@ class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor)
                     rows.append(row)
         return rows
 
+    def databases(self):
+        """
+        Name the databases UniProt's mapping service can translate.
+
+        The service publishes its own vocabulary, so it is asked
+        rather than guessed, and the answer is remembered for the
+        life of the cursor. Names are reported in the spelling used by
+        ``idmapping.dat``, so that they can be compared with what the
+        local backends hold.
+
+        Only databases usable at *both* ends are reported: the service
+        marks each as readable, writable or both, and a mapping needs
+        one of each. The list is smaller than it looks -- Pfam, for
+        one, is neither, so no mapping job can reach it even though
+        UniProt entries carry Pfam cross-references.
+
+        Returns
+        -------
+        set of str or None
+            None when the service cannot be reached, so that a network
+            failure narrows nothing.
+        """
+        if not isinstance(getattr(self, '_databases', None), types.NoneType):
+            return self._databases
+        try:
+            reply = self.session.get(f'{API_URL}/configure/idmapping/fields', timeout=self.timeout)
+            reply.raise_for_status()
+            payload = reply.json()
+        except Exception:
+            logger.debug('Could not list the databases of the mapping service', exc_info=1)
+            return None
+        names = set()
+        for group in payload.get('groups', []) or []:
+            for item in group.get('items', []) or []:
+                name = item.get('name')
+                if name and item.get('from') and item.get('to'):
+                    names.add(self._local_name(name))
+        self._databases = names
+        return self._databases
+
+    def _local_name(self, database):
+        """
+        Spell a service database name the way ``idmapping.dat`` does.
+
+        Parameters
+        ----------
+        database : str
+            Name as the service reports it.
+
+        Returns
+        -------
+        str
+        """
+        return self._LOCAL_NAMES.get(database, database)
+
     def _service_name(self, database):
         """
         Spell a database name the way the mapping service expects.
@@ -187,6 +243,9 @@ class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor)
         'EMBL-CDS': 'EMBL-GenBank-DDBJ_CDS',
         'EMBL': 'EMBL-GenBank-DDBJ',
     }
+
+    #: The same correspondence, read the other way.
+    _LOCAL_NAMES = { v: k for k, v in _SERVICE_NAMES.items() }
 
     def _wait(self, job):
         """

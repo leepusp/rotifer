@@ -285,6 +285,64 @@ class MappingCursor:
         names = [ str(x) for x in databases if not isinstance(x, types.NoneType) ]
         return names or None
 
+    def databases(self):
+        """
+        Name the databases this cursor can map to and from.
+
+        A backend that knows its own vocabulary lets a delegator ask
+        it only for the databases it could answer for, and record the
+        rest as unanswerable here rather than as absent everywhere.
+        The distinction matters: a database missing from a backend is
+        a gap in that copy of the data, while a database no backend
+        supports is a gap in the answer.
+
+        Returns
+        -------
+        set of str or None
+            None when the cursor cannot enumerate them, which is read
+            as "any", so nothing is narrowed on its account.
+        """
+        return None
+
+    def unsupported(self, databases):
+        """
+        Pick the databases this cursor cannot answer for.
+
+        Parameters
+        ----------
+        databases : list of str or None
+            Databases asked for, or None for every database.
+
+        Returns
+        -------
+        list of str
+            Empty when the cursor supports them all, or cannot say.
+        """
+        known = self.databases()
+        if isinstance(known, types.NoneType) or isinstance(databases, types.NoneType):
+            return []
+        return [ x for x in databases if x != self.UNIPROTKB and x not in known ]
+
+    def supported(self, databases):
+        """
+        Narrow a list of databases to the ones this cursor can serve.
+
+        Parameters
+        ----------
+        databases : list of str or None
+            Databases asked for, or None for every database.
+
+        Returns
+        -------
+        list of str or None
+            None is passed through, meaning every database this
+            cursor has.
+        """
+        known = self.databases()
+        if isinstance(known, types.NoneType) or isinstance(databases, types.NoneType):
+            return databases
+        return [ x for x in databases if x == self.UNIPROTKB or x in known ]
+
     def empty(self):
         """
         Build an empty mapping dataframe.

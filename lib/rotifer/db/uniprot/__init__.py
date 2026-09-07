@@ -195,8 +195,35 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         targets = self.parse_ids(accessions)
         todo = deepcopy(targets)
         consulted = dict()
+
+        # A query names identifiers and, at both ends, databases. Any
+        # of the three can go unanswered, and they fail differently: an
+        # identifier absent from one copy of the data may be in the
+        # next, while a database a backend does not carry is a gap in
+        # that backend whatever it is asked. Both ends are therefore
+        # tracked alongside the identifiers, so that what is handed on
+        # is narrowed to what the next backend can actually answer.
+        source = self.parse_databases(kwargs.pop('source', None))
+        target = self.parse_databases(kwargs.pop('target', None))
+        wanted_source = set(source or [])
+        wanted_target = set(target or [])
+        served_source, served_target = set(), set()
+
         for position, name in enumerate(self.readers):
-            if not todo:
+            # What is still owed at each end. An end that is already
+            # covered falls back to the whole request rather than to
+            # nothing: it is a constraint on the query, not a thing to
+            # be collected, so a query still owed at the other end
+            # needs it stated in full.
+            pending_source = sorted(wanted_source - served_source) if wanted_source else None
+            pending_target = sorted(wanted_target - served_target) if wanted_target else None
+            ask_source = pending_source or source
+            ask_target = pending_target or target
+
+            # Finding every identifier is not the same as answering
+            # every question: a database no backend has looked at yet
+            # is still owed, even when nothing is left to look up.
+            if not todo and not pending_source and not pending_target:
                 break
             if name not in self.cursors:
                 continue
@@ -205,10 +232,26 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             if served_by:
                 logger.info(f'Skipping backend {name}: same data as {served_by}')
                 continue
+
+            # Ask each backend only for the databases it says it can
+            # answer for, so that an unsupported one falls through to
+            # the next backend instead of coming back empty and looking
+            # like an absent identifier.
+            here_source = cursor.supported(ask_source)
+            here_target = cursor.supported(ask_target)
+            if (ask_source and not here_source) or (ask_target and not here_target):
+                logger.info(f'Skipping backend {name}: none of the databases still owed are available there')
+                continue
+
+            # Identifiers already found still have to be asked about
+            # when a database remains uncovered: the rows owed are the
+            # ones that database would have contributed.
+            asking = todo if todo else deepcopy(targets)
+
             content = self.content_of(cursor)
             if not isinstance(content, types.NoneType):
                 consulted.setdefault(content, name)
-            for result in cursor.fetchone(todo, *args, **kwargs):
+            for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)
                 for earlier in self.readers[:position+1]:
@@ -222,6 +265,9 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                     if not rows.empty:
                         self.cursors[writer].insert(rows)
                 todo = todo - done
+                if isinstance(result, pd.DataFrame) and not result.empty:
+                    served_source.update(result.source_type.dropna().astype(str))
+                    served_target.update(result.target_type.dropna().astype(str))
                 yield result
 
             # A backend that finds nothing yields nothing, so what it
@@ -231,6 +277,47 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             # Entries some backend declared final will not be found by
             # any of the others either
             todo = todo - self.missing_ids(final=True)
+
+            # Databases this backend could have answered for count as
+            # covered even when they returned nothing: the answer is
+            # then simply that there is no such mapping, which the next
+            # backend would only repeat.
+            served_source.update(x for x in (here_source or []) if x not in cursor.unsupported(here_source))
+            served_target.update(x for x in (here_target or []) if x not in cursor.unsupported(here_target))
+            if isinstance(source, types.NoneType):
+                wanted_source.update(served_source)
+            if isinstance(target, types.NoneType):
+                wanted_target.update(served_target)
+
+        self._register_database_failures('source', wanted_source - served_source)
+        self._register_database_failures('target', wanted_target - served_target)
+
+    def _register_database_failures(self, end, databases):
+        """
+        Record databases no backend was able to answer for.
+
+        These are not missing identifiers but missing capabilities, so
+        they are registered under the database name and said to be
+        final: no backend carries them, and asking again would not
+        change that.
+
+        Parameters
+        ----------
+        end : str
+            Which end of the mapping they were asked for, ``source``
+            or ``target``.
+        databases : iterable of str
+            Names no backend could serve.
+        """
+        for database in sorted(databases):
+            if database == self.UNIPROTKB:
+                continue
+            self.update_missing(
+                [database],
+                error = f'No backend can map {end} database {database!r}',
+                retry = False,
+                final = True,
+            )
 
     def _rows_to_store(self, result, backend):
         """

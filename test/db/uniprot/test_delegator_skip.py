@@ -26,21 +26,30 @@ from rotifer.db import uniprot
 class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
     """A mapping backend with a fixed content_id that counts being asked."""
 
-    def __init__(self, content=None, accessions=()):
+    def __init__(self, content=None, accessions=(), databases=None):
         super().__init__(progress=False)
         self._content = content
         self._accessions = list(accessions)
+        self._databases = databases
         self.asked = 0
+        self.asked_targets = []
 
     def content_id(self):
         return self._content
 
+    def databases(self):
+        return self._databases
+
     def fetchone(self, accessions, source=None, target=None, *args, **kwargs):
         self.asked += 1
+        self.asked_targets.append(tuple(target or ()))
         wanted = self.parse_ids(accessions)
+        served = list(target or ['RefSeq'])
         rows = [{'source': a, 'source_type': self.UNIPROTKB, 'accession': a,
-                 'target': f'{a}_ref', 'target_type': 'RefSeq'}
-                for a in self._accessions if a in wanted]
+                 'target': f'{a}_{t}', 'target_type': t}
+                for a in self._accessions if a in wanted
+                for t in served
+                if self._databases is None or t in self._databases]
         if rows:
             yield pd.DataFrame(rows, columns=self.columns)
 
@@ -57,8 +66,14 @@ class Delegator(uniprot.BaseUniProtDelegatorCursor):
 
 
 def build(*specs):
-    backends = {name: Backend(content, accs) for name, content, accs in specs}
-    return Delegator(backends, [name for name, _, _ in specs]), backends
+    backends = {}
+    order = []
+    for spec in specs:
+        name, content, accs = spec[:3]
+        databases = spec[3] if len(spec) > 3 else None
+        backends[name] = Backend(content, accs, databases)
+        order.append(name)
+    return Delegator(backends, order), backends
 
 
 def test_same_content_skips_the_expensive_backend():
@@ -138,3 +153,74 @@ if __name__ == '__main__':
             print('      %s' % detail)
     print('ALL PASS' if not failures else '%d FAILURES' % failures)
     sys.exit(1 if failures else 0)
+
+
+# ------------------------------------------------- database level coverage
+
+def test_a_database_only_the_second_backend_has_is_asked_for_there():
+    """Finding every identifier is not the same as answering every question:
+    a database the first backend cannot map is still owed, and the loop must
+    not stop merely because nothing is left to look up."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                               target=['RefSeq', 'PIR'])
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['PIR', 'RefSeq']
+
+
+def test_each_backend_is_asked_only_for_what_it_supports():
+    """An unsupported database must fall through rather than come back empty,
+    which would be indistinguishable from an absent identifier."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq', 'PIR'])
+    assert backends['clickhouse'].asked_targets == [('RefSeq',)]
+    assert backends['webapi'].asked_targets == [('PIR',)]  # only what the first could not do
+
+
+def test_a_backend_supporting_none_of_the_databases_is_skipped():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'PIR'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['PIR'])
+    assert backends['clickhouse'].asked == 0
+    assert backends['webapi'].asked == 1
+
+
+def test_a_database_no_backend_supports_is_registered_as_missing():
+    """It is not a missing identifier but a missing capability, so it is
+    recorded under the database name and is final: asking again cannot help."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                       target=['RefSeq', 'Pfam'])
+    assert 'Pfam' in delegator.missing_ids()
+    assert 'Pfam' in delegator.missing_ids(final=True)
+    assert 'target database' in delegator.missing.loc['Pfam', 'error']
+
+
+def test_a_covered_database_is_not_reported_missing():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert delegator.missing_ids() == set()
+
+
+def test_an_unknown_vocabulary_narrows_nothing():
+    """databases() returning None means 'cannot say', so such a backend is
+    asked for everything rather than skipped."""
+    delegator, backends = build(('mirror', None, ['P00750'], None))
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                               target=['RefSeq', 'Pfam'])
+    # the order is sorted, so that a query is deterministic
+    assert [sorted(x) for x in backends['mirror'].asked_targets] == [['Pfam', 'RefSeq']]
+    assert delegator.missing_ids() == set()

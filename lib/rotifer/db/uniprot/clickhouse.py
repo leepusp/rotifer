@@ -124,6 +124,7 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
         self.id_type = id_type
         self.release = release
         self.maxgetitem = 1000000
+        self._databases = None
 
     def _id_types(self):
         """
@@ -164,6 +165,30 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
             conditions.append("release = %(release)s")
             parameters['release'] = self.release
         return conditions
+
+    def databases(self):
+        """
+        Name the cross-referenced databases this table holds.
+
+        Read once and remembered: the query is a scan of a
+        low cardinality column, which costs seconds on a table of a
+        few billion rows and would otherwise be paid on every query.
+
+        Returns
+        -------
+        set of str or None
+            None when the table cannot be reached, so that an
+            unreachable server narrows nothing.
+        """
+        if not isinstance(getattr(self, '_databases', None), types.NoneType):
+            return self._databases
+        try:
+            frame = self.query(f'SELECT DISTINCT id_type FROM {self.qualified_name}')
+        except Exception:
+            logger.debug(f'Could not list the id_types of {self.qualified_name}', exc_info=1)
+            return None
+        self._databases = set(frame.id_type.dropna().astype(str))
+        return self._databases
 
     def id_types(self):
         """
