@@ -80,6 +80,66 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
     # these can be cleared on the backends after construction.
     _nullable_attributes = frozenset()
 
+    def content_of(self, cursor):
+        """
+        Ask a backend to identify its data, tolerating a refusal.
+
+        Working out what may be skipped is an optimisation, so a
+        backend that raises while answering must cost nothing worse
+        than being consulted.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend to ask.
+
+        Returns
+        -------
+        hashable or None
+            None when the backend cannot or will not say.
+        """
+        try:
+            return cursor.content_id()
+        except Exception:
+            logger.debug(f'content_id() failed for {type(cursor).__name__}', exc_info=1)
+            return None
+
+    def redundant(self, cursor, consulted):
+        """
+        Find whether a backend would repeat what another already did.
+
+        Backends are asked in order, cheapest first, and a later one
+        is usually there to cover what the earlier ones do not have.
+        When two of them serve the same data, though, the later one
+        has nothing left to add, and skipping it saves whatever it
+        would have cost -- which for a backend that scans a file is
+        the whole point.
+
+        This never suppresses a backend that might know something the
+        others do not: only an identical
+        :meth:`~rotifer.db.core.BaseCursor.content_id` counts, and a
+        backend unable to name its data returns None and is always
+        consulted.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend about to be asked.
+        consulted : dict
+            Content identifiers already seen, mapped to the name of
+            the backend that offered them.
+
+        Returns
+        -------
+        str or None
+            Name of the backend that already served this data, or
+            None when this backend should be consulted.
+        """
+        content = self.content_of(cursor)
+        if isinstance(content, types.NoneType):
+            return None
+        return consulted.get(content)
+
     def absorb_missing(self, cursor):
         """
         Take note of what a backend could not retrieve.
@@ -164,6 +224,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
         # Call cursors
         data = []
         todo = deepcopy(targets)
+        consulted = dict()
         for i in range(0,len(self.readers)):
             if len(todo) == 0:
                 break
@@ -172,6 +233,13 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 cursor = self.cursors[cursorName]
             else:
                 continue
+            served_by = self.redundant(cursor, consulted)
+            if served_by:
+                logger.info(f'Skipping backend {cursorName}: same data as {served_by}')
+                continue
+            content = self.content_of(cursor)
+            if not isinstance(content,types.NoneType):
+                consulted.setdefault(content, cursorName)
             result = cursor.__getitem__(todo, *args, **kwargs)
             found = self.getids(result, *args, **kwargs)
             done = targets.intersection(found)
@@ -210,6 +278,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
 
         # Call cursors
         todo = deepcopy(targets)
+        consulted = dict()
         for i in range(0,len(self.readers)):
             if len(todo) == 0:
                 break
@@ -218,6 +287,13 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 cursor = self.cursors[cursorName]
             else:
                 continue
+            served_by = self.redundant(cursor, consulted)
+            if served_by:
+                logger.info(f'Skipping backend {cursorName}: same data as {served_by}')
+                continue
+            content = self.content_of(cursor)
+            if not isinstance(content,types.NoneType):
+                consulted.setdefault(content, cursorName)
             for result in cursor.fetchone(todo, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)

@@ -385,6 +385,37 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         self.engine = engine
         self.datafile = self._find_datafile(path)
 
+    def content_id(self):
+        """
+        Identify the file this cursor reads.
+
+        The value names the data rather than this copy of it, so that
+        a backend loaded from the same file reports the same thing and
+        can stand in for this one. Size and modification time are what
+        make it cheap: identifying a 90 GB file by its contents would
+        mean reading all of it, which is the cost the whole comparison
+        exists to avoid. Whoever loads the file elsewhere records
+        these same three values.
+
+        Returns
+        -------
+        str or None
+            ``<name>:<size>:<mtime>``, or None when no data file was
+            found, in which case this cursor is never skipped.
+
+        See Also
+        --------
+        rotifer.db.core.BaseCursor.content_id : what the value means
+        """
+        if isinstance(self.datafile, types.NoneType):
+            return None
+        try:
+            info = os.stat(self.datafile)
+        except OSError:
+            logger.debug(f'Cannot stat {self.datafile}', exc_info=1)
+            return None
+        return f'{os.path.basename(self.datafile)}:{info.st_size}:{int(info.st_mtime)}'
+
     def _find_datafile(self, path):
         """
         Locate the cursor's data file.
