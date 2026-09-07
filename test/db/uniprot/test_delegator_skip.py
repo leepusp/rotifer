@@ -224,3 +224,36 @@ def test_an_unknown_vocabulary_narrows_nothing():
     # the order is sorted, so that a query is deterministic
     assert [sorted(x) for x in backends['mirror'].asked_targets] == [['Pfam', 'RefSeq']]
     assert delegator.missing_ids() == set()
+
+
+def test_a_backend_skipped_for_a_database_still_speaks_for_its_data():
+    """Regression, and the two skip rules meeting: clickhouse holds the whole
+    file, so a database it does not carry is not in the file either, and the
+    mirror reading that same file must not be scanned to discover it.
+
+    Recording what a backend holds only after the capability check hid exactly
+    that: the mirror was scanned for a database the table had already shown to
+    be absent, and the database was then reported as covered rather than
+    missing. Live, that was 79 seconds instead of 4.
+    """
+    delegator, backends = build(
+        ('clickhouse', 'idmapping.dat:90:1', ['P00750'], {'RefSeq'}),
+        ('mirror', 'idmapping.dat:90:1', ['P00750'], None),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Pfam'])
+    assert backends['clickhouse'].asked == 0     # cannot map Pfam
+    assert backends['mirror'].asked == 0         # same data, so neither can it
+    assert 'Pfam' in delegator.missing_ids(final=True)
+
+
+def test_a_backend_with_other_data_is_still_asked():
+    """The converse: a backend whose data differs may well have the database,
+    so being unable to map it elsewhere says nothing about it."""
+    delegator, backends = build(
+        ('clickhouse', 'idmapping.dat:90:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Pfam'])
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['Pfam']
+    assert delegator.missing_ids() == set()

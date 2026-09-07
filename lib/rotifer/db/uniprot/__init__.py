@@ -233,6 +233,16 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                 logger.info(f'Skipping backend {name}: same data as {served_by}')
                 continue
 
+            # Note what this backend holds before deciding whether to
+            # ask it. A backend passed over for lacking a database has
+            # still told us what its data contains, and a later backend
+            # holding that same data lacks that database too: without
+            # this, being skipped here would hide the very fact that
+            # spares the next one a pointless scan.
+            content = self.content_of(cursor)
+            if not isinstance(content, types.NoneType):
+                consulted.setdefault(content, name)
+
             # Ask each backend only for the databases it says it can
             # answer for, so that an unsupported one falls through to
             # the next backend instead of coming back empty and looking
@@ -248,9 +258,6 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             # ones that database would have contributed.
             asking = todo if todo else deepcopy(targets)
 
-            content = self.content_of(cursor)
-            if not isinstance(content, types.NoneType):
-                consulted.setdefault(content, name)
             for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)
