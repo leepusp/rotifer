@@ -414,7 +414,9 @@ class MappingCursor:
         stack = []
         for df in self.fetchone(accessions, source=source, target=target, *args, **kwargs):
             stack.append(df)
-        if stack:
-            return pd.concat(stack, ignore_index=True)
-        else:
+        if not stack:
             return self.empty()
+        # Sources overlap: a database several of them carry yields the
+        # same row from each, and a mapping stated twice is still one
+        # mapping.
+        return pd.concat(stack, ignore_index=True).drop_duplicates().reset_index(drop=True)

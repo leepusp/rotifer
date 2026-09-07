@@ -44,7 +44,9 @@ class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
         self.asked += 1
         self.asked_targets.append(tuple(target or ()))
         wanted = self.parse_ids(accessions)
-        served = list(target or ['RefSeq'])
+        # With no target named a backend returns everything it has,
+        # which is what makes the union across backends visible.
+        served = list(target) if target else sorted(self._databases or ['RefSeq'])
         rows = [{'source': a, 'source_type': self.UNIPROTKB, 'accession': a,
                  'target': f'{a}_{t}', 'target_type': t}
                 for a in self._accessions if a in wanted
@@ -257,3 +259,40 @@ def test_a_backend_with_other_data_is_still_asked():
     assert backends['webapi'].asked == 1
     assert sorted(set(frame.target_type)) == ['Pfam']
     assert delegator.missing_ids() == set()
+
+
+def test_an_open_ended_query_is_answered_by_every_backend():
+    """The backends hold different vocabularies, so 'every database' is the
+    union of what they have. With no list given, none of them can be said to
+    have covered it, and stopping at the first would return the less complete
+    answer to the most permissive question."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=None)
+    assert backends['clickhouse'].asked == 1
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['Pfam', 'RefSeq']
+
+
+def test_naming_the_targets_still_stops_early():
+    """A list that has been ticked off needs no further backend: the point of
+    consulting them all is the absence of a list, not the absence of a limit."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'Pfam'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert backends['webapi'].asked == 0
+
+
+def test_a_mapping_two_backends_agree_on_appears_once():
+    """Overlapping sources state the same mapping, and a mapping stated twice
+    is still one mapping."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=None)
+    assert len(frame) == 1 and frame.duplicated().sum() == 0

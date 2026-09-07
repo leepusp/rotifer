@@ -228,7 +228,18 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             # Finding every identifier is not the same as answering
             # every question: a database no backend has looked at yet
             # is still owed, even when nothing is left to look up.
-            if not todo and not pending_source and not pending_target:
+            #
+            # An end left open has no list to tick off, so no backend
+            # can be said to have covered it. The backends do not hold
+            # the same vocabulary -- the table has identifiers derived
+            # from the sequence, the web service has the annotation
+            # databases a curator recorded -- so "every database" is
+            # the union of what they all hold, and each is asked in
+            # turn. A caller who would rather have the first answer
+            # than the complete one can leave a backend out of
+            # ``readers``.
+            open_ended = isinstance(source, types.NoneType) or isinstance(target, types.NoneType)
+            if not todo and not pending_source and not pending_target and not open_ended:
                 break
             if name not in self.cursors:
                 continue
@@ -550,6 +561,11 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         seconds where a mirror scan costs about ninety, whatever is
         asked of it; the mirror stays last as the source that has
         everything, for whatever the other two could not map.
+
+        A query that names no databases is answered by all of them,
+        since they hold different vocabularies and none can be said
+        to have covered a list that was never given. Drop a backend
+        from this list to trade that completeness for speed.
     writers : list of str, default []
         Backend writer modules.
     release : str, optional
