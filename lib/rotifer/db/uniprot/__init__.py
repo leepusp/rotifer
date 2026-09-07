@@ -57,7 +57,7 @@ table once and query it from then on:
 
 >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
 ...     local_database_path="/scratch/global/databases/uniprot",
-...     dbname="uniprot", release="2026_01", initialize='load')
+...     dbname="rotifer", release="2026_01", initialize='load')
 
 The same thing on demand, instead of in one sitting: every query
 answered by the mirror is stored, so the second time it is answered by
@@ -65,7 +65,7 @@ the table.
 
 >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
 ...     local_database_path="/scratch/global/databases/uniprot",
-...     dbname="uniprot", release="2026_01", cache=True)
+...     dbname="rotifer", release="2026_01", cache=True)
 >>> ic.fetchall(["Q6GZX4"])   # scans the file, then stores what it found
 >>> ic.fetchall(["Q6GZX4"])   # answered by ClickHouse
 """
@@ -287,7 +287,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         Examples
         --------
         >>> from rotifer.db import uniprot
-        >>> ic = uniprot.IdMappingCursor(dbname='uniprot')  # doctest: +SKIP
+        >>> ic = uniprot.IdMappingCursor(dbname='rotifer')  # doctest: +SKIP
         >>> ic.create()  # doctest: +SKIP
         """
         store = self.store
@@ -344,7 +344,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.IdMappingCursor, rotifer.db.
         >>> from rotifer.db import uniprot
         >>> ic = uniprot.IdMappingCursor(  # doctest: +SKIP
         ...     local_database_path="/scratch/global/databases/uniprot",
-        ...     dbname="uniprot", release="2026_01")
+        ...     dbname="rotifer", release="2026_01")
         >>> ic.load()  # doctest: +SKIP
         2647104040
         """

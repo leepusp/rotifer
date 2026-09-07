@@ -158,7 +158,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Returns
         -------
         str
-            For example, ``uniprot.idmapping``.
+            For example, ``rotifer.idmapping``.
         """
         return f'{self.dbname}.{self.table}'
 

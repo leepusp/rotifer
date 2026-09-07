@@ -39,7 +39,7 @@ _defaults = {
     'port': 8123,
     'user': 'default',
     'password': '',
-    'dbname': 'default',
+    'dbname': 'rotifer',
     'table': '',
     'secure': False,
     'batch_size': 5000,
