@@ -44,7 +44,8 @@ Cursors
 :class:`TaxonomyCursor`
     Taxonomy records.
 :class:`MappingCursor`
-    UniProt's asynchronous identifier mapping service.
+    Identifier translation, in either direction, read off the
+    cross-references an entry carries.
 
 See Also
 --------

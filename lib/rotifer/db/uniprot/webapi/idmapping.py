@@ -1,22 +1,32 @@
 """
-UniProt's identifier mapping service.
+Translate identifiers through UniProt's entry cross-references.
 
-UniProt does not answer mapping queries from a URL: a job is submitted,
-polled until it finishes and only then read, possibly over several
-pages. :class:`MappingCursor` wraps that exchange so it looks like
-every other cursor, and returns the same three column table as
+A UniProtKB entry lists the databases it is cross-referenced to, so
+fetching entries answers a mapping in either direction and needs no
+database named at either end. :class:`MappingCursor` does that, and
+returns the same table as
 :class:`rotifer.db.uniprot.mirror.MappingCursor` and
-:class:`rotifer.db.uniprot.clickhouse.MappingCursor`, so the three
-can be used interchangeably or stacked behind one delegator.
+:class:`rotifer.db.uniprot.clickhouse.MappingCursor`, so the three can
+be stacked behind one delegator.
 
-The module level functions below are the thin wrappers around each
-step of the exchange. They predate the cursor and are kept because
-they are convenient on their own.
+UniProt also runs an asynchronous mapping service, which translates
+between one pair of databases per job. The module level functions
+below drive it and are kept because they are useful on their own, but
+the cursor no longer uses them: a job must be submitted and polled
+before it returns anything, which costs seconds where reading an entry
+costs one, and it cannot be asked for every database at once.
+
+What entries carry is not what ``idmapping.dat`` carries. A curator
+records cross-references to Pfam, GO, InterPro and the like, which the
+flat file does not hold; the file holds identifiers derived from the
+sequence, such as UniRef clusters, UniParc and CRC64 checksums, which
+are not cross-references and are not here. Neither source contains the
+other.
 
 See Also
 --------
-rotifer.db.uniprot.mirror.MappingCursor : same table, from a local file
-rotifer.db.uniprot.clickhouse.MappingCursor : same table, indexed
+rotifer.db.uniprot.mirror.MappingCursor : the flat file
+rotifer.db.uniprot.clickhouse.MappingCursor : the same, indexed
 """
 
 # Import external modules
@@ -48,264 +58,234 @@ session.mount("https://", HTTPAdapter(max_retries=retries))
 
 class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor):
     """
-    Map identifiers between UniProt and the databases it references.
+    Translate identifiers through UniProt's entry cross-references.
 
-    Results are returned as the same three column table the other
-    identifier mapping cursors produce: the accession that was
-    matched, the name of the database the mapping points at, and the
-    identifier in that database.
+    A UniProtKB entry lists every database it is cross-referenced to,
+    so one request answers a mapping in either direction: the entries
+    are fetched, and the cross-references they carry are read off. That
+    is what lets this backend answer an open ended query, which
+    UniProt's asynchronous mapping service cannot: the service
+    translates between one pair of databases per job, and there are
+    ninety-odd of them.
+
+    It is also the faster route. Fetching entries is a plain paged GET,
+    while a mapping job must be submitted, polled and only then read,
+    which costs seconds before any work is done.
+
+    What it carries is not what ``idmapping.dat`` carries. Entries
+    cross-reference the databases a curator recorded -- Pfam, GO,
+    InterPro, AlphaFoldDB among them -- while the flat file also holds
+    identifiers derived from the sequence, such as UniRef clusters,
+    UniParc and CRC64 checksums, which are not cross-references and do
+    not appear here. Neither source contains the other, which is why a
+    delegator asks both.
 
     Parameters
     ----------
-    polling_interval : int, default 3
-        Seconds between polls of a running job.
     **kwargs
         Extra UniProt query parameters.
 
     Attributes
     ----------
     columns : list of str
-        ``['accession', 'id_type', 'id']``.
+        ``['source', 'source_type', 'accession', 'target',
+        'target_type']``.
+
+    See Also
+    --------
+    rotifer.db.uniprot.clickhouse.MappingCursor : the same query, from an indexed copy
+    rotifer.db.uniprot.mirror.MappingCursor : the same query, from the flat file
 
     Examples
     --------
-    Map GenBank protein identifiers onto UniProtKB:
+    Every cross-reference of an accession, which needs no database named:
 
-    >>> from rotifer.db.uniprot import webapi            # doctest: +SKIP
-    >>> mc = webapi.MappingCursor()                        # doctest: +SKIP
-    >>> mc.fetchall(['BAE76179.1'], source=['EMBL-CDS'],   # doctest: +SKIP
-    ...             target=mc.UNIPROTKB)
+    >>> from rotifer.db.uniprot import webapi                  # doctest: +SKIP
+    >>> mc = webapi.MappingCursor()                            # doctest: +SKIP
+    >>> mc.fetchall(['Q6GZX4'], source=mc.UNIPROTKB)           # doctest: +SKIP
 
-    Go the other way, from UniProtKB to RefSeq:
+    Which accession an external identifier belongs to, without saying
+    which database it comes from:
 
-    >>> mc.fetchall(['P00750'], source=mc.UNIPROTKB,       # doctest: +SKIP
-    ...             target=['RefSeq'])
+    >>> mc.fetchall(['YP_031579.1'], target=mc.UNIPROTKB)      # doctest: +SKIP
+
+    Between two databases:
+
+    >>> mc.fetchall(['AAT09660.1'], source=['EMBL'],           # doctest: +SKIP
+    ...             target=['RefSeq','Pfam'])
     """
 
     # Names a delegator shares with its backends, which describe where
     # to look rather than what to ask, and must not reach UniProt as
     # query parameters.
     _reserved = core.BaseUniProtWebCursor._reserved | frozenset({
-        'polling_interval', 'path', 'engine', 'host', 'port', 'dbname',
-        'table', 'release', 'id_type', 'source', 'target',
+        'path', 'engine', 'host', 'port', 'dbname', 'table', 'release',
+        'id_type', 'source', 'target', 'polling_interval',
     })
 
-    def __init__(self, polling_interval=POLLING_INTERVAL, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         # Identifiers are named by the caller, not detected from their
         # syntax, so resource detection has nothing to add here.
         kwargs.setdefault('database', 'uniprotkb')
         kwargs.setdefault('probe', False)
         super().__init__(*args, **kwargs)
-        self.polling_interval = polling_interval
         self._databases = None
-        # The service takes large batches, and every batch costs a
-        # submission and a poll, so few and large is the cheap shape.
-        self.maxgetitem = 5000
+        self._fields = None
+        # The batch endpoint takes many accessions at once, and a
+        # reverse query is one OR per identifier, so keep both within
+        # what a URL and the server will accept.
+        self.maxgetitem = 100
+
+    def databases(self):
+        """
+        Name the databases UniProt cross-references entries to.
+
+        UniProt publishes the list, so it is asked rather than
+        guessed, and remembered for the life of the cursor. The names
+        are the ones entries themselves report, which is what makes
+        them comparable with the databases the local backends hold.
+
+        Returns
+        -------
+        set of str or None
+            None when the list cannot be fetched, so that a network
+            failure narrows nothing.
+        """
+        if not isinstance(self._databases, types.NoneType):
+            return self._databases
+        try:
+            reply = self.get('configure/uniprotkb/allDatabases')
+            self._databases = { x['name'] for x in reply.json() if x.get('name') }
+        except Exception:
+            logger.debug('Could not list UniProt cross-referenced databases', exc_info=1)
+            return None
+        return self._databases
+
+    def fields(self):
+        """
+        Map each database to the result field that returns it.
+
+        Asking for named fields instead of whole entries is worth the
+        lookup: a batch of five entries is 3 KiB with the fields named
+        and 147 KiB without. UniProt labels each field with the
+        database it carries, so the correspondence is read from the
+        API rather than guessed from the spelling, which would be
+        wrong for a sixth of them.
+
+        Returns
+        -------
+        dict
+            Database name to field name. Empty when the list cannot be
+            fetched, which simply means whole entries are requested.
+        """
+        if not isinstance(self._fields, types.NoneType):
+            return self._fields
+        self._fields = {}
+        try:
+            reply = self.get('configure/uniprotkb/result-fields')
+            for group in reply.json():
+                for field in group.get('fields', []) or []:
+                    name, label = field.get('name'), field.get('label')
+                    if name and label and name.startswith('xref_'):
+                        self._fields[label] = name
+        except Exception:
+            logger.debug('Could not list UniProt result fields', exc_info=1)
+        return self._fields
+
+    def _requested_fields(self, target):
+        """
+        Choose the fields one request should ask for.
+
+        Parameters
+        ----------
+        target : list of str or None
+            Databases wanted, or None for every one of them.
+
+        Returns
+        -------
+        str or None
+            A comma separated field list, or None to ask for whole
+            entries, which is necessary when every database is wanted
+            or when one of them has no field of its own.
+        """
+        if isinstance(target, types.NoneType):
+            return None
+        known = self.fields()
+        wanted = [ x for x in target if x != self.UNIPROTKB ]
+        if not wanted or not known:
+            return None
+        if any(x not in known for x in wanted):
+            return None
+        return ",".join(['accession'] + [ known[x] for x in wanted ])
 
     def fetcher(self, accession, source=None, target=None, *args, **kwargs):
         """
-        Submit a mapping job per pair of databases and read the results.
+        Fetch the entries that can answer the query.
 
-        UniProt's service maps between one pair at a time, so a query
-        naming several databases becomes several jobs. Each costs a
-        submission and at least one poll, which is why the ends must be
-        named: there are 94 possible targets, and enumerating them
-        would be minutes of polling for a single query.
+        Identifiers that are UniProtKB accessions are taken from the
+        batch endpoint; everything else is looked up through the
+        cross-reference index, which finds an entry from an identifier
+        without being told which database it belongs to.
 
         Parameters
         ----------
         accession : iterable of str
             Identifiers to translate.
-        source, target : str or list of str
-            The two ends of the mapping. Neither may be omitted.
+        source, target : str or list of str, optional
+            The two ends of the mapping. Either may be omitted.
 
         Returns
         -------
         list of dict
-            One entry per result row, carrying the pair it came from.
-
-        Raises
-        ------
-        ValueError
-            If either end is left open.
+            The entries found.
         """
         targets = sorted(self.parse_ids(accession))
         if not targets:
             return []
         source = self.parse_databases(source)
         target = self.parse_databases(target)
-        if not source or not target:
-            raise ValueError(
-                'UniProt maps between one pair of databases at a time, so both '
-                'source and target must be named: this backend cannot answer '
-                '"every database".'
-            )
+        fields = self._requested_fields(target)
 
-        rows = []
-        for from_db in source:
-            for to_db in target:
-                reply = self.session.post(
-                    f'{API_URL}/idmapping/run',
-                    data={'from': self._service_name(from_db),
-                          'to': self._service_name(to_db),
-                          'ids': ",".join(targets)},
-                    timeout=self.timeout,
-                )
-                reply.raise_for_status()
-                job = reply.json()['jobId']
-                self._wait(job)
-                for row in self._results(job):
-                    row = dict(row)
-                    row['_source_type'] = from_db
-                    row['_target_type'] = to_db
-                    rows.append(row)
-        return rows
+        entries = []
+        if isinstance(source, types.NoneType) or self.UNIPROTKB in source:
+            params = self.query_parameters(accessions=",".join(targets), format='json', fields=fields)
+            try:
+                entries.extend(self.get('uniprotkb/accessions', **params).json().get('results', []) or [])
+            except Exception as error:
+                # An identifier that is not an accession makes the whole
+                # batch a bad request, which says nothing about the
+                # others: the reverse lookup below still covers them.
+                logger.debug(f'Batch accession lookup failed: {error}')
 
-    def databases(self):
+        others = None if isinstance(source, types.NoneType) else [ x for x in source if x != self.UNIPROTKB ]
+        if isinstance(source, types.NoneType) or others:
+            query = " OR ".join([ f'xref:"{x}"' for x in targets ])
+            params = self.query_parameters(query=query, format='json',
+                                           fields=fields, size=self.page_size)
+            for reply in self.pages('uniprotkb/search', **params):
+                entries.extend(reply.json().get('results', []) or [])
+        return entries
+
+    #: Entries per page of a reverse lookup.
+    page_size = 100
+
+    def parser(self, stream, accession, source=None, target=None, *args, **kwargs):
         """
-        Name the databases UniProt's mapping service can translate.
+        Read the mappings off the entries fetched.
 
-        The service publishes its own vocabulary, so it is asked
-        rather than guessed, and the answer is remembered for the
-        life of the cursor. Names are reported in the spelling used by
-        ``idmapping.dat``, so that they can be compared with what the
-        local backends hold.
-
-        Only databases usable at *both* ends are reported: the service
-        marks each as readable, writable or both, and a mapping needs
-        one of each. The list is smaller than it looks -- Pfam, for
-        one, is neither, so no mapping job can reach it even though
-        UniProt entries carry Pfam cross-references.
-
-        Returns
-        -------
-        set of str or None
-            None when the service cannot be reached, so that a network
-            failure narrows nothing.
-        """
-        if not isinstance(getattr(self, '_databases', None), types.NoneType):
-            return self._databases
-        try:
-            reply = self.session.get(f'{API_URL}/configure/idmapping/fields', timeout=self.timeout)
-            reply.raise_for_status()
-            payload = reply.json()
-        except Exception:
-            logger.debug('Could not list the databases of the mapping service', exc_info=1)
-            return None
-        names = set()
-        for group in payload.get('groups', []) or []:
-            for item in group.get('items', []) or []:
-                name = item.get('name')
-                if name and item.get('from') and item.get('to'):
-                    names.add(self._local_name(name))
-        self._databases = names
-        return self._databases
-
-    def _local_name(self, database):
-        """
-        Spell a service database name the way ``idmapping.dat`` does.
-
-        Parameters
-        ----------
-        database : str
-            Name as the service reports it.
-
-        Returns
-        -------
-        str
-        """
-        return self._LOCAL_NAMES.get(database, database)
-
-    def _service_name(self, database):
-        """
-        Spell a database name the way the mapping service expects.
-
-        The service and ``idmapping.dat`` disagree on some names, and
-        on the accession itself, which the service calls a field of
-        UniProtKB rather than a database.
-
-        Parameters
-        ----------
-        database : str
-            Database name.
-
-        Returns
-        -------
-        str
-        """
-        if database == self.UNIPROTKB:
-            return 'UniProtKB_AC-ID'
-        return self._SERVICE_NAMES.get(database, database)
-
-    #: Names that differ between ``idmapping.dat`` and the service.
-    _SERVICE_NAMES = {
-        'RefSeq': 'RefSeq_Protein',
-        'EMBL-CDS': 'EMBL-GenBank-DDBJ_CDS',
-        'EMBL': 'EMBL-GenBank-DDBJ',
-    }
-
-    #: The same correspondence, read the other way.
-    _LOCAL_NAMES = { v: k for k, v in _SERVICE_NAMES.items() }
-
-    def _wait(self, job):
-        """
-        Poll a job until its results are ready.
-
-        Parameters
-        ----------
-        job : str
-            Job identifier returned by the service.
-
-        Raises
-        ------
-        RuntimeError
-            If the job reports an error status.
-        """
-        while True:
-            reply = self.session.get(f'{API_URL}/idmapping/status/{job}', timeout=self.timeout)
-            reply.raise_for_status()
-            payload = reply.json()
-            status = payload.get('jobStatus')
-            if isinstance(status, types.NoneType) or status in ('FINISHED',):
-                return
-            if status in ('RUNNING', 'NEW', 'QUEUED'):
-                time.sleep(self.polling_interval)
-                continue
-            raise RuntimeError(f'UniProt mapping job {job} failed: {status}')
-
-    def _results(self, job):
-        """
-        Read every page of a finished job.
-
-        Parameters
-        ----------
-        job : str
-            Job identifier.
-
-        Returns
-        -------
-        list of dict
-        """
-        rows = []
-        params = {'format': 'json', 'size': self.page_size}
-        for reply in self.pages(f'idmapping/results/{job}', **params):
-            payload = reply.json()
-            rows.extend(payload.get('results', []) or [])
-        return rows
-
-    #: Entries per page when reading results.
-    page_size = 500
-
-    def parser(self, stream, accession, *args, **kwargs):
-        """
-        Turn mapping results into this cursor's table.
+        Each entry carries the accession and the cross-references it
+        has. The identifiers asked about are matched against both, so
+        an entry found through one of its cross-references reports
+        that cross-reference as the source rather than the accession.
 
         Parameters
         ----------
         stream : list of dict
-            Output of :meth:`fetcher`.
+            Entries returned by :meth:`fetcher`.
         accession : iterable of str
             Identifiers that were requested.
+        source, target : str or list of str, optional
+            The two ends of the mapping.
 
         Returns
         -------
@@ -315,34 +295,51 @@ class MappingCursor(rotifer.db.methods.MappingCursor, core.BaseUniProtWebCursor)
         """
         if isinstance(stream, types.NoneType) or not stream:
             return self.empty()
+        queried = self.parse_ids(accession)
+        source = self.parse_databases(source)
+        target = self.parse_databases(target)
+
         rows = []
         for entry in stream:
-            queried = entry.get('from')
-            found = entry.get('to')
-            # UniProtKB targets arrive as whole entries, everything
-            # else as a bare identifier.
-            if isinstance(found, dict):
-                found = found.get('primaryAccession') or found.get('id')
-            if isinstance(queried, types.NoneType) or isinstance(found, types.NoneType):
+            accession_value = entry.get('primaryAccession')
+            if not accession_value:
                 continue
-            source_type = entry.get('_source_type')
-            target_type = entry.get('_target_type')
-            # The accession is whichever end is UniProtKB; when neither
-            # is, the service does not report the one it joined through.
-            if source_type == self.UNIPROTKB:
-                accession_value = str(queried)
-            elif target_type == self.UNIPROTKB:
-                accession_value = str(found)
-            else:
-                accession_value = None
-            rows.append({
-                'source': str(queried), 'source_type': source_type,
-                'accession': accession_value,
-                'target': str(found), 'target_type': target_type,
-            })
+            xrefs = [ (x.get('database'), x.get('id'))
+                      for x in entry.get('uniProtKBCrossReferences', []) or []
+                      if x.get('database') and x.get('id') ]
+
+            # Which of the identifiers asked about this entry answers,
+            # and by which name.
+            sources = []
+            if isinstance(source, types.NoneType) or self.UNIPROTKB in source:
+                names = {accession_value} | set(entry.get('secondaryAccessions', []) or [])
+                for name in sorted(names & queried):
+                    sources.append((name, self.UNIPROTKB))
+            for database, value in xrefs:
+                if value in queried and (isinstance(source, types.NoneType) or database in source):
+                    sources.append((value, database))
+            if not sources:
+                continue
+
+            # What this entry offers at the other end.
+            wanted = []
+            if not isinstance(target, types.NoneType) and self.UNIPROTKB in target:
+                wanted.append((accession_value, self.UNIPROTKB))
+            for database, value in xrefs:
+                if isinstance(target, types.NoneType) or database in target:
+                    wanted.append((value, database))
+
+            for source_value, source_type in sources:
+                for target_value, target_type in wanted:
+                    rows.append({
+                        'source': str(source_value), 'source_type': str(source_type),
+                        'accession': str(accession_value),
+                        'target': str(target_value), 'target_type': str(target_type),
+                    })
         if not rows:
             return self.empty()
-        return pd.DataFrame(rows, columns=self.columns)
+        return pd.DataFrame(rows, columns=self.columns).drop_duplicates().reset_index(drop=True)
+
 
 # ----------------------------------------------------------------------
 # The original function level interface, kept for callers that use it.

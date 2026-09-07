@@ -274,29 +274,85 @@ def test_record_ids_cover_every_name_an_entry_answers_to():
 
 # ----------------------------------------------------------- id mapping
 
+#: One entry, as UniProt returns it, trimmed to what the parser reads.
+ENTRY = {
+    'primaryAccession': 'Q6GZX4',
+    'secondaryAccessions': ['Q91G88'],
+    'uniProtKBCrossReferences': [
+        {'database': 'RefSeq', 'id': 'YP_031579.1'},
+        {'database': 'Pfam', 'id': 'PF04947'},
+        {'database': 'GO', 'id': 'GO:0046782'},
+    ],
+}
+
+
 def test_mapping_returns_the_shared_five_column_table():
     """Every mapping backend returns this shape, so the three can be stacked
     behind one delegator."""
     cursor = webapi.MappingCursor(progress=False)
-    frame = cursor.parser([{'from': 'P00750', 'to': 'NP_000921.1',
-                            '_source_type': cursor.UNIPROTKB, '_target_type': 'RefSeq'}], [])
+    frame = cursor.parser([ENTRY], ['Q6GZX4'], source=cursor.UNIPROTKB, target=['RefSeq'])
     assert list(frame.columns) == ['source', 'source_type', 'accession',
                                    'target', 'target_type']
     assert frame.to_dict('records') == [{
-        'source': 'P00750', 'source_type': 'UniProtKB-AC', 'accession': 'P00750',
-        'target': 'NP_000921.1', 'target_type': 'RefSeq'}]
+        'source': 'Q6GZX4', 'source_type': 'UniProtKB-AC', 'accession': 'Q6GZX4',
+        'target': 'YP_031579.1', 'target_type': 'RefSeq'}]
 
 
-def test_mapping_unwraps_uniprotkb_entries():
-    """Mapping *to* UniProtKB returns whole entries where other targets return
-    a bare identifier."""
+def test_an_open_target_returns_every_cross_reference():
+    """The reason for reading entries rather than running mapping jobs: one
+    request answers 'everything this entry is cross-referenced to', which the
+    job based service cannot be asked at all."""
     cursor = webapi.MappingCursor(progress=False)
-    frame = cursor.parser([{'from': 'BAE76179.1', 'to': {'primaryAccession': 'P00750'},
-                            '_source_type': 'EMBL-CDS',
-                            '_target_type': cursor.UNIPROTKB}], [])
-    assert frame['target'].tolist() == ['P00750']
-    # The accession is whichever end is UniProtKB
-    assert frame['accession'].tolist() == ['P00750']
+    frame = cursor.parser([ENTRY], ['Q6GZX4'], source=cursor.UNIPROTKB, target=None)
+    assert sorted(frame.target_type) == ['GO', 'Pfam', 'RefSeq']
+
+
+def test_databases_the_flat_file_does_not_carry_are_reachable():
+    """Pfam, GO and InterPro are cross-references of an entry, not identifier
+    mappings, so neither idmapping.dat nor the mapping service has them. This
+    backend is the only one that does."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([ENTRY], ['Q6GZX4'], source=cursor.UNIPROTKB,
+                          target=['Pfam', 'GO'])
+    assert sorted(zip(frame.target_type, frame.target)) == [
+        ('GO', 'GO:0046782'), ('Pfam', 'PF04947')]
+
+
+def test_an_entry_found_by_a_cross_reference_reports_it_as_the_source():
+    """A reverse lookup needs no database named: the identifier is matched
+    against the entry's cross-references, and whichever one matched is what
+    the query asked about."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([ENTRY], ['YP_031579.1'], source=None,
+                          target=cursor.UNIPROTKB)
+    assert frame.to_dict('records') == [{
+        'source': 'YP_031579.1', 'source_type': 'RefSeq', 'accession': 'Q6GZX4',
+        'target': 'Q6GZX4', 'target_type': 'UniProtKB-AC'}]
+
+
+def test_a_secondary_accession_still_names_the_entry():
+    """An entry answers to more than one accession, and a query using the old
+    one must not be counted as unanswered."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([ENTRY], ['Q91G88'], source=cursor.UNIPROTKB,
+                          target=['RefSeq'])
+    assert frame['source'].tolist() == ['Q91G88']
+    assert frame['accession'].tolist() == ['Q6GZX4']
+
+
+def test_an_entry_matching_nothing_asked_about_is_dropped():
+    """A reverse search can return an entry for reasons of its own; only the
+    identifiers actually queried may appear as sources."""
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([ENTRY], ['SOMETHING_ELSE'], source=None, target=None)
+    assert frame.empty
+
+
+def test_a_source_database_filter_is_honoured():
+    cursor = webapi.MappingCursor(progress=False)
+    frame = cursor.parser([ENTRY], ['YP_031579.1'], source=['Pfam'],
+                          target=cursor.UNIPROTKB)
+    assert frame.empty        # the identifier is a RefSeq one, not a Pfam one
 
 
 def test_mapping_reports_what_was_asked_for():
@@ -309,30 +365,25 @@ def test_mapping_reports_what_was_asked_for():
     assert cursor.getids(frame) == {'P00750'}
 
 
-@pytest.mark.parametrize('rows', [[], [{'from': 'P00750'}], [{'to': 'X'}]])
-def test_mapping_empty_results_keep_the_columns(rows):
+@pytest.mark.parametrize('stream', [[], None, [{'uniProtKBCrossReferences': []}]])
+def test_mapping_empty_results_keep_the_columns(stream):
     cursor = webapi.MappingCursor(progress=False)
-    frame = cursor.parser(rows, [])
+    frame = cursor.parser(stream, ['P00750'])
     assert frame.empty
     assert list(frame.columns) == ['source', 'source_type', 'accession',
                                    'target', 'target_type']
 
 
-def test_mapping_needs_both_ends_named():
-    """UniProt maps one pair at a time, and there are 94 possible targets, so
-    'every database' is not a question this backend can be asked."""
+def test_named_fields_are_requested_when_every_target_has_one():
+    """Asking for named fields rather than whole entries is 3 KiB against 147
+    for five entries, so it is worth doing whenever it is possible."""
     cursor = webapi.MappingCursor(progress=False)
-    with pytest.raises(ValueError, match='both'):
-        cursor.fetcher(['P00750'], source=None, target=None)
-
-
-def test_service_names_are_translated():
-    """idmapping.dat and the mapping service spell some databases differently,
-    and the accession is a field of UniProtKB rather than a database there."""
-    cursor = webapi.MappingCursor(progress=False)
-    assert cursor._service_name(cursor.UNIPROTKB) == 'UniProtKB_AC-ID'
-    assert cursor._service_name('RefSeq') == 'RefSeq_Protein'
-    assert cursor._service_name('KEGG') == 'KEGG'
+    cursor._fields = {'RefSeq': 'xref_refseq', 'Pfam': 'xref_pfam'}
+    assert cursor._requested_fields(['RefSeq', 'Pfam']) == 'accession,xref_refseq,xref_pfam'
+    # every database wanted, or one without a field of its own: whole entries
+    assert cursor._requested_fields(None) is None
+    assert cursor._requested_fields(['RefSeq', 'NoSuchDatabase']) is None
+    assert cursor._requested_fields([cursor.UNIPROTKB]) is None
 
 
 # --------------------------------------------------------------- tabular
