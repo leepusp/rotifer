@@ -1331,7 +1331,8 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
     hsearch = hmmsearch(sarp_model, genome_protein_fasta)
-    l = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3').sequence.tolist()
+    hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3')
+    l = hsearch_hits.sequence.tolist()
     pids_list = fimo.pid.dropna().tolist() + l
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
     gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
@@ -1342,6 +1343,36 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     ndf['repeat_end'] = ndf.pid.map(fimo.set_index('pid').stop.to_dict())
     ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
     ndf['pfam_coord'] = ndf.pid.map(hscan.set_index('sequence').pfam_coord.to_dict())
+
+    # Tag every neighborhood with the search that recovered its query: the
+    # heptarepeat MEME/FIMO scan ('Heptarepeat') or the HMM that matched it in
+    # hmmsearch (the model's own name). A query found by both searches, or by
+    # more than one model, carries every tag joined by '+'.
+    hepta_pids = set(fimo.pid.dropna())
+    model_by_pid = (
+        hsearch_hits.astype({'model': str})
+        .groupby('sequence')['model']
+        .agg(lambda names: '+'.join(dict.fromkeys(names)))
+        .to_dict()
+    )
+
+    def _query_source(pid):
+        tags = ['Heptarepeat'] if pid in hepta_pids else []
+        if pid in model_by_pid:
+            tags.append(model_by_pid[pid])
+        return '+'.join(tags) if tags else np.nan
+
+    query_source = {pid: _query_source(pid) for pid in dict.fromkeys(pids_list)}
+    ndf['query_source'] = ndf.pid.map(query_source)
+
+    # neighbors inherit the tag(s) of their block's query row(s)
+    block_source = (
+        ndf.loc[ndf['query_source'].notna(), ['block_id', 'query_source']]
+        .groupby('block_id')['query_source']
+        .agg(lambda tags: '+'.join(dict.fromkeys('+'.join(tags).split('+'))))
+        .to_dict()
+    )
+    ndf['query_source'] = ndf['block_id'].map(block_source)
 
     if filter_columns:
         ndf = ndf.drop(columns=[c for c in filter_columns if c in ndf.columns])
