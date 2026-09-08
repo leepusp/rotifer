@@ -73,7 +73,31 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
             except:
                 logger.error(f'Module {module.__name__} does not define a {myname} class')
                 continue
-            self.cursors[modulename] = cursorClass(**kwargs)
+            self.cursors[modulename] = cursorClass(**self.backend_arguments(modulename, kwargs))
+
+    def backend_arguments(self, name, arguments):
+        """
+        Adjust the arguments one backend is built with.
+
+        Shared attributes are shared because they mean the same thing
+        everywhere, and most do. Where one does not -- a path naming a
+        directory for one backend and a file for another -- this is
+        where a delegator says so, rather than the backends guessing
+        from what they were handed.
+
+        Parameters
+        ----------
+        name : str
+            Which backend is being built.
+        arguments : dict
+            The shared attributes, as they would be passed.
+
+        Returns
+        -------
+        dict
+            What to pass instead. The same dictionary by default.
+        """
+        return arguments
 
     # Shared attributes for which None is a value in its own right,
     # rather than a request to use the backend's own default. Only
