@@ -348,7 +348,7 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
             # The rows go straight from the file into the server, so
             # there is nothing here to count: ask the table instead.
             with sqlprog.Watcher(lambda: self.count(), total=estimate,
-                                 desc='loading', enabled=self.progress):
+                                 desc=f'{self.progress_label} loading', enabled=self.progress):
                 self.load_file(
                     reader.datafile,
                     select = f"c1, c2, c3, '{release}'",
@@ -360,7 +360,7 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
         elif method == 'python':
             if self.progress:
                 logger.warning(f'Loading {reader.datafile} into {self.qualified_name} in chunks of {chunksize} rows...')
-            with sqlprog.Progress(total=estimate, desc='loading',
+            with sqlprog.Progress(total=estimate, desc=f'{self.progress_label} loading',
                                   enabled=self.progress) as bar:
                 for chunk in reader.reader(chunksize=chunksize):
                     # insert() keeps only the table's own columns and
@@ -552,7 +552,7 @@ class MappingCursor(BaseMappingCursor):
                     self.cleanup()
             else:
                 batches = list(self._batches(targets, self.batch_size))
-                with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
+                with sqlprog.Progress(total=len(targets), unit='ids', desc=self.progress_label,
                                       enabled=self.progress,
                                       position=1, leave=False) as bar:
                   for batch in batches:

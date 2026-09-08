@@ -37,6 +37,27 @@ class BaseCursor:
         self.final_errors = set()
         self.maxgetitem = 1 # Maximum number of arguments accepted by __getitem__()
 
+    @property
+    def progress_label(self):
+        """
+        Name this cursor answers to on a progress bar.
+
+        A delegator draws its own bar above the backend working under
+        it, and an unlabelled bar says nothing about which backend
+        that is -- which is the one thing worth knowing while several
+        are tried in turn. What distinguishes them is the module they
+        come from, so that is what the bar is named after, without the
+        ``rotifer.db.`` prefix every one of them shares.
+
+        Returns
+        -------
+        str
+            The module name, e.g. ``uniprot.clickhouse``.
+        """
+        name = type(self).__module__
+        prefix = 'rotifer.db.'
+        return name[len(prefix):] if name.startswith(prefix) else name
+
     def parse_ids(self, accessions, as_string=True):
         """
         Convert a list of accessions into a set object

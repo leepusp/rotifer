@@ -464,7 +464,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         # Its final size is not known, so the bar shows a rate.
         with sqlprog.Watcher(
                 lambda: os.path.getsize(self.path) if os.path.exists(self.path) else 0,
-                unit='B', desc='writing', enabled=self.progress):
+                unit='B', desc=f'{self.progress_label} writing', enabled=self.progress):
             result = subprocess.run(
                 [executable, self.path],
                 input = "\n".join(statements) + "\n",
@@ -582,7 +582,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             logger.warning(f'Loading {reader.datafile} into {self.path}...')
         total = sqlprog.estimate_rows(reader.datafile, compressed=reader.compressed)
         try:
-            with sqlprog.Progress(total=total, desc='loading',
+            with sqlprog.Progress(total=total, desc=f'{self.progress_label} loading',
                                   enabled=self.progress) as bar:
                 for chunk in reader.reader(chunksize=chunksize, id_type=id_type):
                     self.insert(chunk, release=release, role=role)
@@ -682,7 +682,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         stack = []
         batches = list(self._batches(sorted(targets), self.batch_size))
         try:
-            with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
+            with sqlprog.Progress(total=len(targets), unit='ids', desc=self.progress_label,
                                   enabled=self.progress,
                                   position=1, leave=False) as bar:
               for batch in batches:

@@ -319,7 +319,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         # One bar for the whole query rather than one per backend: what
         # a caller waits on is their identifiers being answered, and
         # which backend answers them is the delegator's business.
-        bar = sqlprog.Progress(total=len(targets), unit='ids', desc='uniprot',
+        bar = sqlprog.Progress(total=len(targets), unit='ids', desc=self.progress_label,
                                enabled=self.progress, position=0)
 
         # A caller may stop consuming a generator, so the bar is
@@ -1398,9 +1398,6 @@ class BaseUniProtRecordCursor(rotifer.db.delegator.SequentialDelegatorCursor):
     BaseUniProtDelegatorCursor : the same idea, for identifier mappings
     """
 
-    #: Label shown beside the delegator's own progress bar.
-    _progress_label = 'uniprot'
-
     def __getitem__(self, accessions, *args, **kwargs):
         """
         Fetch records, dictionary style.
@@ -1449,7 +1446,7 @@ class BaseUniProtRecordCursor(rotifer.db.delegator.SequentialDelegatorCursor):
         """
         targets = self.parse_ids(accessions)
         bar = sqlprog.Progress(total=len(targets), unit='ids',
-                               desc=self._progress_label,
+                               desc=self.progress_label,
                                enabled=self.progress, position=0)
         answered = set()
         # A caller may stop consuming a generator, so the bar is taken
