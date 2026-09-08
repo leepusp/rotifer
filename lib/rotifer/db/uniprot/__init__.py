@@ -227,6 +227,11 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         # the ones it does not carry as missing. They are not: missing
         # means no backend could resolve it.
         answered = set()
+        # Which databases each identifier has already been answered
+        # for. A backend is worth asking only where some pair of an
+        # identifier and a database it can map is still uncovered, and
+        # then only about those.
+        covered = { x: set() for x in targets }
 
         for position, name in enumerate(self.readers):
             # What is still owed at each end. An end that is already
@@ -283,10 +288,16 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                 logger.info(f'Skipping backend {name}: none of the databases still owed are available there')
                 continue
 
-            # Identifiers already found still have to be asked about
-            # when a database remains uncovered: the rows owed are the
-            # ones that database would have contributed.
-            asking = todo if todo else deepcopy(targets)
+            # What this backend could still add, identifier by
+            # identifier. An identifier every database this backend
+            # maps has already answered for is not worth asking about,
+            # and where no identifier is, the backend is not worth
+            # asking at all.
+            asking, here_target = self._uncovered(cursor, targets, todo, covered,
+                                                  here_target)
+            if not asking:
+                logger.info(f'Skipping backend {name}: it can add nothing to what is already known')
+                continue
 
             for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
@@ -306,6 +317,10 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                 if isinstance(result, pd.DataFrame) and not result.empty:
                     served_source.update(result.source_type.dropna().astype(str))
                     served_target.update(result.target_type.dropna().astype(str))
+                    for identifier, database in zip(result.source.astype(str),
+                                                    result.target_type.astype(str)):
+                        if identifier in covered:
+                            covered[identifier].add(database)
                 yield result
 
             # A backend that finds nothing yields nothing, so what it
@@ -333,6 +348,64 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             if isinstance(target, types.NoneType):
                 wanted_target.update(served_target)
 
+
+    def _uncovered(self, cursor, targets, todo, covered, here_target):
+        """
+        Work out what a backend could still add, and for which identifiers.
+
+        A backend is asked about an identifier only where some database
+        it can map has not answered for that identifier yet. That is
+        the pair the question is really about: an identifier is not
+        done because something answered for it, and a database is not
+        done because it answered for something else.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend about to be asked.
+        targets : set of str
+            Every identifier the query named.
+        todo : set of str
+            Those no backend has resolved at all.
+        covered : dict
+            Identifier to the databases already answered for it.
+        here_target : list of str or None
+            The databases this backend has been narrowed to, or None
+            for every database it holds.
+
+        Returns
+        -------
+        tuple of (list, list or None)
+            The identifiers worth asking about, and the databases
+            worth asking for. An empty list of identifiers means the
+            backend has nothing to add.
+        """
+        vocabulary = cursor.databases()
+        offer = here_target
+        if isinstance(offer, types.NoneType):
+            # Every database this backend holds, when it can say which.
+            offer = sorted(vocabulary) if not isinstance(vocabulary, types.NoneType) else None
+        if isinstance(offer, types.NoneType):
+            # It cannot say what it holds, so nothing can be called
+            # covered on its behalf: ask it for whatever is still
+            # unresolved, or for everything when all of it is resolved.
+            return sorted(todo) if todo else sorted(targets), here_target
+
+        offer = set(offer)
+        asking, wanted = [], set()
+        for identifier in sorted(targets):
+            missing_here = offer - covered.get(identifier, set())
+            if missing_here:
+                asking.append(identifier)
+                wanted.update(missing_here)
+        if not asking:
+            return [], here_target
+        # Narrow the request to what is actually owed, so a backend
+        # fetching per database does not fetch the ones already had.
+        # This holds whether or not the caller named databases: by here
+        # the offer came either from what they asked for or from what
+        # this backend says it holds, and both are enumerable.
+        return asking, sorted(wanted)
 
     def check_databases(self, databases, end):
         """

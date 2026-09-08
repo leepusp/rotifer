@@ -35,6 +35,7 @@ class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
         self._databases = databases
         self.asked = 0
         self.asked_targets = []
+        self.asked_ids = []
 
     def content_id(self):
         return self._content
@@ -46,6 +47,7 @@ class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
         self.asked += 1
         self.asked_targets.append(tuple(target or ()))
         wanted = self.parse_ids(accessions)
+        self.asked_ids.append(tuple(sorted(wanted)))
         # With no target named a backend returns everything it has,
         # which is what makes the union across backends visible.
         served = list(target) if target else sorted(self._databases or ['RefSeq'])
@@ -550,3 +552,62 @@ def test_a_backend_keeps_its_own_view_of_what_it_lacks():
     )
     delegator.fetchall(['A0ABD7BIQ8'], source=Backend.UNIPROTKB)
     assert 'A0ABD7BIQ8' in backends['webapi'].missing_ids()
+
+
+# --------------------------------- coverage by identifier and by database
+
+def test_a_backend_is_asked_only_for_the_databases_still_owed():
+    """The pair is what the question is about: an identifier is not done
+    because something answered for it, and a database is not done because it
+    answered for something else."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq', 'KEGG'}),
+        ('webapi', None, ['P00750'], {'KEGG', 'Pfam'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    # clickhouse answered RefSeq and KEGG, so only Pfam is left for webapi
+    assert backends['webapi'].asked_targets == [('Pfam',)]
+
+
+def test_a_backend_with_nothing_left_to_add_is_not_asked():
+    """Everything it maps has already answered for every identifier, so a
+    request would return rows that are already in hand."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    assert backends['webapi'].asked == 0
+
+
+def test_only_the_identifiers_still_owed_are_asked_about():
+    """One identifier answered and one not means the second backend hears
+    about the second alone."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['ANSWERED'], {'RefSeq'}),
+        ('webapi', None, ['ANSWERED', 'OWED'], {'RefSeq'}),
+    )
+    delegator.fetchall(['ANSWERED', 'OWED'], source=Backend.UNIPROTKB)
+    assert backends['webapi'].asked == 1
+    assert backends['webapi'].asked_ids == [('OWED',)]
+
+
+def test_a_backend_that_cannot_enumerate_is_asked_about_what_is_unresolved():
+    """Nothing can be called covered on its behalf, since it will not say what
+    it holds, so it is asked for whatever no backend has resolved."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['ANSWERED'], {'RefSeq'}),
+        ('mirror', None, ['OWED'], None),
+    )
+    delegator.fetchall(['ANSWERED', 'OWED'], source=Backend.UNIPROTKB)
+    assert backends['mirror'].asked_ids == [('OWED',)]
+
+
+def test_the_union_still_comes_back_whole():
+    """Narrowing what is asked must not narrow what is returned."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam', 'GO'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    assert sorted(set(frame.target_type)) == ['GO', 'Pfam', 'RefSeq']
