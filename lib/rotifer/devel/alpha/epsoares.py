@@ -485,16 +485,47 @@ def filter_models_overlaps(df, overlap_filter=0.1):
 
     return df[keep]
 
-def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_filter=0.1, score_filter=0, overlap_filter = 0.1, 
+def _arch_with_coordinates(h, seq_col='sequence', model_col='model', start_col='estart', end_col='eend'):
+    '''
+    Map each sequence to its domain architecture annotated with the
+    envelope coordinates of every domain, e.g. ``HTH[1-120]+TPR[240-300]``.
+
+    Domains are ordered by start coordinate. Returns a ``{sequence: str}``
+    dict, ready to feed ``df[column].map(...)``.
+    '''
+    h = h.sort_values([seq_col, start_col])
+
+    def _fmt(g):
+        return '+'.join(
+            f'{model}[{int(start)}-{int(end)}]'
+            for model, start, end in zip(g[model_col], g[start_col], g[end_col])
+        )
+
+    return h.groupby(seq_col).apply(_fmt).to_dict()
+
+def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_filter=0.1, score_filter=0, overlap_filter = 0.1,
                    models_path=['/databases/pfam/Pfam-A.hmm'], inplace=False, run_hmmscan=True, workers=4, cpus_per_worker=8,
-                   build_arch_by_source=False):
+                   build_arch_by_source=False, add_coordinates=True, column_coord_name=None):
 
     '''
     Add a column pfam with the domain architecture for the input accessions.
+
+    Parameters
+    ----------
+    add_coordinates : bool, default False
+        Also add a column holding the architecture annotated with each
+        domain's envelope coordinates, e.g. ``HTH[1-120]+TPR[240-300]``.
+    column_coord_name : str or None
+        Name of that extra column. Defaults to ``f'{column_arch_name}_coord'``.
+        When ``build_arch_by_source`` is True the source tag is appended,
+        matching the architecture columns (``f'{column_coord_name}_{source}'``).
     '''
 
     if inplace == False:
         df = df.copy()
+
+    if column_coord_name is None:
+        column_coord_name = f'{column_arch_name}_coord'
 
     if run_hmmscan:
         h = hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
@@ -519,6 +550,8 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
             arch.rename({'sequence':column}, axis = 1, inplace = True)
             arch = arch.set_index(column).pfam.to_dict()
             df[f'{column_arch_name}_{x}'] = df[column].map(arch)
+            if add_coordinates:
+                df[f'{column_coord_name}_{x}'] = df[column].map(_arch_with_coordinates(h_source))
         return None if inplace else df
 
     else:            
@@ -529,6 +562,8 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
         arch.rename({'sequence':column}, axis = 1, inplace = True)
         arch = arch.set_index(column).pfam.to_dict()
         df[column_arch_name] = df[column].map(arch)
+        if add_coordinates:
+            df[column_coord_name] = df[column].map(_arch_with_coordinates(h))
         return None if inplace else df
       
 def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):

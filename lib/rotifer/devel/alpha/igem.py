@@ -2345,14 +2345,28 @@ def build_genome_overview_interactive_html(extents, color_map=None,
         '<span id="go-zoom-val">1x</span>'
         '<button type="button" id="go-zoom-in" title="Zoom in">+</button>'
         '<button type="button" id="go-zoom-reset" title="Reset zoom and pan">reset</button>'
-        f'<span class="go-hint">{scale_hint} &middot; scroll to pan &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
+        f'<span class="go-hint">{scale_hint} &middot; scroll or drag the bar to pan every line &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
         '</div>'
+    )
+
+    # One scrollbar for the whole figure: every line shares the same
+    # bp-per-pixel scale and pans together, so a single bar (aligned to
+    # the track grid, under the sequence lines) drives all of them at
+    # once. The per-line `.go-viewport` scrollbars stay hidden -- see the
+    # `.go-viewport` CSS. Starts `disabled` (dimmed, inert) until a zoom
+    # makes the content wider than the viewport; the JS toggles that.
+    scrollbar = (
+        '<div class="go-scrollbar-row">'
+        '<div class="go-scrollbar-spacer"></div>'
+        '<div class="go-scrollbar disabled" id="go-scrollbar">'
+        '<div class="go-scrollbar-thumb" id="go-scrollbar-thumb"></div>'
+        '</div></div>'
     )
 
     # NOTE: the shared tooltip div lives once at <body> level in the report
     # template (outside every page-section), not here -- a page-section is
     # display:none when inactive, which would hide an embedded tooltip too.
-    return f'<div class="go-wrap">{controls}{"".join(groups)}</div>'
+    return f'<div class="go-wrap">{controls}{scrollbar}{"".join(groups)}</div>'
 
 
 
@@ -3505,6 +3519,23 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .go-marker:hover{transform:scaleY(1.45);z-index:3;}
   .go-marker.selected{box-shadow:0 0 0 2px var(--selected-line);z-index:2;}
+  /* one shared horizontal scrollbar driving every line at once (each
+     .go-viewport hides its own). The empty spacer keeps the bar aligned
+     with the sequence lines rather than the contig-label column. */
+  .go-scrollbar-row{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:2px 0 20px;}
+  .go-scrollbar{
+    position:relative;height:12px;border-radius:6px;
+    background:var(--accent-soft);border:1px solid var(--line);
+    cursor:pointer;user-select:none;touch-action:none;
+  }
+  .go-scrollbar.disabled{opacity:.35;pointer-events:none;}
+  .go-scrollbar-thumb{
+    position:absolute;top:1px;bottom:1px;left:0;width:100%;
+    border-radius:5px;background:var(--accent);opacity:.5;
+    transition:opacity .12s;
+  }
+  .go-scrollbar:hover .go-scrollbar-thumb,
+  .go-scrollbar.grabbing .go-scrollbar-thumb{opacity:.8;}
 
   /* ---- neighborhoods: toolbar ---- */
   .nb-toolbar{
@@ -3834,6 +3865,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
 
   @media(max-width:820px){
     .go-track{grid-template-columns:100px 1fr;}
+    .go-scrollbar-row{grid-template-columns:100px 1fr;}
     .nb-zoom-group{margin-left:0;}
     .top-meta{display:none;}
   }
@@ -4028,6 +4060,47 @@ $stats_selector
   var goTracks = qsa('.go-track');
   var tip = qs('#go-tooltip');
   var goZoomVal = qs('#go-zoom-val');
+  var goScrollbar = qs('#go-scrollbar');
+  var goThumb = qs('#go-scrollbar-thumb');
+  var goSyncing = false;   // guards the viewport <-> viewport <-> bar echo
+
+  // Every line shares one bp-per-pixel scale, so the same scrollLeft on
+  // each shows the same genomic window. `_base` is a viewport's unzoomed
+  // width; `_base * goZoom` is the width of a full line, and the pannable
+  // range is that minus one viewport.
+  function goMetrics() {
+    var ref = goTracks[0];
+    var view = ref ? (ref._base || ref.querySelector('.go-viewport').clientWidth || 600) : 600;
+    var content = view * goZoom;
+    return { view: view, content: content, max: Math.max(0, content - view) };
+  }
+  function goSyncScrollbar(sl) {
+    if (!goScrollbar || !goThumb || !goTracks.length) return;
+    var m = goMetrics();
+    if (sl == null) {
+      var vp0 = goTracks[0].querySelector('.go-viewport');
+      sl = vp0 ? vp0.scrollLeft : 0;
+    }
+    if (m.max <= 1) {
+      goScrollbar.classList.add('disabled');
+      goThumb.style.left = '0px'; goThumb.style.width = '100%';
+      return;
+    }
+    goScrollbar.classList.remove('disabled');
+    var barW = goScrollbar.clientWidth;
+    var thumbW = Math.max(28, Math.min(barW, barW * m.view / m.content));
+    var left = (sl / m.max) * (barW - thumbW);
+    goThumb.style.width = thumbW + 'px';
+    goThumb.style.left = Math.max(0, Math.min(barW - thumbW, left)) + 'px';
+  }
+  function goScrollAll(sl) {
+    var m = goMetrics();
+    sl = Math.max(0, Math.min(m.max, sl));
+    goSyncing = true;
+    goTracks.forEach(function (tr) { tr.querySelector('.go-viewport').scrollLeft = sl; });
+    goSyncing = false;
+    goSyncScrollbar(sl);
+  }
 
   function goLayout() {
     goTracks.forEach(function (tr) {
@@ -4047,6 +4120,7 @@ $stats_selector
       });
     });
     if (goZoomVal) goZoomVal.textContent = (goZoom < 10 ? goZoom.toFixed(1) : Math.round(goZoom)) + 'x';
+    goSyncScrollbar();
   }
   function goSetZoom(z) { goZoom = Math.min(500, Math.max(1, z)); goLayout(); }
   function initBases() { goTracks.forEach(function (tr) { tr._base = tr.querySelector('.go-viewport').clientWidth || 600; }); }
@@ -4071,7 +4145,50 @@ $stats_selector
     on(vp, 'mousedown', function(e){ if(e.target.classList.contains('go-marker')) return; drag=true; sx=e.clientX; ss=vp.scrollLeft; vp.classList.add('grabbing'); });
     on(window, 'mousemove', function(e){ if(drag) vp.scrollLeft=ss-(e.clientX-sx); });
     on(window, 'mouseup', function(){ drag=false; vp.classList.remove('grabbing'); });
+    // any pan (wheel, drag, ctrl+wheel re-centre) on one line mirrors to
+    // every other line and moves the shared bar with it
+    on(vp, 'scroll', function () {
+      if (goSyncing) return;
+      goSyncing = true;
+      var sl = vp.scrollLeft;
+      goTracks.forEach(function (o) {
+        var ovp = o.querySelector('.go-viewport');
+        if (ovp !== vp) ovp.scrollLeft = sl;
+      });
+      goSyncing = false;
+      goSyncScrollbar(sl);
+    });
   });
+
+  // ── genome overview: the one shared scrollbar ─────────────────────────
+  if (goScrollbar && goThumb) {
+    var barDrag = false, barThumbW = 0, barGrabDX = 0;
+    var barScrollFromClientX = function (clientX) {
+      var rect = goScrollbar.getBoundingClientRect();
+      var travel = rect.width - barThumbW;
+      var x = clientX - rect.left - barGrabDX;
+      var frac = travel > 0 ? Math.max(0, Math.min(1, x / travel)) : 0;
+      goScrollAll(frac * goMetrics().max);
+    };
+    on(goThumb, 'mousedown', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      barDrag = true;
+      barThumbW = goThumb.offsetWidth;
+      barGrabDX = e.clientX - goThumb.getBoundingClientRect().left;
+      goScrollbar.classList.add('grabbing');
+    });
+    on(goScrollbar, 'mousedown', function (e) {
+      if (e.target === goThumb) return;          // a click on the trough jumps there
+      barThumbW = goThumb.offsetWidth;
+      barGrabDX = barThumbW / 2;
+      barScrollFromClientX(e.clientX);
+    });
+    on(window, 'mousemove', function (e) { if (barDrag) barScrollFromClientX(e.clientX); });
+    on(window, 'mouseup', function () {
+      if (!barDrag) return;
+      barDrag = false; goScrollbar.classList.remove('grabbing');
+    });
+  }
 
   // ── shared tooltip ─────────────────────────────────────
   // One card, two modes: it follows the mouse while hovering, and a
