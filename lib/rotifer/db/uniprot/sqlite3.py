@@ -25,12 +25,20 @@ from a second copy of the data sorted by ``id`` is answered here from
 an ordinary index on that column, which costs the same kind of thing:
 a second structure, written during the load.
 
-Expect a full release to be large. The 2026_01 release is 2.6 billion
-rows, which is more than a SQLite3 file should be asked to hold; this
-backend is meant for a subset -- one organism, one project, the
-identifiers an analysis actually touches -- and
-:meth:`MappingCursor.load` takes an ``id_type`` filter for exactly
-that.
+A whole release fits. SQLite3 handles a few billion rows of this shape
+perfectly well when it is written for reading, which is what a mapping
+table is: loaded once, then never updated. What it needs is a load
+written for the purpose, so :meth:`MappingCursor.load` turns off the
+journal, defers every index to the end and writes in one transaction.
+An ``id_type`` filter is there for the cases where a subset is what is
+wanted -- one project, the databases an analysis actually touches --
+not because the whole is out of reach.
+
+One release at a time, though. ClickHouse keeps several side by side
+because a partition makes that free, and drops one in an instant;
+SQLite3 has no such thing, so loading a release here replaces what was
+there rather than adding to it. Pass ``replace=False`` to accumulate,
+and expect the deletion of a release afterwards to cost a scan.
 
 Examples
 --------
@@ -151,9 +159,15 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         """
         return self.table_name(role)
 
-    def create(self, replace=False, role=None):
+    #: Indexes the queries need, by name and by the columns they cover.
+    _indexes = {
+        'by_accession': '(accession, id_type)',
+        'by_id': '(id, id_type)',
+    }
+
+    def create(self, replace=False, indexes=True, role=None):
         """
-        Create the mapping table and the indexes queries need.
+        Create the mapping table, and by default the indexes too.
 
         Two indexes, because the two directions read different
         columns: one on the accession, which answers "what is this
@@ -165,6 +179,10 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         ----------
         replace : bool, default False
             Drop any existing table first. Every row it holds is lost.
+        indexes : bool, default True
+            Build the indexes as well. A bulk load passes False and
+            builds them afterwards, which is much faster than
+            maintaining them row by row.
         role : str, optional
             Which of the cursor's tables to build.
 
@@ -184,12 +202,56 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
                 release   TEXT NOT NULL DEFAULT ''
             )
         """)
-        self._dbconn.execute(
-            f'CREATE INDEX IF NOT EXISTS {table}_by_accession ON {table} (accession, id_type)')
-        self._dbconn.execute(
-            f'CREATE INDEX IF NOT EXISTS {table}_by_id ON {table} (id, id_type)')
+        if indexes:
+            self.create_indexes(role=role)
         self._dbconn.commit()
         return self.has_table(table)
+
+    def create_indexes(self, role=None):
+        """
+        Build the indexes the queries read.
+
+        Building them after the rows are in is far cheaper than
+        keeping them up to date while the rows arrive, which is why a
+        load leaves them until last.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables.
+        """
+        table = self.table_name(role)
+        for name, columns in self._indexes.items():
+            self._dbconn.execute(
+                f'CREATE INDEX IF NOT EXISTS {table}_{name} ON {table} {columns}')
+        self._dbconn.commit()
+
+    def drop_indexes(self, role=None):
+        """
+        Remove the indexes, so that rows can be written without them.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables.
+        """
+        table = self.table_name(role)
+        for name in self._indexes:
+            self._dbconn.execute(f'DROP INDEX IF EXISTS {table}_{name}')
+        self._dbconn.commit()
+
+    def has_indexes(self, role=None):
+        """
+        Find whether the indexes are in place.
+
+        Returns
+        -------
+        bool
+        """
+        table = self.table_name(role)
+        found = { r[0] for r in self._dbconn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index'").fetchall() }
+        return all(f'{table}_{name}' in found for name in self._indexes)
 
     def count(self, role=None):
         """
@@ -235,19 +297,68 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         )
         self._dbconn.commit()
 
-    def load(self, mirror, release=None, id_type=None, chunksize=config['chunksize'], role=None):
+    def vacuum(self):
+        """
+        Compact the file after a load that replaced its contents.
+
+        Deleting a release leaves the pages behind for reuse, which is
+        what a database should do and not what a file meant to be
+        copied around wants.
+        """
+        self._dbconn.execute('VACUUM')
+
+    #: Pragmas set while bulk loading, and what each is for. The
+    #: journal and the fsync are what a load spends its time on and
+    #: neither earns its cost here: the table is written once from a
+    #: file that still exists, so an interrupted load is thrown away
+    #: and started again rather than rolled back.
+    _load_pragmas = {
+        'journal_mode': 'OFF',
+        'synchronous': 'OFF',
+        'temp_store': 'MEMORY',
+        'cache_size': '-1048576',      # a gibibyte, negative means KiB
+    }
+
+    def _pragmas(self, settings):
+        """
+        Apply pragmas and return what they were.
+
+        Parameters
+        ----------
+        settings : dict
+            Pragma names and values.
+
+        Returns
+        -------
+        dict
+            The previous values, for putting back.
+        """
+        previous = {}
+        for name, value in settings.items():
+            try:
+                was = self._dbconn.execute(f'PRAGMA {name}').fetchone()
+                previous[name] = was[0] if was else None
+                self._dbconn.execute(f'PRAGMA {name} = {value}')
+            except Exception:
+                logger.debug(f'Could not set PRAGMA {name}', exc_info=1)
+        return previous
+
+    def load(self, mirror, release=None, id_type=None, replace=True,
+             chunksize=config['chunksize'], tune=True, role=None):
         """
         Fill the table from a local copy of ``idmapping.dat``.
 
-        A whole release is 2.6 billion rows, which is more than this
-        backend is meant to hold, so ``id_type`` is the argument that
-        matters: naming the databases an analysis actually uses turns
-        an impractical file into a useful one.
+        A release replaces what the table held rather than adding to
+        it. ClickHouse keeps several side by side because partitioning
+        makes that free and dropping one instant; here it would mean a
+        larger file and a scan to undo, so one release at a time is
+        the useful default. Pass ``replace=False`` to accumulate.
 
-        The record of where the rows came from is written only when
-        the load has run to the end, and only for an unfiltered load:
-        a file holding some of a release is not a copy of it, and must
-        not be taken for one.
+        The load is written for the purpose: no journal, no fsync, no
+        indexes until the rows are in, and one transaction. Those are
+        safe here for a reason worth stating -- the table is built once
+        from a file that still exists, so a load that dies is discarded
+        and repeated, never recovered.
 
         Parameters
         ----------
@@ -260,8 +371,14 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         id_type : str or list of str, optional
             Load only these cross-referenced databases. By default
             every one of them is loaded.
+        replace : bool, default True
+            Empty the table first, so it holds this release alone.
         chunksize : int, optional
             Rows read from the file at a time.
+        tune : bool, default True
+            Set the bulk loading pragmas and defer the indexes. Turn
+            it off to load into a database something else is using,
+            where those settings would not be safe.
         role : str, optional
             Which of the cursor's tables to fill.
 
@@ -280,17 +397,31 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             logger.error(f'No idmapping file found for {mirror}')
             return self.count(role)
 
-        if not self.has_table(self.table_name(role)):
-            self.create(role=role)
+        table = self.table_name(role)
+        self.create(indexes=not tune, role=role)
+        if replace:
+            self._dbconn.execute(f'DELETE FROM {table}')
+            self.forget_source(version='', table=table)
+
+        previous = self._pragmas(self._load_pragmas) if tune else {}
+        if tune:
+            self.drop_indexes(role=role)
         if self.progress:
             logger.warning(f'Loading {reader.datafile} into {self.path}...')
-        for chunk in reader.reader(chunksize=chunksize, id_type=id_type):
-            self.insert(chunk, release=release, role=role)
+        try:
+            for chunk in reader.reader(chunksize=chunksize, id_type=id_type):
+                self.insert(chunk, release=release, role=role)
+        finally:
+            if tune:
+                if self.progress:
+                    logger.warning('Building indexes...')
+                self.create_indexes(role=role)
+                self._pragmas({ k: v for k, v in previous.items()
+                                if not isinstance(v, types.NoneType) })
 
         rows = self.count(role)
         if isinstance(id_type, types.NoneType):
-            self.record_source(reader.datafile, rows, version=release,
-                               table=self.table_name(role))
+            self.record_source(reader.datafile, rows, version=release, table=table)
         elif self.progress:
             logger.warning(
                 'Loaded a subset, so no source is recorded: a file holding '

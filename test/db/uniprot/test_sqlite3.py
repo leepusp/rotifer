@@ -25,6 +25,7 @@ What is checked:
 Run under pytest, or standalone: python test/db/uniprot/test_sqlite3.py
 """
 
+import gzip
 import os
 
 import pandas as pd
@@ -57,14 +58,23 @@ def cursor(tmp_path, rows=ROWS, release=None, **kwargs):
     return mc
 
 
-def build_mirror(root, rows=ROWS):
+def build_mirror(root, rows=ROWS, compressed=False):
     """A directory laid out like a UniProt mirror."""
     path = os.path.join(root, 'knowledgebase', 'idmapping')
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, 'idmapping.dat'), 'wt') as fh:
-        for row in rows:
-            fh.write("\t".join(row) + "\n")
+    text = "".join("\t".join(row) + "\n" for row in rows)
+    if compressed:
+        with gzip.open(os.path.join(path, 'idmapping.dat.gz'), 'wt') as fh:
+            fh.write(text)
+    else:
+        with open(os.path.join(path, 'idmapping.dat'), 'wt') as fh:
+            fh.write(text)
     return root
+
+
+def loader(tmp_path, name='uniprot.sqlite3', **kwargs):
+    return rus.MappingCursor(os.path.join(str(tmp_path), name),
+                             progress=False, **kwargs)
 
 
 def pairs(frame):
@@ -282,6 +292,96 @@ def test_tables_are_declared_by_the_class(tmp_path):
     mc = cursor(tmp_path)
     assert mc.tables == {'mapping': 'idmapping'}
     assert mc.qualified() == 'idmapping'      # a file needs no qualifying
+
+
+# ------------------------------------------------- replacing a release
+
+def test_loading_twice_replaces_rather_than_accumulates(tmp_path):
+    """SQLite3 has no partitions, so holding several releases would mean a
+    larger file and a scan to undo. One release at a time is the default."""
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    first = mc.load(mirror, release='2026_01')
+    second = mc.load(mirror, release='2026_01')
+    assert first == second == len(ROWS)
+
+
+def test_a_new_release_replaces_the_old_one(tmp_path):
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2025_01')
+    mc.load(mirror, release='2025_01')
+    mc.load(mirror, release='2026_01')
+    stored = mc._dbconn.execute('SELECT DISTINCT release FROM idmapping').fetchall()
+    assert stored == [('2026_01',)]
+
+
+def test_replace_false_accumulates(tmp_path):
+    """Keeping several is still possible for anyone who wants it."""
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(mirror, release='2025_01')
+    mc.load(mirror, release='2026_01', replace=False)
+    assert mc.count() == 2 * len(ROWS)
+
+
+def test_replacing_withdraws_the_old_load_record(tmp_path):
+    """A record says this file holds a copy of that mirror. Emptying the table
+    must withdraw it, or a delegator skips the mirror for rows that are gone."""
+    one = build_mirror(str(tmp_path / 'one'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(one, release='2026_01')
+    assert mc.content_id() == rum.MappingCursor(path=one, progress=False).content_id()
+
+    two = build_mirror(str(tmp_path / 'two'), rows=ROWS[:1])
+    mc.load(two, release='2026_01')
+    assert mc.content_id() == rum.MappingCursor(path=two, progress=False).content_id()
+
+
+# --------------------------------------------------------- the tuning
+
+def test_indexes_are_there_when_a_load_finishes(tmp_path):
+    """A load takes the indexes down and must put them back: their absence
+    fails nothing, it only makes every reverse lookup a scan."""
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(mirror, release='2026_01')
+    assert mc.has_indexes() is True
+
+
+def test_tuning_restores_the_pragmas_it_changed(tmp_path):
+    """The load turns the journal off, which is safe only while it runs: the
+    table is rebuilt from a file that still exists. Afterwards the database
+    must be as it was."""
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    before = mc._dbconn.execute('PRAGMA journal_mode').fetchone()[0]
+    mc.load(mirror, release='2026_01', tune=True)
+    assert mc._dbconn.execute('PRAGMA journal_mode').fetchone()[0] == before
+
+
+def test_an_untuned_load_still_works(tmp_path):
+    """tune=False is for loading into a database something else is using,
+    where turning the journal off would not be safe."""
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    assert mc.load(mirror, release='2026_01', tune=False) == len(ROWS)
+    assert mc.has_indexes() is True
+
+
+def test_a_gzipped_mirror_loads(tmp_path):
+    mirror = build_mirror(str(tmp_path / 'mirror'), compressed=True)
+    mc = loader(tmp_path, release='2026_01')
+    assert mc.load(mirror, release='2026_01') == len(ROWS)
+
+
+def test_indexes_can_be_deferred_and_built(tmp_path):
+    mc = loader(tmp_path)
+    mc.create(indexes=False)
+    assert mc.has_indexes() is False
+    mc.create_indexes()
+    assert mc.has_indexes() is True
+    mc.drop_indexes()
+    assert mc.has_indexes() is False
 
 
 if __name__ == '__main__':
