@@ -631,7 +631,7 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
             proteins = [proteins]
         if self.progress:
             logger.warning(f'Searching {len(proteins)} protein(s) in SQLite3 database at {self.path}')
-            p = tqdm(total=len(proteins), initial=0)
+            p = tqdm(total=len(proteins), initial=0, desc=self.progress_label)
         found = self.__getitem__(proteins, ipgs=ipgs)
         for bid, block in found.groupby('block_id'):
             done = self.getids(block, ipgs)

@@ -154,7 +154,36 @@ def test_the_query_is_reported_on_but_a_lookup_is_not(capsys):
     assert capsys.readouterr().err == ''
     assert cursor.progress is True
     cursor.fetchall(['P00750'])
-    assert 'uniprot' in capsys.readouterr().err
+    assert cursor.progress_label in capsys.readouterr().err
+
+
+def test_a_bar_says_which_backend_is_drawing_it():
+    """Several backends run in turn under one delegator, each drawing a bar
+    of its own beneath the total. An unlabelled one says nothing about which
+    of them is the one taking the time."""
+    from rotifer.db.uniprot import clickhouse, mirror, webapi
+    from rotifer.db.local import easel
+
+    assert clickhouse.MappingCursor.__new__(
+        clickhouse.MappingCursor).progress_label == 'uniprot.clickhouse'
+    assert mirror.MappingCursor.__new__(
+        mirror.MappingCursor).progress_label == 'uniprot.mirror'
+    assert easel.FastaCursor.__new__(
+        easel.FastaCursor).progress_label == 'local.easel'
+
+
+def test_the_delegator_is_named_by_the_same_rule():
+    """It draws the bar above them, and the package it comes from is what
+    distinguishes it from the backends underneath."""
+    assert uniprot.MappingCursor.__new__(
+        uniprot.MappingCursor).progress_label == 'uniprot'
+
+
+def test_a_backend_bar_carries_its_name(capsys):
+    cursor = sequences(Backend([(fasta('P00750'), {'P00750'})]))
+    cursor.progress = True
+    cursor.fetchall(['P00750'])
+    assert cursor.progress_label in capsys.readouterr().err
 
 
 # ================================================================ taxonomy

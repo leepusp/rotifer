@@ -200,7 +200,7 @@ class SimpleParallelProcessCursor(rotifer.db.core.BaseCursor):
         targets = self.parse_ids(accessions)
         with ProcessPoolExecutor(max_workers=self.threads) as executor:
             if self.progress:
-                tqdmobj = tqdm(total=len(targets), initial=0)
+                tqdmobj = tqdm(total=len(targets), initial=0, desc=self.progress_label)
             tasks = []
             missing = self.remove_missing()
             for chunk in self.splitter(list(targets), *args, **kwargs):
@@ -538,7 +538,7 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
             if self.progress:
                 m = f'Downloading {len(genomes)} genomes for {len(targets)} proteins in {len(tasks)} batches, using {self.threads} threads ({self.batch_size} targets/batch)'
                 logger.warning(m)
-                tqdmobj = tqdm(total=len(genomes), initial=0)
+                tqdmobj = tqdm(total=len(genomes), initial=0, desc=self.progress_label)
 
             # Actually processing batches
             try:

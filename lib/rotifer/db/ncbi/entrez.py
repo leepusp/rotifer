@@ -698,7 +698,7 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
                 pids = set(nucleotides.pid).union(nucleotides.representative)
                 pids = len(pids.intersection(targets))
                 logger.warning(f'Downloading {len(todo)} nucleotides for {pids} proteins...')
-                p = tqdm(total=len(todo), initial=0)
+                p = tqdm(total=len(todo), initial=0, desc=self.progress_label)
             tasks = []
             missing = self.remove_missing()
             for chunk in self.splitter(targets, nucleotides):
