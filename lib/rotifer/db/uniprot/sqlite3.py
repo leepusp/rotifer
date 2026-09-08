@@ -70,6 +70,7 @@ import rotifer
 import rotifer.db.core
 import rotifer.db.methods
 import rotifer.db.sql.mapping as sqlmap
+import rotifer.db.sql.progress as sqlprog
 from rotifer.db.sql.sqlite3 import BaseSQLite3Cursor
 from rotifer.core import functions as rcf
 logger = rotifer.logging.getLogger(__name__)
@@ -456,12 +457,18 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             logger.warning(f'Loading {path} into {self.path} with {executable}...')
         # Nothing else may hold the file while another process writes it.
         self.reconnect()
-        result = subprocess.run(
-            [executable, self.path],
-            input = "\n".join(statements) + "\n",
-            capture_output = True,
-            text = True,
-        )
+        # The rows are counted by the other program, so there is
+        # nothing here to count: watch the database file grow instead.
+        # Its final size is not known, so the bar shows a rate.
+        with sqlprog.Watcher(
+                lambda: os.path.getsize(self.path) if os.path.exists(self.path) else 0,
+                unit='B', desc='writing', enabled=self.progress):
+            result = subprocess.run(
+                [executable, self.path],
+                input = "\n".join(statements) + "\n",
+                capture_output = True,
+                text = True,
+            )
         self.reconnect()
         if result.returncode != 0:
             logger.error(f'Failed to load {path}: {result.stderr.strip()}')
@@ -568,9 +575,13 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             self.drop_indexes(role=role)
         if self.progress:
             logger.warning(f'Loading {reader.datafile} into {self.path}...')
+        total = sqlprog.estimate_rows(reader.datafile, compressed=reader.compressed)
         try:
-            for chunk in reader.reader(chunksize=chunksize, id_type=id_type):
-                self.insert(chunk, release=release, role=role)
+            with sqlprog.Progress(total=total, desc='loading',
+                                  enabled=self.progress) as bar:
+                for chunk in reader.reader(chunksize=chunksize, id_type=id_type):
+                    self.insert(chunk, release=release, role=role)
+                    bar.update(len(chunk))
         finally:
             if tune:
                 if self.progress:
@@ -618,8 +629,11 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         target = self.parse_databases(target)
 
         stack = []
+        batches = list(self._batches(sorted(targets), self.batch_size))
         try:
-            for batch in self._batches(sorted(targets), self.batch_size):
+            with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
+                                  enabled=self.progress and len(batches) > 1) as bar:
+              for batch in batches:
                 binder = sqlmap.QmarkBinder()
 
                 def restrict(column, _batch=batch, _binder=binder):
@@ -630,6 +644,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
                 found = pd.read_sql(sql, self._dbconn, params=binder.parameters)
                 if not found.empty:
                     stack.append(found)
+                bar.update(len(batch))
         except Exception as error:
             logger.error(f'Query to {self.path} failed: {error}')
             self.update_missing(targets, error=f'SQLite3 query failed: {error}', retry=True)

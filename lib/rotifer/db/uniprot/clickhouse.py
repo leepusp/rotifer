@@ -44,6 +44,7 @@ import rotifer.db.core
 import rotifer.db.methods
 import rotifer.db.sql.clickhouse.core
 import rotifer.db.sql.mapping as sqlmap
+import rotifer.db.sql.progress as sqlprog
 from rotifer.db.sql.clickhouse import config as clickhouse_config
 from rotifer.core import functions as rcf
 logger = rotifer.logging.getLogger(__name__)
@@ -342,24 +343,32 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
             if self.progress:
                 logger.warning(f'Loading with method={method}')
 
+        estimate = sqlprog.estimate_rows(reader.datafile, compressed=reader.compressed)
         if method == 'client':
-            self.load_file(
-                reader.datafile,
-                select = f"c1, c2, c3, '{release}'",
-                columns = 'c1 String, c2 String, c3 String',
-                compressed = reader.compressed,
-                executable = executable,
-            )
+            # The rows go straight from the file into the server, so
+            # there is nothing here to count: ask the table instead.
+            with sqlprog.Watcher(lambda: self.count(), total=estimate,
+                                 desc='loading', enabled=self.progress):
+                self.load_file(
+                    reader.datafile,
+                    select = f"c1, c2, c3, '{release}'",
+                    columns = 'c1 String, c2 String, c3 String',
+                    compressed = reader.compressed,
+                    executable = executable,
+                )
 
         elif method == 'python':
             if self.progress:
                 logger.warning(f'Loading {reader.datafile} into {self.qualified_name} in chunks of {chunksize} rows...')
-            for chunk in reader.reader(chunksize=chunksize):
-                # insert() keeps only the table's own columns and
-                # stamps the release itself, so it has to be told
-                # which one: setting it on the frame would be dropped
-                # and the cursor's own release used instead.
-                self.insert(chunk, release=release)
+            with sqlprog.Progress(total=estimate, desc='loading',
+                                  enabled=self.progress) as bar:
+                for chunk in reader.reader(chunksize=chunksize):
+                    # insert() keeps only the table's own columns and
+                    # stamps the release itself, so it has to be told
+                    # which one: setting it on the frame would be
+                    # dropped and the cursor's own release used.
+                    self.insert(chunk, release=release)
+                    bar.update(len(chunk))
 
         else:
             raise ValueError(f'Unknown load method {method}: use "auto", "client" or "python"')
@@ -542,7 +551,10 @@ class MappingCursor(BaseMappingCursor):
                 finally:
                     self.cleanup()
             else:
-                for batch in self._batches(targets, self.batch_size):
+                batches = list(self._batches(targets, self.batch_size))
+                with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
+                                      enabled=self.progress and len(batches) > 1) as bar:
+                  for batch in batches:
                     binder = sqlmap.NamedBinder()
 
                     def restrict(column, _batch=batch, _binder=binder):
@@ -551,6 +563,7 @@ class MappingCursor(BaseMappingCursor):
                     sql = sqlmap.mapping_query(self.qualified(), restrict, source, target,
                                                binder, release=self.release)
                     stack.append(self.query(sql, parameters=binder.parameters))
+                    bar.update(len(batch))
         except Exception as error:
             # An unreachable or broken server must not abort the caller:
             # registering the query as missing lets a delegator hand it
