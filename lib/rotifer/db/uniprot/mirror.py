@@ -400,8 +400,13 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         Returns
         -------
         str or None
-            ``<name>:<size>:<mtime>``, or None when no data file was
-            found, in which case this cursor is never skipped.
+            ``<path>:<size>:<mtime>``, or None when no data file was
+            found, in which case this cursor is never skipped. The
+            path is given in full, with symbolic links resolved: a
+            bare name would call two mirrors of different releases the
+            same file whenever their sizes and timestamps happened to
+            agree, while an unresolved one would call a single file
+            two different files whenever it was reached by a link.
 
         See Also
         --------
@@ -414,7 +419,7 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         except OSError:
             logger.debug(f'Cannot stat {self.datafile}', exc_info=1)
             return None
-        return f'{os.path.basename(self.datafile)}:{info.st_size}:{int(info.st_mtime)}'
+        return f'{os.path.realpath(self.datafile)}:{info.st_size}:{int(info.st_mtime)}'
 
     def _find_datafile(self, path):
         """

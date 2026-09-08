@@ -12,7 +12,8 @@ What has to hold, and why:
     gate: a load that was interrupted, or one that predates this bookkeeping,
     leaves no row, and None is never equal to anything, so nothing is skipped
     on its account
-  * the identity is (name, size, mtime) of the source file, not a hash. The
+  * the identity is (resolved path, size, mtime) of the source file, not a
+    hash. The
     file this was built for is 90 GB, and hashing it costs about a minute,
     which is the cost the comparison exists to avoid
   * the value must match, byte for byte, what a cursor reading the file
@@ -56,7 +57,7 @@ def test_recording_a_load_makes_it_identifiable(tmp_path):
     path = datafile(str(tmp_path))
     assert cur.record_source(path, rows=7) is True
     info = os.stat(path)
-    assert cur.content_id() == f'idmapping.dat:{info.st_size}:{int(info.st_mtime)}'
+    assert cur.content_id() == f'{os.path.realpath(path)}:{info.st_size}:{int(info.st_mtime)}'
 
 
 def test_the_identity_is_the_files_not_the_copys(tmp_path):
@@ -67,8 +68,23 @@ def test_the_identity_is_the_files_not_the_copys(tmp_path):
     path = datafile(str(tmp_path))
     cur.record_source(path, rows=7)
     info = os.stat(path)
-    mirror_style = f'{os.path.basename(path)}:{info.st_size}:{int(info.st_mtime)}'
+    mirror_style = f'{os.path.realpath(path)}:{info.st_size}:{int(info.st_mtime)}'
     assert cur.content_id() == mirror_style
+
+
+def test_the_same_file_reached_by_two_names_is_one_file(tmp_path):
+    """Symbolic links are resolved, so a mirror reached through a link and the
+    same mirror reached directly are recognised as holding one file. Without
+    that, the backend loaded from one name would never be seen as redundant
+    with a cursor reading the other, and the scan it exists to avoid would run
+    anyway."""
+    cur = cursor(str(tmp_path))
+    path = datafile(str(tmp_path))
+    link = os.path.join(str(tmp_path), 'link-to-idmapping.dat')
+    os.symlink(path, link)
+    cur.record_source(link, rows=7)
+    info = os.stat(path)
+    assert cur.content_id() == f'{path}:{info.st_size}:{int(info.st_mtime)}'
 
 
 def test_a_missing_source_file_is_not_recorded(tmp_path):
@@ -83,11 +99,13 @@ def test_records_are_kept_per_table(tmp_path):
     """One registry serves the whole database, so it has to say which table
     each row is about."""
     cur = cursor(str(tmp_path))
-    cur.record_source(datafile(str(tmp_path), 'a.dat'), rows=1, table='features')
-    cur.record_source(datafile(str(tmp_path), 'b.dat'), rows=1, table='other')
-    assert cur.content_id().startswith('a.dat:')      # cursor.table is 'features'
+    a = datafile(str(tmp_path), 'a.dat')
+    b = datafile(str(tmp_path), 'b.dat')
+    cur.record_source(a, rows=1, table='features')
+    cur.record_source(b, rows=1, table='other')
+    assert cur.content_id().endswith(f'a.dat:{os.path.getsize(a)}:{int(os.path.getmtime(a))}')
     cur.table = 'other'
-    assert cur.content_id().startswith('b.dat:')
+    assert cur.content_id().endswith(f'b.dat:{os.path.getsize(b)}:{int(os.path.getmtime(b))}')
 
 
 def test_several_versions_are_ambiguous_without_a_filter(tmp_path):
@@ -108,7 +126,7 @@ def test_a_version_filter_resolves_the_ambiguity(tmp_path):
     cur = Versioned(path=os.path.join(str(tmp_path), 'test.sqlite3'))
     cur.record_source(datafile(str(tmp_path), 'r1.dat'), rows=1, version='2026_01')
     cur.record_source(datafile(str(tmp_path), 'r2.dat'), rows=1, version='2026_02')
-    assert cur.content_id().startswith('r2.dat:')
+    assert os.path.basename(cur.content_id()).startswith('r2.dat:')
 
 
 def test_reloading_replaces_rather_than_accumulates(tmp_path):
@@ -153,7 +171,7 @@ def test_forgetting_leaves_other_tables_alone(tmp_path):
     cur.record_source(datafile(str(tmp_path), 'a.dat'), rows=1, table='features')
     cur.record_source(datafile(str(tmp_path), 'b.dat'), rows=1, table='other')
     cur.forget_source(table='other')
-    assert cur.content_id().startswith('a.dat:')
+    assert os.path.basename(cur.content_id()).startswith('a.dat:')
 
 
 if __name__ == '__main__':

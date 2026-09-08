@@ -182,7 +182,9 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
         Parameters
         ----------
         datafile : str
-            Path of the file the rows came from.
+            Path of the file the rows came from. Recorded in full
+            and with symbolic links resolved, so that the same file
+            reached by two names is recorded as one file.
         rows : int
             Number of rows in the table afterwards.
         version : str, optional
@@ -211,7 +213,7 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
             f'INSERT OR REPLACE INTO {self._sources_table} '
             '("table", version, source, size, mtime, rows, checksum) '
             'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (str(table or self.table), str(version), os.path.basename(datafile),
+            (str(table or self.table), str(version), os.path.realpath(datafile),
              int(info.st_size), int(info.st_mtime), int(rows), str(checksum)),
         )
         self._dbconn.commit()
@@ -271,7 +273,7 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
         Returns
         -------
         str or None
-            ``<name>:<size>:<mtime>``, or None.
+            ``<path>:<size>:<mtime>``, or None.
 
         See Also
         --------

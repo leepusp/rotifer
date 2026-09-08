@@ -271,7 +271,9 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Parameters
         ----------
         datafile : str
-            Path of the file the rows came from.
+            Path of the file the rows came from. Recorded in full
+            and with symbolic links resolved, so that the same file
+            reached by two names is recorded as one file.
         rows : int
             Number of rows in the table afterwards.
         version : str, optional
@@ -299,7 +301,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             table = self._sources_table,
             database = self.dbname,
             column_names = ['table','version','source','size','mtime','rows','checksum'],
-            data = [[str(self.table), str(version), os.path.basename(datafile),
+            data = [[str(self.table), str(version), os.path.realpath(datafile),
                      int(info.st_size), int(info.st_mtime), int(rows), str(checksum)]],
         )
         return True
@@ -361,7 +363,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Returns
         -------
         str or None
-            ``<name>:<size>:<mtime>``, or None.
+            ``<path>:<size>:<mtime>``, or None.
 
         See Also
         --------
