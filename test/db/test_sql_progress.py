@@ -193,12 +193,15 @@ def test_dictionary_access_is_answered_quietly(capsys):
     assert cursor.progress is True
 
 
-def test_a_sql_backend_draws_for_fetchone_and_not_for_getitem(tmp_path):
-    """The batches happen in __getitem__, which is also what dictionary access
-    calls, so the bar is switched on by fetchone rather than living there."""
+def test_a_sql_backend_draws_for_dictionary_access_too(tmp_path):
+    """The exception to the rule above. A SQL backend does its batching in
+    __getitem__, and a query there can be as long as any other, so it reports
+    like the rest. Only the delegator's dictionary access stays quiet, and it
+    silences its backends by clearing the setting they share."""
     from rotifer.db.uniprot import sqlite3 as rus
     cursor = rus.MappingCursor(str(tmp_path / 'q.sqlite3'), progress=True)
     cursor.create()
-    assert cursor._drawing is False
-    list(cursor.fetchone(['P00750'], source=cursor.UNIPROTKB))
-    assert cursor._drawing is False        # put back afterwards
+    assert cursor.progress is True
+    cursor['P00750']                  # draws, and does not raise
+    cursor.progress = False
+    cursor['P00750']                  # and honours being switched off

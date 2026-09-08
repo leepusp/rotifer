@@ -553,7 +553,7 @@ class MappingCursor(BaseMappingCursor):
             else:
                 batches = list(self._batches(targets, self.batch_size))
                 with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
-                                      enabled=self.progress and self._drawing,
+                                      enabled=self.progress,
                                       position=1, leave=False) as bar:
                   for batch in batches:
                     binder = sqlmap.NamedBinder()
@@ -584,11 +584,6 @@ class MappingCursor(BaseMappingCursor):
 
         return df
 
-    #: Whether a bar belongs on this query. Set while fetchone runs,
-    #: since dictionary style access is a lookup rather than a job to
-    #: watch, and __getitem__ is where the batches actually happen.
-    _drawing = False
-
     def fetchone(self, accessions, source=None, target=None):
         """
         Iterate over mappings, one batch of identifiers at a time.
@@ -606,14 +601,10 @@ class MappingCursor(BaseMappingCursor):
             The mappings of one batch. Input order is not preserved.
         """
         targets = self.parse_ids(accessions)
-        self._drawing = True
-        try:
-            for batch in self._batches(targets, self.batch_size):
-                found = self.__getitem__(batch, source=source, target=target)
-                if not found.empty:
-                    yield found
-        finally:
-            self._drawing = False
+        for batch in self._batches(targets, self.batch_size):
+            found = self.__getitem__(batch, source=source, target=target)
+            if not found.empty:
+                yield found
 
 if __name__ == '__main__':
     pass
