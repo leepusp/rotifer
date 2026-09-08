@@ -59,6 +59,9 @@ rotifer.db.uniprot.clickhouse : the same queries, on a server
 
 # Dependencies
 import os
+import shutil
+import sqlite3 as _sqlite3
+import subprocess
 import types
 import pandas as pd
 
@@ -74,6 +77,7 @@ logger = rotifer.logging.getLogger(__name__)
 _defaults = {
     'batch_size': 500,
     'chunksize': 1000000,
+    'executable': 'sqlite3',
 }
 config = rcf.loadConfig(__name__.replace('rotifer.',':'), defaults = _defaults)
 
@@ -343,8 +347,132 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
                 logger.debug(f'Could not set PRAGMA {name}', exc_info=1)
         return previous
 
+    @staticmethod
+    def _literal(value):
+        """
+        Quote a value as a SQL string literal.
+
+        Parameters
+        ----------
+        value : object
+
+        Returns
+        -------
+        str
+        """
+        return "'" + str(value).replace("'", "''") + "'"
+
+    def reconnect(self):
+        """
+        Reopen the connection to the file.
+
+        Needed around anything that writes to the database from
+        another process: this one must not be holding it while that
+        happens, and must not go on using a handle from before.
+        """
+        try:
+            self._dbconn.commit()
+            self._dbconn.close()
+        except Exception:
+            logger.debug('Could not close the connection cleanly', exc_info=1)
+        self._dbconn = _sqlite3.connect(self.path)
+
+    def load_file(self, path, release='', id_type=None, replace=True,
+                  compressed=False, executable=None, role=None):
+        """
+        Stream a delimited file into the table with the sqlite3 program.
+
+        The program's ``.import`` reads the file itself, so the rows
+        never pass through Python. That is the whole point: the
+        interpreter is what a bulk load spends its time on once the
+        journal and the indexes are out of the way.
+
+        The file has three columns and the table has four, so the rows
+        land in a staging table first and are copied across with the
+        release stamped on them. That copy is also where an
+        ``id_type`` filter is applied, since ``.import`` cannot filter.
+
+        Parameters
+        ----------
+        path : str
+            The file to read.
+        release : str, optional
+            Value stamped on every row loaded.
+        id_type : str or list of str, optional
+            Load only these cross-referenced databases.
+        replace : bool, default True
+            Empty the table before loading.
+        compressed : bool, default False
+            Whether the file is gzip compressed. Either way it is read
+            through ``zcat -f``, which passes plain files through.
+        executable : str, optional
+            The sqlite3 program. Defaults to the ``executable``
+            configuration entry.
+        role : str, optional
+            Which of the cursor's tables to fill.
+
+        Returns
+        -------
+        bool
+            Whether the load succeeded.
+        """
+        executable = executable or config['executable']
+        table = self.table_name(role)
+        staging = f'_rotifer_import_{os.getpid()}'
+
+        statements = [ f'PRAGMA {name} = {value};' for name, value in self._load_pragmas.items() ]
+        statements.append(
+            f'CREATE TABLE IF NOT EXISTS {table} ('
+            ' accession TEXT NOT NULL, id_type TEXT NOT NULL,'
+            " id TEXT NOT NULL, release TEXT NOT NULL DEFAULT '');"
+        )
+        if replace:
+            statements.append(f'DELETE FROM {table};')
+        for name in self._indexes:
+            statements.append(f'DROP INDEX IF EXISTS {table}_{name};')
+        statements.append(f'DROP TABLE IF EXISTS {staging};')
+        statements.append(
+            f'CREATE TABLE {staging} (accession TEXT, id_type TEXT, id TEXT);')
+        statements.append('.mode tabs')
+        # zcat -f passes an uncompressed file straight through, so one
+        # spelling reads either kind.
+        statements.append(f'.import "|zcat -f -- {path}" {staging}')
+
+        where = ''
+        if not isinstance(id_type, types.NoneType):
+            wanted = [id_type] if isinstance(id_type, str) else list(id_type)
+            where = ' WHERE id_type IN (' + ", ".join([ self._literal(x) for x in wanted ]) + ')'
+        statements.append(
+            f'INSERT INTO {table} (accession, id_type, id, release)'
+            f' SELECT accession, id_type, id, {self._literal(release or "")}'
+            f' FROM {staging}{where};'
+        )
+        statements.append(f'DROP TABLE {staging};')
+        for name, columns in self._indexes.items():
+            statements.append(
+                f'CREATE INDEX IF NOT EXISTS {table}_{name} ON {table} {columns};')
+
+        if self.progress:
+            logger.warning(f'Loading {path} into {self.path} with {executable}...')
+        # Nothing else may hold the file while another process writes it.
+        self.reconnect()
+        result = subprocess.run(
+            [executable, self.path],
+            input = "\n".join(statements) + "\n",
+            capture_output = True,
+            text = True,
+        )
+        self.reconnect()
+        if result.returncode != 0:
+            logger.error(f'Failed to load {path}: {result.stderr.strip()}')
+            return False
+        if result.stderr.strip():
+            logger.warning(result.stderr.strip())
+        return True
+
     def load(self, mirror, release=None, id_type=None, replace=True,
-             chunksize=config['chunksize'], tune=True, role=None):
+             chunksize=config['chunksize'], tune=True, method='auto',
+             executable=None, role=None):
         """
         Fill the table from a local copy of ``idmapping.dat``.
 
@@ -378,7 +506,16 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         tune : bool, default True
             Set the bulk loading pragmas and defer the indexes. Turn
             it off to load into a database something else is using,
-            where those settings would not be safe.
+            where those settings would not be safe. Ignored by the
+            ``cli`` method, which always does both.
+        method : str, default 'auto'
+            How to load. ``cli`` hands the file to the sqlite3
+            program, whose ``.import`` reads it directly; ``python``
+            streams it through this process, which is slower but needs
+            nothing installed. ``auto`` picks the first when the
+            program is there.
+        executable : str, optional
+            The sqlite3 program, for the ``cli`` method.
         role : str, optional
             Which of the cursor's tables to fill.
 
@@ -398,6 +535,29 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             return self.count(role)
 
         table = self.table_name(role)
+        if method == 'auto':
+            method = 'cli' if shutil.which(executable or config['executable']) else 'python'
+        if method not in ('cli', 'python'):
+            raise ValueError(f'Unknown load method {method}: use "auto", "cli" or "python"')
+
+        if method == 'cli':
+            if replace:
+                self.forget_source(version='', table=table)
+            ok = self.load_file(reader.datafile, release=release or '', id_type=id_type,
+                                replace=replace, compressed=reader.compressed,
+                                executable=executable, role=role)
+            if not ok:
+                return self.count(role)
+            rows = self.count(role)
+            if isinstance(id_type, types.NoneType):
+                self.record_source(reader.datafile, rows, version=release, table=table)
+            elif self.progress:
+                logger.warning(
+                    'Loaded a subset, so no source is recorded: a file holding '
+                    'some of a release is not a copy of it'
+                )
+            return rows
+
         self.create(indexes=not tune, role=role)
         if replace:
             self._dbconn.execute(f'DELETE FROM {table}')

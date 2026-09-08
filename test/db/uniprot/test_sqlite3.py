@@ -27,6 +27,7 @@ Run under pytest, or standalone: python test/db/uniprot/test_sqlite3.py
 
 import gzip
 import os
+import shutil
 
 import pandas as pd
 import pytest
@@ -72,9 +73,20 @@ def build_mirror(root, rows=ROWS, compressed=False):
     return root
 
 
+#: Both load paths, wherever a test should hold for either. The cli one
+#: hands the file to the sqlite3 program and is the default; skip it
+#: where that program is absent rather than fail.
+METHODS = ['cli', 'python']
+
+
 def loader(tmp_path, name='uniprot.sqlite3', **kwargs):
     return rus.MappingCursor(os.path.join(str(tmp_path), name),
                              progress=False, **kwargs)
+
+
+def needs(method):
+    if method == 'cli' and not shutil.which(rus.config['executable']):
+        pytest.skip('needs the sqlite3 program')
 
 
 def pairs(frame):
@@ -294,59 +306,119 @@ def test_tables_are_declared_by_the_class(tmp_path):
     assert mc.qualified() == 'idmapping'      # a file needs no qualifying
 
 
-# ------------------------------------------------- replacing a release
+# ------------------------------------------------- loading, both paths
 
-def test_loading_twice_replaces_rather_than_accumulates(tmp_path):
-    """SQLite3 has no partitions, so holding several releases would mean a
-    larger file and a scan to undo. One release at a time is the default."""
+@pytest.mark.parametrize('method', METHODS)
+def test_both_load_methods_land_the_same_rows(tmp_path, method):
+    """One hands the file to the sqlite3 program, the other streams it through
+    this process. They are different code and must agree."""
+    needs(method)
     mirror = build_mirror(str(tmp_path / 'mirror'))
     mc = loader(tmp_path, release='2026_01')
-    first = mc.load(mirror, release='2026_01')
-    second = mc.load(mirror, release='2026_01')
+    assert mc.load(mirror, release='2026_01', method=method) == len(ROWS)
+    assert pairs(mc.fetchall(['Q6GZX4'], source=U)) == [
+        ('EMBL-CDS', 'AAT09660.1'), ('KEGG', 'vg:2947773'),
+        ('RefSeq', 'YP_031579.1'), ('UniRef100', 'UniRef100_Q6GZX4')]
+
+
+@pytest.mark.parametrize('method', METHODS)
+def test_a_gzipped_mirror_loads_the_same(tmp_path, method):
+    """UniProt publishes the file gzipped and a mirror may hold it that way.
+    The cli path reads it through zcat, which passes a plain file through, so
+    one spelling reads either kind."""
+    needs(method)
+    mirror = build_mirror(str(tmp_path / 'mirror'), compressed=True)
+    mc = loader(tmp_path, release='2026_01')
+    assert mc.load(mirror, release='2026_01', method=method) == len(ROWS)
+
+
+@pytest.mark.parametrize('method', METHODS)
+def test_the_release_is_stamped_by_either_path(tmp_path, method):
+    needs(method)
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(mirror, release='another', method=method)
+    stored = mc._dbconn.execute('SELECT DISTINCT release FROM idmapping').fetchall()
+    assert stored == [('another',)]
+
+
+@pytest.mark.parametrize('method', METHODS)
+def test_an_id_type_filter_is_honoured_by_either_path(tmp_path, method):
+    """The cli path cannot filter while importing, so it stages the rows and
+    filters on the way across. The result must be the same either way."""
+    needs(method)
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    assert mc.load(mirror, release='2026_01', id_type=['RefSeq'], method=method) == 2
+    assert set(mc.fetchall(['Q6GZX4'], source=U).target_type) == {'RefSeq'}
+
+
+@pytest.mark.parametrize('method', METHODS)
+def test_indexes_are_there_when_a_load_finishes(tmp_path, method):
+    """Both paths take the indexes down to load and must put them back: their
+    absence fails nothing, it only makes every reverse lookup a scan."""
+    needs(method)
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(mirror, release='2026_01', method=method)
+    assert mc.has_indexes() is True
+
+
+# ------------------------------------------------- replacing a release
+
+@pytest.mark.parametrize('method', METHODS)
+def test_loading_twice_replaces_rather_than_accumulates(tmp_path, method):
+    """SQLite3 has no partitions, so holding several releases would mean a
+    larger file and a scan to undo. One release at a time is the default."""
+    needs(method)
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    first = mc.load(mirror, release='2026_01', method=method)
+    second = mc.load(mirror, release='2026_01', method=method)
     assert first == second == len(ROWS)
 
 
-def test_a_new_release_replaces_the_old_one(tmp_path):
+@pytest.mark.parametrize('method', METHODS)
+def test_a_new_release_replaces_the_old_one(tmp_path, method):
+    needs(method)
     mirror = build_mirror(str(tmp_path / 'mirror'))
     mc = loader(tmp_path, release='2025_01')
-    mc.load(mirror, release='2025_01')
-    mc.load(mirror, release='2026_01')
+    mc.load(mirror, release='2025_01', method=method)
+    mc.load(mirror, release='2026_01', method=method)
     stored = mc._dbconn.execute('SELECT DISTINCT release FROM idmapping').fetchall()
     assert stored == [('2026_01',)]
 
 
-def test_replace_false_accumulates(tmp_path):
+@pytest.mark.parametrize('method', METHODS)
+def test_replace_false_accumulates(tmp_path, method):
     """Keeping several is still possible for anyone who wants it."""
+    needs(method)
     mirror = build_mirror(str(tmp_path / 'mirror'))
     mc = loader(tmp_path, release='2026_01')
-    mc.load(mirror, release='2025_01')
-    mc.load(mirror, release='2026_01', replace=False)
+    mc.load(mirror, release='2025_01', method=method)
+    mc.load(mirror, release='2026_01', replace=False, method=method)
     assert mc.count() == 2 * len(ROWS)
+    stored = {r[0] for r in mc._dbconn.execute(
+        'SELECT DISTINCT release FROM idmapping').fetchall()}
+    assert stored == {'2025_01', '2026_01'}
 
 
-def test_replacing_withdraws_the_old_load_record(tmp_path):
+@pytest.mark.parametrize('method', METHODS)
+def test_replacing_withdraws_the_old_load_record(tmp_path, method):
     """A record says this file holds a copy of that mirror. Emptying the table
     must withdraw it, or a delegator skips the mirror for rows that are gone."""
+    needs(method)
     one = build_mirror(str(tmp_path / 'one'))
     mc = loader(tmp_path, release='2026_01')
-    mc.load(one, release='2026_01')
+    mc.load(one, release='2026_01', method=method)
     assert mc.content_id() == rum.MappingCursor(path=one, progress=False).content_id()
 
     two = build_mirror(str(tmp_path / 'two'), rows=ROWS[:1])
-    mc.load(two, release='2026_01')
+    mc.load(two, release='2026_01', method=method)
     assert mc.content_id() == rum.MappingCursor(path=two, progress=False).content_id()
 
 
 # --------------------------------------------------------- the tuning
-
-def test_indexes_are_there_when_a_load_finishes(tmp_path):
-    """A load takes the indexes down and must put them back: their absence
-    fails nothing, it only makes every reverse lookup a scan."""
-    mirror = build_mirror(str(tmp_path / 'mirror'))
-    mc = loader(tmp_path, release='2026_01')
-    mc.load(mirror, release='2026_01')
-    assert mc.has_indexes() is True
-
 
 def test_tuning_restores_the_pragmas_it_changed(tmp_path):
     """The load turns the journal off, which is safe only while it runs: the
@@ -355,7 +427,7 @@ def test_tuning_restores_the_pragmas_it_changed(tmp_path):
     mirror = build_mirror(str(tmp_path / 'mirror'))
     mc = loader(tmp_path, release='2026_01')
     before = mc._dbconn.execute('PRAGMA journal_mode').fetchone()[0]
-    mc.load(mirror, release='2026_01', tune=True)
+    mc.load(mirror, release='2026_01', method='python', tune=True)
     assert mc._dbconn.execute('PRAGMA journal_mode').fetchone()[0] == before
 
 
@@ -364,14 +436,15 @@ def test_an_untuned_load_still_works(tmp_path):
     where turning the journal off would not be safe."""
     mirror = build_mirror(str(tmp_path / 'mirror'))
     mc = loader(tmp_path, release='2026_01')
-    assert mc.load(mirror, release='2026_01', tune=False) == len(ROWS)
+    assert mc.load(mirror, release='2026_01', method='python', tune=False) == len(ROWS)
     assert mc.has_indexes() is True
 
 
-def test_a_gzipped_mirror_loads(tmp_path):
-    mirror = build_mirror(str(tmp_path / 'mirror'), compressed=True)
-    mc = loader(tmp_path, release='2026_01')
-    assert mc.load(mirror, release='2026_01') == len(ROWS)
+def test_an_unknown_method_is_refused(tmp_path):
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path)
+    with pytest.raises(ValueError, match='Unknown load method'):
+        mc.load(mirror, method='telepathy')
 
 
 def test_indexes_can_be_deferred_and_built(tmp_path):
