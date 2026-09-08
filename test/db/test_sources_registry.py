@@ -130,9 +130,30 @@ def test_the_registry_is_named_the_same_on_every_sql_backend():
     assert rdss.BaseSQLite3Cursor._sources_table == 'rotifer_sources'
     assert ch.BaseClickHouseCursor._sources_table == 'rotifer_sources'
     for name in ('sources_table', 'source_version', 'create_sources',
-                 'record_source', 'content_id'):
+                 'record_source', 'forget_source', 'content_id'):
         assert hasattr(rdss.BaseSQLite3Cursor, name), name
         assert hasattr(ch.BaseClickHouseCursor, name), name
+
+
+def test_forgetting_a_load_withdraws_the_claim(tmp_path):
+    """A record says this table holds a whole copy of that file. Whatever
+    removes the rows has to remove the claim, or the table goes on being taken
+    for a copy of something it no longer has."""
+    cur = cursor(str(tmp_path))
+    cur.record_source(datafile(str(tmp_path)), rows=7)
+    assert cur.content_id() is not None
+    assert cur.forget_source() is True
+    assert cur.content_id() is None
+
+
+def test_forgetting_leaves_other_tables_alone(tmp_path):
+    """One registry serves the whole database, so withdrawing one claim must
+    not withdraw the rest."""
+    cur = cursor(str(tmp_path))
+    cur.record_source(datafile(str(tmp_path), 'a.dat'), rows=1, table='features')
+    cur.record_source(datafile(str(tmp_path), 'b.dat'), rows=1, table='other')
+    cur.forget_source(table='other')
+    assert cur.content_id().startswith('a.dat:')
 
 
 if __name__ == '__main__':
