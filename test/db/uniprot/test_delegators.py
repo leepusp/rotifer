@@ -20,6 +20,8 @@ values are literals.
 Run under pytest, or standalone: python test/db/uniprot/test_delegators.py
 """
 
+import os
+
 import pandas as pd
 import pytest
 from Bio.Seq import Seq
@@ -293,6 +295,121 @@ def test_results_are_gathered_into_one_frame():
 def test_a_number_is_accepted_where_a_taxid_is_expected():
     backend = Backend([(uniprot_frame(HUMAN), {'9606'})])
     assert len(taxonomy(backend).fetchall(9606)) == 1
+
+
+
+
+# ================================================================== fasta
+
+def usable(directory, name='db.fasta'):
+    """A FASTA file with an esl-sfetch index beside it."""
+    path = str(directory / name)
+    open(path, 'w').write('>P00750\nMKV\n')
+    open(path + '.ssi', 'wb').write(b'')
+    return path
+
+
+def test_a_database_with_an_index_is_used(tmp_path):
+    path = usable(tmp_path)
+    assert uniprot.FastaCursor.resolve_fasta_path([path]) == [path]
+
+
+def test_a_database_with_no_index_is_left_out(tmp_path, caplog):
+    """esl-sfetch would build one, and for a hundred gigabyte database that
+    is hours of work started by a query nobody meant to be a build."""
+    path = str(tmp_path / 'bare.fasta')
+    open(path, 'w').write('>P00750\nMKV\n')
+    assert uniprot.FastaCursor.resolve_fasta_path([path]) == []
+    assert 'esl-sfetch --index' in caplog.text
+
+
+def test_a_database_that_is_not_there_is_left_out(tmp_path):
+    assert uniprot.FastaCursor.resolve_fasta_path([str(tmp_path / 'gone')]) == []
+
+
+def test_a_link_is_not_followed_to_find_its_index(tmp_path):
+    """These databases are commonly a link to a mirrored file with the index
+    kept beside the link. Resolving the link looks for the index in the
+    mirror's directory, finds none, and concludes there is nothing to read --
+    or worse, sets about building one over the mirror."""
+    mirror = tmp_path / 'mirror'
+    mirror.mkdir()
+    real = str(mirror / 'uniref100.fasta')
+    open(real, 'w').write('>UniRef100_P00750\nMKV\n')
+    link = str(tmp_path / 'uniref100')
+    os.symlink(real, link)
+    open(link + '.ssi', 'wb').write(b'')      # beside the link, not the file
+    assert uniprot.FastaCursor.resolve_fasta_path([link]) == [link]
+
+
+def test_nothing_usable_is_said_once(tmp_path, caplog):
+    assert uniprot.FastaCursor.resolve_fasta_path([str(tmp_path / 'gone')]) == []
+    assert 'web service' in caplog.text
+
+
+def test_the_local_backend_goes_when_it_has_nothing_to_read():
+    """Left in, it would be asked for every query and answer none of them."""
+    cursor = uniprot.FastaCursor(readers=['easel','webapi'], local_fasta_path=[],
+                                 progress=False)
+    assert cursor.readers == ['webapi']
+
+
+def test_the_local_backend_stays_when_it_has_something(tmp_path):
+    cursor = uniprot.FastaCursor(readers=['easel','webapi'],
+                                 local_fasta_path=[usable(tmp_path)], progress=False)
+    assert cursor.readers == ['easel','webapi']
+    assert 'easel' in cursor.cursors
+
+
+def test_the_local_database_is_asked_before_the_network():
+    """The whole point: a local answer costs a seek, a remote one a round
+    trip that cannot beat about a second however little is asked."""
+    assert uniprot.FastaCursor.__init__.__defaults__[0] == ['easel','webapi']
+
+
+def test_only_the_local_backend_is_told_where_the_files_are():
+    """The web cursors forward every keyword they do not recognise to
+    UniProt as a query parameter, so a path handed to one is sent over the
+    wire rather than ignored."""
+    cursor = uniprot.FastaCursor(local_fasta_path=[], progress=False)
+    arguments = {'database_path': ['/db/uniprotDB'], 'database': 'auto'}
+    assert 'database_path' not in cursor.backend_arguments('webapi', arguments)
+    assert cursor.backend_arguments('easel', arguments)['database_path'] == ['/db/uniprotDB']
+
+
+def test_the_local_backend_is_not_told_which_resource_to_ask():
+    """It reads the files it was given; the resource is a web notion."""
+    cursor = uniprot.FastaCursor(local_fasta_path=[], progress=False)
+    assert 'database' not in cursor.backend_arguments('easel', {'database': 'auto'})
+
+
+def test_the_caller_is_not_handed_the_shared_dictionary():
+    cursor = uniprot.FastaCursor(local_fasta_path=[], progress=False)
+    arguments = {'database_path': ['/db'], 'database': 'auto'}
+    cursor.backend_arguments('webapi', arguments)
+    assert 'database_path' in arguments
+
+
+def test_a_fasta_header_answers_for_its_accession_here_too():
+    """A record found remotely comes back as sp|P00750|TPA_HUMAN even when
+    the local database keys it as P00750."""
+    cursor = uniprot.FastaCursor(local_fasta_path=[], progress=False)
+    assert 'P00750' in cursor.getids(fasta('sp|P00750|TPA_HUMAN'))
+
+
+# ------------------------------------ keeping annotation out of SequenceCursor
+
+def test_the_annotated_cursor_refuses_a_fasta_backend():
+    """It would answer, with bare sequences, and lose the features and
+    cross-references it was called for. Saying so beats answering."""
+    with pytest.raises(ValueError) as raised:
+        uniprot.SequenceCursor(readers=['easel','webapi'], progress=False)
+    assert 'FastaCursor' in str(raised.value)
+
+
+def test_the_annotated_cursor_reads_no_local_fasta_by_default():
+    assert not (set(uniprot.SequenceCursor.__init__.__defaults__[0])
+                & uniprot.FastaCursor._fasta_backends)
 
 
 if __name__ == '__main__':

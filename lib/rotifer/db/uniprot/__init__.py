@@ -37,6 +37,9 @@ Cursors
 -------
 :class:`MappingCursor`
     Identifier translation, in either direction, across every backend.
+:class:`FastaCursor`
+    Sequences alone, from a local FASTA database first and the web
+    service for the rest.
 :class:`SequenceCursor`
     UniProt entries with their annotation, mixing UniProtKB, UniParc,
     UniRef and proteome identifiers in one call.
@@ -44,13 +47,21 @@ Cursors
     Taxonomy records, carrying UniProt's own fields and the columns
     :class:`rotifer.db.ncbi.TaxonomyCursor` produces.
 
-Only mappings have more than one backend today: sequences and taxonomy
-are served by the web service alone, since the local mirror holds
-``idmapping.dat`` rather than the flat files and the SQL backends hold
-mappings. They are delegators all the same, so a local backend can be
-added later without changing any calling code.
-:mod:`rotifer.db.uniprot.webapi` covers proteomes and UniProt's own
-search as well, through the cursors documented there.
+The two sequence cursors are a pair, and which to use is decided by
+whether the annotation is wanted. :class:`FastaCursor` returns the
+residues and reads a local ``esl-sfetch`` database before going near
+the network. :class:`SequenceCursor` returns the features and
+cross-references a UniProtKB flat file carries, which no FASTA file
+has, and for that reason never reads a local FASTA database: it would
+answer from one with bare sequences and lose the very thing it was
+called for.
+
+Taxonomy is served by the web service alone, and so are annotated
+entries: the local mirror holds ``idmapping.dat`` rather than the flat
+files, and the SQL backends hold mappings. They are delegators all the
+same, so a backend can be added later without changing any calling
+code. :mod:`rotifer.db.uniprot.webapi` covers proteomes and UniProt's
+own search as well, through the cursors documented there.
 
 Configuration
 -------------
@@ -109,8 +120,22 @@ logger = rotifer.logging.getLogger(__name__)
 # Configuration
 config = loadConfig(__name__.replace('rotifer.',':'), defaults = {
     'local_database_path': os.path.join(GlobalConfig['data'],"uniprot"),
+    # Local FASTA databases, indexed by esl-sfetch and keyed by the
+    # identifier a caller would ask for: bare accessions in
+    # ``uniprotDB``, cluster names in the UniRef files. These are the
+    # prepared copies under ``fadb``, not the mirror's own files,
+    # whose headers read ``sp|P00750|TPA_HUMAN`` and so cannot be
+    # looked up by accession at all.
+    'local_fasta_path': [
+        os.path.join(GlobalConfig['data'],"fadb","uniprot","uniprotDB"),
+        os.path.join(GlobalConfig['data'],"fadb","uniprot","uniref100"),
+        os.path.join(GlobalConfig['data'],"fadb","uniprot","uniref90"),
+        os.path.join(GlobalConfig['data'],"fadb","uniprot","uniref50"),
+    ],
     'readers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
+        # Sequences only, and without annotation: see FastaCursor.
+        'easel': 'rotifer.db.local.easel',
         # Taxonomy only, and NCBI's copy of it rather than UniProt's,
         # so it is registered but never a default: see TaxonomyCursor.
         'ete3': 'rotifer.db.local.ete3',
@@ -1121,6 +1146,14 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor)
     cross-references; the other resources publish no such format and
     come back as plain sequences.
 
+    Use this cursor when the annotation is what is wanted. When it is
+    only the residues, use :class:`FastaCursor` instead: it answers
+    from a local FASTA database first and so does not wait on a round
+    trip. Those databases are deliberately not available here -- a
+    sequence read from one would arrive with none of the annotation
+    this cursor exists to return -- and naming such a backend raises
+    rather than quietly returning bare sequences.
+
     This is the UniProt counterpart of
     :class:`rotifer.db.ncbi.SequenceCursor` and takes the same
     arguments, so switching source is mostly a matter of switching
@@ -1130,10 +1163,11 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor)
     ----------
     readers : list of str, default ``['webapi']``
         Backend reader modules, tried in order. Only the web service
-        has sequences today: the local mirror holds ``idmapping.dat``
-        rather than the flat files, and the SQL backends hold
-        mappings. The list is here so a local backend can be added
-        without changing any calling code.
+        has annotated entries today: the local mirror holds
+        ``idmapping.dat`` rather than the flat files, and the SQL
+        backends hold mappings. The list is here so a backend that
+        carries annotation can be added without changing any calling
+        code; a FASTA one cannot.
     writers : list of str, default []
         Backend writer modules.
     database : str, default 'auto'
@@ -1168,8 +1202,8 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor)
 
     See Also
     --------
+    FastaCursor : the same entries without annotation, from a local copy
     rotifer.db.uniprot.webapi.SequenceCursor : the backend this delegates to
-    rotifer.db.uniprot.webapi.FastaCursor : the same entries without annotation
     rotifer.db.ncbi.SequenceCursor : the same idea, for NCBI
     """
 
@@ -1185,6 +1219,16 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor)
             *args, **kwargs
         ):
         self._shared_attributes = ['progress','tries','batch_size','threads','database']
+        # Refused rather than dropped: a caller asking for a local
+        # FASTA database here wants sequences, and would get them,
+        # without the annotation that is the whole point of this
+        # cursor. Saying so is more use than answering anyway.
+        local = [ x for x in readers if x in FastaCursor._fasta_backends ]
+        if local:
+            raise ValueError(
+                f'{", ".join(local)} reads FASTA, which carries no annotation: '
+                'use rotifer.db.uniprot.FastaCursor for sequences alone'
+            )
         # Set before the backends are built, since they are built with it
         self.database = database
         super().__init__(readers=readers, writers=writers, progress=progress,
@@ -1224,6 +1268,194 @@ class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor)
         for record in obj:
             ids.update(_record_ids(record))
         return ids
+
+
+class FastaCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor):
+    """
+    Fetch UniProt sequences, without annotation, from the fastest source.
+
+    This is the cursor to use whenever the residues are what is
+    wanted. A local FASTA database answers first, in milliseconds and
+    without a round trip, and the web service covers whatever that
+    copy does not hold. :class:`SequenceCursor` is the other half of
+    the pair: it returns the features and cross-references a UniProtKB
+    flat file carries, which no FASTA file can, and it never reads a
+    local FASTA database, since a sequence taken from one would arrive
+    with none of that annotation.
+
+    The local databases are the prepared copies under ``fadb``, whose
+    headers have been rewritten so that a sequence is keyed by the
+    identifier a caller would ask for: a bare accession in
+    ``uniprotDB``, a cluster name in the UniRef files. The mirror's
+    own FASTA files are not usable here, since ``esl-sfetch`` would
+    index them under ``sp|P00750|TPA_HUMAN``. Files that do not exist
+    are dropped from the list, and if none are left the backend is
+    dropped with them, so the query still runs against the web
+    service.
+
+    Parameters
+    ----------
+    readers : list of str, default ``['easel', 'webapi']``
+        Backend reader modules, tried in order.
+    writers : list of str, default []
+        Backend writer modules.
+    local_fasta_path : list of str, optional
+        FASTA files indexed by ``esl-sfetch``. Defaults to the
+        ``local_fasta_path`` configuration entry. Note that this is
+        not ``local_database_path``, which names the root of the
+        mirror :class:`MappingCursor` scans.
+    database : str, default 'auto'
+        Which UniProt resource to ask the web service for. ``auto``
+        decides from each identifier.
+    progress : bool, default True
+        Whether to report progress.
+    tries : int, optional
+        Attempts per request. Defaults to each backend's own setting.
+    batch_size : int, optional
+        Identifiers per batch.
+    threads : int, optional
+        Simultaneous workers.
+    **kwargs
+        Passed to the backends.
+
+    Examples
+    --------
+    >>> from rotifer.db import uniprot
+    >>> fc = uniprot.FastaCursor()                          # doctest: +SKIP
+    >>> records = fc.fetchall(['A0A0F6NZX8','UniRef50_P00750'])  # doctest: +SKIP
+
+    Skip the local copy, for instance to be sure of the current
+    release:
+
+    >>> fc = uniprot.FastaCursor(readers=['webapi'])        # doctest: +SKIP
+
+    See Also
+    --------
+    SequenceCursor : the same entries with their annotation
+    rotifer.db.local.easel.FastaCursor : the local backend
+    rotifer.db.ncbi.FastaCursor : the same idea, for NCBI
+    """
+
+    def __init__(
+            self,
+            readers = ['easel','webapi'],
+            writers = [],
+            local_fasta_path = config['local_fasta_path'],
+            database = 'auto',
+            progress = True,
+            tries = None,
+            batch_size = None,
+            threads = None,
+            *args, **kwargs
+        ):
+        self._shared_attributes = ['progress','tries','batch_size','threads','database','database_path']
+        # Resolved before the backends are built, since an empty list
+        # decides whether the local one is built at all
+        self.database_path = self.resolve_fasta_path(local_fasta_path)
+        if not self.database_path:
+            readers = [ x for x in readers if x not in self._fasta_backends ]
+        self.database = database
+        super().__init__(readers=readers, writers=writers, progress=progress,
+                         tries=tries, batch_size=batch_size, threads=threads,
+                         *args, **kwargs)
+
+    #: Backends that read a local FASTA database. They are the ones
+    #: ``database_path`` is for, and the ones :class:`SequenceCursor`
+    #: refuses.
+    _fasta_backends = frozenset({'easel'})
+
+    @classmethod
+    def resolve_fasta_path(cls, paths):
+        """
+        Keep the local FASTA databases that are ready to be read.
+
+        Ready means two things: the file is there, and so is the
+        ``.ssi`` index beside it. Both are checked here so that a
+        query never starts an index build, which for a hundred
+        gigabyte database is hours of work nobody asked for.
+
+        Symbolic links are deliberately not resolved. ``esl-sfetch``
+        looks for the index at ``<path>.ssi``, and these databases are
+        commonly a link to a mirrored file with the index kept next to
+        the link, so following it would look for the index in the
+        wrong directory and conclude there is none.
+
+        Parameters
+        ----------
+        paths : str or iterable of str
+            Files to look for.
+
+        Returns
+        -------
+        list of str
+            Those that can be read, as absolute paths.
+        """
+        if isinstance(paths, types.NoneType):
+            paths = []
+        elif isinstance(paths, str):
+            paths = [paths]
+        found, absent, bare = [], [], []
+        for path in paths:
+            path = os.path.abspath(str(path))
+            if not os.path.exists(path):
+                absent.append(path)
+            elif not os.path.exists(path + '.ssi'):
+                bare.append(path)
+            else:
+                found.append(path)
+        if absent:
+            logger.warning('No local FASTA database at ' + ", ".join(absent))
+        for path in bare:
+            logger.warning(f'{path} has no esl-sfetch index and will not be '
+                           f'used. Build one with: esl-sfetch --index {path}')
+        if not found:
+            logger.warning('No local FASTA database available: sequences will '
+                           'be fetched from the web service. Set '
+                           'local_fasta_path to one or more files indexed by '
+                           'esl-sfetch.')
+        return found
+
+    def backend_arguments(self, name, arguments):
+        """
+        Give the local FASTA files only to the backend that reads them.
+
+        Every keyword the web cursors do not recognise is forwarded to
+        UniProt as a query parameter, so a path handed to one would be
+        sent over the wire rather than ignored.
+
+        Parameters
+        ----------
+        name : str
+            Which backend is being built.
+        arguments : dict
+            The shared attributes, as they would be passed.
+
+        Returns
+        -------
+        dict
+        """
+        arguments = dict(arguments)
+        if name in self._fasta_backends:
+            # The local cursor names it differently, and reads nothing else
+            arguments['database_path'] = arguments.pop('database_path', None)
+            arguments.pop('database', None)
+        else:
+            arguments.pop('database_path', None)
+        return arguments
+
+    def getids(self, obj, *args, **kwargs):
+        """
+        Every identifier a record might have been requested by.
+
+        Parameters
+        ----------
+        obj : Bio.SeqRecord.SeqRecord, list or None
+
+        Returns
+        -------
+        set of str
+        """
+        return SequenceCursor.getids(self, obj, *args, **kwargs)
 
 
 class TaxonomyCursor(BaseUniProtRecordCursor):
