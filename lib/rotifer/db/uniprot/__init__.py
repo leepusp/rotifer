@@ -213,6 +213,11 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         # is narrowed to what the next backend can actually answer.
         source = self.parse_databases(kwargs.pop('source', None))
         target = self.parse_databases(kwargs.pop('target', None))
+        # Refused here rather than answered emptily, and before any
+        # backend is asked: a name nothing knows is a mistake in the
+        # query, not a gap in the data.
+        self.check_databases(source, 'source')
+        self.check_databases(target, 'target')
         wanted_source = set(source or [])
         wanted_target = set(target or [])
         served_source, served_target = set(), set()
@@ -315,35 +320,87 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             if isinstance(target, types.NoneType):
                 wanted_target.update(served_target)
 
-        self._register_database_failures('source', wanted_source - served_source)
-        self._register_database_failures('target', wanted_target - served_target)
 
-    def _register_database_failures(self, end, databases):
+    def check_databases(self, databases, end):
         """
-        Record databases no backend was able to answer for.
+        Refuse a database name no backend knows.
 
-        These are not missing identifiers but missing capabilities, so
-        they are registered under the database name and said to be
-        final: no backend carries them, and asking again would not
-        change that.
+        A misspelled database is a mistake, not an absence, and the
+        two must not look alike: asking for ``Refseq`` where the data
+        says ``RefSeq`` matched nothing anywhere and returned an empty
+        frame, which is exactly what a correctly spelled database with
+        no mappings returns.
+
+        Only names the backends have actually enumerated are checked.
+        Where none of them can say what they hold there is nothing to
+        check against, and the query goes ahead.
 
         Parameters
         ----------
+        databases : list of str or None
+            Databases asked for at one end of the mapping.
         end : str
-            Which end of the mapping they were asked for, ``source``
-            or ``target``.
-        databases : iterable of str
-            Names no backend could serve.
+            Which end, ``source`` or ``target``, for the message.
+
+        Raises
+        ------
+        ValueError
+            If any name is unknown to every backend that can
+            enumerate.
+
+        Examples
+        --------
+        >>> from rotifer.db import uniprot
+        >>> uniprot.MappingCursor().fetchall(['P00750'],       # doctest: +SKIP
+        ...                                  target=['Refseq'])
+        Traceback (most recent call last):
+        ValueError: unknown target database: 'Refseq' (did you mean 'RefSeq'?)
         """
-        for database in sorted(databases):
-            if database == self.UNIPROTKB:
-                continue
-            self.update_missing(
-                [database],
-                error = f'No backend can map {end} database {database!r}',
-                retry = False,
-                final = True,
-            )
+        if isinstance(databases, types.NoneType):
+            return
+        vocabulary = self.databases()
+        if isinstance(vocabulary, types.NoneType):
+            return
+        unknown = [ x for x in databases
+                    if x != self.UNIPROTKB and x not in vocabulary ]
+        if not unknown:
+            return
+
+        complaints = [ f'{x!r}{self._did_you_mean(x, vocabulary)}' for x in unknown ]
+        message = (f'unknown {end} database' + ('s' if len(unknown) > 1 else '')
+                   + ': ' + "; ".join(complaints))
+        logger.error(message)
+        raise ValueError(message)
+
+    @staticmethod
+    def _did_you_mean(name, vocabulary):
+        """
+        Suggest what a misspelled database probably meant.
+
+        Parameters
+        ----------
+        name : str
+            The name that was not recognised.
+        vocabulary : set of str
+            The names that are.
+
+        Returns
+        -------
+        str
+            A suggestion ready to append to a message, or an empty
+            string when nothing is close enough to be worth offering.
+        """
+        import difflib
+
+        # Case is the commonest slip and the least ambiguous to fix,
+        # so a match but for case is offered on its own.
+        folded = { x.lower(): x for x in vocabulary }
+        if name.lower() in folded:
+            return f' (did you mean {folded[name.lower()]!r}?)'
+        close = difflib.get_close_matches(name, sorted(vocabulary), n=3, cutoff=0.7)
+        if close:
+            return ' (did you mean ' + ", ".join([ repr(x) for x in close ]) + '?)'
+        return ''
 
     #: Where ``sqlitedb=True`` puts the file.
     _default_sqlitedb = os.path.join(GlobalConfig['userDataDirectory'], 'rotifer.sqlite3')

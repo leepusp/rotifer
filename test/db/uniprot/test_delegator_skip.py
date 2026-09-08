@@ -197,18 +197,80 @@ def test_a_backend_supporting_none_of_the_databases_is_skipped():
     assert backends['webapi'].asked == 1
 
 
-def test_a_database_no_backend_supports_is_registered_as_missing():
-    """It is not a missing identifier but a missing capability, so it is
-    recorded under the database name and is final: asking again cannot help."""
+def test_a_database_no_backend_knows_is_refused():
+    """A misspelled database is a mistake, not an absence. Answering it with
+    an empty frame made it indistinguishable from a correctly spelled database
+    that simply has no mappings, so it is refused instead."""
     delegator, backends = build(
         ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
-        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'Pfam'}),
     )
-    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
-                       target=['RefSeq', 'Pfam'])
-    assert 'Pfam' in delegator.missing_ids()
-    assert 'Pfam' in delegator.missing_ids(final=True)
-    assert 'target database' in delegator.missing.loc['Pfam', 'error']
+    with pytest.raises(ValueError, match='unknown target database'):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Nonesuch'])
+
+
+def test_the_refusal_names_the_end_it_came_from():
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError, match='unknown source database'):
+        delegator.fetchall(['P00750'], source=['Nonesuch'], target=['RefSeq'])
+
+
+def test_a_misspelling_is_offered_the_right_name():
+    """The vocabulary is already in hand, so the message can say what was
+    probably meant rather than only that something was wrong."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq', 'UniParc'}))
+    with pytest.raises(ValueError, match=r"did you mean 'RefSeq'"):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Refseq'])
+
+
+def test_a_difference_of_case_is_offered_on_its_own():
+    """Case is the commonest slip and the least ambiguous to fix, so it is
+    suggested by itself rather than among near misses."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq', 'RefSeq_NT'}))
+    with pytest.raises(ValueError, match=r"did you mean 'RefSeq'\?"):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['refseq'])
+
+
+def test_a_name_like_nothing_at_all_gets_no_suggestion():
+    """A suggestion that is not close is worse than none: it sends the reader
+    after a name they never meant."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError) as raised:
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Zzzzzz'])
+    assert 'did you mean' not in str(raised.value)
+
+
+def test_several_unknown_names_are_reported_together():
+    """One query, one complaint: fixing them one error at a time is tedious
+    when the vocabulary could have named them all at once."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError, match='unknown target databases'):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                           target=['Zzzz', 'Qqqq'])
+
+
+def test_the_accession_itself_is_always_a_valid_end():
+    """UNIPROTKB is the table's key rather than one of its databases, so it
+    appears in no vocabulary and must not be refused."""
+    delegator, backends = build(('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}))
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=[Backend.UNIPROTKB])
+
+
+def test_nothing_is_refused_when_no_backend_can_enumerate():
+    """With nothing to check against, a name cannot be called wrong: the
+    mirror might hold anything."""
+    delegator, backends = build(('mirror', None, ['P00750'], None))
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Anything'])
+
+
+def test_a_database_failure_is_no_longer_a_missing_identifier():
+    """missing is about identifiers that were not found. A database that does
+    not exist is a different kind of problem and belongs in an exception."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert delegator.missing_ids() == set()
 
 
 def test_a_covered_database_is_not_reported_missing():
@@ -243,11 +305,12 @@ def test_a_backend_skipped_for_a_database_still_speaks_for_its_data():
     delegator, backends = build(
         ('clickhouse', 'idmapping.dat:90:1', ['P00750'], {'RefSeq'}),
         ('mirror', 'idmapping.dat:90:1', ['P00750'], None),
+        ('webapi', None, ['P00750'], {'Pfam'}),
     )
     delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Pfam'])
     assert backends['clickhouse'].asked == 0     # cannot map Pfam
     assert backends['mirror'].asked == 0         # same data, so neither can it
-    assert 'Pfam' in delegator.missing_ids(final=True)
+    assert backends['webapi'].asked == 1         # the one that can
 
 
 def test_a_backend_with_other_data_is_still_asked():
