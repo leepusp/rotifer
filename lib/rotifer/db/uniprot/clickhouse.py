@@ -352,9 +352,11 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
             if self.progress:
                 logger.warning(f'Loading {reader.datafile} into {self.qualified_name} in chunks of {chunksize} rows...')
             for chunk in reader.reader(chunksize=chunksize):
-                chunk = chunk.copy()
-                chunk['release'] = release
-                self.insert(chunk)
+                # insert() keeps only the table's own columns and
+                # stamps the release itself, so it has to be told
+                # which one: setting it on the frame would be dropped
+                # and the cursor's own release used instead.
+                self.insert(chunk, release=release)
 
         else:
             raise ValueError(f'Unknown load method {method}: use "auto", "client" or "python"')
@@ -433,12 +435,18 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
         Because the table is partitioned by release, this drops a
         whole partition and is nearly instantaneous.
 
+        The record of where that release was loaded from goes with
+        it. It is what tells a delegator this table holds a copy of
+        that file, and keeping it would have the mirror skipped in
+        favour of a partition that is no longer there.
+
         Parameters
         ----------
         release : str
             The release to remove, e.g. ``2024_06``.
         """
         self.drop_partition(release)
+        self.forget_source(version=release)
 
 class MappingCursor(BaseMappingCursor):
     """

@@ -304,6 +304,49 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         )
         return True
 
+    def forget_source(self, version=None, table=None):
+        """
+        Withdraw the record of a load.
+
+        A row in the registry is the claim that this table holds a
+        whole copy of a file. Whatever removes the rows has to remove
+        the claim too, or the table goes on being taken for a copy of
+        something it no longer has.
+
+        Parameters
+        ----------
+        version : str, optional
+            Version whose record to drop. Defaults to
+            :attr:`source_version`; pass an empty string to drop the
+            records of every version of this table.
+        table : str, optional
+            Table the record is about. Defaults to this cursor's.
+
+        Returns
+        -------
+        bool
+            Whether anything could be removed.
+        """
+        if isinstance(version, types.NoneType):
+            version = self.source_version
+        try:
+            if not self.has_table(self._sources_table):
+                return False
+            sql = f'ALTER TABLE {self.sources_table} DELETE WHERE `table` = %(table)s'
+            parameters = {'table': str(table or self.table)}
+            if version:
+                sql += ' AND version = %(version)s'
+                parameters['version'] = str(version)
+            # A mutation is asynchronous by default, so the statement
+            # returns before the row is gone and whatever asked for the
+            # claim to be withdrawn would still be shown it.
+            sql += ' SETTINGS mutations_sync = 1'
+            self.command(sql, parameters=parameters)
+        except Exception:
+            logger.debug('Could not remove the load record', exc_info=1)
+            return False
+        return True
+
     def content_id(self):
         """
         Identify the data this table holds.
