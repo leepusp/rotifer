@@ -131,12 +131,34 @@ def test_a_backend_that_spans_the_query_answers_it_alone():
     assert len(cursor.cursors['service'].asked) == 1
 
 
-def test_an_open_source_is_not_bridged():
-    """With the source left open every backend is asked with the identifiers
-    as they stand, so a second pass would reach nothing the first did not."""
+def test_an_open_source_is_tunnelled_too():
+    """Not naming the database an identifier came from does not make it an
+    identifier the service can recognise. The accession has to be found
+    either way, and asking for it costs the same whether or not the caller
+    could say what they were holding."""
     cursor = delegator(table=table(), service=service())
-    cursor.fetchall(['UniRef50_C7N6L9'], target='AlphaFoldDB')
-    assert all(a[0] != ['C7N6L9'] for a in cursor.cursors['service'].asked)
+    found = cursor.fetchall(['UniRef50_C7N6L9'], target='AlphaFoldDB')
+    assert found.target_type.tolist() == ['AlphaFoldDB']
+    assert found.source.tolist() == ['UniRef50_C7N6L9']
+
+
+def test_an_identifier_that_is_its_own_accession_is_not_asked_about_twice():
+    """A UniProtKB accession tunnels to itself, so the first pass already put
+    it to every backend that could take it and the second would repeat the
+    query word for word."""
+    cursor = delegator(table=table(), service=service())
+    cursor.fetchall(['C7N6L9'], source='UniProtKB-AC', target='RefSeq')
+    assert len(cursor.cursors['service'].asked) == 1
+
+
+def test_a_backend_that_recognised_an_identifier_is_not_asked_again():
+    """It joined through the accession itself to answer the first time, so
+    putting the identifier back to it under that accession asks the same
+    question a second time."""
+    cursor = delegator(table=table(), service=service())
+    cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50')
+    asked = [ a for a in cursor.cursors['table'].asked if a[0] == ['C7N6L9'] ]
+    assert asked == []
 
 
 def test_nothing_is_bridged_to_a_database_nobody_has():
@@ -226,6 +248,49 @@ def test_both_halves_of_a_split_target_come_back():
     found = cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50',
                             target=['RefSeq', 'AlphaFoldDB'])
     assert sorted(set(found.target_type)) == ['AlphaFoldDB', 'RefSeq']
+
+
+
+
+# ------------------------------------------------- one backend's worth of work
+
+def test_a_target_the_first_backend_covered_costs_nothing_further():
+    """The headline: if the table can resolve the query, no other backend
+    runs. Both of these map RefSeq, and only the first should be asked."""
+    cursor = delegator(table=table(), service=service())
+    found = cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50', target='RefSeq')
+    assert found.target_type.tolist() == ['RefSeq']
+    assert cursor.cursors['service'].asked == []
+
+
+def test_the_accession_comes_free_from_the_rows_already_returned():
+    """Every row of a mapping carries the accession that joined its ends, so
+    a query that answered at all has already said what the identifiers are
+    called in UniProtKB. Paying for that a second time is a query nobody
+    needs."""
+    cursor = delegator(table=table(), service=service())
+    cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50',
+                    target=['RefSeq', 'AlphaFoldDB'])
+    # one call in the first pass, and no pivot call of its own
+    assert len(cursor.cursors['table'].asked) == 1
+
+
+def test_the_accession_is_asked_for_when_no_row_carried_one():
+    """Nothing answered, so nothing said what the accession is, and the
+    tunnel has to go and find out."""
+    cursor = delegator(table=table(), service=service())
+    cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50', target='AlphaFoldDB')
+    assert cursor.cursors['table'].asked[0][2] == ['UniProtKB-AC']
+
+
+def test_a_redundant_backend_is_not_even_a_candidate():
+    """It holds what another already offered, so tunnelling to it would buy
+    a repeat at the price of a scan."""
+    first = Backend(table().table.values.tolist(), {'UniRef50','RefSeq'}, content='2026_01')
+    same = Backend(table().table.values.tolist(), {'UniRef50','RefSeq'}, content='2026_01')
+    cursor = delegator(first=first, same=same, service=service())
+    cursor.fetchall(['UniRef50_C7N6L9'], source='UniRef50', target='AlphaFoldDB')
+    assert same.asked == []
 
 
 if __name__ == '__main__':

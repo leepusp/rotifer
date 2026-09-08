@@ -36,15 +36,24 @@ returning nothing.
 That leaves a question answerable at both ends without being
 answerable at both ends by any one backend: only the table maps
 UniRef, only the service maps AlphaFoldDB, and a query between the two
-finds every backend able to serve one end and none able to serve
-both. Every row here is joined through a UniProtKB accession, so such
-a query is answered in two steps rather than one -- the identifiers
-are resolved to accessions by the backend that knows them, and the
-other backend is then asked about those. The rows come back under the
+finds every backend able to serve one end and none able to serve both.
+
+Every row here is joined through a UniProtKB accession, and that
+accession is the one name every backend understands, so any target
+database can be reached from any source database: the identifiers are
+resolved to accessions and the backends that could not be asked with
+them are asked with those instead. The rows come back under the
 identifiers that were given, with the accession that joined the two
-halves in the ``accession`` column. This needs ``source`` to be named:
-left open, every backend is asked with the identifiers as they stand,
-so there is nothing a second pass would reach.
+halves in the ``accession`` column.
+
+Reaching further is not the same as doing more work, and the second
+pass is the exception rather than the rule. It runs only for backends
+that could not answer as asked, only for databases nothing has covered
+yet, and only for identifiers that are not already their own
+accession. The accession itself is usually free, since every row the
+first pass returned carries one. A query the table can answer by
+itself is therefore still one query to the table, whatever else is
+configured behind it.
 
 Cursors
 -------
@@ -298,6 +307,14 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         # identifier and a database it can map is still uncovered, and
         # then only about those.
         covered = { x: set() for x in targets }
+        # Every row carries the accession that joined its two ends, so
+        # the first pass hands the second one its pivot for nothing.
+        pivots = []
+        # Which identifiers each backend answered for. One it answered
+        # for it recognised, and since a backend joins through the
+        # accession itself, putting that identifier back to it under
+        # its accession asks the same question twice.
+        answered_by = dict()
 
         # One bar for the whole query rather than one per backend: what
         # a caller waits on is their identifiers being answered, and
@@ -400,6 +417,9 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                             self.cursors[writer].insert(rows)
                     todo = todo - done
                     if isinstance(result, pd.DataFrame) and not result.empty:
+                        pivots.append(result[['source','source_type','accession']])
+                        answered_by.setdefault(name, set()).update(
+                            result.source.dropna().astype(str))
                         served_source.update(result.source_type.dropna().astype(str))
                         served_target.update(result.target_type.dropna().astype(str))
                         for identifier, database in zip(result.source.astype(str),
@@ -440,9 +460,23 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             # and none able to serve both. Every row here is joined
             # through the accession, so that query is still answerable,
             # in two steps rather than one.
-            pending_target = sorted(wanted_target - served_target) if wanted_target else None
-            for result in self._bridge(targets, source, pending_target or target,
-                                       *args, **kwargs):
+            #
+            # What is still owed decides whether that is worth doing. A
+            # named target every backend consulted so far has covered
+            # owes nothing, and nothing further runs: a query the table
+            # answers by itself costs one backend, which is the point.
+            if isinstance(target, types.NoneType):
+                owed = None
+            elif todo:
+                # Nothing answered for these identifiers at all, so no
+                # database can be called covered on their behalf: a
+                # backend reporting no rows for an identifier it could
+                # not recognise has not said there is no mapping.
+                owed = sorted(wanted_target)
+            else:
+                owed = sorted(wanted_target - served_target)
+            for result in self._bridge(targets, todo, source, owed, consulted,
+                                       covered, pivots, answered_by, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 answered.update(targets.intersection(found))
                 bar.position(len(answered))
@@ -485,21 +519,53 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         finally:
             cursor._missing = saved
 
-    def _to_accessions(self, targets, source, *args, **kwargs):
+    @staticmethod
+    def _known_accessions(pivots):
+        """
+        Read the accessions out of what has already been returned.
+
+        Every row of a mapping carries the accession that joined its
+        two ends, so a query that answered at all has said what the
+        identifiers it answered for are called in UniProtKB. Reusing
+        that is the difference between a second pass costing a query
+        and costing nothing.
+
+        Parameters
+        ----------
+        pivots : list of pandas.DataFrame
+            Frames returned by the first pass.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``source``, ``source_type`` and ``accession``.
+        """
+        columns = ['source','source_type','accession']
+        frames = [ x for x in pivots if isinstance(x, pd.DataFrame) and not x.empty ]
+        if not frames:
+            return pd.DataFrame(columns=columns)
+        return pd.concat(frames, ignore_index=True)[columns].drop_duplicates().reset_index(drop=True)
+
+    def _to_accessions(self, targets, source, consulted, *args, **kwargs):
         """
         Find the UniProtKB accession of each identifier.
 
-        This is the first half of a bridge. It asks the backends that
-        know the vocabulary the identifiers were given in for nothing
-        but the accession, which is the one name every backend here
-        shares.
+        This is the first half of a tunnel. It asks for nothing but
+        the accession, which is the one name every backend here
+        shares, so that a backend which cannot recognise an identifier
+        as it was given can still be asked about it.
 
         Parameters
         ----------
         targets : set of str
             The identifiers the caller gave.
-        source : list of str
-            Databases they belong to.
+        source : list of str or None
+            Databases they belong to, or None when unstated. Unstated
+            costs nothing here: an accession is asked for the same way
+            either way.
+        consulted : dict
+            Content identifiers already seen, so that a backend
+            repeating another is not scanned a second time.
 
         Returns
         -------
@@ -509,7 +575,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         """
         rows = []
         found = set()
-        consulted = dict()
+        consulted = dict(consulted)
         for name in self.readers:
             cursor = self.cursors.get(name)
             if isinstance(cursor, types.NoneType):
@@ -518,10 +584,10 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             if not asking:
                 break
             here = cursor.supported(source)
-            if not here:
+            if source and not here:
                 continue
             served_by = self.redundant(cursor, consulted)
-            if served_by:
+            if served_by and served_by != name:
                 logger.info(f'Skipping backend {name}: same data as {served_by}')
                 continue
             content = self.content_of(cursor)
@@ -539,29 +605,49 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             return pd.DataFrame(columns=['source','source_type','accession'])
         return pd.concat(rows, ignore_index=True).drop_duplicates().reset_index(drop=True)
 
-    def _bridge(self, targets, source, target, *args, **kwargs):
+    def _bridge(self, targets, todo, source, owed, consulted, covered, pivots,
+                answered_by, *args, **kwargs):
         """
-        Answer through the accession what no backend answers alone.
+        Answer through the accession what a backend could not be asked.
 
-        A backend passed over because it does not know the identifiers
-        as they were given may still hold the databases the query
-        wants. Turning the identifiers into accessions first is what
-        lets it be asked, and the accession is exactly what the two
-        halves are then joined on, since every row here carries it.
+        Every row here is joined through a UniProtKB accession, so the
+        accession is what any backend can be asked about whatever
+        vocabulary the identifiers arrived in. A backend that returned
+        nothing in the first pass -- passed over because it does not
+        map the databases the identifiers were given in, or asked and
+        unable to recognise them -- is therefore asked again, about
+        the accessions instead.
 
-        This runs only when the databases the identifiers were given
-        in are named. With ``source`` left open every backend is asked
-        with the identifiers as they stand, so there is nothing a
-        second pass would reach that the first did not.
+        Only such backends are, and only for databases still owed, so
+        a query one backend answers by itself stays one backend's
+        worth of work.
 
         Parameters
         ----------
         targets : set of str
             The identifiers the caller gave.
         source : list of str or None
-            Databases they belong to.
-        target : list of str or None
-            Databases still owed, or None for every database.
+            Databases they belong to, or None when unstated.
+        owed : list of str or None
+            Target databases nothing has covered yet. An empty list
+            means the query is already answered and nothing further
+            runs; None means the target was left open, so every
+            backend has something of its own to add.
+        consulted : dict
+            Content identifiers seen in the first pass, so a backend
+            serving data another already offered is not consulted.
+        covered : dict
+            Identifier to the databases already answered for it. A
+            backend every one of whose databases has answered for
+            every identifier has nothing to add, however it is asked.
+        pivots : list of pandas.DataFrame
+            Accessions the first pass already returned. Every row it
+            produced carries one, so the second pass usually needs no
+            query of its own to find them.
+        answered_by : dict
+            Backend name to the identifiers it answered for. A backend
+            joins through the accession itself, so one it answered for
+            would be asked the same question twice.
 
         Yields
         ------
@@ -570,49 +656,82 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             database it came from, the accession joining the two ends,
             and what was found.
         """
-        if isinstance(source, types.NoneType) or not source:
+        # A named target that everything consulted has covered is
+        # answered. This is what keeps a query the table can serve on
+        # its own from reaching for anything else.
+        if not isinstance(owed, types.NoneType) and not owed:
             return
 
-        # Only backends the first pass could not ask are worth a
-        # second one, and only for what they can actually map.
         candidates = []
+        seen = dict(consulted)
         for name in self.readers:
             cursor = self.cursors.get(name)
-            if isinstance(cursor, types.NoneType) or cursor.supported(source):
+            if isinstance(cursor, types.NoneType):
                 continue
-            if not isinstance(target, types.NoneType) and not cursor.supported(target):
-                continue
-            candidates.append(name)
-        if not candidates:
-            return
-
-        pivot = self._to_accessions(targets, source, *args, **kwargs)
-        if pivot.empty:
-            logger.info('Nothing to bridge: no backend maps '
-                        + ", ".join(sorted(source)) + ' to an accession')
-            return
-        logger.info(f'Bridging {", ".join(candidates)} through '
-                    f'{len(set(pivot.accession))} accessions')
-
-        accessions = sorted(set(pivot.accession.dropna().astype(str)))
-        owed = set(target) if not isinstance(target, types.NoneType) else None
-        consulted = dict()
-        for name in candidates:
-            if not isinstance(owed, types.NoneType) and not owed:
-                break
-            cursor = self.cursors[name]
-            here = cursor.supported(sorted(owed)) if not isinstance(owed, types.NoneType) else None
+            here = cursor.supported(owed) if not isinstance(owed, types.NoneType) else None
             if not isinstance(owed, types.NoneType) and not here:
                 continue
-            served_by = self.redundant(cursor, consulted)
-            if served_by:
+            # The same test the first pass uses: a backend every one of
+            # whose databases has already answered for every identifier
+            # adds nothing, and asking it through an accession would not
+            # change that.
+            asking, here = self._uncovered(cursor, targets, todo, covered, here)
+            # A backend that answered for an identifier joined through
+            # the accession to do it, so putting that identifier back to
+            # it under its accession asks the same question twice.
+            asking = [ x for x in asking if x not in answered_by.get(name, set()) ]
+            if not asking:
+                continue
+            served_by = self.redundant(cursor, seen)
+            if served_by and served_by != name:
                 logger.info(f'Skipping backend {name}: same data as {served_by}')
                 continue
             content = self.content_of(cursor)
             if not isinstance(content, types.NoneType):
-                consulted.setdefault(content, name)
+                seen.setdefault(content, name)
+            candidates.append((name, here, set(asking)))
+        if not candidates:
+            return
+
+        # Identifiers that already are accessions tunnel to themselves,
+        # so the first pass put them to every backend that could take
+        # them and a second pass would repeat it word for word.
+        if source and set(source) == {self.UNIPROTKB}:
+            return
+
+        pivot = self._known_accessions(pivots)
+        unknown = set(targets) - set(pivot.source)
+        if unknown:
+            pivot = pd.concat([pivot, self._to_accessions(unknown, source, consulted,
+                                                          *args, **kwargs)],
+                              ignore_index=True)
+        # An identifier that is its own accession is in the same case as
+        # above, one row at a time: nothing is reached through it that
+        # was not reached with it.
+        pivot = pivot[pivot.source.astype(str) != pivot.accession.astype(str)]
+        if pivot.empty:
+            logger.info('Nothing to tunnel: no accession that was not asked for already')
+            return
+        logger.info(f'Tunnelling {", ".join(n for n, _, _ in candidates)} through '
+                    f'{len(set(pivot.accession))} accessions')
+
+        pivot = pivot.dropna(subset=['accession'])
+        still = set(owed) if not isinstance(owed, types.NoneType) else None
+        for name, here, asking in candidates:
+            if not isinstance(still, types.NoneType) and not still:
+                break
+            cursor = self.cursors[name]
+            if not isinstance(still, types.NoneType):
+                here = [ x for x in (here or []) if x in still ]
+                if not here:
+                    continue
+            # Only the accessions of the identifiers this backend still
+            # owes something for
+            mine = sorted(set(pivot[pivot.source.isin(asking)].accession.astype(str)))
+            if not mine:
+                continue
             with self._untouched(cursor):
-                for frame in cursor.fetchone(accessions, source=[self.UNIPROTKB],
+                for frame in cursor.fetchone(mine, source=[self.UNIPROTKB],
                                              target=here, *args, **kwargs):
                     if not isinstance(frame, pd.DataFrame) or frame.empty:
                         continue
@@ -622,8 +741,8 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                     if joined.empty:
                         continue
                     yield joined[self.columns]
-            if not isinstance(owed, types.NoneType):
-                owed -= set(here or [])
+            if not isinstance(still, types.NoneType):
+                still -= set(here or [])
 
     def _uncovered(self, cursor, targets, todo, covered, here_target):
         """
