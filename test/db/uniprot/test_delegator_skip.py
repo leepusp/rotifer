@@ -15,6 +15,8 @@ that reimplements the delegation loop has to be tested on its own loop.
 Run under pytest, or standalone: python test/db/uniprot/test_delegator_skip.py
 """
 
+import os
+
 import pandas as pd
 import pytest
 
@@ -356,3 +358,76 @@ def test_an_unknown_database_is_unsupported_when_every_backend_can_say():
     )
     assert delegator.unsupported(['Nonesuch']) == ['Nonesuch']
     assert delegator.unsupported(['RefSeq', 'Pfam']) == []
+
+
+# ------------------------------------------------- the sqlite3 backend
+
+def test_no_sqlite3_backend_unless_asked_for():
+    """There is no file to assume, so the backend exists only when one is
+    named."""
+    from rotifer.db import uniprot as up
+    assert 'sqlite3' not in up.MappingCursor.__init__.__defaults__[0]
+
+
+def test_sqlitedb_true_takes_the_default_file():
+    from rotifer.db import uniprot as up
+    resolved = up.BaseUniProtDelegatorCursor.resolve_sqlitedb(True)
+    assert resolved.endswith(os.path.join('.rotifer', 'share', 'rotifer.sqlite3'))
+
+
+def test_sqlitedb_names_a_file_of_your_own(tmp_path):
+    from rotifer.db import uniprot as up
+    wanted = str(tmp_path / 'sub' / 'project.sqlite3')
+    resolved = up.BaseUniProtDelegatorCursor.resolve_sqlitedb(wanted)
+    assert resolved == wanted
+    # the file need not exist, but somewhere to put it must
+    assert os.path.isdir(os.path.dirname(wanted))
+
+
+@pytest.mark.parametrize('value', [None, False])
+def test_no_file_means_no_backend(value):
+    from rotifer.db import uniprot as up
+    assert up.BaseUniProtDelegatorCursor.resolve_sqlitedb(value) is None
+
+
+def test_sqlite3_goes_before_the_web_service():
+    """It answers the same question two to three orders of magnitude faster:
+    milliseconds against a round trip that cannot beat about a second."""
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(
+        ['clickhouse', 'webapi', 'mirror'])
+    assert order == ['clickhouse', 'sqlite3', 'webapi', 'mirror']
+
+
+def test_sqlite3_goes_last_when_there_is_no_web_service():
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(['clickhouse', 'mirror'])
+    assert order == ['clickhouse', 'mirror', 'sqlite3']
+
+
+def test_asking_twice_does_not_add_it_twice():
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(
+        ['clickhouse', 'sqlite3', 'webapi'])
+    assert order.count('sqlite3') == 1
+
+
+def test_the_readers_given_are_not_modified():
+    """The default reader list is shared between every cursor built without
+    one, so inserting into it would leak into the next."""
+    from rotifer.db import uniprot as up
+    given = ['clickhouse', 'webapi']
+    up.BaseUniProtDelegatorCursor._with_sqlite3(given)
+    assert given == ['clickhouse', 'webapi']
+
+
+def test_the_sqlite3_backend_is_given_the_file_not_the_mirror():
+    """`path` names a mirror's root to every other backend here and a database
+    file to this one, which is what backend_arguments exists to settle."""
+    delegator, backends = build(('clickhouse', 'x:1:1', []))
+    delegator.sqlitedb = '/tmp/somewhere/project.sqlite3'
+    arguments = delegator.backend_arguments('sqlite3', {'path': '/mirror/root'})
+    assert arguments['path'] == '/tmp/somewhere/project.sqlite3'
+    # every other backend keeps the mirror
+    assert delegator.backend_arguments('mirror', {'path': '/mirror/root'})['path'] \
+        == '/mirror/root'

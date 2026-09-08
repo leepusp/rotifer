@@ -96,6 +96,9 @@ config = loadConfig(__name__.replace('rotifer.',':'), defaults = {
     'readers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
         'mirror': 'rotifer.db.uniprot.mirror',
+        # Registered but not enabled by default: it needs a file, and
+        # there is no sensible one to assume. Ask for it with sqlitedb.
+        'sqlite3': 'rotifer.db.uniprot.sqlite3',
         # Registered but not enabled by default: every query is a
         # round trip to UniProt, so it is opted into per cursor.
         'webapi': 'rotifer.db.uniprot.webapi',
@@ -341,6 +344,92 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                 retry = False,
                 final = True,
             )
+
+    #: Where ``sqlitedb=True`` puts the file.
+    _default_sqlitedb = os.path.join(GlobalConfig['userDataDirectory'], 'rotifer.sqlite3')
+
+    @classmethod
+    def resolve_sqlitedb(cls, sqlitedb):
+        """
+        Work out which SQLite3 file was asked for, if any.
+
+        Parameters
+        ----------
+        sqlitedb : bool, str or None
+            True for the default file, a path for one of your own, and
+            None or False for no SQLite3 backend at all.
+
+        Returns
+        -------
+        str or None
+            The path, whose directory is created if it is missing so
+            that a new file can be written there.
+        """
+        if isinstance(sqlitedb, types.NoneType) or sqlitedb is False:
+            return None
+        path = cls._default_sqlitedb if sqlitedb is True else str(sqlitedb)
+        directory = os.path.dirname(path)
+        if directory and not os.path.isdir(directory):
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except OSError:
+                logger.warning(f'Could not create {directory} for the SQLite3 database')
+        return path
+
+    @staticmethod
+    def _with_sqlite3(readers, before='webapi'):
+        """
+        Put the SQLite3 backend in the reader order.
+
+        It goes before the web service because it answers the same
+        question two to three orders of magnitude faster: milliseconds
+        against a round trip that cannot beat about a second however
+        little is asked of it.
+
+        Parameters
+        ----------
+        readers : list of str
+            The reader order asked for.
+        before : str, default 'webapi'
+            The backend it should precede.
+
+        Returns
+        -------
+        list of str
+        """
+        readers = list(readers)
+        if 'sqlite3' in readers:
+            return readers
+        if before in readers:
+            readers.insert(readers.index(before), 'sqlite3')
+        else:
+            readers.append('sqlite3')
+        return readers
+
+    def backend_arguments(self, name, arguments):
+        """
+        Give the SQLite3 backend the file rather than the mirror.
+
+        ``path`` means the root of a mirror to every other backend
+        here and the name of a database file to this one, which is
+        exactly the disagreement this hook exists for.
+
+        Parameters
+        ----------
+        name : str
+            Which backend is being built.
+        arguments : dict
+            The shared attributes.
+
+        Returns
+        -------
+        dict
+        """
+        if name != 'sqlite3':
+            return arguments
+        arguments = dict(arguments)
+        arguments['path'] = getattr(self, 'sqlitedb', None) or self._default_sqlitedb
+        return arguments
 
     def databases(self):
         """
@@ -664,6 +753,14 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         since they hold different vocabularies and none can be said
         to have covered a list that was never given. Drop a backend
         from this list to trade that completeness for speed.
+    sqlitedb : bool or str, optional
+        Use a local SQLite3 file as well, inserted before the web
+        service: it answers the same question in milliseconds where a
+        round trip cannot beat about a second, however little is asked
+        of it. True takes the default file, ``~/.rotifer/share/
+        rotifer.sqlite3``; a string names one of your own, which need
+        not exist yet. Left out, no SQLite3 backend is built, since
+        there is no file to assume.
     writers : list of str, default []
         Backend writer modules.
     release : str, optional
@@ -691,6 +788,11 @@ class MappingCursor(BaseUniProtDelegatorCursor):
 
     >>> from rotifer.db import uniprot
     >>> mc = uniprot.MappingCursor()                              # doctest: +SKIP
+
+    The same, consulting a local SQLite3 file first:
+
+    >>> mc = uniprot.MappingCursor(sqlitedb=True)                 # doctest: +SKIP
+    >>> mc = uniprot.MappingCursor(sqlitedb='project.sqlite3')    # doctest: +SKIP
     >>> mc.fetchall(["Q6GZX4"], source=mc.UNIPROTKB)              # doctest: +SKIP
 
     Which accession a RefSeq protein belongs to:
@@ -707,6 +809,7 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             self,
             readers = ['clickhouse','webapi','mirror'],
             writers = [],
+            sqlitedb = None,
             release = None,
             local_database_path = config['local_database_path'],
             engine = None,
@@ -722,6 +825,11 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             *args, **kwargs
         ):
         self._shared_attributes = ['progress','release','path','engine','host','port','dbname','batch_size','threads']
+        # Resolved before the backends are built, since it decides
+        # whether one of them exists at all.
+        self.sqlitedb = self.resolve_sqlitedb(sqlitedb)
+        if self.sqlitedb:
+            readers = self._with_sqlite3(readers)
         self.release = release
         self.path = local_database_path
         self.engine = engine
