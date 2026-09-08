@@ -33,9 +33,24 @@ databases it says it can map, and a database none of them supports is
 reported in ``missing`` under its own name rather than silently
 returning nothing.
 
-The web backend also covers what the other two do not at all:
-sequences, proteomes, taxonomy and UniProt's own search, through the
-cursors documented in that module.
+Cursors
+-------
+:class:`MappingCursor`
+    Identifier translation, in either direction, across every backend.
+:class:`SequenceCursor`
+    UniProt entries with their annotation, mixing UniProtKB, UniParc,
+    UniRef and proteome identifiers in one call.
+:class:`TaxonomyCursor`
+    Taxonomy records, carrying UniProt's own fields and the columns
+    :class:`rotifer.db.ncbi.TaxonomyCursor` produces.
+
+Only mappings have more than one backend today: sequences and taxonomy
+are served by the web service alone, since the local mirror holds
+``idmapping.dat`` rather than the flat files and the SQL backends hold
+mappings. They are delegators all the same, so a local backend can be
+added later without changing any calling code.
+:mod:`rotifer.db.uniprot.webapi` covers proteomes and UniProt's own
+search as well, through the cursors documented there.
 
 Configuration
 -------------
@@ -96,6 +111,9 @@ config = loadConfig(__name__.replace('rotifer.',':'), defaults = {
     'local_database_path': os.path.join(GlobalConfig['data'],"uniprot"),
     'readers': {
         'clickhouse': 'rotifer.db.uniprot.clickhouse',
+        # Taxonomy only, and NCBI's copy of it rather than UniProt's,
+        # so it is registered but never a default: see TaxonomyCursor.
+        'ete3': 'rotifer.db.local.ete3',
         'mirror': 'rotifer.db.uniprot.mirror',
         # Registered but not enabled by default: it needs a file, and
         # there is no sensible one to assume. Ask for it with sqlitedb.
@@ -1009,6 +1027,434 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         super().__init__(readers=readers, writers=writers, progress=progress, tries=tries, batch_size=batch_size, threads=threads, *args, **kwargs)
         # Caching needs somewhere to write, so it implies a table
         self._initialize(initialize or (cache and 'create'), strict=bool(initialize))
+
+class BaseUniProtRecordCursor(rotifer.db.delegator.SequentialDelegatorCursor):
+    """
+    Shared behaviour of the UniProt delegators that fetch records.
+
+    This class is not meant to be used directly. It gives the cursors
+    that fetch entries, rather than mappings between them, the two
+    things :class:`BaseUniProtDelegatorCursor` gives the mapping ones:
+    a progress bar over the whole query instead of one per backend,
+    and dictionary style access that stays quiet.
+
+    See Also
+    --------
+    rotifer.db.delegator.SequentialDelegatorCursor : the delegation logic
+    BaseUniProtDelegatorCursor : the same idea, for identifier mappings
+    """
+
+    #: Label shown beside the delegator's own progress bar.
+    _progress_label = 'uniprot'
+
+    def __getitem__(self, accessions, *args, **kwargs):
+        """
+        Fetch records, dictionary style.
+
+        Equivalent to :meth:`fetchall`, but quiet: a lookup is not a
+        job worth watching.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Returns
+        -------
+        The same value as :meth:`fetchall`.
+        """
+        # progress is shared with the backends, so clearing it here
+        # silences their bars too.
+        progress = self.progress
+        self.progress = False
+        try:
+            return self.fetchall(accessions, *args, **kwargs)
+        finally:
+            self.progress = progress
+
+    def fetchone(self, accessions, *args, **kwargs):
+        """
+        Iterate over records, trying each backend in turn.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Database identifiers.
+
+        Yields
+        ------
+        Whatever the backend that found them produced.
+
+        Note
+        ----
+        This adds nothing to the delegation itself: it draws one bar
+        for the whole query, above whatever the backend answering it
+        draws, since what a caller waits on is their identifiers being
+        answered and which backend answers them is the delegator's
+        business.
+        """
+        targets = self.parse_ids(accessions)
+        bar = sqlprog.Progress(total=len(targets), unit='ids',
+                               desc=self._progress_label,
+                               enabled=self.progress, position=0)
+        answered = set()
+        # A caller may stop consuming a generator, so the bar is taken
+        # down however the loop ends.
+        try:
+            for result in super().fetchone(targets, *args, **kwargs):
+                answered.update(targets.intersection(self.getids(result, *args, **kwargs)))
+                bar.position(len(answered))
+                yield result
+        finally:
+            bar.close()
+
+
+class SequenceCursor(rotifer.db.methods.SequenceCursor, BaseUniProtRecordCursor):
+    """
+    Fetch UniProt entries, with their annotation, from the fastest source.
+
+    One call may mix identifiers of different kinds: UniProtKB
+    accessions, UniParc UPIs, UniRef cluster names and proteome
+    identifiers are each sent to the resource that knows about them
+    and the records come back together. UniProtKB entries
+    are taken as flat files, so they carry features and
+    cross-references; the other resources publish no such format and
+    come back as plain sequences.
+
+    This is the UniProt counterpart of
+    :class:`rotifer.db.ncbi.SequenceCursor` and takes the same
+    arguments, so switching source is mostly a matter of switching
+    import.
+
+    Parameters
+    ----------
+    readers : list of str, default ``['webapi']``
+        Backend reader modules, tried in order. Only the web service
+        has sequences today: the local mirror holds ``idmapping.dat``
+        rather than the flat files, and the SQL backends hold
+        mappings. The list is here so a local backend can be added
+        without changing any calling code.
+    writers : list of str, default []
+        Backend writer modules.
+    database : str, default 'auto'
+        Which UniProt resource to ask. ``auto`` decides from each
+        identifier, which is what lets one call mix them; naming a
+        resource explicitly skips detection.
+    progress : bool, default True
+        Whether to report progress.
+    tries : int, optional
+        Attempts per request. Defaults to the backend's own setting.
+    batch_size : int, optional
+        Identifiers per batch.
+    threads : int, optional
+        Simultaneous workers. Kept low by default: UniProt asks that
+        clients not open many connections at once.
+    **kwargs
+        Passed to the backends, so UniProt query parameters such as
+        ``fields`` or ``includeIsoform`` remain available.
+
+    Examples
+    --------
+    >>> from rotifer.db import uniprot
+    >>> sc = uniprot.SequenceCursor()                      # doctest: +SKIP
+    >>> records = sc.fetchall(['P00750','UPI0000000001'])  # doctest: +SKIP
+
+    Write them out, as any other Biopython records:
+
+    >>> import sys                                         # doctest: +SKIP
+    >>> from Bio import SeqIO                              # doctest: +SKIP
+    >>> for record in sc.fetchone(['P00750','P02766']):    # doctest: +SKIP
+    ...     SeqIO.write(record, sys.stdout, 'genbank')
+
+    See Also
+    --------
+    rotifer.db.uniprot.webapi.SequenceCursor : the backend this delegates to
+    rotifer.db.uniprot.webapi.FastaCursor : the same entries without annotation
+    rotifer.db.ncbi.SequenceCursor : the same idea, for NCBI
+    """
+
+    def __init__(
+            self,
+            readers = ['webapi'],
+            writers = [],
+            database = 'auto',
+            progress = True,
+            tries = None,
+            batch_size = None,
+            threads = None,
+            *args, **kwargs
+        ):
+        self._shared_attributes = ['progress','tries','batch_size','threads','database']
+        # Set before the backends are built, since they are built with it
+        self.database = database
+        super().__init__(readers=readers, writers=writers, progress=progress,
+                         tries=tries, batch_size=batch_size, threads=threads,
+                         *args, **kwargs)
+
+    def getids(self, obj, *args, **kwargs):
+        """
+        Every identifier a record might have been requested by.
+
+        An entry can be named by accession, by entry name or by a
+        secondary accession, and what comes back depends on the
+        format: FASTA carries ``sp|P00750|TPA_HUMAN`` where the flat
+        file carries ``P00750``. Reporting all of them is what keeps
+        an entry from being counted as missing, and handed to the next
+        backend, merely because it was asked for by another of its
+        names.
+
+        Parameters
+        ----------
+        obj : Bio.SeqRecord.SeqRecord, list or None
+            Records produced by a backend.
+
+        Returns
+        -------
+        set of str
+        """
+        # Imported here rather than at module level so that importing
+        # this package does not pull in the HTTP stack.
+        from rotifer.db.uniprot.webapi.entries import _record_ids
+
+        if isinstance(obj, types.NoneType):
+            return set()
+        if not isinstance(obj, (list, tuple)):
+            obj = [obj]
+        ids = set()
+        for record in obj:
+            ids.update(_record_ids(record))
+        return ids
+
+
+class TaxonomyCursor(BaseUniProtRecordCursor):
+    """
+    Fetch taxonomy records from UniProt.
+
+    UniProt describes a taxon far more fully than a lineage: the
+    mnemonic its entries use, the strains it covers, how many proteins
+    and proteomes it has. Every field it returns is kept, and the six
+    columns :class:`rotifer.db.ncbi.TaxonomyCursor` produces are added
+    alongside them, derived from the same reply. The two cursors are
+    therefore interchangeable for code that reads ``taxid``,
+    ``organism``, ``superkingdom``, ``lineage``, ``classification`` or
+    ``alternative_taxids``, and only code wanting UniProt's own fields
+    need care which it called.
+
+    UniProt's ``lineage`` is a list of ancestors rather than a string,
+    so it is kept as ``lineage_taxa`` and the ``lineage`` column holds
+    the reduced form the rest of rotifer expects.
+
+    Parameters
+    ----------
+    readers : list of str, default ``['webapi']``
+        Backend reader modules, tried in order. ``ete3`` is registered
+        as well and answers from a local copy of NCBI's taxonomy in
+        milliseconds, but it produces only the six shared columns, so
+        it is not a default: a query answered by it would silently
+        lack everything UniProt adds. Ask for it by name when the
+        shared columns are all you need:
+        ``readers=['ete3','webapi']``.
+    writers : list of str, default []
+        Backend writer modules.
+    progress : bool, default True
+        Whether to report progress.
+    tries : int, optional
+        Attempts per request. Defaults to the backend's own setting.
+    batch_size : int, optional
+        Identifiers per batch.
+    threads : int, optional
+        Simultaneous workers.
+    **kwargs
+        Passed to the backends, so UniProt query parameters such as
+        ``fields`` remain available.
+
+    Examples
+    --------
+    >>> from rotifer.db import uniprot
+    >>> tc = uniprot.TaxonomyCursor()               # doctest: +SKIP
+    >>> df = tc.fetchall([9606, 562])               # doctest: +SKIP
+    >>> df[tc.taxcols]                              # doctest: +SKIP
+
+    See Also
+    --------
+    rotifer.db.uniprot.webapi.TaxonomyCursor : the backend this delegates to
+    rotifer.db.ncbi.TaxonomyCursor : the same idea, for NCBI
+    """
+
+    #: Columns every rotifer taxonomy cursor produces, in order.
+    _taxcols = ['taxid','organism','superkingdom','lineage','classification','alternative_taxids']
+
+    #: Columns that can carry the identifier a row answers for. A
+    #: backend may name it either way, and a delegator sees both.
+    _id_columns = ('taxid','taxonId','query_id')
+
+    #: Nodes NCBI's lineages leave out, so that a classification built
+    #: here matches one built from ete3 for the same taxon.
+    _unranked = ('root','cellular organisms')
+
+    def __init__(
+            self,
+            readers = ['webapi'],
+            writers = [],
+            progress = True,
+            tries = None,
+            batch_size = None,
+            threads = None,
+            *args, **kwargs
+        ):
+        self._shared_attributes = ['progress','tries','batch_size','threads']
+        super().__init__(readers=readers, writers=writers, progress=progress,
+                         tries=tries, batch_size=batch_size, threads=threads,
+                         *args, **kwargs)
+        self.taxcols = list(self._taxcols)
+
+    def empty(self):
+        """
+        Build an empty result.
+
+        Returns
+        -------
+        pandas.DataFrame
+            No rows, but the shared columns, so that a caller reading
+            one of them need not first check whether anything matched.
+        """
+        return pd.DataFrame(columns=self.taxcols)
+
+    def getids(self, obj, *args, **kwargs):
+        """
+        Extract the taxon identifiers a result answers for.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame, list or None
+
+        Returns
+        -------
+        set of str
+        """
+        if isinstance(obj, types.NoneType):
+            return set()
+        if not isinstance(obj, (list, tuple)):
+            obj = [obj]
+        ids = set()
+        for frame in obj:
+            if not isinstance(frame, pd.DataFrame) or frame.empty:
+                continue
+            for column in self._id_columns:
+                if column in frame.columns:
+                    ids.update(frame[column].dropna().astype(str))
+            # A taxon asked for under a retired identifier answers
+            # under its replacement, and would otherwise look missing
+            if 'alternative_taxids' in frame.columns:
+                alternatives = frame.alternative_taxids.dropna().astype(str)
+                ids.update(alternatives.str.split(",").explode().dropna())
+        return ids
+
+    def classification(self, ancestors, organism):
+        """
+        Flatten one lineage into the string NCBI's cursors produce.
+
+        Parameters
+        ----------
+        ancestors : list of dict, or None
+            UniProt's ``lineage``, root first and without the taxon
+            itself.
+        organism : str or None
+            Scientific name of the taxon, which closes the lineage.
+
+        Returns
+        -------
+        str
+            Names separated by ``'; '``, root first.
+        """
+        names = []
+        for node in ancestors if isinstance(ancestors, (list, tuple)) else []:
+            name = node.get('scientificName') if isinstance(node, dict) else node
+            if name and str(name) not in self._unranked:
+                names.append(str(name))
+        if organism and not isinstance(organism, float):
+            names.append(str(organism))
+        return "; ".join(names)
+
+    def standardize(self, frame):
+        """
+        Add the columns every rotifer taxonomy cursor produces.
+
+        Only what is absent is derived, so a backend that already
+        speaks in these terms -- ``ete3`` does -- passes through
+        untouched.
+
+        Parameters
+        ----------
+        frame : pandas.DataFrame
+            One result, as a backend produced it.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The same rows, with the shared columns first.
+        """
+        if not isinstance(frame, pd.DataFrame) or frame.empty:
+            return self.empty()
+        frame = frame.copy().reset_index(drop=True)
+        if 'taxid' not in frame.columns and 'taxonId' in frame.columns:
+            frame['taxid'] = frame.taxonId.astype(str)
+        if 'organism' not in frame.columns and 'scientificName' in frame.columns:
+            frame['organism'] = frame.scientificName
+        if 'classification' not in frame.columns:
+            from rotifer.taxonomy.utils import lineage as reduce_lineage
+            ancestors = frame.lineage if 'lineage' in frame.columns else [None] * len(frame)
+            organisms = frame.organism if 'organism' in frame.columns else [None] * len(frame)
+            # UniProt's lineage carries a rank and a taxid per
+            # ancestor, which the flattened string cannot, so it is
+            # kept rather than overwritten
+            frame['lineage_taxa'] = list(ancestors)
+            frame['classification'] = [ self.classification(a, o)
+                                        for a, o in zip(ancestors, organisms) ]
+            frame['superkingdom'] = frame.classification.str.split("; ").str[0]
+            frame['lineage'] = reduce_lineage(frame.classification)
+        if 'alternative_taxids' not in frame.columns:
+            frame['alternative_taxids'] = frame.taxid if 'taxid' in frame.columns else ''
+        first = [ x for x in self.taxcols if x in frame.columns ]
+        return frame[first + [ x for x in frame.columns if x not in first ]]
+
+    def fetchone(self, accessions, *args, **kwargs):
+        """
+        Iterate over taxonomy records, trying each backend in turn.
+
+        Parameters
+        ----------
+        accessions : str, int or iterable
+            Taxon identifiers.
+
+        Yields
+        ------
+        pandas.DataFrame
+            One block of rows, carrying the shared columns whichever
+            backend produced it.
+        """
+        for frame in super().fetchone(accessions, *args, **kwargs):
+            yield self.standardize(frame)
+
+    def fetchall(self, accessions, *args, **kwargs):
+        """
+        Fetch every taxon as a single dataframe.
+
+        Parameters
+        ----------
+        accessions : str, int or iterable
+            Taxon identifiers.
+
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        frames = [ x for x in self.fetchone(accessions, *args, **kwargs)
+                   if isinstance(x, pd.DataFrame) and not x.empty ]
+        if not frames:
+            return self.empty()
+        return pd.concat(frames, ignore_index=True)
+
 
 if __name__ == '__main__':
     pass
