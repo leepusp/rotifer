@@ -133,6 +133,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         self.release = release
         self.batch_size = batch_size
         self.maxgetitem = 1000000
+        self._warned_unusable = False
 
     @property
     def source_version(self):
@@ -556,6 +557,9 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
             if not ok:
                 return self.count(role)
             rows = self.count(role)
+            # The state the warning was about has changed, so let it be
+            # said again if this file is ever emptied.
+            self._warned_unusable = False
             if isinstance(id_type, types.NoneType):
                 self.record_source(reader.datafile, rows, version=release, table=table)
             elif self.progress:
@@ -591,6 +595,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
                                 if not isinstance(v, types.NoneType) })
 
         rows = self.count(role)
+        self._warned_unusable = False
         if isinstance(id_type, types.NoneType):
             self.record_source(reader.datafile, rows, version=release, table=table)
         elif self.progress:
@@ -599,6 +604,51 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
                 'some of a release is not a copy of it'
             )
         return rows
+
+    def warn_if_unusable(self, role=None):
+        """
+        Say once that this file has nothing to answer with.
+
+        A file named but never loaded answers every query with no rows
+        and lets the delegator move on, which is correct and looks
+        exactly like a file that was loaded and simply has no mapping
+        for what was asked. The difference matters -- one is a database
+        waiting to be built -- and only the cursor can tell them apart,
+        so it says so rather than leaving the caller to wonder why a
+        query was slower than expected.
+
+        Said once per cursor: a warning repeated for every query in a
+        loop is noise, and the condition cannot change between them
+        without something else having loaded the file.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables.
+
+        Returns
+        -------
+        bool
+            Whether the table can answer anything at all.
+        """
+        table = self.table_name(role)
+        # The file itself is never missing here: connecting creates it,
+        # so a path that named nothing a moment ago names an empty
+        # database now, and the table is what tells them apart.
+        if not self.has_table(table):
+            reason = f'{self.path} has no {table} table'
+        elif not self.count(role):
+            reason = f'{table} in {self.path} is empty'
+        else:
+            return True
+        if not self._warned_unusable:
+            self._warned_unusable = True
+            logger.warning(
+                f'{reason}, so this backend can answer nothing. Load it with '
+                f'MappingCursor({self.path!r}).load(<uniprot mirror>) or point '
+                'sqlitedb= at a file that has been.'
+            )
+        return False
 
     def __getitem__(self, accessions, source=None, target=None):
         """
@@ -621,8 +671,8 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         if not targets:
             return self.empty()
         table = self.table_name()
-        if not self.has_table(table):
-            self.update_missing(targets, error=f'No table {table} in {self.path}',
+        if not self.warn_if_unusable():
+            self.update_missing(targets, error=f'Nothing loaded in {self.path}',
                                 retry=False)
             return self.empty()
         source = self.parse_databases(source)

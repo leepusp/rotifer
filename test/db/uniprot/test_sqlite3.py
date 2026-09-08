@@ -460,3 +460,67 @@ def test_indexes_can_be_deferred_and_built(tmp_path):
 if __name__ == '__main__':
     import sys
     sys.exit(pytest.main([__file__, '-q']))
+
+
+# ------------------------------------------------ a file with nothing in it
+
+def test_a_file_never_loaded_says_so(tmp_path, caplog):
+    """It answers no rows and lets the delegator move on, which is right and
+    looks exactly like a loaded file with no mapping for what was asked. Only
+    the cursor can tell those apart, so it does."""
+    mc = loader(tmp_path, name='never-loaded.sqlite3')
+    with caplog.at_level('WARNING'):
+        frame = mc.fetchall(['Q6GZX4'], source=U)
+    assert frame.empty
+    assert 'can answer nothing' in caplog.text
+    assert 'never-loaded.sqlite3' in caplog.text
+
+
+def test_an_empty_table_says_so(tmp_path, caplog):
+    """Created but not filled is its own state, and worth naming separately
+    from a table that was never created."""
+    mc = loader(tmp_path)
+    mc.create()
+    with caplog.at_level('WARNING'):
+        mc.fetchall(['Q6GZX4'], source=U)
+    assert 'is empty' in caplog.text
+
+
+def test_the_warning_is_said_once(tmp_path, caplog):
+    """Repeating it for every query in a loop is noise, and nothing can change
+    between them without something else having loaded the file."""
+    mc = loader(tmp_path)
+    with caplog.at_level('WARNING'):
+        for _ in range(3):
+            mc.fetchall(['Q6GZX4'], source=U)
+    assert caplog.text.count('can answer nothing') == 1
+
+
+def test_a_loaded_file_says_nothing(tmp_path, caplog):
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc = loader(tmp_path, release='2026_01')
+    mc.load(mirror, release='2026_01')
+    with caplog.at_level('WARNING'):
+        frame = mc.fetchall(['Q6GZX4'], source=U)
+    assert not frame.empty
+    assert 'can answer nothing' not in caplog.text
+
+
+def test_loading_lets_it_speak_again(tmp_path, caplog):
+    """The warning is silenced once said, but a load changes the state it was
+    about, so a file emptied afterwards must be able to say so again."""
+    mc = loader(tmp_path, release='2026_01')
+    with caplog.at_level('WARNING'):
+        mc.fetchall(['Q6GZX4'], source=U)
+    mirror = build_mirror(str(tmp_path / 'mirror'))
+    mc.load(mirror, release='2026_01')
+    assert mc._warned_unusable is False
+
+
+def test_the_warning_names_what_to_do(tmp_path, caplog):
+    """A warning that only says something is wrong leaves the reader to guess
+    what would fix it."""
+    mc = loader(tmp_path)
+    with caplog.at_level('WARNING'):
+        mc.fetchall(['Q6GZX4'], source=U)
+    assert '.load(' in caplog.text and 'sqlitedb=' in caplog.text
