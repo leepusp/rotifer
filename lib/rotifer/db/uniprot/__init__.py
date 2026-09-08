@@ -221,6 +221,12 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         wanted_source = set(source or [])
         wanted_target = set(target or [])
         served_source, served_target = set(), set()
+        # What some backend has already answered. An open ended query
+        # asks every backend for every identifier, so a later one is
+        # asked about identifiers an earlier one resolved, and reports
+        # the ones it does not carry as missing. They are not: missing
+        # means no backend could resolve it.
+        answered = set()
 
         for position, name in enumerate(self.readers):
             # What is still owed at each end. An end that is already
@@ -285,6 +291,7 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)
+                answered.update(targets.intersection(found))
                 for earlier in self.readers[:position+1]:
                     if earlier in self.cursors:
                         self.cursors[earlier].remove_missing(done)
@@ -304,6 +311,12 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             # A backend that finds nothing yields nothing, so what it
             # could not do has to be collected once it is exhausted
             self.absorb_missing(cursor)
+
+            # Absorbing brings in this backend's view of what it could
+            # not find, which includes identifiers another backend
+            # already answered. Those are not missing.
+            if answered:
+                self.remove_missing(answered)
 
             # Entries some backend declared final will not be found by
             # any of the others either

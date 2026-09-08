@@ -54,6 +54,12 @@ class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
                 for a in self._accessions if a in wanted
                 for t in served
                 if self._databases is None or t in self._databases]
+        # A real cursor records what it could not find, and the
+        # delegator has to cope with that: an identifier one backend
+        # answered will be reported missing by the next one asked.
+        lost = wanted - {row['source'] for row in rows}
+        if lost:
+            self.update_missing(lost, error='Not found.', retry=False)
         if rows:
             yield pd.DataFrame(rows, columns=self.columns)
 
@@ -494,3 +500,53 @@ def test_the_sqlite3_backend_is_given_the_file_not_the_mirror():
     # every other backend keeps the mirror
     assert delegator.backend_arguments('mirror', {'path': '/mirror/root'})['path'] \
         == '/mirror/root'
+
+
+# ------------------------------------------ what missing is allowed to mean
+
+def test_an_identifier_one_backend_answered_is_not_missing():
+    """Regression. An open ended query asks every backend for every
+    identifier, so a later one is asked about identifiers an earlier one
+    already resolved and reports the ones it does not carry as missing.
+    Absorbing that verbatim left an accession listed as missing in the same
+    breath as thirteen rows about it."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['A0ABD7BIQ8'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['A0ABD7BIQ8'], source=Backend.UNIPROTKB)
+    assert not frame.empty
+    assert delegator.missing_ids() == set()
+
+
+def test_an_identifier_nobody_answered_is_still_missing():
+    """The other half: clearing what was answered must not clear what was
+    not."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    delegator.fetchall(['NOWHERE'], source=Backend.UNIPROTKB)
+    assert 'NOWHERE' in delegator.missing_ids()
+
+
+def test_a_mixed_query_reports_only_the_one_that_was_not_found():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['FOUND'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['FOUND', 'LOST'], source=Backend.UNIPROTKB)
+    assert set(frame.source) == {'FOUND'}
+    assert delegator.missing_ids() == {'LOST'}
+
+
+def test_a_backend_keeps_its_own_view_of_what_it_lacks():
+    """Only the delegator's answer is corrected. A backend still records what
+    it could not find, which is what lets a delegator decide who to ask
+    next."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['A0ABD7BIQ8'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    delegator.fetchall(['A0ABD7BIQ8'], source=Backend.UNIPROTKB)
+    assert 'A0ABD7BIQ8' in backends['webapi'].missing_ids()
