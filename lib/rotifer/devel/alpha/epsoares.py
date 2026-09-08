@@ -1309,10 +1309,10 @@ def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, ma
     return df
 
 def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
-    sarp_model='/home/leep/epsoares/projects/igem/2026/data/btad_sarp.v2.hmm', return_hmmscan=False, after=10, before=10, run_fimo=True,
+    search_models='/home/leep/epsoares/projects/igem/2026/data/search_models.hmm', hmmsearch_score_filter=30, hmmsearch_evalue_filter=1e-4, return_hmmscan=False, after=10, before=10, run_fimo=True,
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     repeat_max_distance=50, repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
-    color_dict=None, domain_dict=None, seed=3, patience=2, max_distance=50, max_extend=30, 
+    color_dict=None, domain_dict=None, seed=4, patience=4, max_distance=50, max_extend=30, 
     domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, 
     filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
@@ -1330,8 +1330,8 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
 
     fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
     hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
-    hsearch = hmmsearch(sarp_model, genome_protein_fasta)
-    hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query('score >= 10 and evalue <= 1e-3')
+    hsearch = hmmsearch(search_models, genome_protein_fasta)
+    hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query(f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}')
     l = hsearch_hits.sequence.tolist()
     pids_list = fimo.pid.dropna().tolist() + l
     add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
