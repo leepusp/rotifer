@@ -91,7 +91,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             secure = config['secure'],
             batch_size = config['batch_size'],
             submit_threshold = config['submit_threshold'],
-            progress = False,
+            progress = True,
             *args, **kwargs
         ):
         # BaseCursor accepts and ignores unknown keywords, so a caller

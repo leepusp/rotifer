@@ -360,8 +360,8 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
         ``python``
             Match with the standard library alone.
 
-    progress : bool, default False
-        Whether to print progress messages.
+    progress : bool, default True
+        Whether to report progress.
 
     Attributes
     ----------
@@ -378,7 +378,7 @@ class BaseUniProtFileCursor(rotifer.db.core.BaseCursor):
     #: Path of the data file, relative to the root of the mirror.
     _datafile = None
 
-    def __init__(self, path=config['local_database_path'], threads=config['threads'], engine=config['engine'], progress=False, *args, **kwargs):
+    def __init__(self, path=config['local_database_path'], threads=config['threads'], engine=config['engine'], progress=True, *args, **kwargs):
         super().__init__(progress=progress, *args, **kwargs)
         self.path = path
         self.threads = max(1, int(threads or 1))
@@ -610,8 +610,8 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseUniProtFileCursor):
         Number of worker processes used to scan the file.
     engine : str, optional
         Matching engine, one of ``auto``, ``arrow`` or ``python``.
-    progress : bool, default False
-        Whether to print progress messages.
+    progress : bool, default True
+        Whether to report progress.
 
     Note
     ----

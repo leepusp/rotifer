@@ -86,6 +86,7 @@ import rotifer
 import rotifer.db.core
 import rotifer.db.methods
 import rotifer.db.delegator
+import rotifer.db.sql.progress as sqlprog
 from rotifer import GlobalConfig
 from rotifer.core.functions import loadConfig
 logger = rotifer.logging.getLogger(__name__)
@@ -167,7 +168,15 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
             Identifiers no backend could resolve are registered in
             :attr:`~rotifer.db.core.BaseCursor.missing`.
         """
-        return self.fetchall(accessions, *args, **kwargs)
+        # Dictionary style access is a lookup, not a job worth
+        # watching, so it is answered quietly. progress is shared with
+        # the backends, so setting it here silences them too.
+        progress = self.progress
+        self.progress = False
+        try:
+            return self.fetchall(accessions, *args, **kwargs)
+        finally:
+            self.progress = progress
 
     def fetchone(self, accessions, *args, **kwargs):
         """
@@ -233,120 +242,134 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
         # then only about those.
         covered = { x: set() for x in targets }
 
-        for position, name in enumerate(self.readers):
-            # What is still owed at each end. An end that is already
-            # covered falls back to the whole request rather than to
-            # nothing: it is a constraint on the query, not a thing to
-            # be collected, so a query still owed at the other end
-            # needs it stated in full.
-            pending_source = sorted(wanted_source - served_source) if wanted_source else None
-            pending_target = sorted(wanted_target - served_target) if wanted_target else None
-            ask_source = pending_source or source
-            ask_target = pending_target or target
+        # One bar for the whole query rather than one per backend: what
+        # a caller waits on is their identifiers being answered, and
+        # which backend answers them is the delegator's business.
+        bar = sqlprog.Progress(total=len(targets), unit='ids', desc='uniprot',
+                               enabled=self.progress, position=0)
 
-            # Finding every identifier is not the same as answering
-            # every question: a database no backend has looked at yet
-            # is still owed, even when nothing is left to look up.
-            #
-            # An end left open has no list to tick off, so no backend
-            # can be said to have covered it. The backends do not hold
-            # the same vocabulary -- the table has identifiers derived
-            # from the sequence, the web service has the annotation
-            # databases a curator recorded -- so "every database" is
-            # the union of what they all hold, and each is asked in
-            # turn. A caller who would rather have the first answer
-            # than the complete one can leave a backend out of
-            # ``readers``.
-            open_ended = isinstance(source, types.NoneType) or isinstance(target, types.NoneType)
-            if not todo and not pending_source and not pending_target and not open_ended:
-                break
-            if name not in self.cursors:
-                continue
-            cursor = self.cursors[name]
-            served_by = self.redundant(cursor, consulted)
-            if served_by:
-                logger.info(f'Skipping backend {name}: same data as {served_by}')
-                continue
+        # A caller may stop consuming a generator, so the bar is
+        # taken down however the loop ends rather than only when it
+        # runs out of backends.
+        try:
+            for position, name in enumerate(self.readers):
+                # What is still owed at each end. An end that is already
+                # covered falls back to the whole request rather than to
+                # nothing: it is a constraint on the query, not a thing to
+                # be collected, so a query still owed at the other end
+                # needs it stated in full.
+                pending_source = sorted(wanted_source - served_source) if wanted_source else None
+                pending_target = sorted(wanted_target - served_target) if wanted_target else None
+                ask_source = pending_source or source
+                ask_target = pending_target or target
 
-            # Note what this backend holds before deciding whether to
-            # ask it. A backend passed over for lacking a database has
-            # still told us what its data contains, and a later backend
-            # holding that same data lacks that database too: without
-            # this, being skipped here would hide the very fact that
-            # spares the next one a pointless scan.
-            content = self.content_of(cursor)
-            if not isinstance(content, types.NoneType):
-                consulted.setdefault(content, name)
+                # Finding every identifier is not the same as answering
+                # every question: a database no backend has looked at yet
+                # is still owed, even when nothing is left to look up.
+                #
+                # An end left open has no list to tick off, so no backend
+                # can be said to have covered it. The backends do not hold
+                # the same vocabulary -- the table has identifiers derived
+                # from the sequence, the web service has the annotation
+                # databases a curator recorded -- so "every database" is
+                # the union of what they all hold, and each is asked in
+                # turn. A caller who would rather have the first answer
+                # than the complete one can leave a backend out of
+                # ``readers``.
+                open_ended = isinstance(source, types.NoneType) or isinstance(target, types.NoneType)
+                if not todo and not pending_source and not pending_target and not open_ended:
+                    break
+                if name not in self.cursors:
+                    continue
+                cursor = self.cursors[name]
+                served_by = self.redundant(cursor, consulted)
+                if served_by:
+                    logger.info(f'Skipping backend {name}: same data as {served_by}')
+                    continue
 
-            # Ask each backend only for the databases it says it can
-            # answer for, so that an unsupported one falls through to
-            # the next backend instead of coming back empty and looking
-            # like an absent identifier.
-            here_source = cursor.supported(ask_source)
-            here_target = cursor.supported(ask_target)
-            if (ask_source and not here_source) or (ask_target and not here_target):
-                logger.info(f'Skipping backend {name}: none of the databases still owed are available there')
-                continue
+                # Note what this backend holds before deciding whether to
+                # ask it. A backend passed over for lacking a database has
+                # still told us what its data contains, and a later backend
+                # holding that same data lacks that database too: without
+                # this, being skipped here would hide the very fact that
+                # spares the next one a pointless scan.
+                content = self.content_of(cursor)
+                if not isinstance(content, types.NoneType):
+                    consulted.setdefault(content, name)
 
-            # What this backend could still add, identifier by
-            # identifier. An identifier every database this backend
-            # maps has already answered for is not worth asking about,
-            # and where no identifier is, the backend is not worth
-            # asking at all.
-            asking, here_target = self._uncovered(cursor, targets, todo, covered,
-                                                  here_target)
-            if not asking:
-                logger.info(f'Skipping backend {name}: it can add nothing to what is already known')
-                continue
+                # Ask each backend only for the databases it says it can
+                # answer for, so that an unsupported one falls through to
+                # the next backend instead of coming back empty and looking
+                # like an absent identifier.
+                here_source = cursor.supported(ask_source)
+                here_target = cursor.supported(ask_target)
+                if (ask_source and not here_source) or (ask_target and not here_target):
+                    logger.info(f'Skipping backend {name}: none of the databases still owed are available there')
+                    continue
 
-            for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
-                found = self.getids(result, *args, **kwargs)
-                done = todo.intersection(found)
-                answered.update(targets.intersection(found))
-                for earlier in self.readers[:position+1]:
-                    if earlier in self.cursors:
-                        self.cursors[earlier].remove_missing(done)
-                self.remove_missing(done)
-                for writer in self.writers:
-                    if writer == name or writer not in self.cursors:
-                        continue
-                    rows = self._rows_to_store(result, name)
-                    if not rows.empty:
-                        self.cursors[writer].insert(rows)
-                todo = todo - done
-                if isinstance(result, pd.DataFrame) and not result.empty:
-                    served_source.update(result.source_type.dropna().astype(str))
-                    served_target.update(result.target_type.dropna().astype(str))
-                    for identifier, database in zip(result.source.astype(str),
-                                                    result.target_type.astype(str)):
-                        if identifier in covered:
-                            covered[identifier].add(database)
-                yield result
+                # What this backend could still add, identifier by
+                # identifier. An identifier every database this backend
+                # maps has already answered for is not worth asking about,
+                # and where no identifier is, the backend is not worth
+                # asking at all.
+                asking, here_target = self._uncovered(cursor, targets, todo, covered,
+                                                      here_target)
+                if not asking:
+                    logger.info(f'Skipping backend {name}: it can add nothing to what is already known')
+                    continue
 
-            # A backend that finds nothing yields nothing, so what it
-            # could not do has to be collected once it is exhausted
-            self.absorb_missing(cursor)
+                for result in cursor.fetchone(asking, source=here_source, target=here_target, *args, **kwargs):
+                    found = self.getids(result, *args, **kwargs)
+                    done = todo.intersection(found)
+                    answered.update(targets.intersection(found))
+                    bar.position(len(answered))
+                    for earlier in self.readers[:position+1]:
+                        if earlier in self.cursors:
+                            self.cursors[earlier].remove_missing(done)
+                    self.remove_missing(done)
+                    for writer in self.writers:
+                        if writer == name or writer not in self.cursors:
+                            continue
+                        rows = self._rows_to_store(result, name)
+                        if not rows.empty:
+                            self.cursors[writer].insert(rows)
+                    todo = todo - done
+                    if isinstance(result, pd.DataFrame) and not result.empty:
+                        served_source.update(result.source_type.dropna().astype(str))
+                        served_target.update(result.target_type.dropna().astype(str))
+                        for identifier, database in zip(result.source.astype(str),
+                                                        result.target_type.astype(str)):
+                            if identifier in covered:
+                                covered[identifier].add(database)
+                    yield result
 
-            # Absorbing brings in this backend's view of what it could
-            # not find, which includes identifiers another backend
-            # already answered. Those are not missing.
-            if answered:
-                self.remove_missing(answered)
+                # A backend that finds nothing yields nothing, so what it
+                # could not do has to be collected once it is exhausted
+                self.absorb_missing(cursor)
 
-            # Entries some backend declared final will not be found by
-            # any of the others either
-            todo = todo - self.missing_ids(final=True)
+                # Absorbing brings in this backend's view of what it could
+                # not find, which includes identifiers another backend
+                # already answered. Those are not missing.
+                if answered:
+                    self.remove_missing(answered)
 
-            # Databases this backend could have answered for count as
-            # covered even when they returned nothing: the answer is
-            # then simply that there is no such mapping, which the next
-            # backend would only repeat.
-            served_source.update(x for x in (here_source or []) if x not in cursor.unsupported(here_source))
-            served_target.update(x for x in (here_target or []) if x not in cursor.unsupported(here_target))
-            if isinstance(source, types.NoneType):
-                wanted_source.update(served_source)
-            if isinstance(target, types.NoneType):
-                wanted_target.update(served_target)
+                # Entries some backend declared final will not be found by
+                # any of the others either
+                todo = todo - self.missing_ids(final=True)
+
+                # Databases this backend could have answered for count as
+                # covered even when they returned nothing: the answer is
+                # then simply that there is no such mapping, which the next
+                # backend would only repeat.
+                served_source.update(x for x in (here_source or []) if x not in cursor.unsupported(here_source))
+                served_target.update(x for x in (here_target or []) if x not in cursor.unsupported(here_target))
+                if isinstance(source, types.NoneType):
+                    wanted_source.update(served_source)
+                if isinstance(target, types.NoneType):
+                    wanted_target.update(served_target)
+
+        finally:
+            bar.close()
 
 
     def _uncovered(self, cursor, targets, todo, covered, here_target):

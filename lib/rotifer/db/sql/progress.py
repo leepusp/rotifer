@@ -83,9 +83,18 @@ class Progress:
         Label shown beside the bar.
     enabled : bool, default True
         Whether to show anything at all.
+    position : int, optional
+        Which line to draw on. A delegator takes 0 and its backends 1,
+        so the overall count stays above the backend working on it
+        rather than the two overwriting each other.
+    leave : bool, default True
+        Whether the bar stays on screen once finished. A backend's
+        does not: several of them run in turn for one query, and only
+        the total is worth keeping.
     """
 
-    def __init__(self, total=None, unit='rows', desc=None, enabled=True):
+    def __init__(self, total=None, unit='rows', desc=None, enabled=True,
+                 position=None, leave=True):
         self.total = total
         self._bar = None
         if not enabled:
@@ -93,7 +102,7 @@ class Progress:
         try:
             from tqdm import tqdm
             self._bar = tqdm(total=total, unit=unit, unit_scale=True,
-                             desc=desc, initial=0)
+                             desc=desc, initial=0, position=position, leave=leave)
         except Exception:
             logger.debug('Could not open a progress bar', exc_info=1)
 

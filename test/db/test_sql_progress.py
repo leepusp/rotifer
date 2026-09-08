@@ -149,3 +149,56 @@ def test_an_exception_inside_still_closes_the_bar():
 if __name__ == '__main__':
     import sys
     sys.exit(pytest.main([__file__, '-q']))
+
+
+# --------------------------------------------- who draws the bar, and where
+
+def test_the_bars_stack_rather_than_overwrite():
+    """A delegator and the backend it is driving both draw. Without a line
+    each they would write over one another, so the total sits above the
+    backend working towards it."""
+    outer = sqlprog.Progress(total=10, enabled=True, position=0)
+    inner = sqlprog.Progress(total=10, enabled=True, position=1, leave=False)
+    assert outer._bar.pos == 0
+    assert abs(inner._bar.pos) == 1        # tqdm keeps it negated internally
+    inner.close(); outer.close()
+
+
+def test_a_backend_bar_does_not_stay_behind():
+    """Several backends run in turn for one query; only the total is worth
+    keeping once they are done."""
+    inner = sqlprog.Progress(total=1, enabled=True, position=1, leave=False)
+    assert inner._bar.leave is False
+    inner.close()
+
+
+def test_dictionary_access_is_answered_quietly(capsys):
+    """A lookup is not a job to watch. fetchall and fetchone report; mc[x]
+    does not."""
+    from rotifer.db import uniprot
+
+    class Quiet(uniprot.BaseUniProtDelegatorCursor):
+        def __init__(self):
+            self._backends = {}
+            super().__init__(readers=[])
+
+        def reset_cursors(self):
+            self.cursors = {}
+
+    cursor = Quiet()
+    cursor.progress = True
+    cursor['P00750']
+    assert capsys.readouterr().err == ''
+    # and the setting is put back, since it is shared with the backends
+    assert cursor.progress is True
+
+
+def test_a_sql_backend_draws_for_fetchone_and_not_for_getitem(tmp_path):
+    """The batches happen in __getitem__, which is also what dictionary access
+    calls, so the bar is switched on by fetchone rather than living there."""
+    from rotifer.db.uniprot import sqlite3 as rus
+    cursor = rus.MappingCursor(str(tmp_path / 'q.sqlite3'), progress=True)
+    cursor.create()
+    assert cursor._drawing is False
+    list(cursor.fetchone(['P00750'], source=cursor.UNIPROTKB))
+    assert cursor._drawing is False        # put back afterwards

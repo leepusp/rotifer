@@ -106,8 +106,9 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
     batch_size : int, optional
         Identifiers per statement. SQLite3 limits how many values one
         statement may bind, so a long query is asked in batches.
-    progress : bool, default False
-        Whether to print progress messages.
+    progress : bool, default True
+        Whether to report progress. A bar is shown while a query is
+        answered and while a file is loaded; pass False for silence.
 
     Attributes
     ----------
@@ -128,7 +129,7 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
     _table_columns = ['accession', 'id_type', 'id']
 
     def __init__(self, path, release=None, batch_size=config['batch_size'],
-                 progress=False, *args, **kwargs):
+                 progress=True, *args, **kwargs):
         super().__init__(path=path, progress=progress, *args, **kwargs)
         self.release = release
         self.batch_size = batch_size
@@ -682,7 +683,8 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         batches = list(self._batches(sorted(targets), self.batch_size))
         try:
             with sqlprog.Progress(total=len(targets), unit='ids', desc='querying',
-                                  enabled=self.progress and len(batches) > 1) as bar:
+                                  enabled=self.progress and self._drawing,
+                                  position=1, leave=False) as bar:
               for batch in batches:
                 binder = sqlmap.QmarkBinder()
 
@@ -728,6 +730,11 @@ class MappingCursor(rotifer.db.methods.MappingCursor, BaseSQLite3Cursor):
         size = max(1, int(size or len(values) or 1))
         for start in range(0, len(values), size):
             yield values[start:start+size]
+
+    #: Whether a bar belongs on this query. Set while fetchone runs,
+    #: since dictionary style access is a lookup rather than a job to
+    #: watch, and __getitem__ is where the batches actually happen.
+    _drawing = False
 
     def fetchone(self, accessions, source=None, target=None):
         """
