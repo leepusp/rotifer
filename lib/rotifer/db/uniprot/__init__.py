@@ -342,6 +342,104 @@ class BaseUniProtDelegatorCursor(rotifer.db.methods.MappingCursor, rotifer.db.de
                 final = True,
             )
 
+    def databases(self):
+        """
+        Name every database this delegator's backends can map.
+
+        The backends hold different vocabularies -- the table has the
+        identifiers derived from a sequence, the web service has the
+        annotation databases a curator recorded -- so what the
+        delegator can answer for is the union of theirs, not any one
+        of them.
+
+        A backend that cannot enumerate its own vocabulary, as the
+        mirror cannot without reading 90 GB, contributes nothing to
+        the list. It is not thereby excluded from being asked: the
+        list says what is known to be reachable, not what is allowed.
+
+        Returns
+        -------
+        set of str or None
+            None when no backend could name its databases, which is
+            read as "any" and narrows nothing.
+
+        Examples
+        --------
+        >>> from rotifer.db import uniprot
+        >>> sorted(uniprot.MappingCursor().databases())[:3]  # doctest: +SKIP
+        ['ABCD', 'AGR', 'AbasyAtlas']
+        """
+        known = set()
+        answered = False
+        for name in self.readers:
+            cursor = self.cursors.get(name)
+            if isinstance(cursor, types.NoneType):
+                continue
+            try:
+                vocabulary = cursor.databases()
+            except Exception:
+                logger.debug(f'databases() failed for backend {name}', exc_info=1)
+                continue
+            if isinstance(vocabulary, types.NoneType):
+                continue
+            answered = True
+            known.update(vocabulary)
+        return known if answered else None
+
+    def databases_by_backend(self):
+        """
+        Say which backend can map which databases.
+
+        Useful for telling a database no backend has from one only the
+        slow backend has, which the union alone cannot distinguish.
+
+        Returns
+        -------
+        dict
+            Backend name to its vocabulary, or to None where it could
+            not name one.
+        """
+        found = dict()
+        for name in self.readers:
+            cursor = self.cursors.get(name)
+            if isinstance(cursor, types.NoneType):
+                continue
+            try:
+                found[name] = cursor.databases()
+            except Exception:
+                logger.debug(f'databases() failed for backend {name}', exc_info=1)
+                found[name] = None
+        return found
+
+    def unsupported(self, databases):
+        """
+        Pick the databases no backend can answer for.
+
+        A backend that cannot enumerate its vocabulary might hold any
+        of them, so while one is present nothing can be called
+        unsupported: the union names what is known to be reachable,
+        which is not the same as a limit.
+
+        Parameters
+        ----------
+        databases : list of str or None
+            Databases asked for, or None for every database.
+
+        Returns
+        -------
+        list of str
+        """
+        for name in self.readers:
+            cursor = self.cursors.get(name)
+            if isinstance(cursor, types.NoneType):
+                continue
+            try:
+                if isinstance(cursor.databases(), types.NoneType):
+                    return []
+            except Exception:
+                return []
+        return super().unsupported(databases)
+
     def _rows_to_store(self, result, backend):
         """
         Choose which rows to hand to the writers.

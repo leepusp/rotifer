@@ -296,3 +296,63 @@ def test_a_mapping_two_backends_agree_on_appears_once():
     )
     frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=None)
     assert len(frame) == 1 and frame.duplicated().sum() == 0
+
+
+# ------------------------------------------------------ combined vocabulary
+
+def test_the_vocabulary_is_the_union_of_the_backends():
+    """The backends hold different databases, so what the delegator can answer
+    for is the union of theirs and not any one of them."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq', 'GI'}),
+        ('webapi', None, [], {'RefSeq', 'Pfam'}),
+    )
+    assert delegator.databases() == {'RefSeq', 'GI', 'Pfam'}
+
+
+def test_a_backend_that_cannot_enumerate_adds_nothing():
+    """The mirror cannot name its vocabulary without reading 90 GB. It says so
+    by returning None, which must neither empty the union nor make it
+    unbounded."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('mirror', 'x:1:1', [], None),
+    )
+    assert delegator.databases() == {'RefSeq'}
+
+
+def test_no_backend_can_enumerate_means_no_answer():
+    """None is 'cannot say', and a delegator whose backends all say that
+    cannot say either."""
+    delegator, backends = build(('mirror', None, [], None))
+    assert delegator.databases() is None
+
+
+def test_the_union_says_which_backend_has_what():
+    """The union alone cannot tell a database nobody has from one only the
+    slow backend has, so the breakdown is available too."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    assert delegator.databases_by_backend() == {
+        'clickhouse': {'RefSeq'}, 'webapi': {'Pfam'}}
+
+
+def test_nothing_is_unsupported_while_a_backend_cannot_say():
+    """A backend that cannot enumerate might hold anything, so the union names
+    what is known to be reachable rather than a limit."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('mirror', 'x:1:1', [], None),
+    )
+    assert delegator.unsupported(['Nonesuch']) == []
+
+
+def test_an_unknown_database_is_unsupported_when_every_backend_can_say():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    assert delegator.unsupported(['Nonesuch']) == ['Nonesuch']
+    assert delegator.unsupported(['RefSeq', 'Pfam']) == []
