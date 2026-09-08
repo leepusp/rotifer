@@ -24,6 +24,10 @@ named once for every cursor or separately for each.
 
 Note
 ----
+The tables a cursor reads are not configured here: they are declared
+by the cursor's class, since which tables its SQL joins is a property
+of that SQL rather than something a caller chooses.
+
 ``port`` below is ClickHouse's HTTP port, which is not necessarily the
 port a given server listens on; the native protocol usually sits on
 9000 and is not what these cursors speak.
@@ -40,7 +44,6 @@ _defaults = {
     'user': 'default',
     'password': '',
     'dbname': 'rotifer',
-    'table': '',
     'secure': False,
     'batch_size': 5000,
     'submit_threshold': 1000,

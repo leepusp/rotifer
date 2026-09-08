@@ -574,9 +574,11 @@ class MappingCursor(BaseUniProtDelegatorCursor):
         Root directory of the local UniProt mirror.
     engine : str, optional
         Matching engine of the ``mirror`` backend.
-    host, port, dbname, table : optional
-        Where the ClickHouse backend should look. Each defaults to
-        that backend's own configuration.
+    host, port, dbname : optional
+        Which server and database the ClickHouse backend should use.
+        Each defaults to that backend's own configuration. The tables
+        it reads are not among these: they are declared by the cursor
+        classes themselves.
     initialize : bool or str, default False
         Create the storage table, and load it, before querying.
     cache : bool, default False
@@ -613,7 +615,6 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             host = None,
             port = None,
             dbname = None,
-            table = None,
             initialize = False,
             cache = False,
             progress = True,
@@ -622,14 +623,13 @@ class MappingCursor(BaseUniProtDelegatorCursor):
             threads = None,
             *args, **kwargs
         ):
-        self._shared_attributes = ['progress','release','path','engine','host','port','dbname','table','batch_size','threads']
+        self._shared_attributes = ['progress','release','path','engine','host','port','dbname','batch_size','threads']
         self.release = release
         self.path = local_database_path
         self.engine = engine
         self.host = host
         self.port = port
         self.dbname = dbname
-        self.table = table
         writers = list(writers)
         if cache and self._store_backend not in writers:
             writers.append(self._store_backend)

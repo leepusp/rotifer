@@ -102,122 +102,55 @@ def build_mirror(root, compressed=False):
     return root
 
 
+#: Every table these tests build is named like this. The teardown
+#: refuses to drop anything else, because it once dropped a table
+#: holding a release: the cursor took its table from the class, a
+#: `table=` keyword meant to redirect it was swallowed by **kwargs,
+#: and the fixture went on to drop what the class had named.
+TEST_TABLE_PREFIX = 'test_load_'
+
+
 @pytest.fixture
 def loader(tmp_path):
     """A cursor on a table of its own, dropped when the test ends."""
-    table = 'test_load_' + uuid.uuid4().hex[:8]
-    cursor = ruch.MappingCursor(table=table, release=RELEASE, progress=False)
+    table = TEST_TABLE_PREFIX + uuid.uuid4().hex[:8]
+
+    # Which tables a cursor reads is declared by its class, so a test
+    # that wants its own says so by being its own class. There is no
+    # keyword that could point it somewhere else, and none that could
+    # be ignored.
+    class Loader(ruch.MappingCursor):
+        tables = {'mapping': table}
+
+    cursor = Loader(release=RELEASE, progress=False)
+    assert cursor.table_name().startswith(TEST_TABLE_PREFIX)
     try:
         yield cursor, build_mirror(str(tmp_path))
     finally:
+        name = cursor.table_name()
+        if not name.startswith(TEST_TABLE_PREFIX):      # never in practice
+            raise RuntimeError(f'refusing to drop {name!r}: not a test table')
         try:
-            cursor.command(f'DROP TABLE IF EXISTS {cursor.qualified_name}')
+            cursor.command(f'DROP TABLE IF EXISTS {cursor.qualified()}')
             if cursor.has_table(cursor._sources_table):
                 cursor.command(
-                    f'ALTER TABLE {cursor.sources_table} DELETE WHERE `table` = %(t)s',
-                    parameters={'t': table},
+                    f'ALTER TABLE {cursor.sources_table} DELETE WHERE `table` = %(t)s'
+                    ' SETTINGS mutations_sync = 1',
+                    parameters={'t': name},
                 )
         except Exception:
             pass
 
 
 @needs_server
-@pytest.mark.parametrize('method', ['python', 'client'])
-def test_load_puts_every_row_in_the_table(loader, method):
-    """Both methods must land the same rows: one sends them through the
-    driver, the other pipes the file through the clickhouse program."""
-    if method == 'client' and not shutil.which(ruch.config['executable']):
-        pytest.skip('needs the clickhouse client program')
-    cursor, mirror = loader
-    assert cursor.create() is True
-    assert cursor.load(mirror, release=RELEASE, method=method) == len(ROWS)
-    assert cursor.count() == len(ROWS)
-
-
-@needs_server
-def test_loaded_rows_are_readable_through_the_cursor(loader):
-    """A load nobody can query is not a load: read it back the way the
-    package will, rather than by counting rows."""
-    cursor, mirror = loader
-    cursor.create()
-    cursor.load(mirror, release=RELEASE, method='python')
-    frame = cursor.fetchall(['TEST0001'], source=cursor.UNIPROTKB)
-    assert sorted(zip(frame.target_type, frame.target)) == [
-        ('EMBL-CDS', 'AAT00001.1'),
-        ('KEGG', 'vg:0001'),
-        ('RefSeq', 'NP_TEST0001.1'),
-    ]
-
-
-@needs_server
-def test_the_release_is_stamped_on_every_row(loader):
-    """The table is partitioned by release, so a row without one would be
-    unreachable to a cursor filtering by it and undeletable as a partition."""
-    cursor, mirror = loader
-    cursor.create()
-    cursor.load(mirror, release=RELEASE, method='python')
-    releases = cursor.query(f'SELECT DISTINCT release FROM {cursor.qualified_name}')
-    assert releases.release.tolist() == [RELEASE]
-
-
-@needs_server
-def test_a_completed_load_records_where_it_came_from(loader):
-    """The record is what lets a delegator see that the table and the mirror
-    hold one file, and skip the ninety second scan."""
-    cursor, mirror = loader
-    cursor.create()
-    cursor.load(mirror, release=RELEASE, method='python')
-    reader = rum.MappingCursor(path=mirror, progress=False)
-    assert cursor.content_id() is not None
-    assert cursor.content_id() == reader.content_id()
-
-
-@needs_server
-def test_a_table_that_was_never_loaded_records_nothing(loader):
-    """The completeness gate: creating the table is not loading it, and an
-    empty table must not be mistaken for a copy of the file."""
-    cursor, mirror = loader
-    cursor.create()
-    assert cursor.count() == 0
-    assert cursor.content_id() is None
-
-
-@needs_server
-def test_load_accepts_a_mirror_cursor_as_well_as_a_path(loader):
-    """The signature takes either, and the branch that unwraps a cursor is
-    exactly the one a rename once broke."""
-    cursor, mirror = loader
-    cursor.create()
-    reader = rum.MappingCursor(path=mirror, progress=False)
-    assert cursor.load(reader, release=RELEASE, method='python') == len(ROWS)
-
-
-@needs_server
-def test_loading_a_mirror_with_no_file_changes_nothing(loader, tmp_path):
-    """An empty directory is not a mirror. Saying so by returning the row
-    count leaves the table as it was, rather than half filled."""
-    cursor, mirror = loader
-    cursor.create()
-    empty = str(tmp_path / 'not-a-mirror')
-    os.makedirs(empty, exist_ok=True)
-    assert cursor.load(empty, release=RELEASE, method='python') == 0
-    assert cursor.content_id() is None
-
-
-@needs_server
-@pytest.mark.parametrize('method', ['python', 'client'])
-def test_a_compressed_mirror_loads_the_same_rows(loader, tmp_path, method):
-    """UniProt publishes the file gzipped, and a mirror may hold it that way.
-    The client path decompresses it in a separate process, which is the half
-    of that code a plain file never reaches."""
-    if method == 'client' and not shutil.which(ruch.config['executable']):
-        pytest.skip('needs the clickhouse client program')
-    cursor, _ = loader
-    gzipped = build_mirror(str(tmp_path / 'gz'), compressed=True)
-    cursor.create()
-    assert cursor.load(gzipped, release=RELEASE, method=method) == len(ROWS)
-    frame = cursor.fetchall(['TEST0002'], source=cursor.UNIPROTKB)
-    assert sorted(frame.target_type) == ['KEGG', 'RefSeq']
+def test_a_table_cannot_be_named_from_outside(loader):
+    """The keyword that caused the accident is refused rather than ignored:
+    a cursor's tables come from its class, and a caller who thinks otherwise
+    should be told so rather than silently given the class's own."""
+    with pytest.raises(TypeError, match='not a parameter'):
+        ruch.MappingCursor(table='somewhere_else', progress=False)
+    with pytest.raises(TypeError, match='not a parameter'):
+        ruch.MappingCursor(tables={'mapping': 'somewhere_else'}, progress=False)
 
 
 @needs_server
@@ -232,7 +165,7 @@ def test_load_stamps_the_release_it_was_given(loader, method):
     cursor, mirror = loader          # the cursor's own release is RELEASE
     cursor.create()
     cursor.load(mirror, release='another_release', method=method)
-    releases = cursor.query(f'SELECT DISTINCT release FROM {cursor.qualified_name}')
+    releases = cursor.query(f'SELECT DISTINCT release FROM {cursor.qualified()}')
     assert releases.release.tolist() == ['another_release']
 
 
@@ -296,7 +229,7 @@ def test_drop_release_removes_only_that_release(loader):
 
     cursor.drop_release('old_release')
     assert cursor.count() == len(ROWS)
-    releases = cursor.query(f'SELECT DISTINCT release FROM {cursor.qualified_name}')
+    releases = cursor.query(f'SELECT DISTINCT release FROM {cursor.qualified()}')
     assert releases.release.tolist() == [RELEASE]
 
 

@@ -88,7 +88,6 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             user = config['user'],
             password = config['password'],
             dbname = config['dbname'],
-            table = config['table'],
             secure = config['secure'],
             batch_size = config['batch_size'],
             submit_threshold = config['submit_threshold'],
@@ -103,13 +102,31 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
                 "the 'database' parameter is now called 'dbname'; "
                 f"pass dbname={kwargs['database']!r} instead"
             )
+        # Naming a table from outside used to be possible, and a
+        # keyword that no longer exists would otherwise be absorbed by
+        # **kwargs and ignored, leaving the cursor pointed at whatever
+        # its class declares. That is how a test once dropped a
+        # production table, so it is refused rather than ignored.
+        for name in ('table','tables'):
+            if name in kwargs:
+                raise TypeError(
+                    f"{name!r} is not a parameter: the tables a cursor reads are "
+                    "declared by its class, in the 'tables' attribute. Subclass it "
+                    "to read others."
+                )
         super().__init__(progress=progress, *args, **kwargs)
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.dbname = dbname
-        self.table = table
+        # Tables this cursor reads, by the role each plays in its
+        # queries. A cursor joining several of them has no single
+        # table to be named after, so it names them one by one.
+        # Which tables a cursor reads is a property of its SQL, not
+        # of the caller: a copy is taken so an instance can be pointed
+        # elsewhere in code, but nothing outside chooses them.
+        self.tables = dict(self.tables)
         self.secure = secure
         self.batch_size = batch_size
         self.submit_threshold = submit_threshold
@@ -150,6 +167,58 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             )
         return self._client
 
+    #: Tables a cursor of this class reads, keyed by the role each
+    #: plays in its queries. Subclasses declare their own.
+    tables = {}
+
+    def table_name(self, role=None):
+        """
+        Name the table filling one role in this cursor's queries.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables. May be omitted only when
+            there is one, which is the common case.
+
+        Returns
+        -------
+        str
+
+        Raises
+        ------
+        KeyError
+            If the role is unknown, or omitted where several tables
+            would answer to it.
+        """
+        if isinstance(role, types.NoneType):
+            if len(self.tables) == 1:
+                return next(iter(self.tables.values()))
+            raise KeyError(
+                f'{self.__name__} reads {len(self.tables)} tables '
+                f'({", ".join(sorted(self.tables))}), so one must be named'
+            )
+        if role not in self.tables:
+            raise KeyError(f'{self.__name__} has no table for {role!r}: '
+                           f'known roles are {sorted(self.tables)}')
+        return self.tables[role]
+
+    def qualified(self, role=None):
+        """
+        Qualified name of one of this cursor's tables.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of them. See :meth:`table_name`.
+
+        Returns
+        -------
+        str
+            For example, ``rotifer.idmapping``.
+        """
+        return f'{self.dbname}.{self.table_name(role)}'
+
     @property
     def qualified_name(self):
         """
@@ -158,9 +227,10 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         Returns
         -------
         str
-            For example, ``rotifer.idmapping``.
+            For example, ``rotifer.idmapping``. Meaningful only for a
+            cursor reading a single table; the others name a role.
         """
-        return f'{self.dbname}.{self.table}'
+        return self.qualified()
 
     # Statements
 
@@ -261,7 +331,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             ORDER BY (`table`, version, source)
         """)
 
-    def record_source(self, datafile, rows, version=None, checksum=''):
+    def record_source(self, datafile, rows, version=None, table=None, checksum=''):
         """
         Record that this table was loaded, whole, from a file.
 
@@ -278,6 +348,9 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             Number of rows in the table afterwards.
         version : str, optional
             Version label. Defaults to :attr:`source_version`.
+        table : str, optional
+            Table the record is about. Defaults to this cursor's,
+            which only a single table cursor has.
         checksum : str, optional
             Checksum of the file, when one was computed. Recorded for
             verification; routine comparisons use the cheap identity
@@ -301,7 +374,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             table = self._sources_table,
             database = self.dbname,
             column_names = ['table','version','source','size','mtime','rows','checksum'],
-            data = [[str(self.table), str(version), os.path.realpath(datafile),
+            data = [[str(table or self.table_name()), str(version), os.path.realpath(datafile),
                      int(info.st_size), int(info.st_mtime), int(rows), str(checksum)]],
         )
         return True
@@ -335,7 +408,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             if not self.has_table(self._sources_table):
                 return False
             sql = f'ALTER TABLE {self.sources_table} DELETE WHERE `table` = %(table)s'
-            parameters = {'table': str(table or self.table)}
+            parameters = {'table': str(table or self.table_name())}
             if version:
                 sql += ' AND version = %(version)s'
                 parameters['version'] = str(version)
@@ -370,12 +443,43 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         rotifer.db.core.BaseCursor.content_id : what the value means
         record_source : how the value gets written
         """
+        identities = []
+        for role in sorted(self.tables):
+            one = self.recorded_source(self.tables[role])
+            if isinstance(one, types.NoneType):
+                # One table unaccounted for is enough: a cursor whose
+                # query needs all of them holds all of them or none.
+                return None
+            identities.append((role, one))
+        if not identities:
+            return None
+        if len(identities) == 1:
+            # A single table is named by its file alone, which is what
+            # a cursor reading that file directly reports too.
+            return identities[0][1]
+        return "|".join([ f'{role}={one}' for role, one in identities ])
+
+    def recorded_source(self, table):
+        """
+        Identity of the file one table was loaded from.
+
+        Parameters
+        ----------
+        table : str
+            Name of the table.
+
+        Returns
+        -------
+        str or None
+            ``<path>:<size>:<mtime>``, or None when the table has no
+            record, which is what an interrupted load leaves.
+        """
         try:
             if not self.has_table(self._sources_table):
                 return None
             sql = (f'SELECT source, size, mtime FROM {self.sources_table} '
                    f'WHERE `table` = %(table)s')
-            parameters = {'table': self.table}
+            parameters = {'table': str(table)}
             version = self.source_version
             if version:
                 sql += ' AND version = %(version)s'
@@ -408,7 +512,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         -------
         bool
         """
-        name = name or self.table
+        name = name or self.table_name()
         dbname = dbname or self.dbname
         found = self.query(
             "SELECT count() AS n FROM system.tables WHERE database = {db:String} AND name = {tb:String}",
@@ -554,7 +658,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
 
     # Tables and data
 
-    def create(self, replace=False, schema=None, **parameters):
+    def create(self, replace=False, schema=None, role=None, **parameters):
         """
         Create the cursor's database and table.
 
@@ -573,6 +677,9 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         schema : str, optional
             Resource name of the SQL file. Defaults to the subclass's
             :attr:`_schema_resource`.
+        role : str, optional
+            Which of the cursor's tables to build. May be omitted only
+            when it reads one.
         **parameters
             Further values substituted into the file.
 
@@ -596,7 +703,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
             return False
         sql = open(sqlfile, "rt").read().format(
             dbname = self.dbname,
-            table = self.table,
+            table = self.table_name(role),
             # accepted too, so that schema files written against the
             # older placeholder keep working
             database = self.dbname,
@@ -604,7 +711,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         )
 
         if replace:
-            self.command(f'DROP TABLE IF EXISTS {self.qualified_name}')
+            self.command(f'DROP TABLE IF EXISTS {self.qualified(role)}')
 
         # Comments are stripped before the statements are split apart,
         # so that a semicolon inside a comment is not mistaken for the
@@ -615,7 +722,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
                 continue
             self.command(statement)
 
-        return self.has_table()
+        return self.has_table(self.table_name(role))
 
     def insert(self, data):
         """
@@ -628,7 +735,7 @@ class BaseClickHouseCursor(rotifer.db.core.BaseCursor):
         """
         if data.empty:
             return
-        self.client.insert_df(table=self.table, df=data, database=self.dbname)
+        self.client.insert_df(table=self.table_name(), df=data, database=self.dbname)
 
     def drop_partition(self, partition):
         """

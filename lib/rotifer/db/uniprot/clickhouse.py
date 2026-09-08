@@ -56,7 +56,6 @@ BaseClickHouseCursor = rotifer.db.sql.clickhouse.core.BaseClickHouseCursor
 _defaults = dict(clickhouse_config)
 _defaults.update({
     'dbname': 'rotifer',
-    'table': 'idmapping',
     'release': '',
     'chunksize': 5000000,
 })
@@ -105,6 +104,9 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
     #: cross-reference, while a mapping names both of its ends.
     _table_columns = ['accession','id_type','id']
 
+    #: The one table these cursors read, and the role it plays.
+    tables = {'mapping': 'idmapping'}
+
     #: Where :meth:`create` reads this table's definition from.
     _schema_resource = __name__ + ".idmapping.sql"
 
@@ -117,7 +119,7 @@ class BaseMappingCursor(rotifer.db.methods.MappingCursor, BaseClickHouseCursor):
         # Connection settings default to this module's configuration
         # rather than the shared one, so that a UniProt server can be
         # named separately from every other ClickHouse table
-        for key in ('host','port','user','password','dbname','table',
+        for key in ('host','port','user','password','dbname',
                     'secure','batch_size','submit_threshold'):
             kwargs.setdefault(key, config[key])
         super().__init__(*args, **kwargs)

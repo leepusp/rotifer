@@ -104,8 +104,14 @@ def test_records_are_kept_per_table(tmp_path):
     cur.record_source(a, rows=1, table='features')
     cur.record_source(b, rows=1, table='other')
     assert cur.content_id().endswith(f'a.dat:{os.path.getsize(a)}:{int(os.path.getmtime(a))}')
-    cur.table = 'other'
-    assert cur.content_id().endswith(f'b.dat:{os.path.getsize(b)}:{int(os.path.getmtime(b))}')
+
+    # A cursor reading another table is another class: which tables it
+    # reads is declared by the class, not set on the instance.
+    class Other(rdss.BaseSQLite3Cursor):
+        tables = {'other': 'other'}
+
+    other = Other(path=os.path.join(str(tmp_path), 'test.sqlite3'))
+    assert other.content_id().endswith(f'b.dat:{os.path.getsize(b)}:{int(os.path.getmtime(b))}')
 
 
 def test_several_versions_are_ambiguous_without_a_filter(tmp_path):

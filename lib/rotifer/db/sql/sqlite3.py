@@ -120,8 +120,35 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
     #: that provenance reads the same whichever SQL backend holds it.
     _sources_table = 'rotifer_sources'
 
-    #: Table these cursors load their data into.
-    table = 'features'
+    #: Tables these cursors read, keyed by the role each plays. A
+    #: cursor joining several has no single table to be named after.
+    tables = {'features': 'features'}
+
+    def table_name(self, role=None):
+        """
+        Name the table filling one role in this cursor's queries.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables. May be omitted only when
+            there is one.
+
+        Returns
+        -------
+        str
+        """
+        if isinstance(role, types.NoneType):
+            if len(self.tables) == 1:
+                return next(iter(self.tables.values()))
+            raise KeyError(
+                f'{self.__name__} reads {len(self.tables)} tables '
+                f'({", ".join(sorted(self.tables))}), so one must be named'
+            )
+        if role not in self.tables:
+            raise KeyError(f'{self.__name__} has no table for {role!r}: '
+                           f'known roles are {sorted(self.tables)}')
+        return self.tables[role]
 
     @property
     def sources_table(self):
@@ -213,7 +240,7 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
             f'INSERT OR REPLACE INTO {self._sources_table} '
             '("table", version, source, size, mtime, rows, checksum) '
             'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (str(table or self.table), str(version), os.path.realpath(datafile),
+            (str(table or self.table_name()), str(version), os.path.realpath(datafile),
              int(info.st_size), int(info.st_mtime), int(rows), str(checksum)),
         )
         self._dbconn.commit()
@@ -248,7 +275,7 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
             if not self.has_table(self._sources_table):
                 return False
             sql = f'DELETE FROM {self._sources_table} WHERE "table" = ?'
-            parameters = [str(table or self.table)]
+            parameters = [str(table or self.table_name())]
             if version:
                 sql += ' AND version = ?'
                 parameters.append(str(version))
@@ -280,11 +307,42 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
         rotifer.db.core.BaseCursor.content_id : what the value means
         record_source : how the value gets written
         """
+        identities = []
+        for role in sorted(self.tables):
+            one = self.recorded_source(self.tables[role])
+            if isinstance(one, types.NoneType):
+                # One table unaccounted for is enough: a cursor whose
+                # query needs all of them holds all of them or none.
+                return None
+            identities.append((role, one))
+        if not identities:
+            return None
+        if len(identities) == 1:
+            # A single table is named by its file alone, which is what
+            # a cursor reading that file directly reports too.
+            return identities[0][1]
+        return "|".join([ f'{role}={one}' for role, one in identities ])
+
+    def recorded_source(self, table):
+        """
+        Identity of the file one table was loaded from.
+
+        Parameters
+        ----------
+        table : str
+            Name of the table.
+
+        Returns
+        -------
+        str or None
+            ``<path>:<size>:<mtime>``, or None when the table has no
+            record, which is what an interrupted load leaves.
+        """
         try:
             if not self.has_table(self._sources_table):
                 return None
             sql = f'SELECT source, size, mtime FROM {self._sources_table} WHERE "table" = ?'
-            parameters = [str(self.table)]
+            parameters = [str(table)]
             version = self.source_version
             if version:
                 sql += ' AND version = ?'
