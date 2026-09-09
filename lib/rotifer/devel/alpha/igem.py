@@ -120,6 +120,8 @@ pipeline.
     render_neighborhood_svgs_by_block  one SVG per block (per-result views)
     build_scaled_block_svg        one block drawn to real genomic scale
     render_scaled_svgs_by_block   one to-scale SVG per block
+    build_sequence_index          one copy of every protein sequence,
+                                   keyed by accession, for the report's JS
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
     normalize_svg_fonts           widen graphviz's bare font name into
@@ -156,6 +158,7 @@ server-side or in a desktop toolkit.
 """
 
 import html
+import json
 import math
 import os
 import re
@@ -214,6 +217,70 @@ FALLBACK_COLOR_KEY = 'Other'
 # `resolve_logo`, so `header_logo` accepts either a path (with `~`
 # expanded) or ready-to-embed SVG markup.
 SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
+
+# External sequence-analysis services a protein can be sent to straight
+# from its info window, turning the report from a picture into a place
+# to start the next analysis from. Each entry is:
+#
+#   name  : the text on the chip.
+#   url   : where clicking it goes. '{seq}' (the bare amino-acid
+#           string), '{fasta}' (the FASTA record, header included) and
+#           '{pid}' (the accession) are substituted, URL-encoded, at
+#           click time.
+#   copy  : True for a service that cannot receive a query through its
+#           URL at all -- the report copies the protein's FASTA to the
+#           clipboard first and then opens the tool, so the sequence
+#           only has to be pasted. False for a link that already
+#           carries the query.
+#   title : hover text saying what the chip will do.
+#
+# The split is not a style choice: NCBI BLAST documents a URL parameter
+# that accepts a whole sequence, while Foldseek, SeqHub, InterPro and
+# HHpred only offer a paste box, so a link alone cannot start their
+# search. Copy-then-open is the closest thing to one click that those
+# services allow. A `copy: False` entry whose URL would come out too
+# long for a GET -- an NRPS/PKS megasynthase in a '{seq}' link -- falls
+# back to copy-then-open by itself, so the chip never builds a URL that
+# would be truncated (see `toolChipFor` in the report's JavaScript).
+#
+# Accession-based chips ('{pid}') are only meaningful when the table's
+# pids really are public accessions -- with locus tags from a private
+# GFF they will land on an empty search page. They are still shown,
+# since which of the two a table holds is the user's to know.
+#
+# Pass your own list as `external_tools` to add, drop or reorder these;
+# `external_tools=[]` leaves the chips out entirely.
+DEFAULT_EXTERNAL_TOOLS = [
+    {'name': 'BLASTp',
+     'url': ('https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE=Proteins&PROGRAM=blastp'
+             '&BLAST_PROGRAMS=blastp&DATABASE=nr&QUERY={seq}'),
+     'copy': False,
+     'title': 'NCBI blastp against nr, with this sequence pre-filled'},
+    {'name': 'Foldseek',
+     'url': 'https://search.foldseek.com/search',
+     'copy': True,
+     'title': 'Foldseek structure search (AlphaFold/PDB) -- sequence copied, paste it in'},
+    {'name': 'SeqHub',
+     'url': 'https://seqhub.org/',
+     'copy': True,
+     'title': 'SeqHub sequence annotation and analysis -- sequence copied, paste it in'},
+    {'name': 'InterPro',
+     'url': 'https://www.ebi.ac.uk/interpro/search/sequence/',
+     'copy': True,
+     'title': 'InterProScan domain annotation -- sequence copied, paste it in'},
+    {'name': 'HHpred',
+     'url': 'https://toolkit.tuebingen.mpg.de/tools/hhpred',
+     'copy': True,
+     'title': 'HHpred remote-homology detection -- sequence copied, paste it in'},
+    {'name': 'AlphaFold',
+     'url': 'https://alphafold.ebi.ac.uk/search/text/{pid}',
+     'copy': False,
+     'title': 'Look this accession up in the AlphaFold structure database'},
+    {'name': 'NCBI',
+     'url': 'https://www.ncbi.nlm.nih.gov/protein/{pid}',
+     'copy': False,
+     'title': 'The protein record at NCBI (only for NCBI accessions)'},
+]
 
 # Bases drawn per line in the genome-wide overview: every contig is cut
 # into windows of this size and wrapped over as many lines as it needs
@@ -1794,9 +1861,9 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
     # to its embedded copies (see `normalize_svg_fonts`), so opening the
     # file on its own doesn't render in some other face.
     if str(output_file).lower().endswith('.svg'):
-        with open(output_file) as handle:
+        with open(output_file, encoding='utf-8') as handle:
             svg = handle.read()
-        with open(output_file, 'w') as handle:
+        with open(output_file, 'w', encoding='utf-8') as handle:
             handle.write(normalize_svg_fonts(svg))
 
     if collect_node_meta:
@@ -2442,7 +2509,7 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     )
     svg = build_genome_overview_svg(extents, color_map=color_map, **svg_kwargs)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(svg)
 
     return extents
@@ -2504,6 +2571,85 @@ def _fmt_int(value):
         return html.escape(str(value))
 
 
+def build_sequence_index(df, group_col='block_id', seq_col='sequence', pid_col='pid'):
+    """
+    Collect every protein sequence in the table into the one compact
+    index the report's JavaScript works from.
+
+    Sequences are deliberately NOT inlined into the figures. The same
+    protein is drawn twice (once in the Figure view, once in the To
+    scale view) and would otherwise be embedded twice per block, and
+    once more in the merged table -- three copies of every sequence in
+    a page that is already megabytes of SVG. Keeping one copy here,
+    keyed by accession, lets the info window, the per-protein copy
+    button and the whole-selection FASTA export all read the same data.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The raw input table.
+    group_col : str
+        Column identifying each block; its values become slugs (see
+        `_slug`), matching the ones the figures and the selector use.
+    seq_col : str
+        Column holding the amino-acid sequences. A table without it
+        gives an empty index, and the report then simply grows no
+        sequence features.
+    pid_col : str
+        Column holding the accession each sequence is keyed by.
+
+    Returns
+    -------
+    dict
+        ``{'seqs': {pid: sequence}, 'blocks': {slug: [pid, ...]}}``.
+        Whitespace is stripped from each sequence, it is upper-cased,
+        and a trailing stop-codon '*' is dropped. Proteins with no
+        sequence are left out of both maps, so a slug can be missing
+        entirely; the first sequence seen for a pid wins.
+    """
+    index = {'seqs': {}, 'blocks': {}}
+    if seq_col not in df.columns or pid_col not in df.columns:
+        return index
+
+    columns = [pid_col, seq_col]
+    has_group = group_col in df.columns
+    if has_group:
+        columns.append(group_col)
+
+    # dict-of-dicts rather than lists: dedupes each block's pids in O(1)
+    # while keeping first-seen (i.e. genomic) order.
+    members = {}
+    for values in df[columns].itertuples(index=False, name=None):
+        pid, seq = values[0], values[1]
+        if pid is None or (isinstance(pid, float) and pd.isna(pid)):
+            continue
+        pid = str(pid)
+        if pid not in index['seqs']:
+            if seq is None or (isinstance(seq, float) and pd.isna(seq)):
+                continue
+            clean = re.sub(r'\s+', '', str(seq)).upper().rstrip('*')
+            if not clean:
+                continue
+            index['seqs'][pid] = clean
+        slug = _slug(values[2]) if has_group else ''
+        members.setdefault(slug, {})[pid] = None
+
+    index['blocks'] = {slug: list(pids) for slug, pids in members.items()}
+    return index
+
+
+def _json_for_script(payload):
+    """
+    Serialize `payload` for embedding in a
+    `<script type="application/json">` block.
+
+    '</' is escaped ('\\/' being a legal JSON string escape for '/') so
+    a value can never close the script tag early and spill into the
+    document as markup.
+    """
+    return json.dumps(payload, separators=(',', ':')).replace('</', '<\\/')
+
+
 def build_gene_tooltip_html(meta):
     """
     Build the inner HTML of the hover "info window" for a single protein
@@ -2524,9 +2670,16 @@ def build_gene_tooltip_html(meta):
     its own line so the two are easy to connect.
 
     Followed by genomic coordinates, strand, length and product when
-    those fields are available, and -- when the metadata carries a
-    'sequence' -- a scrollable FASTA block with a "Copy sequence"
-    button (active once the info window is pinned).
+    those fields are available.
+
+    When the metadata carries a 'sequence', an empty
+    `<span class="t-seq-slot" data-pid="...">` is appended. Inside the
+    report, JavaScript fills that slot from the page's sequence index
+    (see `build_sequence_index`) with the FASTA record, copy/download
+    buttons and the external-tool chips; the slot is used instead of
+    the sequence itself so the report holds one copy of each protein
+    rather than one per figure. Nothing fills it outside the report, so
+    a standalone figure just carries an empty span.
 
     Parameters
     ----------
@@ -2589,19 +2742,17 @@ def build_gene_tooltip_html(meta):
     if product is not None and not (isinstance(product, float) and pd.isna(product)):
         rows.append(f"<span class='t-row'>product&nbsp;&middot;&nbsp;{html.escape(str(product))}</span>")
 
-    # Amino-acid sequence, shown as a scrollable FASTA block with a copy
-    # button. Only rendered when a `seq_col` value reached the metadata
-    # (see `neighborhood_figure`); the button is usable once the info
-    # window is pinned (a hovering card ignores the mouse).
-    if seq:
-        wrapped = '\n'.join(seq[i:i + 60] for i in range(0, len(seq), 60))
-        fasta = f'>{title}\n{wrapped}' if title != 'protein' else wrapped
-        body = html.escape(fasta).replace('\n', '&#10;')
+    # An empty anchor for the sequence block and the external-tool
+    # chips, rather than the sequence itself: the report holds one copy
+    # of every protein in a page-level index and fills this slot in on
+    # the fly (see the `hydrateTip` JavaScript), so a sequence is never
+    # embedded twice over -- once in the Figure SVG and again in the To
+    # scale one. Outside the report -- a standalone `neighborhood_figure`
+    # call -- there is nothing to fill it with and the slot stays empty,
+    # which is why it carries no text of its own.
+    if seq and pid is not None and not (isinstance(pid, float) and pd.isna(pid)):
         rows.append(
-            "<span class='t-row t-seq-wrap'>"
-            "<button type='button' class='t-seq-copy'>&#128203;&nbsp;Copy sequence</button>"
-            f"<code class='t-seq'>{body}</code>"
-            "</span>"
+            f"<span class='t-row t-seq-slot' data-pid='{html.escape(str(pid), quote=True)}'></span>"
         )
 
     return ''.join(rows)
@@ -2710,7 +2861,7 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
         _working, node_meta = neighborhood_figure(
             block_df, group_col=group_col, output_file=path,
             color_map=color_map, collect_node_meta=True, **kw)
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             svg = normalize_svg_fonts(_strip_svg_prolog(f.read()))
         svgs[slug] = annotate_neighborhood_svg(svg, node_meta)
     return svgs
@@ -3515,14 +3666,22 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .go-tooltip.pinned .tip-close{display:block;}
   .go-tooltip .tip-close:hover{color:#fff;}
-  /* amino-acid sequence block inside a (pinned) protein info window */
-  .go-tooltip .t-seq-wrap{margin-top:6px;}
-  .go-tooltip .t-seq-copy{
-    display:inline-block;margin-bottom:5px;font:inherit;font-size:11px;
-    cursor:pointer;color:#cdd3da;background:#2b3242;
-    border:1px solid #4a5468;border-radius:5px;padding:2px 9px;
+  /* amino-acid sequence + external-tool chips inside a protein info
+     window. A card that is merely following the mouse shows only the
+     one-line hint: it cannot be clicked (pointer-events:none) and a
+     200px-tall card chasing the cursor is unusable anyway. Clicking the
+     gene pins the card, which reveals the sequence and the chips. */
+  .go-tooltip .t-seq-slot{display:block;margin-top:7px;}
+  .go-tooltip .t-seq-hint{display:block;color:#8b94a4;font-size:10.5px;font-style:italic;}
+  .go-tooltip.pinned .t-seq-hint{display:none;}
+  .go-tooltip .t-seq-full{display:none;}
+  .go-tooltip.pinned .t-seq-full{display:block;}
+  .go-tooltip .t-seq-bar{display:flex;gap:6px;margin-bottom:5px;}
+  .go-tooltip .t-seq-copy,.go-tooltip .t-seq-dl{
+    font:inherit;font-size:11px;cursor:pointer;color:#cdd3da;background:#2b3242;
+    border:1px solid #4a5468;border-radius:5px;padding:2px 9px;white-space:nowrap;
   }
-  .go-tooltip .t-seq-copy:hover{color:#fff;border-color:#6b768c;}
+  .go-tooltip .t-seq-copy:hover,.go-tooltip .t-seq-dl:hover{color:#fff;border-color:#6b768c;}
   .go-tooltip .t-seq{
     display:block;white-space:pre;overflow:auto;
     max-height:148px;max-width:294px;
@@ -3530,6 +3689,19 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     color:#e6e9ee;background:#161a22;border-radius:5px;padding:6px 8px;
     user-select:text;
   }
+  .go-tooltip .t-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;}
+  .go-tooltip .t-tools-title{
+    color:#8b94a4;font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;
+  }
+  .go-tooltip .t-tool{
+    font-size:10.5px;text-decoration:none;white-space:nowrap;
+    color:#bcd7f5;background:#243044;border:1px solid #3c5170;
+    border-radius:11px;padding:2px 9px;
+  }
+  .go-tooltip .t-tool:hover{background:#314561;color:#fff;border-color:#5b7ba6;}
+  /* chips that copy the sequence before opening the tool read
+     differently from ones that carry the query in the link itself */
+  .go-tooltip .t-tool[data-copy]::after{content:'\2398';margin-left:4px;opacity:.65;}
   .nb-gene{cursor:pointer;}
   .nb-gene:hover polygon,.nb-gene:hover ellipse{stroke-width:2.4px;}
   .nb-repeat{cursor:pointer;}
@@ -3606,6 +3778,10 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-icon-btn:hover{background:var(--accent-soft);border-color:var(--accent);}
   .nb-icon-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
+  /* `display:flex` above would otherwise beat the browser's own
+     [hidden] rule, so the FASTA buttons could not be hidden when the
+     table carries no sequences */
+  .nb-icon-btn[hidden]{display:none;}
   .nb-zoom-group{display:flex;align-items:center;gap:0;margin-left:auto;
     border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .nb-zoom-group button{
@@ -3961,12 +4137,23 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or click it to keep the window open -- a pinned window lets you read and copy the protein's amino-acid sequence when it is available.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or <b>click</b> it to pin the window open -- a pinned window shows the protein's sequence, with buttons to copy or download it and chips that send it straight to <b>BLASTp</b>, <b>Foldseek</b>, <b>SeqHub</b>, <b>InterPro</b> and <b>HHpred</b>. <b>Copy FASTA</b> / <b>FASTA</b> above do the same for every protein in the neighborhoods you have selected.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="19" x2="19" y2="19"/></svg>
       Select
+    </button>
+
+    <button type="button" class="nb-icon-btn nb-seq-btn" id="nb-copy-fasta" hidden
+            title="Copy every protein of the selected neighborhoods, as one FASTA">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      Copy FASTA
+    </button>
+    <button type="button" class="nb-icon-btn nb-seq-btn" id="nb-dl-fasta" hidden
+            title="Download every protein of the selected neighborhoods as a .faa file">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/></svg>
+      FASTA
     </button>
 
     <div class="nb-zoom-group">
@@ -4095,12 +4282,94 @@ $stats_selector
 
 <footer>Made by <b>S(H)ARP</b> &mdash; Biosynthetic Gene Cluster Analysis</footer>
 
+<!-- One copy of every protein sequence, keyed by accession, plus the
+     accessions of each block; and the external services a protein can
+     be sent to. Both are read once by the script below. -->
+<script type="application/json" id="nb-seq-data">$nb_seq_data</script>
+<script type="application/json" id="nb-tools-data">$nb_tools_data</script>
+
 <script>
 (function () {
   // ── helpers ──────────────────────────────────────────────────────────
   function qs(sel, ctx) { return (ctx || document).querySelector(sel); }
   function qsa(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function readJSON(sel, fallback) {
+    var el = qs(sel);
+    if (!el) return fallback;
+    try { return JSON.parse(el.textContent) || fallback; } catch (err) { return fallback; }
+  }
+  function saveText(text, filename, mime) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' }));
+    a.download = filename;
+    a.click();
+  }
+  // Clipboard API where it exists (it needs a secure context, which a
+  // report opened over file:// is not), a hidden textarea everywhere else.
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done || function () {}, function () {});
+      return;
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (err) {}
+    document.body.removeChild(ta);
+    if (done) done();
+  }
+  function flash(btn, msg) {
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = msg;
+    setTimeout(function () { btn.innerHTML = btn.dataset.label; }, 1400);
+  }
+
+  // ── protein sequences + the services they can be sent to ─────────────
+  var NBSEQ   = readJSON('#nb-seq-data', { seqs: {}, blocks: {} });
+  var NBTOOLS = readJSON('#nb-tools-data', []);
+  var HAS_SEQ = Object.keys(NBSEQ.seqs || {}).length > 0;
+
+  function fastaFor(pid) {
+    var s = (NBSEQ.seqs || {})[pid];
+    if (!s) return '';
+    var out = '>' + pid;
+    for (var i = 0; i < s.length; i += 60) out += '\n' + s.slice(i, i + 60);
+    return out;
+  }
+  function fastaForPids(pids) {
+    var recs = pids.map(fastaFor).filter(Boolean);
+    return recs.length ? recs.join('\n') + '\n' : '';
+  }
+  // '{seq}' / '{fasta}' / '{pid}' are filled in here rather than when
+  // the page is written, so one tool list serves every protein.
+  function toolHref(spec, pid) {
+    var seq = (NBSEQ.seqs || {})[pid] || '';
+    return String(spec.url)
+      .replace('{seq}', encodeURIComponent(seq))
+      .replace('{fasta}', encodeURIComponent(fastaFor(pid)))
+      .replace('{pid}', encodeURIComponent(pid));
+  }
+  // A link that carries the sequence works for an ordinary protein and
+  // cannot work for an NRPS/PKS megasynthase: browsers and servers cut
+  // a GET off somewhere above 8 KB, and an over-long URL fails silently
+  // or lands on an error page. Past a safe budget such a chip drops the
+  // query parameter and becomes a copy-then-open one instead, so the
+  // sequence still gets there -- by clipboard rather than by URL.
+  var URL_BUDGET = 6000;
+  function toolChipFor(spec, pid) {
+    var url = String(spec.url);
+    if (spec.copy) return { href: toolHref(spec, pid), copy: true };
+    var href = toolHref(spec, pid);
+    var carriesSeq = url.indexOf('{seq}') >= 0 || url.indexOf('{fasta}') >= 0;
+    if (!carriesSeq || href.length <= URL_BUDGET) return { href: href, copy: false };
+    return { href: url.replace(/[?&][^?&=]*=\{(?:seq|fasta)\}/g, ''), copy: true };
+  }
 
   // ── top-level page tabs ───────────────────────────────────────────────
   var pageTabs = qsa('.top-tab');
@@ -4259,8 +4528,38 @@ $stats_selector
     if (y+r.height>window.innerHeight) y=e.clientY-r.height-14;
     tip.style.left=x+'px'; tip.style.top=y+'px';
   }
+  // Fill the empty .t-seq-slot a protein tooltip carries (see
+  // build_gene_tooltip_html) with the FASTA record, its copy/download
+  // buttons and the external-tool chips. Done here rather than in the
+  // embedded markup so each sequence lives in the page exactly once.
+  function hydrateTip(root) {
+    qsa('.t-seq-slot', root).forEach(function (slot) {
+      var pid = slot.dataset.pid;
+      if (!pid || !(NBSEQ.seqs || {})[pid]) return;
+      var chips = NBTOOLS.map(function (t) {
+        var chip = toolChipFor(t, pid);
+        var hint = chip.copy ? ' (sequence copied to your clipboard first)' : '';
+        return '<a class="t-tool" target="_blank" rel="noopener noreferrer"'
+             + ' href="' + esc(chip.href) + '"'
+             + (chip.copy ? ' data-copy="' + esc(pid) + '"' : '')
+             + ' title="' + esc((t.title || t.name) + hint) + '">'
+             + esc(t.name) + '</a>';
+      }).join('');
+      slot.innerHTML =
+        '<span class="t-seq-hint">click the gene to pin this window &mdash; sequence and tools</span>'
+        + '<span class="t-seq-full">'
+        +   '<span class="t-seq-bar">'
+        +     '<button type="button" class="t-seq-copy" data-pid="' + esc(pid) + '">&#128203;&nbsp;Copy FASTA</button>'
+        +     '<button type="button" class="t-seq-dl" data-pid="' + esc(pid) + '">&#8681;&nbsp;.faa</button>'
+        +   '</span>'
+        +   '<code class="t-seq">' + esc(fastaFor(pid)) + '</code>'
+        +   (chips ? '<span class="t-tools"><span class="t-tools-title">send to</span>' + chips + '</span>' : '')
+        + '</span>';
+    });
+  }
   function showTip(content, e) {
     tip.innerHTML = content + '<span class="tip-close" title="Close">&times;</span>';
+    hydrateTip(tip);
     tip.style.display = 'block';
     moveTip(e);
   }
@@ -4271,6 +4570,7 @@ $stats_selector
     showTip(el.dataset.tip, e);
     tipPinned = true;
     tip.classList.add('pinned');
+    moveTip(e);                    // re-place it: pinning just revealed the sequence
   }
   function attachTip(el) {
     on(el, 'mouseenter', function(e){ if (!tipPinned) showTip(el.dataset.tip, e); });
@@ -4280,26 +4580,22 @@ $stats_selector
   on(tip, 'click', function (e) {
     if (e.target.classList.contains('tip-close')) { unpinTip(); return; }
     e.stopPropagation();           // clicks inside a pinned card keep it open
-    var btn = e.target.classList.contains('t-seq-copy') ? e.target : null;
-    if (btn) {
-      var block = btn.parentNode.querySelector('.t-seq');
-      var text = block ? block.textContent : '';
-      var restore = function () {
-        var was = btn.getAttribute('data-label') || btn.innerHTML;
-        btn.setAttribute('data-label', was);
-        btn.innerHTML = '✓&nbsp;Copied';
-        setTimeout(function () { btn.innerHTML = btn.getAttribute('data-label'); }, 1200);
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(restore, function () {});
-      } else {
-        var ta = document.createElement('textarea');
-        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); } catch (err) {}
-        document.body.removeChild(ta); restore();
-      }
+    var el = e.target;
+    if (el.classList.contains('t-seq-copy')) {
+      copyText(fastaFor(el.dataset.pid), function () {
+        flash(el, '&#10003;&nbsp;Copied');
+      });
+      return;
     }
+    if (el.classList.contains('t-seq-dl')) {
+      saveText(fastaFor(el.dataset.pid), el.dataset.pid + '.faa', 'text/plain');
+      return;
+    }
+    // A chip for a service with no URL query API: put the FASTA on the
+    // clipboard on the way out, so the tool's paste box is one Ctrl-V
+    // away. The click is NOT cancelled -- the anchor still opens.
+    var chip = el.closest ? el.closest('.t-tool[data-copy]') : null;
+    if (chip) copyText(fastaFor(chip.dataset.copy));
   });
   on(document, 'click', function () { if (tipPinned) unpinTip(); });
   var goMarkers = qsa('.go-marker');
@@ -4364,6 +4660,33 @@ $stats_selector
     applySelection(slug ? [slug] : []);
   }
   window._selectBlock = selectBlock;
+
+  // ── FASTA for whatever is selected ───────────────────────────────────
+  // Reads the same index the info windows do, in the blocks' own order,
+  // and dedupes: one protein shared by two overlapping neighborhoods is
+  // still written once.
+  function selectedPids() {
+    var out = [], seen = {};
+    Object.keys(activeSet).forEach(function (slug) {
+      ((NBSEQ.blocks || {})[slug] || []).forEach(function (pid) {
+        if (!seen[pid]) { seen[pid] = 1; out.push(pid); }
+      });
+    });
+    return out;
+  }
+  qsa('.nb-seq-btn').forEach(function (b) { b.hidden = !HAS_SEQ; });
+  on(qs('#nb-copy-fasta'), 'click', function () {
+    var pids = selectedPids(), btn = qs('#nb-copy-fasta');
+    if (!pids.length) { flash(btn, 'no sequences here'); return; }
+    copyText(fastaForPids(pids), function () {
+      flash(btn, '&#10003;&nbsp;' + pids.length + ' copied');
+    });
+  });
+  on(qs('#nb-dl-fasta'), 'click', function () {
+    var pids = selectedPids(), btn = qs('#nb-dl-fasta');
+    if (!pids.length) { flash(btn, 'no sequences here'); return; }
+    saveText(fastaForPids(pids), 'neighborhoods.faa', 'text/plain');
+  });
 
   function openNeighborhood(slug) {
     showPage('neighborhoods');
@@ -4948,7 +5271,7 @@ $stats_selector
 
 
 def render_neighborhood_table_card(df, group_col='block_id', filename='neighborhoods.csv',
-                                    max_rows=None):
+                                    max_rows=None, drop_cols=()):
     """
     Build ONE sortable/filterable/downloadable table-card containing every
     row of `df`, with each `<tr>` tagged `data-block="<slug>"` (see
@@ -4968,6 +5291,12 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
         Suggested name for downloads.
     max_rows : int or None
         Optional row cap. `None` (the default) embeds every row.
+    drop_cols : sequence[str]
+        Columns to leave out of the table (missing ones are ignored).
+        The report uses it for the sequence column: a 300-character
+        cell in every row makes the table unreadable and its CSV export
+        enormous, and the sequences are already one click away in each
+        protein's info window and in the FASTA export.
 
     Returns
     -------
@@ -4976,7 +5305,11 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
         can target it directly.
     """
     shown = df if max_rows is None else df.head(max_rows)
+    # Slugs first: `group_col` is safe from `drop_cols` in practice, but
+    # this way the row tags never depend on that.
     slugs = shown[group_col].map(_slug) if group_col in shown.columns else [''] * len(shown)
+    if drop_cols:
+        shown = shown.drop(columns=[c for c in drop_cols if c in shown.columns])
 
     header_cells = ''.join(f'<th>{html.escape(str(c))}</th>' for c in shown.columns)
     body_rows = []
@@ -5118,7 +5451,7 @@ def read_svg_logo(path):
         `build_html_report`.
     """
     import re as _re
-    svg = open(path).read()
+    svg = open(path, encoding='utf-8').read()
     svg = _re.sub(r'<\?xml[^?]*\?>\s*', '', svg)
     svg = _re.sub(r'\s+width="[^"]*"', '', svg, count=1)
     svg = _re.sub(r'\s+height="[^"]*"', '', svg, count=1)
@@ -5160,6 +5493,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        color_categories=DEFAULT_DOMAIN_CATEGORIES,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', seq_col='sequence',
+                       external_tools=DEFAULT_EXTERNAL_TOOLS, table_include_seq=False,
                        operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
                        overview_segment_length=DEFAULT_SEGMENT_LENGTH,
@@ -5187,8 +5521,12 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
       * every protein has a hover info window (id, coordinates, strand,
         length, product; the query protein is flagged as the query in
         place of a domain line). When `df` carries a `seq_col` column,
-        the window also holds the amino-acid sequence with a copy
-        button.
+        pinning that window also shows the protein's FASTA record with
+        copy/download buttons and a row of chips that send it straight
+        to BLASTp, Foldseek, SeqHub, InterPro, HHpred and the rest of
+        `external_tools`;
+      * the toolbar can copy or download every protein of the selected
+        neighborhoods as a single FASTA.
 
     A single shared domain -> color map is computed once (from the whole
     table, honoring `rename_map`/`custom_colors`/`max_colors`/
@@ -5228,11 +5566,27 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         `compute_block_extents`).
     seq_col : str, default 'sequence'
         Column holding each protein's amino-acid sequence. When `df`
-        has it, every protein's info window gains a scrollable FASTA
-        block and a "Copy sequence" button (usable once the window is
-        pinned by clicking the gene); when the column is missing the
-        info windows are unchanged. The sequence is not fetched -- it
-        must already be a column of `df`.
+        has it, pinning a protein's info window (click its gene) shows
+        the FASTA record with "Copy FASTA" / ".faa" buttons and a row
+        of chips that send the protein to an external service; the
+        neighborhoods toolbar also grows "Copy FASTA" / "FASTA"
+        buttons covering every protein of the selected neighborhoods.
+        Without the column none of that appears. The sequence is never
+        fetched -- it must already be a column of `df`.
+    external_tools : list[dict] or None, default `DEFAULT_EXTERNAL_TOOLS`
+        The services offered as chips in each protein's info window --
+        BLASTp, Foldseek, SeqHub, InterPro, HHpred, AlphaFold and the
+        NCBI record by default. See `DEFAULT_EXTERNAL_TOOLS` for the
+        shape of an entry and how a link either carries the sequence
+        itself or copies it to the clipboard on the way out. Pass `[]`
+        (or None) to leave the chips out. Chips only appear on proteins
+        that have a sequence.
+    table_include_seq : bool, default False
+        Whether to keep `seq_col` as a column of the merged
+        neighborhoods table. It is dropped by default: a 300-character
+        cell in every row makes the table unreadable and bloats its CSV
+        export, and the sequences are already available through the
+        info windows and the FASTA export.
     operon_kwargs : dict or None
         Extra per-figure options forwarded to `neighborhood_figure` for
         each block (e.g. `collapse_opposite_strand=True`, `font_size`,
@@ -5318,6 +5672,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     # report's JS shows only the rows for whichever blocks are selected.
     nb_table_card = render_neighborhood_table_card(
         df, group_col=group_col, filename='neighborhoods.csv', max_rows=max_table_rows,
+        drop_cols=() if table_include_seq else (seq_col,),
     )
 
     # Same blocks, drawn to real genomic scale for the "To scale" sub-view.
@@ -5358,11 +5713,19 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         nb_selector=nb_selector,
         stats_html=stats_html,
         stats_selector=stats_selector,
+        nb_seq_data=_json_for_script(
+            build_sequence_index(df, group_col=group_col, seq_col=seq_col)
+        ),
+        nb_tools_data=_json_for_script(list(external_tools or [])),
         software_name=html.escape(software_name),
         header_logo_html=resolve_logo(header_logo),
     )
 
-    with open(output_file, 'w') as f:
+    # Explicitly UTF-8: the page declares `<meta charset="utf-8">` and
+    # carries non-ASCII glyphs (sort arrows, arrows, dashes), so writing
+    # it in the platform's default encoding mojibakes it on some systems
+    # and fails outright on a Windows cp1252 default.
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_doc)
 
     return output_file
