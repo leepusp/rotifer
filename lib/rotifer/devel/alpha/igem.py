@@ -1409,7 +1409,7 @@ def _genomic_strand(row, genomic_col, drawn_col):
 def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                         highlight_query=True, collapse_opposite_strand=False,
                         font_size=10, left_pad=0, right_pad=0, spacer_width=0.6,
-                        show_row_label=True):
+                        show_row_label=True, seq_col='sequence'):
     """
     Add one full row (label box + every gene) to `graph`, wiring
     everything together with invisible same-rank edges so it is drawn as
@@ -1451,6 +1451,10 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         something else already identifies the block (e.g. the report's
         neighborhood selector), so repeating it inside every stacked
         figure would just be noise.
+    seq_col : str, default 'sequence'
+        Column read into each gene's metadata as its amino-acid
+        sequence (used by `build_gene_tooltip_html` for the info
+        window's copy-able FASTA block). Missing column -> no sequence.
 
     Returns
     -------
@@ -1459,9 +1463,9 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
          query (see `select_reference_query_index`), or None if this
          block has no query gene, 'gene_nodes': [node ids, left-to-right],
          'gene_meta': {node id -> per-gene info dict (pid, start, end,
-         strand, domain, product, plen, is_query); regulatory-region
-         nodes get {is_repeat, repeat_start, repeat_end, repeat_strand}
-         instead}}.
+         strand, domain, product, plen, sequence, is_query);
+         regulatory-region nodes get {is_repeat, repeat_start,
+         repeat_end, repeat_strand} instead}}.
     """
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is not None:
@@ -1529,6 +1533,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
             domain_raw=row.get('domain_raw'),
             product=row.get('product'),
             plen=row.get('plen'),
+            sequence=row.get(seq_col),
             is_query=bool(row['is_query']),
         )
         if row_idx == ref_idx:
@@ -1617,7 +1622,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
                         custom_colors=None, rename_map=None, normalize_orientation=True,
                         align_query_center=False, collapse_opposite_strand=False,
                         spacer_width=0.6, color_map=None, collect_node_meta=False,
-                        show_row_label=True):
+                        show_row_label=True, seq_col='sequence'):
     """
     Draw a gene-neighborhood ("operon") figure, one row per block, and
     write it to `output_file`.
@@ -1724,6 +1729,12 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         shows that info), so stacking several selected figures doesn't
         repeat it before every one. Left on by default here since
         `neighborhood_figure` is also used standalone.
+    seq_col : str, default 'sequence'
+        Column holding each protein's amino-acid sequence. When the
+        column is present, every gene's info window gains a "Copy
+        sequence" button and a FASTA block; when it is absent the info
+        window is unchanged. Only carried into `collect_node_meta`
+        output -- it does not affect the drawn figure.
     """
     working = prepare_dataframe(
         df, group_col=group_col, org_col=org_col, label_col=label_col, rename_map=rename_map
@@ -1767,6 +1778,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
             right_pad=right_pad,
             spacer_width=spacer_width,
             show_row_label=show_row_label,
+            seq_col=seq_col,
         )
         blocks_info.append(info)
 
@@ -2512,7 +2524,9 @@ def build_gene_tooltip_html(meta):
     its own line so the two are easy to connect.
 
     Followed by genomic coordinates, strand, length and product when
-    those fields are available.
+    those fields are available, and -- when the metadata carries a
+    'sequence' -- a scrollable FASTA block with a "Copy sequence"
+    button (active once the info window is pinned).
 
     Parameters
     ----------
@@ -2559,13 +2573,36 @@ def build_gene_tooltip_html(meta):
     strand_str = '+' if strand == 1 else '&minus;' if strand == -1 else '?'
     rows.append(f"<span class='t-row'>strand&nbsp;&middot;&nbsp;{strand_str}</span>")
 
+    seq = meta.get('sequence')
+    if seq is not None and not (isinstance(seq, float) and pd.isna(seq)):
+        seq = re.sub(r'\s+', '', str(seq)).upper().rstrip('*')
+    else:
+        seq = ''
+
     plen = meta.get('plen')
     if plen is not None and not (isinstance(plen, float) and pd.isna(plen)):
         rows.append(f"<span class='t-row'>length&nbsp;&middot;&nbsp;{_fmt_int(plen)} aa</span>")
+    elif seq:
+        rows.append(f"<span class='t-row'>length&nbsp;&middot;&nbsp;{_fmt_int(len(seq))} aa</span>")
 
     product = meta.get('product')
     if product is not None and not (isinstance(product, float) and pd.isna(product)):
         rows.append(f"<span class='t-row'>product&nbsp;&middot;&nbsp;{html.escape(str(product))}</span>")
+
+    # Amino-acid sequence, shown as a scrollable FASTA block with a copy
+    # button. Only rendered when a `seq_col` value reached the metadata
+    # (see `neighborhood_figure`); the button is usable once the info
+    # window is pinned (a hovering card ignores the mouse).
+    if seq:
+        wrapped = '\n'.join(seq[i:i + 60] for i in range(0, len(seq), 60))
+        fasta = f'>{title}\n{wrapped}' if title != 'protein' else wrapped
+        body = html.escape(fasta).replace('\n', '&#10;')
+        rows.append(
+            "<span class='t-row t-seq-wrap'>"
+            "<button type='button' class='t-seq-copy'>&#128203;&nbsp;Copy sequence</button>"
+            f"<code class='t-seq'>{body}</code>"
+            "</span>"
+        )
 
     return ''.join(rows)
 
@@ -2714,7 +2751,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
                             normalize_orientation=True, highlight_query=True,
                             track_width=900, left_margin=210, right_margin=30,
                             gene_height=26, font_size=11, min_gene_width=2.0,
-                            show_row_label=True):
+                            show_row_label=True, seq_col='sequence'):
     """
     Draw one block to *biological scale*: genes placed by their real
     genomic coordinates, so arrow widths are proportional to gene
@@ -2760,6 +2797,9 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
         Domain -> fill color, as everywhere else (see `build_color_map`).
     nucleotide_col, start_col, end_col : str
         Per-gene contig and genomic span columns.
+    seq_col : str, default 'sequence'
+        Column carried into each gene's info window as its amino-acid
+        sequence (copy-able FASTA block). Missing column -> no sequence.
     normalize_orientation : bool, default True
         Mirror the block so its reference query points right.
     highlight_query : bool, default True
@@ -2903,6 +2943,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
             domain_raw=row.get('domain_raw'),
             product=row.get('product'),
             plen=row.get('plen'),
+            sequence=row.get(seq_col),
             is_query=is_target,
         )
         tip = html.escape(build_gene_tooltip_html(meta), quote=True)
@@ -3474,6 +3515,21 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .go-tooltip.pinned .tip-close{display:block;}
   .go-tooltip .tip-close:hover{color:#fff;}
+  /* amino-acid sequence block inside a (pinned) protein info window */
+  .go-tooltip .t-seq-wrap{margin-top:6px;}
+  .go-tooltip .t-seq-copy{
+    display:inline-block;margin-bottom:5px;font:inherit;font-size:11px;
+    cursor:pointer;color:#cdd3da;background:#2b3242;
+    border:1px solid #4a5468;border-radius:5px;padding:2px 9px;
+  }
+  .go-tooltip .t-seq-copy:hover{color:#fff;border-color:#6b768c;}
+  .go-tooltip .t-seq{
+    display:block;white-space:pre;overflow:auto;
+    max-height:148px;max-width:294px;
+    font-family:var(--font-mono);font-size:10.5px;line-height:1.4;
+    color:#e6e9ee;background:#161a22;border-radius:5px;padding:6px 8px;
+    user-select:text;
+  }
   .nb-gene{cursor:pointer;}
   .nb-gene:hover polygon,.nb-gene:hover ellipse{stroke-width:2.4px;}
   .nb-repeat{cursor:pointer;}
@@ -3905,7 +3961,7 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or click it to keep the window open.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or click it to keep the window open -- a pinned window lets you read and copy the protein's amino-acid sequence when it is available.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
@@ -4224,6 +4280,26 @@ $stats_selector
   on(tip, 'click', function (e) {
     if (e.target.classList.contains('tip-close')) { unpinTip(); return; }
     e.stopPropagation();           // clicks inside a pinned card keep it open
+    var btn = e.target.classList.contains('t-seq-copy') ? e.target : null;
+    if (btn) {
+      var block = btn.parentNode.querySelector('.t-seq');
+      var text = block ? block.textContent : '';
+      var restore = function () {
+        var was = btn.getAttribute('data-label') || btn.innerHTML;
+        btn.setAttribute('data-label', was);
+        btn.innerHTML = '✓&nbsp;Copied';
+        setTimeout(function () { btn.innerHTML = btn.getAttribute('data-label'); }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(restore, function () {});
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (err) {}
+        document.body.removeChild(ta); restore();
+      }
+    }
   });
   on(document, 'click', function () { if (tipPinned) unpinTip(); });
   var goMarkers = qsa('.go-marker');
@@ -5083,7 +5159,8 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
                        color_categories=DEFAULT_DOMAIN_CATEGORIES,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
-                       length_col='nlen', operon_kwargs=None, max_table_rows=None,
+                       length_col='nlen', seq_col='sequence',
+                       operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
                        overview_segment_length=DEFAULT_SEGMENT_LENGTH,
                        software_name='S(H)ARP',
@@ -5109,7 +5186,9 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         with the number of neighbors in it; the zoom controls stretch it;
       * every protein has a hover info window (id, coordinates, strand,
         length, product; the query protein is flagged as the query in
-        place of a domain line).
+        place of a domain line). When `df` carries a `seq_col` column,
+        the window also holds the amino-acid sequence with a copy
+        button.
 
     A single shared domain -> color map is computed once (from the whole
     table, honoring `rename_map`/`custom_colors`/`max_colors`/
@@ -5147,6 +5226,13 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     nucleotide_col, start_col, end_col, length_col : str
         Genomic-coordinate columns for the overview (see
         `compute_block_extents`).
+    seq_col : str, default 'sequence'
+        Column holding each protein's amino-acid sequence. When `df`
+        has it, every protein's info window gains a scrollable FASTA
+        block and a "Copy sequence" button (usable once the window is
+        pinned by clicking the gene); when the column is missing the
+        info windows are unchanged. The sequence is not fetched -- it
+        must already be a column of `df`.
     operon_kwargs : dict or None
         Extra per-figure options forwarded to `neighborhood_figure` for
         each block (e.g. `collapse_opposite_strand=True`, `font_size`,
@@ -5218,6 +5304,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         per_block_operon_kwargs = dict(operon_kwargs)
         per_block_operon_kwargs.update(
             org_col=org_col, label_col=label_col, rename_map=rename_map,
+            seq_col=seq_col,
         )
         block_svgs = render_neighborhood_svgs_by_block(
             df, group_col=group_col, color_map=color_map,
@@ -5236,7 +5323,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     # Same blocks, drawn to real genomic scale for the "To scale" sub-view.
     scale_svgs = render_scaled_svgs_by_block(
         working, color_map=color_map, nucleotide_col=nucleotide_col,
-        start_col=start_col, end_col=end_col,
+        start_col=start_col, end_col=end_col, seq_col=seq_col,
         normalize_orientation=operon_kwargs.get('normalize_orientation', True),
     )
 
