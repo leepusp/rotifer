@@ -1358,9 +1358,14 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     # heptarepeat MEME/FIMO scan ('Heptarepeat') or the HMM that matched it in
     # hmmsearch (the model's own name). A query found by both searches, or by
     # more than one model, carries every tag joined by '+'.
-    
     hepta_pids = set(fimo.pid.dropna())
     model_by_pid = (hsearch_hits.astype({'model': str}).groupby('sequence')['model'].agg(lambda names: '+'.join(dict.fromkeys(names))).to_dict())
+
+    def _query_source(pid):
+        tags = ['Heptarepeat'] if pid in hepta_pids else []
+        if pid in model_by_pid:
+            tags.append(model_by_pid[pid])
+        return '+'.join(tags) if tags else np.nan
 
     query_source = {pid: _query_source(pid) for pid in dict.fromkeys(pids_list)}
     ndf['query_source'] = ndf.pid.map(query_source)
@@ -1392,9 +1397,3 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
         return ndf, hscan
 
     return ndf
-
-def _query_source(pid):
-    tags = ['Heptarepeat'] if pid in hepta_pids else []
-    if pid in model_by_pid:
-        tags.append(model_by_pid[pid])
-    return '+'.join(tags) if tags else np.nan
