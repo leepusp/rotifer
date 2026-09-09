@@ -1313,7 +1313,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     repeat_max_distance=50, repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
     color_dict=None, domain_dict=None, seed=4, patience=4, max_distance=50, max_extend=30, 
-    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, 
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, add_sequences=True,
     filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
@@ -1344,23 +1344,23 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
     ndf['pfam_coord'] = ndf.pid.map(hscan.set_index('sequence').pfam_coord.to_dict())
 
+    if add_sequences:
+        seqs = rdbs.sequence(genome_protein_fasta)
+        ndf['sequence'] = ndf.pid.map(seqs.df.set_index('id').sequence.to_dict())
+        matched = int(ndf.sequence.notna().sum())
+        total = int(ndf.pid.notna().sum())
+        print(f'Sequences attached to {matched} of {total} proteins')
+        if total and not matched:
+            print(f'  WARNING: no pid matched a header in {genome_protein_fasta} -- '
+                  'the report will have no sequences')
+
     # Tag every neighborhood with the search that recovered its query: the
     # heptarepeat MEME/FIMO scan ('Heptarepeat') or the HMM that matched it in
     # hmmsearch (the model's own name). A query found by both searches, or by
     # more than one model, carries every tag joined by '+'.
+    
     hepta_pids = set(fimo.pid.dropna())
-    model_by_pid = (
-        hsearch_hits.astype({'model': str})
-        .groupby('sequence')['model']
-        .agg(lambda names: '+'.join(dict.fromkeys(names)))
-        .to_dict()
-    )
-
-    def _query_source(pid):
-        tags = ['Heptarepeat'] if pid in hepta_pids else []
-        if pid in model_by_pid:
-            tags.append(model_by_pid[pid])
-        return '+'.join(tags) if tags else np.nan
+    model_by_pid = (hsearch_hits.astype({'model': str}).groupby('sequence')['model'].agg(lambda names: '+'.join(dict.fromkeys(names))).to_dict())
 
     query_source = {pid: _query_source(pid) for pid in dict.fromkeys(pids_list)}
     ndf['query_source'] = ndf.pid.map(query_source)
@@ -1392,3 +1392,9 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
         return ndf, hscan
 
     return ndf
+
+def _query_source(pid):
+    tags = ['Heptarepeat'] if pid in hepta_pids else []
+    if pid in model_by_pid:
+        tags.append(model_by_pid[pid])
+    return '+'.join(tags) if tags else np.nan

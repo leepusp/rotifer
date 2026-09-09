@@ -1370,7 +1370,7 @@ REPEAT_REGION_MARKER_MIN_PX = 12.0
 
 def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
                              repeat_start, repeat_end, repeat_strand=None,
-                             flip=False):
+                             flip=False, clamp_min=None, clamp_max=None):
     """
     SVG markup for the pink square that marks a regulatory region in a
     *to-scale* block figure (`build_scaled_block_svg`).
@@ -1396,10 +1396,27 @@ def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
     here made the same heptarepeat read '+' beside a '-' coordinate span
     and disagree between the two views. `flip` is accepted for callers
     that still pass it and no longer changes anything.
+
+    `clamp_min`/`clamp_max` are the x bounds of the track the caller is
+    drawing into. They matter because the marker is widened to
+    `REPEAT_REGION_MARKER_MIN_PX` symmetrically about the region's
+    midpoint: a region sitting hard against either end of the window --
+    which is exactly where a promoter repeat belonging to the first or
+    last gene lands -- would otherwise have half that padding hanging
+    outside the frame. The square is slid (never squashed) back inside,
+    and its connector follows it so the two stay joined. Leave them None
+    to draw with no clamping at all.
     """
     lo, hi = sorted((x_start, x_end))
-    mid = (lo + hi) / 2
     width = max(hi - lo, REPEAT_REGION_MARKER_MIN_PX)
+    x = (lo + hi) / 2 - width / 2
+    if clamp_min is not None:
+        x = max(x, clamp_min)
+    if clamp_max is not None:
+        # never past the right edge, but a marker wider than the whole
+        # track still starts at clamp_min rather than being pushed left
+        x = min(x, max(clamp_max - width, clamp_min if clamp_min is not None else clamp_max - width))
+    mid = x + width / 2
     height = lane_bottom - lane_top
     _, _, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
     tip_attr = html.escape(build_repeat_tooltip_html(repeat_start, repeat_end, strand), quote=True)
@@ -1411,7 +1428,7 @@ def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
             f'stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1" stroke-opacity="0.45"/>'
         )
     parts.append(
-        f'<rect x="{mid - width / 2:.1f}" y="{lane_top:.1f}" '
+        f'<rect x="{x:.1f}" y="{lane_top:.1f}" '
         f'width="{width:.1f}" height="{height:.1f}" rx="1.5" '
         f'fill="{REPEAT_REGION_FILL}" stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1.2"/>'
     )
@@ -2988,6 +3005,23 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
 
     lo = min(s[0] for s in valid)
     hi = max(s[1] for s in valid)
+
+    # Regulatory regions have to be inside the drawn window too, not
+    # just the genes. A heptarepeat sits in the promoter, upstream of
+    # the gene it belongs to, so as soon as that gene is the first of
+    # the neighborhood (or the last, on a mirrored block) its repeat
+    # falls outside the gene extent -- and `to_x` then projects it left
+    # of the track, on top of the label column or clipped off the
+    # viewBox entirely. Widening the window to cover every span actually
+    # drawn is what keeps it in frame; the ruler reads off the same
+    # lo/hi, so it goes on describing exactly what is on screen.
+    for _, row in block.iterrows():
+        if not has_repeat_region(row):
+            continue
+        r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
+        lo = min(lo, r_lo)
+        hi = max(hi, r_hi)
+
     span = max(hi - lo, 1)
 
     ref_idx = select_reference_query_index(block)
@@ -3128,6 +3162,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
             to_x(rs), to_x(re_), repeat_lane_top, repeat_lane_top + repeat_lane_h,
             band_top, rs, re_,
             repeat_strand=row.get('repeat_strand'), flip=flip,
+            clamp_min=left_margin, clamp_max=left_margin + track_width,
         ))
 
     # ---- ruler ----
