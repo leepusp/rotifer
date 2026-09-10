@@ -1313,7 +1313,7 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     repeat_max_distance=50, repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
     color_dict=None, domain_dict=None, seed=4, patience=4, max_distance=50, max_extend=30, 
-    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, add_sequences=True,
+    domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, add_sequences=True, normalize_orientation=False,
     filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
     ''' 
     Doc
@@ -1386,7 +1386,8 @@ def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome
         ndf['organism'] = organism
 
     if make_figure:
-        rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict)
+        rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict,
+                               normalize_orientation=normalize_orientation)
         print(f'figure saved in {output_report}')
 
     if return_fimo and return_hmmscan:

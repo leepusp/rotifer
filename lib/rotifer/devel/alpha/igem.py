@@ -228,25 +228,43 @@ SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
 #           '{pid}' (the accession) are substituted, URL-encoded, at
 #           click time.
 #   copy  : True for a service that cannot receive a query through its
-#           URL at all -- the report copies the protein's FASTA to the
-#           clipboard first and then opens the tool, so the sequence
-#           only has to be pasted. False for a link that already
-#           carries the query.
+#           URL at all. The report then copies the protein's FASTA to
+#           the clipboard and opens the tool, and the sequence still has
+#           to be PASTED into the tool's own box -- it does not arrive
+#           filled in. False for a link that really does carry the
+#           query, where the tool opens with the sequence already in it.
 #   title : hover text saying what the chip will do.
 #
-# The split is not a style choice: NCBI BLAST documents a URL parameter
-# that accepts a whole sequence, while Foldseek, SeqHub, InterPro and
-# HHpred only offer a paste box, so a link alone cannot start their
-# search. Copy-then-open is the closest thing to one click that those
-# services allow. A `copy: False` entry whose URL would come out too
-# long for a GET -- an NRPS/PKS megasynthase in a '{seq}' link -- falls
-# back to copy-then-open by itself, so the chip never builds a URL that
-# would be truncated (see `toolChipFor` in the report's JavaScript).
+# The split is a hard limit of the services, not a style choice, and it
+# was checked rather than assumed:
 #
-# Accession-based chips ('{pid}') are only meaningful when the table's
-# pids really are public accessions -- with locus tags from a private
-# GFF they will land on an empty search page. They are still shown,
-# since which of the two a table holds is the user's to know.
+#   * NCBI BLAST documents a URL parameter (QUERY=) that takes a whole
+#     sequence, so that link genuinely arrives pre-filled.
+#   * search.foldseek.com runs the MMseqs2-App frontend, whose query box
+#     is initialised from the browser's own IndexedDB and never from the
+#     URL -- it reads route parameters only for its "load accession"
+#     button. Its API (POST /ticket with a `q` field) submits a job and
+#     hands back a ticket to poll, which is not a redirect and is not
+#     something a static page should fire off on someone's behalf.
+#   * SeqHub, InterPro and HHpred likewise document no URL parameter
+#     that pre-loads a sequence.
+#
+# So for those four, copy-then-paste is the best that exists, and the
+# chip says so instead of pretending otherwise. If any of them gains a
+# query parameter later, moving it across is a one-line change: put the
+# parameter in `url` with a '{seq}' or '{fasta}' placeholder and set
+# `copy: False`.
+#
+# A `copy: False` entry whose URL would come out too long for a GET --
+# an NRPS/PKS megasynthase in a '{seq}' link -- falls back to
+# copy-then-open by itself, so the chip never builds a URL that would be
+# truncated (see `toolChipFor` in the report's JavaScript).
+#
+# '{pid}' is still substituted for anyone who wants an accession-keyed
+# chip, but nothing here uses it: these tables are usually built from a
+# private GenBank/GFF annotation, where a pid is a locus tag rather than
+# a public accession, and a lookup chip would just land on an empty
+# search page.
 #
 # Pass your own list as `external_tools` to add, drop or reorder these;
 # `external_tools=[]` leaves the chips out entirely.
@@ -255,31 +273,23 @@ DEFAULT_EXTERNAL_TOOLS = [
      'url': ('https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE=Proteins&PROGRAM=blastp'
              '&BLAST_PROGRAMS=blastp&DATABASE=nr&QUERY={seq}'),
      'copy': False,
-     'title': 'NCBI blastp against nr, with this sequence pre-filled'},
+     'title': 'NCBI blastp against nr -- opens with this sequence already filled in'},
     {'name': 'Foldseek',
      'url': 'https://search.foldseek.com/search',
      'copy': True,
-     'title': 'Foldseek structure search (AlphaFold/PDB) -- sequence copied, paste it in'},
+     'title': 'Foldseek structure search (AlphaFold/PDB)'},
     {'name': 'SeqHub',
      'url': 'https://seqhub.org/',
      'copy': True,
-     'title': 'SeqHub sequence annotation and analysis -- sequence copied, paste it in'},
+     'title': 'SeqHub sequence annotation and analysis'},
     {'name': 'InterPro',
      'url': 'https://www.ebi.ac.uk/interpro/search/sequence/',
      'copy': True,
-     'title': 'InterProScan domain annotation -- sequence copied, paste it in'},
+     'title': 'InterProScan domain annotation'},
     {'name': 'HHpred',
      'url': 'https://toolkit.tuebingen.mpg.de/tools/hhpred',
      'copy': True,
-     'title': 'HHpred remote-homology detection -- sequence copied, paste it in'},
-    {'name': 'AlphaFold',
-     'url': 'https://alphafold.ebi.ac.uk/search/text/{pid}',
-     'copy': False,
-     'title': 'Look this accession up in the AlphaFold structure database'},
-    {'name': 'NCBI',
-     'url': 'https://www.ncbi.nlm.nih.gov/protein/{pid}',
-     'copy': False,
-     'title': 'The protein record at NCBI (only for NCBI accessions)'},
+     'title': 'HHpred remote-homology detection'},
 ]
 
 # Bases drawn per line in the genome-wide overview: every contig is cut
@@ -1080,7 +1090,7 @@ def mark_reference_query(df, group_col='pid_order'):
     return out
 
 
-def normalize_block_strand(block_df, normalize_orientation=True):
+def normalize_block_strand(block_df, normalize_orientation=False):
     """
     Optionally mirror a block so its reference query gene always points
     the same way (strand +1, drawn as a right-pointing arrow).
@@ -1703,7 +1713,7 @@ def chain_align_nodes(graph, node_ids, weight=10000):
 def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='organism',
                         output_file='operon_fig_out.svg', max_colors=5,
                         highlight_query=True, font_size=10, ignore_domains=None,
-                        custom_colors=None, rename_map=None, normalize_orientation=True,
+                        custom_colors=None, rename_map=None, normalize_orientation=False,
                         align_query_center=False, collapse_opposite_strand=False,
                         spacer_width=0.6, color_map=None, collect_node_meta=False,
                         show_row_label=True, seq_col='sequence'):
@@ -1750,7 +1760,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         component-by-component on '+'-joined architecture strings (e.g.
         'GntR+FCD'), not only on an exact whole-string match. See
         `rename_label_values`.
-    normalize_orientation : bool, default True
+    normalize_orientation : bool, default False
         If True, blocks whose reference query (see
         `select_reference_query_index`) is on the minus strand are
         mirrored so every reference query is drawn pointing the same
@@ -2916,7 +2926,7 @@ def _format_bp_tick(value, step):
 
 def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide',
                             start_col='start', end_col='end',
-                            normalize_orientation=True, highlight_query=True,
+                            normalize_orientation=False, highlight_query=True,
                             track_width=900, left_margin=210, right_margin=30,
                             gene_height=26, font_size=11, min_gene_width=2.0,
                             show_row_label=True, seq_col='sequence'):
@@ -2968,7 +2978,7 @@ def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide'
     seq_col : str, default 'sequence'
         Column carried into each gene's info window as its amino-acid
         sequence (copy-able FASTA block). Missing column -> no sequence.
-    normalize_orientation : bool, default True
+    normalize_orientation : bool, default False
         Mirror the block so its reference query points right.
     highlight_query : bool, default True
         Outline query genes in red.
@@ -3734,6 +3744,9 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     border-radius:11px;padding:2px 9px;
   }
   .go-tooltip .t-tool:hover{background:#314561;color:#fff;border-color:#5b7ba6;}
+  .go-tooltip .t-tools-note{
+    flex-basis:100%;color:#8b94a4;font-size:9.5px;font-style:italic;margin-top:1px;
+  }
   /* chips that copy the sequence before opening the tool read
      differently from ones that carry the query in the link itself */
   .go-tooltip .t-tool[data-copy]::after{content:'\2398';margin-left:4px;opacity:.65;}
@@ -4172,7 +4185,7 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or <b>click</b> it to pin the window open -- a pinned window shows the protein's sequence, with buttons to copy or download it and chips that send it straight to <b>BLASTp</b>, <b>Foldseek</b>, <b>SeqHub</b>, <b>InterPro</b> and <b>HHpred</b>. <b>Copy FASTA</b> / <b>FASTA</b> above do the same for every protein in the neighborhoods you have selected.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or <b>click</b> it to pin the window open -- a pinned window shows the protein's sequence, with buttons to copy or download it and chips that send it to <b>BLASTp</b>, <b>Foldseek</b>, <b>SeqHub</b>, <b>InterPro</b> and <b>HHpred</b>. BLASTp opens with the sequence already filled in; the rest have no way to be pre-filled from a link, so those chips copy the sequence and open the tool for you to paste it (they are marked &#9112;). <b>Copy FASTA</b> / <b>FASTA</b> above do the same for every protein in the neighborhoods you have selected.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
@@ -4571,15 +4584,25 @@ $stats_selector
     qsa('.t-seq-slot', root).forEach(function (slot) {
       var pid = slot.dataset.pid;
       if (!pid || !(NBSEQ.seqs || {})[pid]) return;
+      var anyCopy = false;
       var chips = NBTOOLS.map(function (t) {
         var chip = toolChipFor(t, pid);
-        var hint = chip.copy ? ' (sequence copied to your clipboard first)' : '';
+        // Say plainly which of the two a chip is. A service that cannot
+        // be pre-filled from a link still needs a Ctrl+V at the other
+        // end, and a chip that implied otherwise would just look broken
+        // when the tool opened with an empty box.
+        var hint = chip.copy
+          ? ' — copies the sequence, opens the tool, then paste it with Ctrl+V'
+            + ' (this service cannot be pre-filled from a link)'
+          : '';
+        if (chip.copy) anyCopy = true;
         return '<a class="t-tool" target="_blank" rel="noopener noreferrer"'
              + ' href="' + esc(chip.href) + '"'
              + (chip.copy ? ' data-copy="' + esc(pid) + '"' : '')
              + ' title="' + esc((t.title || t.name) + hint) + '">'
              + esc(t.name) + '</a>';
       }).join('');
+      if (anyCopy) chips += '<span class="t-tools-note">⎘ = copied, paste at the other end</span>';
       slot.innerHTML =
         '<span class="t-seq-hint">click the gene to pin this window &mdash; sequence and tools</span>'
         + '<span class="t-seq-full">'
@@ -5528,6 +5551,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
                        color_categories=DEFAULT_DOMAIN_CATEGORIES,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
                        length_col='nlen', seq_col='sequence',
+                       normalize_orientation=False,
                        external_tools=DEFAULT_EXTERNAL_TOOLS, table_include_seq=False,
                        operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
@@ -5557,9 +5581,10 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         length, product; the query protein is flagged as the query in
         place of a domain line). When `df` carries a `seq_col` column,
         pinning that window also shows the protein's FASTA record with
-        copy/download buttons and a row of chips that send it straight
-        to BLASTp, Foldseek, SeqHub, InterPro, HHpred and the rest of
-        `external_tools`;
+        copy/download buttons and a row of chips that send it to
+        BLASTp, Foldseek, SeqHub, InterPro, HHpred and the rest of
+        `external_tools` -- pre-filled where the service supports it,
+        copied to the clipboard for pasting where it does not;
       * the toolbar can copy or download every protein of the selected
         neighborhoods as a single FASTA.
 
@@ -5599,6 +5624,16 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     nucleotide_col, start_col, end_col, length_col : str
         Genomic-coordinate columns for the overview (see
         `compute_block_extents`).
+    normalize_orientation : bool, default False
+        Whether to mirror a block whose reference query sits on the
+        minus strand, so every query reads left-to-right. Off by
+        default: the figures show each neighborhood in its real genomic
+        orientation, and the to-scale ruler counts up rather than down.
+        Set True to line every query up in the same direction, at the
+        cost of some blocks being drawn reverse-complemented (they are
+        labelled as such). Applies to the Figure and To scale views
+        alike. Passing it inside `operon_kwargs` still works and takes
+        precedence.
     seq_col : str, default 'sequence'
         Column holding each protein's amino-acid sequence. When `df`
         has it, pinning a protein's info window (click its gene) shows
@@ -5610,12 +5645,12 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         fetched -- it must already be a column of `df`.
     external_tools : list[dict] or None, default `DEFAULT_EXTERNAL_TOOLS`
         The services offered as chips in each protein's info window --
-        BLASTp, Foldseek, SeqHub, InterPro, HHpred, AlphaFold and the
-        NCBI record by default. See `DEFAULT_EXTERNAL_TOOLS` for the
-        shape of an entry and how a link either carries the sequence
-        itself or copies it to the clipboard on the way out. Pass `[]`
-        (or None) to leave the chips out. Chips only appear on proteins
-        that have a sequence.
+        BLASTp, Foldseek, SeqHub, InterPro and HHpred by default. See
+        `DEFAULT_EXTERNAL_TOOLS` for the shape of an entry and for which
+        services can be pre-filled from a link (only BLASTp) versus
+        which can only be handed the sequence through the clipboard.
+        Pass `[]` (or None) to leave the chips out. Chips only appear on
+        proteins that have a sequence.
     table_include_seq : bool, default False
         Whether to keep `seq_col` as a column of the merged
         neighborhoods table. It is dropped by default: a 300-character
@@ -5695,6 +5730,9 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
             org_col=org_col, label_col=label_col, rename_map=rename_map,
             seq_col=seq_col,
         )
+        # `operon_kwargs` is the older way in and still wins, so a caller
+        # already passing it there keeps working unchanged.
+        per_block_operon_kwargs.setdefault('normalize_orientation', normalize_orientation)
         block_svgs = render_neighborhood_svgs_by_block(
             df, group_col=group_col, color_map=color_map,
             operon_kwargs=per_block_operon_kwargs, tmp_dir=tmp_dir,
@@ -5714,7 +5752,7 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     scale_svgs = render_scaled_svgs_by_block(
         working, color_map=color_map, nucleotide_col=nucleotide_col,
         start_col=start_col, end_col=end_col, seq_col=seq_col,
-        normalize_orientation=operon_kwargs.get('normalize_orientation', True),
+        normalize_orientation=operon_kwargs.get('normalize_orientation', normalize_orientation),
     )
 
     nb_fig_stack, nb_scale_stack, nb_selector = build_neighborhood_panels(
