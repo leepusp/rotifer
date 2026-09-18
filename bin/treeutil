@@ -156,21 +156,6 @@ exit 0;
 ###############
 # Subroutines
 
-sub map_labels {
-    my ($n,$t) = @_;
-    my %n = map { ($_->id,1) } $t->get_leaf_nodes;
-
-    if ($n->is_Leaf) {
-	(my $tax = $n->id) =~ s/\|.+$//;
-	$n->add_tag_value("taxon",$tax);
-    } else {
-	my %d = (); 
-	map { map { $d{$_} = 1 } map { split(":") } $_->get_tag_values("taxon") } $n->each_Descendent;
-	$n->add_tag_value("taxon",join(":",sort keys %d));
-    }
-
-    return $n;
-}
 
 sub Increase_Branch_Lengths {
     my $tree   = shift;

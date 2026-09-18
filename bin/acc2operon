@@ -621,13 +621,6 @@ def acc2asm2gbk(accs, db, verbose, df_accs, threads = 3, api_key = '', table_nam
 
     return (df_accs, df_accs2)
 
-def _multiple_find_acc(sub_fi, gbk, db,  send_end):
-    results = []
-    for f in sub_fi:
-        df = pd.read_csv(os.path.join(db,'acc/'+f), sep = '\t')
-        df = df[df['assembly'] == gbk]['acc'].values
-        results.extend(df)
-    send_end.send(results)
 
 def features2df(gbk, df, db = '', pair_acc = '', verbose = False):
     '''
@@ -1340,4 +1333,3 @@ if __name__ == '__main__':
                     sys.stderr.write(args.fun.fun)
             except:
                 pass
-

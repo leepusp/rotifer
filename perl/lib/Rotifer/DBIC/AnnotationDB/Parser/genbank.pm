@@ -309,60 +309,6 @@ sub process_taxonomy {
     return 1;
 }
 
-sub process_accotations {
-    my ($self, $hash, $seq) = @_;
-    my $drs = $self->rotiferdb->resultset('Dbxref');
-
-    # Sequence annotations...
-    my $ann = $hash->{annotation};
-    foreach my $ann ($seq->annotation->flatten_Annotations) {
-	my $tag = $ann->tagname; my $value = undef;
-
-	# Simple value (but there could be many under the same 
-	if ($ann->isa("Bio::Annotation::SimpleValue")) {
-	    $value = [ $ann->value ] if (defined $ann->value && length $ann->value);
-	} 
-
-	# Complex values
-	elsif ($ann->isa("Bio::Annotation::StructuredValue")) {
-	    $value = [ $ann->get_all_values ] if (scalar $ann->get_all_values);
-	}
-
-	# Comment
-	elsif ($ann->isa("Bio::Annotation::Comment")) {
-	    $value = [ $ann->value ] if (defined $ann->value);
-	}
-
-	# Reference
-	elsif ($ann->isa("Bio::Annotation::Reference")) {
-	    if (defined $ann->pubmed && length $ann->pubmed) {
-		my $xref = $drs->find_or_create({ accession => $ann->pubmed,
-						  dbname    => 'Pubmed',
-						  version   => 0,
-						  acctype   => 'PMID' });
-		push(@{$hash->{dbxrefs}},$xref);
-	    }
-	    next;
-	}
-
-	# DBLink
-	elsif ($ann->isa("Bio::Annotation::DBLink")) {
-	    next unless (defined $ann->database);
-	    my $xref = $drs->find_or_create({ accession => $ann->primary_id,
-					      version   => $ann->version || 0,
-					      dbname    => $ann->database,
-					      acctype   => 'Unknown',
-					    });
-	    push(@{$hash->{dbxrefs}},$xref);
-	    next;
-	}
-
-	# Process this tag (just pile it up under the tag:
-	# we need to wait until the node object if created
-	push(@{$ann->{$tag}}, @$value) if (defined $value);
-    }
-
-}
 
 sub process_features {
     my ($self, $hash, $seq) = @_;
