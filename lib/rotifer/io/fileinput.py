@@ -52,19 +52,6 @@ def input(files=None, inplace=False, backup="", *, mode="r", openhook=None, dele
 
 # Internal method to use when returning concatenated file
 # streams (handlers) with fileinput
-def hook_compressed_text(filename, mode='r', encoding='utf8'):
-    ext = os.path.splitext(filename)[1]
-    if mode == 'r':
-        mode = 'rt'
-    if ext == '.gz':
-        import gzip
-        return gzip.open(filename, mode, encoding=encoding)
-    elif ext == '.bz2':
-        import bz2
-        return bz2.open(filename, mode, encoding=encoding)
-    else:
-        return open(filename, mode, encoding=encoding)
 
 if __name__ == '__main__':
     pass
-

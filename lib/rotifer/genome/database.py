@@ -91,20 +91,6 @@ class database:
     def configuration(self):
         print(self.target.config)
 
-    def submitted_parameters(self, outformat = 'table'):
-        print(f'Accs:\t{self._accs[0:10]} ...')
-        print(f'Input type\t{" ".join(self._input_type)}')
-
-        try:
-            for k,v in self._parameters.items():
-                print(f'{k}\t{v}')
-
-        except:
-            pass
-
-    def available_sources(self):
-        return list(self._switch_source.keys())
-
 
 if __name__ == '__main__':
     s = database(sources = ['clickhouse'], verbose = 3)

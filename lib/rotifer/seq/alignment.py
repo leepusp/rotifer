@@ -84,8 +84,6 @@ class IO:
 
         return MSA(df, metadata = metadata)
 
-    def show_options(self):
-        print(self._switch_source)
 
 class MSA(pd.DataFrame):
     '''
@@ -635,43 +633,6 @@ class MSA(pd.DataFrame):
                                            pseudocount = pseudocount,
                                            **kwargs).run()
 
-    def conservation_types(self):
-        self._load_stats()
-        return list(self._switch_source.keys())
-
-    def seq2colors(self):
-        df = self
-        colors, cmap, bounds, norm = _colors_dict_and_cmap()
-        _ = list(df['_rotifer.sequence'].map(lambda x: [int(colors[y])for y in x]))
-        return (_, cmap, bounds, norm)
-
-    def plot_logo(self, font_family = 'Arial',
-                        data_type='bits',
-                        seq_type='dna',
-                        yaxis='bits',
-                        colorscheme='classic',
-                        nrows=1,
-                        # ncols=1,
-                        padding=0,
-                        draw_range=None,
-                        coordinate_type='data',
-                        draw_axis=False,
-                        fontfamily='Arial',
-                        debug=False,
-                        ax=None,
-                        dpi = 96):
-
-
-        import math
-        import seaborn
-        import matplotlib.pyplot as plt
-        import matplotlib.patheffects
-        import matplotlib as mpl
-        from matplotlib.font_manager import FontProperties
-        from matplotlib import transforms
-
-        df = self
-        bits = self.stats('bit_score')
 
         # Fix this
 

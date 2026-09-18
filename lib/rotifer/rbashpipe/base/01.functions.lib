@@ -3,9 +3,6 @@
 #========================================================================
 # Build array from a string
 #========================================================================
-function split_array() {
-    IFS=$2 read -r -a $3 <<< "$1"
-}
 
 #========================================================================
 # Build string from array
@@ -40,9 +37,6 @@ function array_contains() {
 #========================================================================
 # Set the value of a shell variable by calling its name
 #========================================================================
-function set_value_by_name() {
-    printf -v "$1" %s $2
-}
 
 #========================================================================
 # Get value of a shell variable by calling its name
@@ -92,15 +86,6 @@ function safe_remove() {
 #========================================================================
 # Create non-existing directories
 #========================================================================
-function make_directories() {
-    local d
-    for d in $*
-    do
-        if [ ! -d $d ]; then
-            mkdir -p $d
-        fi
-    done
-}
 
 #========================================================================
 # Find files in a list of directories

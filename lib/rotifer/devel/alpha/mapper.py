@@ -26,8 +26,6 @@ class configuration(dict):
                 a = a[x]
         return a
 
-    def from_yaml():
-        pass
 
     def to_yaml(handle):
         pass
