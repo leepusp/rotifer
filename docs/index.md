@@ -6,7 +6,7 @@ data analysis pipelines in comparative genomics and computational analysis of
 biological sequences, plus command line tools built on that framework.
 
 This site documents the Python package that lives under `lib/rotifer` in the
-[repository](https://github.com/leepbioinfo/rotifer).
+[repository](https://github.com/leepusp/rotifer).
 
 ::::{grid} 1 2 2 2
 :gutter: 3

@@ -16,7 +16,7 @@ from importlib.metadata import version as pkg_version
 # and is never hardcoded here.
 PROJECT_NAME = "ROTIFER"
 PROJECT_AUTHOR = "Robson F. de Souza and contributors"
-GITHUB_URL = "https://github.com/leepbioinfo/rotifer"
+GITHUB_URL = "https://github.com/leepusp/rotifer"
 
 # Shibuya accent family (radix color name). This only controls surfaces the
 # theme owns; the exact brand tokens live in _static/theme.css.
@@ -78,9 +78,18 @@ INTERSPHINX_TARGETS = {
 # References that genuinely cannot be resolved, one per line, each with the
 # reason it is ignored.
 NITPICK_IGNORES = [
-    ("py:class", "Bio.SeqRecord.SeqRecord"),  # Biopython inventory does not index SeqRecord as py:class
-    ("py:class", "tempfile._TemporaryFileWrapper"),  # private stdlib class, not in the Python inventory
-    ("py:class", "argparse._AppendAction"),  # private stdlib class exposed by rotifer.core.cli inheritance
+    (
+        "py:class",
+        "Bio.SeqRecord.SeqRecord",
+    ),  # Biopython inventory does not index SeqRecord as py:class
+    (
+        "py:class",
+        "tempfile._TemporaryFileWrapper",
+    ),  # private stdlib class, not in the Python inventory
+    (
+        "py:class",
+        "argparse._AppendAction",
+    ),  # private stdlib class exposed by rotifer.core.cli inheritance
 ]
 
 # Module members that autosummary must skip because autodoc cannot process
@@ -107,13 +116,25 @@ ENABLE_DATATABLES = True  # sortable/searchable tables via sphinx-datatables
 ENABLE_ICONIFY = True  # icons via sphinx-iconify (assets self-hosted in _static/vendor)
 COPYBUTTON_STRIP_PROMPTS = True  # strip ">>> " and "$ " prompts when copying code
 
+# Nest the sidebar entries whose titles are dotted Python names, so that
+# rotifer.db.ncbi.entrez sits inside ncbi inside db inside rotifer, each
+# labelled with its own last component and each collapsible. Set to False
+# to get the flat list autosummary produces. See docs/_ext/sidebar_tree.py.
+NEST_API_SIDEBAR = True
+
 # ---------------------------------------------------------------------------
 # --- END OF TUNABLES ---
 # ---------------------------------------------------------------------------
 
 # Make the package importable when it is not installed (local builds run
 # against the checkout; Read the Docs installs the package with pip).
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "lib")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "lib"))
+)
+
+# Local Sphinx extensions live in docs/_ext and are only ever imported from
+# this file.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "_ext")))
 
 project = PROJECT_NAME
 author = PROJECT_AUTHOR
@@ -143,10 +164,13 @@ if ENABLE_DATATABLES:
     # which is too late for jQuery to be installed into the page.
     extensions.append("sphinxcontrib.jquery")
     extensions.append("sphinx_datatables")
+if NEST_API_SIDEBAR:
+    extensions.append("sidebar_tree")
 
 templates_path = ["_templates"]
 exclude_patterns = [
     "_build",
+    "_ext",  # local Sphinx extensions, not site content
     "Thumbs.db",
     ".DS_Store",
     "OPEN_QUESTIONS.md",  # working notes, not part of the site
