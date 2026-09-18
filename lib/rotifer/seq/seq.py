@@ -5,9 +5,7 @@ import sys
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import mkstemp
 import rotifer.core.functions as rcf
-import rotifer.table.table as tb
 import pandas as pd
-from pandas.compat import StringIO
 
 
 class protein:
