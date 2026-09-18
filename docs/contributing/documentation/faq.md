@@ -1,7 +1,7 @@
 # FAQ
 
 Short answers to the question that comes up most often: *which file
-do I edit to change this?* The site has no single layout file. Five
+do I edit to change this?* The site has no single layout file. Seven
 layers each own one part of the result, and editing the wrong one
 is the usual reason a change does nothing.
 
@@ -21,6 +21,12 @@ is the usual reason a change does nothing.
   - `docs/api/index.rst`
 * - The anatomy of a generated API page
   - `docs/_templates/autosummary/module.rst` and `class.rst`
+* - How the sidebar nests and labels the API entries
+  - `docs/_ext/sidebar_tree.py`
+* - Either sidebar's collapse control
+  - `docs/_templates/partials/globaltoc-above.html` (left),
+    `docs/_templates/sidebars/localtoc.html` (right) and
+    `docs/_static/sidebar-toggle.js` (both)
 * - Where the built HTML lands
   - `docs/Makefile` locally, `.readthedocs.yaml` when hosted
 ```
@@ -46,6 +52,96 @@ Which sidebar widgets appear is set by `html_sidebars` in
 `docs/conf.py`. This site deliberately keeps only the local table
 of contents, because the other widgets the theme offers call out to
 external services.
+
+## Why is the API sidebar a tree when `api/index.rst` is a flat list?
+
+Because `docs/_ext/sidebar_tree.py` rewrites it. autosummary emits
+one flat `toctree` entry per documented object, which put
+`rotifer.db.ncbi.entrez` beside `rotifer.db` rather than inside it
+and repeated the parent name in every label. The extension regroups
+the sidebar entries whose titles are dotted Python names into the
+tree those names describe and shortens each label to its own last
+component, so `rotifer.db.ncbi.entrez` reads as `entrez` inside
+`ncbi` inside `db` inside `rotifer`.
+
+Three consequences are worth knowing:
+
+- Every node with children gets a collapse toggle, because the theme
+  adds one to any sidebar item that has children. Deepening the tree
+  is what produces the toggles.
+- Siblings are sorted, packages first and then pages, each group
+  alphabetical. The curated order of the `autosummary` blocks in
+  `docs/api/index.rst` still decides the order *on the API reference
+  page*, but it cannot survive in the sidebar: it is an order over a
+  flat list, and the sidebar is a tree.
+- A package listed only through its submodules, such as
+  `rotifer.core.io`, has no page of its own, so its label only
+  toggles the branch instead of linking anywhere. Adding the package
+  to `docs/api/index.rst` turns it into a link.
+
+The rewrite is HTML post-processing and touches no source file. Set
+`NEST_API_SIDEBAR = False` in `docs/conf.py` to get the flat list
+back.
+
+## How do the collapsible sidebars work?
+
+Both sidebars collapse to a 3rem rail, and both work the same way:
+a class on `<html>`, a rail in CSS, and `.sy-main` widening to
+reclaim the difference. Shibuya computes `.sy-main`'s width from the
+sidebars rather than letting it flex, so every combination of the
+two is spelled out in the stylesheet.
+
+**The controls.** The left one lives in
+`docs/_templates/partials/globaltoc-above.html`. The theme renders
+the left sidebar inline in its layout with no sidebar template to
+override, and this partial is the hook it does provide: it sits
+inside the scroll container, directly above the toctree. It is a
+bare `tabler:menu-2` hamburger with no label, because the navigation
+has no heading of its own to collapse into.
+
+The right one is the panel's own heading, in
+`docs/_templates/sidebars/localtoc.html`, which overrides the
+Shibuya template of the same name. The whole "On this page" row is
+the button, with a `tabler:layout-sidebar-right-collapse` icon that
+flips to the `-expand` variant when collapsed. Every icon is
+vendored in `_static/vendor/iconify-preload.js`, like the rest of
+the site.
+
+**The state.** `docs/_static/sidebar-toggle.js` puts
+`lside-collapsed` or `rside-collapsed` on `<html>` and remembers
+each choice in `localStorage`, so both stay as you left them from
+page to page. Two details there are load-bearing:
+
+- It binds each click to the button itself rather than delegating
+  from the document. Shibuya registers a `stopPropagation` click
+  handler on the aside to drive its drawer, so no click inside a
+  sidebar ever reaches the document and a delegated handler
+  silently never fires.
+- It is loaded from `<head>` through
+  `docs/_templates/partials/extra-head.html`, not through
+  `html_js_files`, because Shibuya renders those at the end of
+  `<body>`, which would paint both sidebars expanded for one frame
+  first.
+
+**The appearance.** `docs/_static/theme.css` owns the rails, which
+icon shows, and the animation. The width eases over
+`--rot-transition-panel`, but only while a toggle is in flight: the
+script adds a `sidebars-animating` class for the duration, because a
+transition left on permanently would also animate every window
+resize, which reads as lag rather than as motion.
+
+**The breakpoints.** Each panel collapses only where the theme has
+it in flow: 768px for the left, 1280px for the right. Below that the
+panel is an overlay drawer with its own close button, so the
+stylesheet makes the control inert and the script ignores it, and
+the two mechanisms never fight over the same panel.
+
+Right-panel entry labels are shortened by
+`docs/_ext/sidebar_tree.py`, the same file that nests the left
+sidebar. autodoc writes a method entry as `ClassName.method()`, one
+unbreakable token wider than the panel, so the names used to be
+clipped mid-word against its edge; the child now drops the prefix it
+inherits from its parent and reads `method()`.
 
 ## How do I add a new page?
 

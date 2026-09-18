@@ -60,7 +60,10 @@ accent must keep at least 4.5:1 against `--rot-bg` and
   use the full content column but scroll inside their own
   containers; the page never scrolls sideways.
 - Motion is limited to hover and focus transitions under 150ms
-  (`--rot-transition`), and `prefers-reduced-motion` disables them.
+  (`--rot-transition`), with one exception: collapsing a sidebar is a
+  movement rather than a state change, so it eases its width over
+  240ms (`--rot-transition-panel`). Both honour
+  `prefers-reduced-motion`, which disables them.
 
 ## Which component for which job
 

@@ -28,8 +28,12 @@
 
   /* One corner-radius scale for the whole site. */
   --rot-radius:     6px;
-  /* Motion: hover and focus transitions only, always under 150ms. */
+  /* Motion: hover and focus transitions, always under 150ms. */
   --rot-transition: 120ms ease;
+  /* The one exception, because collapsing a sidebar is a movement and not
+   * a state change: an ease-out long enough to follow. Keep the duration
+   * in step with DURATION in _static/sidebar-toggle.js. */
+  --rot-transition-panel: 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Shibuya toggles dark mode by setting the "dark" class on <html>. */
@@ -139,6 +143,297 @@ div.dt-container .dt-search input {
   border-radius: var(--rot-radius);
   background-color: var(--rot-bg);
   color: var(--rot-text);
+}
+
+/* Sidebar tree. docs/_ext/sidebar_tree.py nests the API entries by dotted
+ * name, which takes the sidebar from three levels to seven. Shibuya styles
+ * the guide line and the indentation of the first two only, so the rules
+ * below extend the same treatment to every level and keep the labels clear
+ * of the toggle column on the right. */
+.globaltoc li > ul,
+.globaltoc li.toctree-l1 > ul {
+  border-left: 1px solid var(--rot-border);
+  margin-left: 0.2rem;
+}
+
+/* Level three and deeper, however deep the dotted names go. Shibuya gives
+ * level two the same treatment with its own rule. */
+.globaltoc li.toctree-l2 li {
+  border-left: 1px solid transparent;
+  margin-left: -1px;
+  padding-left: 0.65rem;
+}
+
+.globaltoc li.toctree-l2 li.current {
+  border-color: var(--rot-accent);
+}
+
+/* The toggle buttons sit in one column at the right edge, so reserve that
+ * column and let long identifiers wrap instead of running underneath. An
+ * item with no children has no button, so it keeps the full width: that is
+ * where the longest names are. */
+.globaltoc li > a {
+  display: block;
+  padding-right: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.globaltoc li.rot-toc-leaf > a {
+  padding-right: 0;
+}
+
+/* Level three and deeper is where the long identifiers are, and where the
+ * indentation has eaten the most width. One step down in size fits names
+ * like NucleotideFeaturesCursor on a single line. */
+.globaltoc li.toctree-l2 li > a {
+  font-size: 0.875rem;
+}
+
+/* A package with no page of its own: the label only toggles its branch, so
+ * it reads as a heading rather than a link. */
+.globaltoc a.rot-toc-branch {
+  color: var(--rot-text-muted);
+  cursor: pointer;
+}
+
+.globaltoc a.rot-toc-branch:hover {
+  color: var(--rot-text);
+}
+
+/* ------------------------------------------------------------------------
+ * Collapsible sidebars.
+ *
+ * Both panels work the same way: _static/sidebar-toggle.js puts a class on
+ * <html>, the panel shrinks to a rail, and .sy-main takes the width back.
+ * Shibuya computes .sy-main's width from the sidebars rather than letting
+ * it flex, so every combination has to be spelled out below.
+ * ---------------------------------------------------------------------- */
+
+/* Width is animated only while a toggle is in flight, so a window resize
+ * is not animated too. The reduced-motion block at the end of this file
+ * cancels it for anyone who asks. */
+html.sidebars-animating .sy-lside,
+html.sidebars-animating .sy-rside,
+html.sidebars-animating .sy-main {
+  transition: width var(--rot-transition-panel);
+}
+
+/* Both scroll containers clip horizontally, so a panel's contents are
+ * revealed by the widening rail instead of spilling over the page during
+ * the animation. The theme already does this on the left. */
+.sy-rside .sy-scrollbar {
+  overflow-x: hidden;
+}
+
+/* The bare icon control at the top of the left sidebar. The right panel's
+ * control is its heading, styled further down. */
+.sidebar-toggle-row {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Padded rather than fixed-size, and pulled out by that padding, so the
+   * glyph lines up with the left edge of the nav labels below it while the
+   * hover target stays comfortable. */
+  padding: 0.4rem;
+  margin-left: -0.4rem;
+  color: var(--rot-text-muted);
+  border-radius: var(--rot-radius);
+  transition: color var(--rot-transition),
+              background-color var(--rot-transition);
+}
+
+.sidebar-toggle:hover {
+  color: var(--rot-accent);
+  background-color: var(--rot-surface);
+}
+
+.sidebar-toggle-icon {
+  font-size: 1.15rem;
+}
+
+/* Below 768px the left sidebar is a drawer opened from the header, so the
+ * control goes away rather than competing with it. */
+@media (max-width: 767px) {
+  .sidebar-toggle-row {
+    display: none;
+  }
+}
+
+/* Collapsed left sidebar: the toctree goes, the panel becomes a rail just
+ * wide enough for the control, and the page takes the width back. */
+@media (min-width: 768px) {
+  html.lside-collapsed .sy-lside {
+    width: 3rem;
+  }
+
+  html.lside-collapsed .sy-lside .sy-scrollbar {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.lside-collapsed .sidebar-toggle-row {
+    justify-content: center;
+    margin-bottom: 0;
+  }
+
+  html.lside-collapsed .sidebar-toggle {
+    margin-left: 0;
+  }
+
+  html.lside-collapsed .globaltoc,
+  html.lside-collapsed .sy-lside .sidebar-links {
+    display: none;
+  }
+
+  html.lside-collapsed .sy-main {
+    width: calc(100% - 3rem);
+    /* The theme's reading cap assumes two sidebars. Prose keeps its own
+     * measure through .yue p, so tables and code can use the space. */
+    max-width: none;
+  }
+}
+
+/* From 1280px both panels are in flow, so .sy-main has to account for
+ * every combination. The two-class rule outranks the one-class rules, so
+ * this does not depend on source order. */
+@media (min-width: 1280px) {
+  html.lside-collapsed .sy-main {
+    width: calc(100% - 19rem);
+  }
+
+  html.rside-collapsed .sy-main {
+    width: calc(100% - 21rem);
+  }
+
+  html.lside-collapsed.rside-collapsed .sy-main {
+    width: calc(100% - 6rem);
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * The "On this page" panel (right side).
+ * ---------------------------------------------------------------------- */
+
+/* Labels wrap instead of being clipped against the panel edge. Shortening
+ * them is docs/_ext/sidebar_tree.py's job; this is the safety net for a
+ * name long enough to overflow even on its own line. */
+.localtoc a {
+  display: block;
+  overflow-wrap: break-word;
+}
+
+/* Entries are code, so they set their own size: small enough that the
+ * longest identifier a page can produce, around 26 monospace characters,
+ * fits the panel on one line. */
+.localtoc a code,
+.localtoc a .pre {
+  white-space: normal;
+  overflow-wrap: break-word;
+  font-size: 0.8125rem;
+}
+
+/* The heading is the collapse control, so it spans the panel and carries
+ * the icon at the far edge. It inherits the theme's heading typography
+ * rather than a button's. */
+.localtoc-toggle {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  border-radius: var(--rot-radius);
+  transition: color var(--rot-transition);
+}
+
+.localtoc-toggle:hover {
+  color: var(--rot-accent);
+}
+
+.localtoc-icon {
+  color: var(--rot-text-muted);
+  flex: none;
+  font-size: 1.05rem;
+  transition: color var(--rot-transition);
+}
+
+.localtoc-toggle:hover .localtoc-icon {
+  color: var(--rot-accent);
+}
+
+/* One icon per state, chosen here so no script has to swap them. */
+.localtoc-icon-show,
+html.rside-collapsed .localtoc-icon-hide {
+  display: none;
+}
+
+html.rside-collapsed .localtoc-icon-show {
+  display: inline-block;
+}
+
+/* Below 1280px the panel is a drawer with its own close button, so the
+ * heading goes back to being a heading. */
+@media (max-width: 1279px) {
+  .localtoc-toggle {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .localtoc-icon {
+    display: none;
+  }
+}
+
+/* Collapsed: the list goes, the panel becomes a rail just wide enough for
+ * the control, and the page takes the width back. The label turns to read
+ * down the rail so it stays visible and clickable. Width is not animated:
+ * this site transitions color and nothing that forces layout. */
+@media (min-width: 1280px) {
+  html.rside-collapsed .sy-rside {
+    width: 3rem;
+  }
+
+  html.rside-collapsed .sy-rside-inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.rside-collapsed .localtoc > ul {
+    display: none;
+  }
+
+  html.rside-collapsed .sy-rside-inner > div > h3 {
+    margin-bottom: 0;
+  }
+
+  html.rside-collapsed .localtoc-toggle {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+
+  /* Glyph at the top of the rail, where the expanded icon was, with the
+   * label reading down beneath it. */
+  html.rside-collapsed .localtoc-icon {
+    order: -1;
+  }
+
+  html.rside-collapsed .localtoc-toggle-label {
+    writing-mode: vertical-rl;
+  }
+
+  html.rside-collapsed .localtoc-toggle:hover {
+    background-color: var(--rot-surface);
+  }
 }
 
 /* Respect users who ask for less motion. */
