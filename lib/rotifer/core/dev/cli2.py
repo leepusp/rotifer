@@ -8,30 +8,6 @@ import copy as _copy
 def parser(description =None): 
     return argparse.ArgumentParser(add_help = False, description = description)
 
-class add_arguments:
-    def __init__(self):
-        self.dc = {}
-        self.name = 1
-    def add(self, argument = '', argument2 = '',
-                nargs = None, const = None, default = None,
-                arg_type = None, choices = None, helper = None,
-                metavar = None, action = None, *args):
-        if action:
-            self.dc[str(self.name)] = [argument, argument2,
-                                       nargs, const, default,
-                                       arg_type, choice, helper,
-                                       metavar, action]
-        else:
-            self.dc[str(self.name)] = [argument, argument2,
-                                       nargs, const, default,
-                                       arg_type, choice, helper,
-                                       metavar, action]
-        return self.dc
-    def __repr__(self):
-        lines = []
-        for k,v in self.dc.items:
-            lines.append('{}:{}'.format(k,v))
-        return '\n'.join(lines)
 
 ### General Actions ###
 

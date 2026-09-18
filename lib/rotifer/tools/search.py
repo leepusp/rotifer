@@ -435,29 +435,6 @@ class domain:
             cop[col_name] = cop[end_col].astype(int) - cop[start_col].astype(int) +1
             return self._copy(cop)
 
-    def filter_by_size(self, col = '', max_length = '', min_length = 0, inplace = False):
-        '''
-        Filter by size
-        ----------
-        PARAMETERS:
-        col:        size column (int)
-        max_length: maximum length (int)
-        min_length: minimun length (int)
-        inplace:    return to domain dataframe (boolean: True/False)
-        '''
-
-        if not col_name:
-            col_name = len(self.domain.columns)
-
-        if not max_length:
-            max_length = self.domain[col].max()
-
-        if inplace:
-            self.domain = self.domain[(self.domain[col] >= min_length) & (self.domain[col] <= max_length)]
-        else:
-            cop = self.domain.copy()
-            cop = cop[(cop[col] >= min_length) & (cop[col] <= max_length)]
-            return self._copy(cop)
 
     def distribution(self, col = 'domain', col_name = 'count', merge = False, sort = True,
                      ascending = False, frequency = False, frequency_col_name = 'frequency'):
@@ -498,29 +475,6 @@ class domain:
 
             return self.domain_distribution
 
-    def plot_size(self, col, percentile = {}, line_color = 'black',
-                  xlabel = 'Size', ylabel = 'Frequency', linestyle = '-'):
-        '''
-        Plot size distribution
-        ----------
-        PARAMETERS:
-        col:        column with size
-        percentile: a dictionary containing percentiles
-        line_color: Line color for percentile
-        linestyle:  Line style for percentile
-        xlabel:     Title for x axis
-        ylabel:     Title for y axis
-        '''
-
-        plt.switch_backend('agg')
-        ax = sns.distplot(self.domain[col])
-        if percentile:
-            for k,v in percentile.items():
-                plt.axvline(x=v, c = line_color, linestyle = linestyle)
-        plt.title(xlabel)
-        plt.ylabel(ylabel)
-        fig = ax.get_figure()
-        return fig
 
     def percentiles(self,col, percentiles = [10,90]):
         '''
@@ -572,29 +526,6 @@ class domain:
             cop = cop.merge(seq_df, on = on, how = how)
             return self._copy(cop)
 
-    def slice_sequence(self, col = 'Seq', start_col = 'start', end_col = 'end', inplace = False,
-                       col_name = ''):
-        '''
-        Slice sequence using two reference columns (start/end)
-        Output a sliced sequence
-        -----------
-        PARAMETERS:
-        col:       Column with sequence
-        start_col: Reference start column
-        end_col:   Reference end column
-        inplace:   Inplace (boolean: True/False)
-        col_name:  Rename output column
-        '''
-
-        if not col_name:
-            col_name = len(self.domain.columns)
-
-        if inplace:
-            self.domain[col_name] = self.domain.apply(lambda row: row[col][int(row[start_col])-1 : int(row[end_col])], 1)
-        else:
-            cop = self.domain.copy()
-            cop[col_name] = cop.apply(lambda row: row[col][int(row[start_col])-1 : int(row[end_col])], 1)
-            return self._copy(cop)
 
     def seq_len(self,col = 'Seq', col_name = '', inplace = False):
         '''

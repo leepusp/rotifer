@@ -249,31 +249,6 @@ def count_series(
     return ', '.join(flattened_list)
 
 
-def fetch_seq(seqs):
-    import time
-    from Bio import Entrez
-    from rotifer.db.ncbi import NcbiConfig
-    from rotifer.devel.beta.sequence import sequence
-    from rotifer.devel.alpha.gian_func import chunks
-    if isinstance(seqs, list):
-        seqs = chunks(seqs, 200)
-    else:
-        return print('add seuquences as list object')
-
-    seq_string = ''
-    for x in seqs:
-        f = Entrez.efetch(
-                db='protein',
-                rettype='fasta',
-                retmode='text',
-                id=','.join(x),
-                api_key=NcbiConfig['api_key']
-                ).read()
-        seq_string = seq_string + f
-        time.sleep(1)
-    return sequence.from_string(seq_string)
-
-
 def annotation(seqobj, coordinates, delimiter=True):
     '''
     Method that receives an sequence object and a list with tuples
@@ -722,7 +697,6 @@ def psiblast(acc,
     return (t, blast_r) 
 
 
-
 def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None):
     import os
     import tempfile
@@ -872,7 +846,6 @@ def alnxaln(seqobj, clustercol = 'c50i0', minseq=10, aln_method='famsa'):
     return (result_table, allhhr, alndict) 
 
 
-
 def split_by_model(seqobj, model, evalue=1e-6):
     '''
     Using a hmm model to split your sequence object to match only the model region.
@@ -943,20 +916,6 @@ def add_cordinates_to_aln(seqobj, full_length_seqobj=False):
     c.df =  c.df.drop(['full_sequence'], axis=1)
     return c
 
-def trim_unk_neigh(df, ann='profiledb'):
-    '''
-    Using a given column, it will trim the neighborhoood to do not have un annotated protein at the boarders.
-    ann paramether is the collumn to check the unknow limits
-    '''
-
-    def xxx (idf):
-        imin = idf.query(f'{ann} != "?"').index[0]
-        imax = idf.query(f'{ann} != "?"').index[-1]
-        return idf.loc[imin:imax]
-    int_df = df.groupby(['block_id']).apply(xxx).reset_index(drop=True)
-
-
-    return int_df
 
 def extend_aln(seqobj, n_terminal=50, c_terminal=50,c_term_list=[],n_term_list=[], full_length_seqobj=False):
     from rotifer.devel.beta import sequence as rdbs
@@ -1150,8 +1109,6 @@ def pid2uniref50(pids):
 
      # Return the result as a pandas Series
      return uniref50DF
-
-
 
 
 def mview(seqobj,output='sequence.html', background='black', consensus = [100,90,80,70,60], organism=False, find=False):
@@ -1465,8 +1422,6 @@ def draw_architecture(input_file,
     organism_dict = seqobj.df.set_index("id").organism.to_dict()
 
 
-
-
     scale_figure = 2
     domain_height = scale_figure/10
     font_point = float(0.013837) * 0.6  # 1/72 (size of one point character in inches) * actual size (avg 0.6 the real size)
@@ -1485,7 +1440,6 @@ def draw_architecture(input_file,
     colors = pd.DataFrame(colors, columns=['colors']).reset_index().rename({'index':'color_rank'}, axis=1)
     color_code = shapes.join(colors, how='cross').join(pd.DataFrame(['rounded,filled', 'filled']), how='cross').rename({0:'rounded'}, axis=1).sort_values(['rounded','shape_rank','color_rank'], ascending=[False, True, True]).reset_index(drop=True)
     color_code = color_code.query('~(shapes =="ellipse" and rounded =="rounded,filled")')
-
 
 
     font_size= 4
@@ -1944,7 +1898,6 @@ def operon_fig_bkp(df,
          color_dict = {key: value + light_palette for key, value in color_dict.items()}
 
 
-
     color_dict = {**color_dict,
                   '' :"white",
                   "-" :"#D3D3D3",
@@ -2111,7 +2064,6 @@ def compact_to_df(compact,sep='Tab', columns= ['pid', 'compact', 'organism', 'pi
     return x2
 
 
-
 def check_spacing(text):
     import re
     """
@@ -2273,8 +2225,6 @@ def operon_fig2(df,
         color_dict = color_dict2
     else:    
         color_dict = {**color_dict2, **color_dict}
-
-
 
 
     color_dict = {**color_dict,
@@ -2625,7 +2575,6 @@ def compact_to_df(compact,sep='Tab', columns= ['pid', 'compact', 'organism', 'pi
     return x2
 
 
-
 def check_spacing(text):
     import re
     """
@@ -2720,8 +2669,6 @@ def compact_to_df2(compact,
         comments_lines = comments_lines.groupby('pid_ref').agg(l =('lines' ,lambda x : '; '.join(x.tolist())))
 
     
-
-
     x = to_read.lines.str.split(sep, expand=True)
     if only_parser:
         return x
@@ -2733,7 +2680,6 @@ def compact_to_df2(compact,
         x = x[columns_to_keep[:-1]]
         x.columns = columns[:-1]
         x['organism'] = 'Dummy_organism'
-
 
 
     x = x.drop_duplicates(subset=['pid'])
@@ -2880,9 +2826,6 @@ def yaml2net(dict_from_yaml):
     return te.sort_values('edge_count')
 
 
-
-
-
 def plot_network(networkdf,
                  community_to_color='leidein',
                  outputfile='net.svg',
@@ -2915,7 +2858,6 @@ def plot_network(networkdf,
     #Leiden partition playing with resolution parameter:
     part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights='edge_count', resolution_parameter = 2.5)
     c['leidein_2'] = pd.Series(part2.membership)
-
 
 
     #Adding a color column for each community method used:
@@ -3034,7 +2976,6 @@ def domtable_to_yaml_names(domtable, cutoff=0, to_file=False, color=False):
             return ''
 
 
-
     to_remove = ["TM", "SP", "LP", "LIPO", '-', '?', 'SIG', 'tRNA', 'PSE']
     to_remove = domtable.query('dom in @to_remove').dom.unique().tolist()
     to_dict = domtable.dom.value_counts().to_frame()
@@ -3075,7 +3016,6 @@ def yamldomain2df(file):
         data.Display_name =  data.Display_name.fillna('')
      
     return data 
-
 
 
 def display_html_popup_from_file(file_path, title="Popout Window", use_button=True):
@@ -3140,10 +3080,6 @@ def find_potential_typos(df, column, threshold=2):
     return results
 
 
-
-
-
-
 def plot_network2(networkdf,
                  community_to_color='leidein',
                  outputfile='net.svg',
@@ -3189,12 +3125,10 @@ def plot_network2(networkdf,
     c['leidein_2'] = pd.Series(part2.membership)
 
 
-
     #Adding a color column for each community method used:
     c['Louvain_color'] = c.Louvain.map(pd.Series(sns.color_palette('pastel',c.Louvain.nunique()).as_hex()).to_dict())
     c['leidein_color'] = c.leidein.map(pd.Series(sns.color_palette('pastel',c.Louvain.nunique()).as_hex()).to_dict())
     c['leidein_2_color'] = c.leidein_2.map(pd.Series(sns.color_palette('pastel',c.leidein_2.nunique()).as_hex()).to_dict())
-
 
 
     #Colors for Nodes
@@ -3321,7 +3255,6 @@ def get_network_community_color(networkdf,
     #Leiden partition playing with resolution parameter:
     part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights='edge_count', resolution_parameter = 2.5)
     c['leidein_2'] = pd.Series(part2.membership)
-
 
 
     #Adding a color column for each community method used:
@@ -3600,12 +3533,10 @@ def plot_network_dash(networkdf,
     c['leidein_2'] = pd.Series(part2.membership)
 
 
-
     #Adding a color column for each community method used:
     c['Louvain_color'] = c.Louvain.map(pd.Series(sns.color_palette('pastel',c.Louvain.nunique()).as_hex()).to_dict())
     c['leidein_color'] = c.leidein.map(pd.Series(sns.color_palette('pastel',c.Louvain.nunique()).as_hex()).to_dict())
     c['leidein_2_color'] = c.leidein_2.map(pd.Series(sns.color_palette('pastel',c.leidein_2.nunique()).as_hex()).to_dict())
-
 
 
     #Colors for Nodes
@@ -3651,7 +3582,6 @@ def plot_network_dash(networkdf,
         node_size = node_size
     
     return (G,Node_colors,node_size, nc, edge_colors,edge_styles, edge_alpha, pos)
-
 
 
 def get_pubmed_bibtex(pmid):
@@ -4189,142 +4119,6 @@ def polish_2_residues_df(polish_file):
     return rdf
 
 
-def aln_fig_style(i,
-                 polish_aln=False,
-                 consensus=90,
-                 annotations=False,
-                 remove_gaps=False,
-                 adjust_coordinates = False,
-                 font_size=6):
-    from rotifer.devel.alpha import gian_func as gf
-    """TODO: Docstring for function.
-
-    :consensus: The consensus threshold that should be used to color the aligment
-    :output_file: output file name
-    :annotation: List of annotations rows that should be keept in the  html file
-    The annotation label should be the same as in the id seq object df columm
-    :remove_gaps: Query sequence to use as model to remove the gaps, 
-    it will add numbers of aminoacid suppressed in the sequence that contain the insertions.
-    :returns: TODO
-
-    """
-
-    import sys
-    import pandas as pd
-    from rotifer.devel.beta.sequence import sequence
-    from rotifer.core.functions import loadConfig
-    from rotifer.core  import config as CoreConfig
-
-    #### Loading the color dictionary
-    cd = loadConfig(
-            ':colors.html_aa_colors',
-            system_path=CoreConfig['baseDataDirectory'])
-
-    import numpy as np
-    
-    if polish_aln:
-        aln_r = gf.polish_2_residues_df(i)
-    else:    
-        aln_r = i.compact_residue_df(consensus,
-                     annotations=annotations,
-                     remove_gaps=remove_gaps,
-                     adjust_coordinates = adjust_coordinates)
-
-
-    # Funtions to color the algiment:
-    def highlight_aln(s):
-        import numpy as np
-
-        cd = loadConfig(
-                ':colors.html_aa_colors',
-                system_path=CoreConfig['baseDataDirectory'])
-        ### getting the consensus value to map the colors filling na with "  " to color white 
-        d = cd[s.fillna('_').iloc[-1]]
-        #d = aa_groups_colors[s.fillna('  ').iloc[-1]]
-        return np.where(
-            s == '  ',
-            'color:"";background-color:""',
-            np.where(
-                s == s.iloc[-1],
-                f'color:{d["fcolor"]};background-color:{d["color"]}',
-                np.where(
-                    s.isin(d['residues']),
-                    f'color:{d["fcolor"]};background-color:{d["color"]}',
-                    f'color:black;background-color:')))
-
-    def highlight_consensus(s):
-        import numpy as np
-        cd = loadConfig(
-                ':colors.html_aa_colors',
-                system_path=CoreConfig['baseDataDirectory'])
-        d = cd[s.fillna('_').iloc[-1]]
-        """TODO: Docstring for highlight_consensus.
-
-        :arg1: TODO
-        :returns: TODO
-
-        """
-        return np.where(
-            s.isin(cd["ALL"]["residues"]),
-            f'color:{d["fcolor"]};background-color:{d["color"]}',
-            f'color:{d["fcolor"]};background-color:{d["color"]}',
-            )
-
-    #Making slice index where the functions should be applied:
-    # One function should be applien only in the consensus row
-    # Other function should be appplied only in seq rows
-    if polish_aln:
-        slice_consensus = ([consensus], aln_r.columns)
-        slice_annotaion = (annotations, aln_r.columns)
-        print (annotations)
-        print(consensus)
-        con_ann = annotations + [consensus]
-
-        slice_sequences = aln_r.loc[~aln_r.index.isin(con_ann)].index.tolist() 
-        slice_sequences = slice_sequences + [consensus]
-        slice_sequences = (slice_sequences, aln_r.columns)
-    else:    
-        #### Geting the Consensus line
-        slice_consensus = ([f'consensus/{consensus}%'],aln_r.columns)
-        ###Getting the sequences from the aligment
-        #Getting the firs sequence (fs) row to map the slice:
-        fs = i.df.query('type == "sequence"').id.tolist()
-        fs.append(f'consensus/{consensus}%')
-        slice_sequences = (fs, aln_r.columns)
-
-
-    headers = {
-        'selector': 'th:not(.index_name)',
-        'props': f'''font-size: {font_size}px;
-        text-align: left;
-        font-family:"Lucida Console", Monaco, monospace;
-        color:black;
-        background-color:white'''
-    }
-
-    if sys.version_info.minor > 8:
-        df_style = aln_r.style.set_properties(**{
-            'font-size': f'{font_size}px',
-            'font-family':'"Lucida Console", Monaco,monospace',
-            "text-align": "center"}
-        ).apply(highlight_aln, axis=0, subset=slice_sequences).hide(axis='columns').apply(
-            highlight_consensus, subset=slice_consensus
-        ).set_table_styles(
-            [headers]
-        )
-    else:
-        df_style = aln_r.style.set_properties(**{
-            'font-size': f'{font_size}px',
-            'font-family':'"Lucida Console", Monaco,monospace',
-            "text-align": "center"}
-        ).apply(highlight_aln, axis=0, subset=slice_sequences).hide_columns().apply(
-            highlight_consensus, subset=slice_consensus
-        ).set_table_styles(
-            [headers]
-        )
-    #if whant to send to latex, replace set_stick... to:to_latex(environment='longtable', convert_css=True)
-    return df_style
-
 def html_highlight_aln(s):
     from rotifer.core.functions import loadConfig
     from rotifer.core  import config as CoreConfig
@@ -4533,7 +4327,6 @@ def neighborhood_DF_max_distance(df, max_distance):
 # (or) pip install ete3
 
 
-
 def taxids_to_rank_dataframe(
     taxids,
     ranks=("superkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
@@ -4697,7 +4490,6 @@ def dict_to_yaml(data: dict, filename: str):
         )
 
 
-
 from typing import Any, Union
 import yaml
 from pathlib import Path
@@ -4724,4 +4516,3 @@ def yaml2dict(path: Union[str, Path]) -> Any:
         data = yaml.safe_load(f)
 
     return data
-

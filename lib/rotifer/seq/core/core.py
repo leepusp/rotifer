@@ -80,12 +80,6 @@ class conservation:
 
         return 1 - (gap_sum / sum(self._seq_weights))
 
-    def _gap_percentage(self, matrix):
-        """Ok
-        Return the percentage of gaps in col."""
-        gaps = matrix.apply(pd.Series.value_counts)
-        gaps = gaps.loc['-',:]
-        return gaps/ matrix.shape[1]
 
     def _calculate_sequence_weights(self):
         """Ok

@@ -357,14 +357,11 @@ def network_dash(G,pos_dict, xx, function):
         dcc.Store(id="edge-modification-trigger", data=0),
 
 
-
-
         dcc.Store(id="saved-pos-store", data={}, clear_data=True, storage_type='memory'),
         html.Div(id="output"),  # Output for display
         
     ])
    
-
 
     @app.callback(
         Output('cytoscape', 'stylesheet'),
@@ -704,15 +701,6 @@ def network_dash(G,pos_dict, xx, function):
         action = 'download' if ftype == 'svg' else 'both'
         return {'type': ftype, 'action': action}
   
-    ##### Adding dinamically groups to dropdown menu:
-    @app.callback(
-        Output("group_selection", "options"),
-        Output("group_selection", "value"),
-        Input("xx-store", "data")
-    )
-    def update_group_dropdown(xx_data):
-        options = [{"label": k, "value": k} for k in xx_data.keys()]
-        return options, list(xx_data.keys())
     @app.callback(
         Output('xx-store', 'data'),
         Input('add-group-button', 'n_clicks'),
@@ -726,7 +714,6 @@ def network_dash(G,pos_dict, xx, function):
             return dash.no_update
         current_xx[new_key] = new_color
         return current_xx
-
 
 
     @app.callback(
@@ -784,9 +771,6 @@ def network_dash(G,pos_dict, xx, function):
                 pass
 
         return json_graph.node_link_data(G), trigger_count + 1
-
-
-
 
 
     app.run_server(jupyter_mode="external",debug=True)        

@@ -66,10 +66,6 @@ sub my_id_parser {
 	return $_[0];
 }
 
-sub old_ncbi_gi_parser {
-    my @id = split(/\|+/,$_[0]);
-    return scalar(@id) > 1 ? $id[1] : $_[0];
-}
 
 sub codon_list {
     my @d = qw(A C G T); 
