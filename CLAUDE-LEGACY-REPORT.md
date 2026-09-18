@@ -247,6 +247,7 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 
 #### 7. `exec_function(df, s, verbose)` — Alta
 
+- **Decision:** remove file
 - **Assinatura:** `exec_function(df, s, verbose)` — python, function
 - **Local:** `bin/rnexplorer:201`–212 (12 linhas)
 - **Última alteração (bruta):** 2019-03-08 · **excluindo ruído e importação em massa:** 2019-03-08
@@ -321,6 +322,7 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 
 #### 11. `sub map_labels` — Alta
 
+- **Decision:** reverse
 - **Assinatura:** `sub map_labels` — perl, sub
 - **Local:** `bin/treeutil:159`–173 (15 linhas)
 - **Última alteração (bruta):** 2019-05-02 · **excluindo ruído e importação em massa:** 2019-05-02
