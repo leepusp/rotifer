@@ -26,23 +26,23 @@ Ou seja, `devel/alpha` vive **dentro** da árvore do núcleo (`lib/rotifer/`). T
 
 ### Arquivos enumerados
 
-| Categoria | Arquivos |
-|---|---|
-| Python (`.py`, `.ipynb`, shebang `python*`, cópias `.bkp`/`.quebrada`) | 199 |
-| Perl (`.pl`, `.pm`, shebang `perl`) | 164 |
-| Shell (`.sh`, `.zsh`, `.lib`, shebang `bash`/`sh`/`zsh`) | 58 |
-| **Subtotal código** | **421** |
-| Outros arquivos rastreados (dados, docs, configs, binários) | 171 |
-| **Total rastreado por `git ls-files`** | **592** |
+| Categoria                                                              | Arquivos |
+| ---------------------------------------------------------------------- | -------- |
+| Python (`.py`, `.ipynb`, shebang `python*`, cópias `.bkp`/`.quebrada`) | 199      |
+| Perl (`.pl`, `.pm`, shebang `perl`)                                    | 164      |
+| Shell (`.sh`, `.zsh`, `.lib`, shebang `bash`/`sh`/`zsh`)               | 58       |
+| **Subtotal código**                                                    | **421**  |
+| Outros arquivos rastreados (dados, docs, configs, binários)            | 171      |
+| **Total rastreado por `git ls-files`**                                 | **592**  |
 
-| Definições extraídas | Quantidade |
-|---|---|
-| Python — `def` (funções) | 1115 |
-| Python — `def` (métodos de classe) | 753 |
-| Python — `class` | 148 |
-| Perl — `sub` | 547 |
-| Shell — funções | 59 |
-| **Total** | **2622** |
+| Definições extraídas               | Quantidade |
+| ---------------------------------- | ---------- |
+| Python — `def` (funções)           | 1115       |
+| Python — `def` (métodos de classe) | 753        |
+| Python — `class`                   | 148        |
+| Perl — `sub`                       | 547        |
+| Shell — funções                    | 59         |
+| **Total**                          | **2622**   |
 
 Distribuídas em **323 arquivos**. Extração Python por `ast` (`ast.parse` + visitor, com `lineno`/`end_lineno` reais); Perl por varredura de `^\s*sub\s+NOME` com resolução de `package` e casamento de chaves para o fim do corpo; Shell por `nome() {` / `function nome {` com o mesmo casamento de chaves.
 
@@ -50,13 +50,13 @@ Distribuídas em **323 arquivos**. Extração Python por `ast` (`ast.parse` + vi
 
 Cinco arquivos Python **não passam por `ast.parse`** — isto é, não podem ser importados nem executados em nenhuma versão de Python 3:
 
-| Arquivo | Erro |
-|---|---|
-| `lib/rotifer/db/neighbors.py` | f-string: expecting '}' (linha 131) |
-| `lib/rotifer/io/base.py` | '(' was never closed (linha 6) |
-| `share/rotifer/snakemake/rps/Snakefile.bkp` | invalid syntax (linha 6) |
-| `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2` | invalid syntax (linha 5) |
-| `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working` | invalid syntax (linha 5) |
+| Arquivo                                                      | Erro                                |
+| ------------------------------------------------------------ | ----------------------------------- |
+| `lib/rotifer/db/neighbors.py`                                | f-string: expecting '}' (linha 131) |
+| `lib/rotifer/io/base.py`                                     | '(' was never closed (linha 6)      |
+| `share/rotifer/snakemake/rps/Snakefile.bkp`                  | invalid syntax (linha 6)            |
+| `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2`        | invalid syntax (linha 5)            |
+| `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working` | invalid syntax (linha 5)            |
 
 Dois deles estão no **núcleo** (`lib/rotifer/io/base.py`, `lib/rotifer/db/neighbors.py`). Verificação manual em `lib/rotifer/io/base.py:6`: a chamada `super().__init__(` é aberta e nunca fechada. Em `lib/rotifer/db/neighbors.py:131`: f-string `{cursor.fetchone()[0]` sem `}` de fechamento. Isto significa que **todo símbolo definido nesses dois arquivos é inalcançável em tempo de execução** — nenhum `import rotifer.io.base` pode ter sucesso.
 
@@ -66,22 +66,22 @@ Dois deles estão no **núcleo** (`lib/rotifer/io/base.py`, `lib/rotifer/db/neig
 
 **Commits de ruído identificados e descartados do cálculo de "última alteração significativa":**
 
-| Commit | Data | Natureza | Por que é ruído |
-|---|---|---|---|
-| `b0e3490` | 2019-05-02 | Modified rotifer programs name | 26 renames puros em `bin/` (`acc2operon.py` → `acc2operon`), 0 linhas de lógica alteradas |
-| `462710b` | 2019-05-02 | Removed pycache | 80 arquivos, 0 inserções / 0 deleções — só `.pyc` |
-| `8303356` | 2019-05-02 | Revert "Removed pycache" | 80 arquivos, 0 inserções / 0 deleções — reversão do anterior |
-| `29bd8c1` | 2019-03-15 | Modified directory structure | 168 arquivos, +14510/−21 — movimentação de diretórios registrada como adição |
-| `3364c1a` | 2019-03-15 | Fixing sys.path in scripts. Removed duplicated files. | 156 arquivos, +28/−13789 — limpeza pós-reestruturação |
-| `81f751c` | 2019-05-02 | Modified structure of rotifer module | 50 arquivos — reestruturação do pacote |
-| `8214b5d` | 2019-09-18 | First attempt at removing hard-coded references to Kaihami's home directory | 21 arquivos, +14/−12 — substituição mecânica de caminhos |
+| Commit    | Data       | Natureza                                                                    | Por que é ruído                                                                           |
+| --------- | ---------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `b0e3490` | 2019-05-02 | Modified rotifer programs name                                              | 26 renames puros em `bin/` (`acc2operon.py` → `acc2operon`), 0 linhas de lógica alteradas |
+| `462710b` | 2019-05-02 | Removed pycache                                                             | 80 arquivos, 0 inserções / 0 deleções — só `.pyc`                                         |
+| `8303356` | 2019-05-02 | Revert "Removed pycache"                                                    | 80 arquivos, 0 inserções / 0 deleções — reversão do anterior                              |
+| `29bd8c1` | 2019-03-15 | Modified directory structure                                                | 168 arquivos, +14510/−21 — movimentação de diretórios registrada como adição              |
+| `3364c1a` | 2019-03-15 | Fixing sys.path in scripts. Removed duplicated files.                       | 156 arquivos, +28/−13789 — limpeza pós-reestruturação                                     |
+| `81f751c` | 2019-05-02 | Modified structure of rotifer module                                        | 50 arquivos — reestruturação do pacote                                                    |
+| `8214b5d` | 2019-09-18 | First attempt at removing hard-coded references to Kaihami's home directory | 21 arquivos, +14/−12 — substituição mecânica de caminhos                                  |
 
-**Commits de importação em massa** (marcam a *introdução* do código, não uma alteração de conteúdo) — também descartados do cálculo de "última alteração significativa":
+**Commits de importação em massa** (marcam a _introdução_ do código, não uma alteração de conteúdo) — também descartados do cálculo de "última alteração significativa":
 
-| Commit | Data | Natureza |
-|---|---|---|
+| Commit    | Data       | Natureza                                                                                                 |
+| --------- | ---------- | -------------------------------------------------------------------------------------------------------- |
 | `3adf523` | 2019-03-08 | "First commit adding all files, including the ones that I should remove" — 397 arquivos, +632.647 linhas |
-| `0602ce1` | 2019-05-02 | "Merging old rotifer Perl code and scripts." — 249 arquivos, +72.161 linhas (toda a árvore `perl/`) |
+| `0602ce1` | 2019-05-02 | "Merging old rotifer Perl code and scripts." — 249 arquivos, +72.161 linhas (toda a árvore `perl/`)      |
 
 Os commits de licenciamento (`3863a74`, `834b292`, `765a61b`, 2026) foram inspecionados e **não tocam nenhum arquivo de código** — só `LICENSE.md`, `CODE_OF_CONDUCT.md`, `.github/` e `doc/licenses/`. Não houve, portanto, ruído de licença a descartar.
 
@@ -96,38 +96,40 @@ Os commits de licenciamento (`3863a74`, `834b292`, `765a61b`, 2026) foram inspec
 
 A linha de definição e o corpo da própria função são descontados. **Qualquer função com contagem > 0 em (a) ou (b) foi removida da lista de candidatos, independentemente da idade** — foram 1.014 definições eliminadas por esse critério.
 
-**Limite conhecido deste método:** a correspondência é por nome simples, não por resolução de escopo. Isso torna a medida *conservadora na direção segura* — homônimos inflam a contagem de uso e tiram funções da lista, nunca o contrário. Onde um nome tem mais de uma definição no repositório, a ficha traz `NOME AMBÍGUO` e a confiança é rebaixada.
+**Limite conhecido deste método:** a correspondência é por nome simples, não por resolução de escopo. Isso torna a medida _conservadora na direção segura_ — homônimos inflam a contagem de uso e tiram funções da lista, nunca o contrário. Onde um nome tem mais de uma definição no repositório, a ficha traz `NOME AMBÍGUO` e a confiança é rebaixada.
 
 **Eixo 3 — Obsolescência.** Varredura do corpo de cada função (mais as 3 linhas anteriores, para pegar comentários de cabeçalho) por: marcadores textuais (`deprecated`, `obsolete`, `unused`, `legacy`, `TODO`, `FIXME`, `XXX`, `HACK`, `BROKEN`, `quebrad*`); idiomas Python 2 (`print` statement, `.iteritems/.itervalues/.iterkeys`, `.has_key`, `urllib2`, `optparse`, `import commands`, `string.join`, `except X, e`); caminhos absolutos hardcoded; blocos grandes de código comentado; e pertencimento a arquivo de backup versionado ou a arquivo que não compila.
 
 ### Exclusões obrigatórias aplicadas (marcadas NÃO REMOVER)
 
-| Regra | Definições excluídas |
-|---|---|
-| Símbolo exportado, importado ou definido em algum `__init__.py` | 192 |
-| Identificador citado em `doc/`, `README.md`, `CONTRIBUTING.md` ou `CODE_OF_CONDUCT.md` | 302 |
-| Entry point de ferramenta CLI (`main` em `bin/`/`sbin/`) | 0 |
-| **Total** | **494** |
+| Regra                                                                                  | Definições excluídas |
+| -------------------------------------------------------------------------------------- | -------------------- |
+| Símbolo exportado, importado ou definido em algum `__init__.py`                        | 192                  |
+| Identificador citado em `doc/`, `README.md`, `CONTRIBUTING.md` ou `CODE_OF_CONDUCT.md` | 302                  |
+| Entry point de ferramenta CLI (`main` em `bin/`/`sbin/`)                               | 0                    |
+| **Total**                                                                              | **494**              |
 
 A exclusão por documentação é deliberadamente generosa: basta o identificador aparecer em qualquer arquivo sob `doc/` (inclusive em prosa) para a função sair da lista. Isso custa alguns candidatos legítimos, mas respeita a restrição de compatibilidade retroativa do projeto.
 
 ### Funil completo — de 2.622 definições a 230 candidatos
 
-| Etapa | Definições | Restam |
-|---|---|---|
-| Total de definições extraídas | — | 2622 |
-| −171 — Métodos `__dunder__` (invocados implicitamente pelo interpretador) | 171 | 2451 |
-| −413 — Definidas em `test/` (funções `pytest`, coletadas por convenção, nunca chamadas por nome) | 413 | 2038 |
-| −1 — Definidas em `doc/` (exemplos e templates) | 1 | 2037 |
-| −494 — Exclusões obrigatórias (`__init__.py` / `doc/` / entry point CLI) | 494 | 1543 |
-| −1014 — Com call site em núcleo (a) ou CLI (b) — **não candidatas por regra** | 1014 | 529 |
-| −262 — Sem uso em (a)/(b) mas alteradas nos últimos 2 anos e sem nenhum sinal de obsolescência | 262 | 267 |
-| −37 — Falsos positivos descartados por análise manual (ver §5) | 37 | 230 |
-| **Candidatos finais** | — | **230** |
+| Etapa                                                                                            | Definições | Restam  |
+| ------------------------------------------------------------------------------------------------ | ---------- | ------- |
+| Total de definições extraídas                                                                    | —          | 2622    |
+| −171 — Métodos `__dunder__` (invocados implicitamente pelo interpretador)                        | 171        | 2451    |
+| −413 — Definidas em `test/` (funções `pytest`, coletadas por convenção, nunca chamadas por nome) | 413        | 2038    |
+| −1 — Definidas em `doc/` (exemplos e templates)                                                  | 1          | 2037    |
+| −494 — Exclusões obrigatórias (`__init__.py` / `doc/` / entry point CLI)                         | 494        | 1543    |
+| −1014 — Com call site em núcleo (a) ou CLI (b) — **não candidatas por regra**                    | 1014       | 529     |
+| −262 — Sem uso em (a)/(b) mas alteradas nos últimos 2 anos e sem nenhum sinal de obsolescência   | 262        | 267     |
+| −37 — Falsos positivos descartados por análise manual (ver §5)                                   | 37         | 230     |
+| **Candidatos finais**                                                                            | —          | **230** |
 
 ---
 
 ## 1. Alta confiança — remoção segura — 97 funções
+
+## obs: TUDO NESSA LISTA (Alta confiança) FOI DELETADO.
 
 Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou documentação; histórico parado ou arquivo notoriamente descartado; e pelo menos um sinal objetivo de obsolescência. Nome não ambíguo, ou ambíguo apenas entre um arquivo e suas próprias cópias de backup.
 
@@ -140,13 +142,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "class TextIO("`):** `e25d017` — 2020-05-29 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - ARQUIVO NÃO PARSEIA: '(' was never closed (linha 6)
+  - ARQUIVO NÃO PARSEIA: '(' was never closed (linha 6)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo: o arquivo não compila, logo nenhum import dele jamais teve sucesso; nenhum workflow externo pode depender deste símbolo.
 
@@ -159,11 +161,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def apply_selected_scheme("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -177,11 +179,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_communities("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -195,11 +197,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_graph_store("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -214,13 +216,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "class autoopen_seqio("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: todo
+  - marcadores: todo
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
 
@@ -234,11 +236,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `3adf523`
 - **Introdução (pickaxe `git log -S "def _multiple_find_acc("`):** `3adf523` — 2019-03-08 — kaihami · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -253,11 +255,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `3adf523`
 - **Introdução (pickaxe `git log -S "def exec_function("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -271,11 +273,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def blockPrint("`):** `81f751c` — 2019-05-02 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -289,11 +291,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def enablePrint("`):** `81f751c` — 2019-05-02 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -308,11 +310,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "sub old_ncbi_gi_parser"`):** `f05b9ba` — 2020-01-13 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -327,11 +329,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "sub map_labels"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -346,11 +348,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "sub load_and_process"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
@@ -365,11 +367,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe):** [sem evidência]
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -384,11 +386,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def build_matrix("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -403,11 +405,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe):** [sem evidência]
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -421,11 +423,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (2):** Gianlucca Gonçalves Nicastro, Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def fetch_seq("`):** `70879c7` — 2021-12-10 — Gianlucca Gonçalves Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -439,13 +441,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def trim_unk_neigh("`):** `8da21f0` — 2023-07-17 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: xxx
+  - marcadores: xxx
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -458,11 +460,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def from_yaml("`):** `8c6a156` — 2022-06-22 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Robson Francisco de Souza`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -476,13 +478,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (25 linhas #)
+  - bloco comentado grande (25 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:137`
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -496,13 +498,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (26 linhas #)
+  - bloco comentado grande (26 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:137`
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -516,13 +518,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (25 linhas #)
+  - bloco comentado grande (25 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:137`
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -537,11 +539,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def submitted_parameters("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -556,11 +558,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def available_sources("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -574,11 +576,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** kaihami
 - **Introdução (pickaxe `git log -S "def fetch_one("`):** `3adf523` — 2019-03-08 — kaihami · 5 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -592,11 +594,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def hook_compressed_text("`):** `7ce177f` — 2020-05-29 — Robson Francisco de Souza · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -611,11 +613,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "describe_modules()"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -630,11 +632,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "split_array()"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -649,11 +651,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "set_value_by_name()"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -668,11 +670,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "make_directories()"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -686,11 +688,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** kaihami
 - **Introdução (pickaxe `git log -S "def show_options("`):** `76cfb36` — 2019-03-15 — kaihami · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -705,11 +707,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def conservation_types("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -724,11 +726,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def seq2colors("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -742,11 +744,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** kaihami
 - **Introdução (pickaxe `git log -S "def plot_logo("`):** `7d1142a` — 2019-03-18 — kaihami · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -761,11 +763,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def _gap_percentage("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -780,11 +782,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def filter_by_size("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -799,11 +801,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def plot_size("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -818,11 +820,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def slice_sequence("`):** `3adf523` — 2019-03-08 — kaihami · 7 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -837,11 +839,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Commits de importação em massa no intervalo (descartados):** `0602ce1`
 - **Introdução (pickaxe `git log -S "sub process_accotations"`):** `0602ce1` — 2019-05-02 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo Perl instalável: scripts de laboratório fora do repo podem chamar este método diretamente — exige confirmação humana.
@@ -855,14 +857,14 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "sub process_bio_searchio"`):** `a59c36b` — 2019-11-26 — Robson Francisco de Souza · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: broken
-    - bloco comentado grande (35 linhas #)
+  - marcadores: broken
+  - bloco comentado grande (35 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Confinado ao próprio script: a função não é alcançável de fora do arquivo, então o risco é apenas de algum caminho de execução interno não exercitado.
 
@@ -875,11 +877,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def hierarchy_to_dataframe("`):** `32f427f` — 2022-06-09 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -893,13 +895,13 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def aln_fig_style("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: todo
+  - marcadores: todo
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -912,11 +914,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:12`
@@ -931,11 +933,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:389`
@@ -950,11 +952,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_input_boxes("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:465`
@@ -969,11 +971,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_elements_or_cycle("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 7 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:507`
@@ -988,11 +990,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:676`
@@ -1007,11 +1009,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:695`
@@ -1026,11 +1028,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:710`
@@ -1045,11 +1047,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_group_dropdown("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 5 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions2.py:713 (homônimo — verificar se é a mesma função)`
@@ -1064,11 +1066,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def add_group("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:752`
@@ -1083,11 +1085,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:771`
@@ -1102,11 +1104,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def modify_edge_and_store_current("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório — todas na mesma família de arquivo (original + cópias de backup), portanto a ambiguidade é evidência de duplicação, não de uso
 - **Substituta sugerida:** [sem evidência]
@@ -1121,11 +1123,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def populate_colorscheme_dropdown("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório — todas na mesma família de arquivo (original + cópias de backup), portanto a ambiguidade é evidência de duplicação, não de uso
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:821`
@@ -1140,11 +1142,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:870`
@@ -1159,11 +1161,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:899`
@@ -1178,11 +1180,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:923`
@@ -1197,11 +1199,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_group_dropdown("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 5 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions2.py:713 (homônimo — verificar se é a mesma função)`
@@ -1216,11 +1218,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:12`
@@ -1235,11 +1237,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:389`
@@ -1254,11 +1256,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_input_boxes("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:465`
@@ -1273,11 +1275,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_elements_or_cycle("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 7 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:507`
@@ -1292,11 +1294,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:676`
@@ -1311,11 +1313,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:695`
@@ -1330,11 +1332,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:710`
@@ -1349,11 +1351,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_group_dropdown("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 5 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions2.py:713 (homônimo — verificar se é a mesma função)`
@@ -1368,11 +1370,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def add_group("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:752`
@@ -1387,11 +1389,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:771`
@@ -1406,11 +1408,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def modify_edge_and_store_current("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório — todas na mesma família de arquivo (original + cópias de backup), portanto a ambiguidade é evidência de duplicação, não de uso
 - **Substituta sugerida:** [sem evidência]
@@ -1425,11 +1427,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:870`
@@ -1444,11 +1446,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:899`
@@ -1463,11 +1465,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:923`
@@ -1482,11 +1484,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:12`
@@ -1501,11 +1503,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:389`
@@ -1520,11 +1522,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_input_boxes("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:465`
@@ -1539,11 +1541,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_elements_or_cycle("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 7 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:507`
@@ -1558,11 +1560,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:676`
@@ -1577,11 +1579,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:695`
@@ -1596,11 +1598,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:710`
@@ -1615,11 +1617,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_group_dropdown("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 5 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions2.py:713 (homônimo — verificar se é a mesma função)`
@@ -1634,11 +1636,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def add_group("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:752`
@@ -1653,11 +1655,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:771`
@@ -1672,11 +1674,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def modify_edge("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 4 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:799`
@@ -1691,11 +1693,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:870`
@@ -1710,11 +1712,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:899`
@@ -1729,11 +1731,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:923`
@@ -1748,11 +1750,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def optimize_memory_usage("`):** `0efbcc7` — 2021-12-21 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -1766,11 +1768,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def print_everything("`):** `62d529e` — 2020-07-30 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -1784,11 +1786,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def show_display_options("`):** `0efbcc7` — 2021-12-21 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -1802,11 +1804,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:112`
@@ -1821,11 +1823,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:123`
@@ -1840,11 +1842,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:836`
@@ -1859,11 +1861,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:112`
@@ -1878,11 +1880,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:123`
@@ -1897,11 +1899,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:836`
@@ -1916,11 +1918,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:112`
@@ -1935,11 +1937,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:123`
@@ -1954,11 +1956,11 @@ Evidência convergente nos três eixos: sem call site em núcleo, CLI, testes ou
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:836`
@@ -1979,13 +1981,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (2):** Robson Francisco de Souza, rodolfoar
 - **Introdução (pickaxe `git log -S "def arch_2_svg("`):** `e5165d6` — 2024-03-06 — rodolfoar
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (24 linhas #)
+  - bloco comentado grande (24 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -1998,13 +2000,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def uniref50_to_ncbi("`):** `dbc2d64` — 2024-06-21 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2017,13 +2019,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def uniref50_to_clusters("`):** `dbc2d64` — 2024-06-21 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2036,13 +2038,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def pid2uniref50("`):** `dbc2d64` — 2024-06-21 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/data/idmapping_uniref50.new.db
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2055,13 +2057,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def operon_fig_bkp("`):** `56e9a81` — 2024-10-24 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (13 linhas #)
+  - bloco comentado grande (13 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2074,11 +2076,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clean_dict("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:685`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:685`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -2092,11 +2094,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_graph("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 6** — `lib/rotifer/devel/alpha/net_functions.bkp2:356`, `lib/rotifer/devel/alpha/net_functions.good.bkp:414`, `lib/rotifer/devel/alpha/net_functions.py:428`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:426`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:414`, `lib/rotifer/devel/alpha/net_functions2.py:414`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 6** — `lib/rotifer/devel/alpha/net_functions.bkp2:356`, `lib/rotifer/devel/alpha/net_functions.good.bkp:414`, `lib/rotifer/devel/alpha/net_functions.py:428`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:426`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:414`, `lib/rotifer/devel/alpha/net_functions2.py:414`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -2110,13 +2112,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (16 linhas #)
+  - bloco comentado grande (16 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -2130,13 +2132,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (25 linhas #)
+  - bloco comentado grande (25 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -2150,13 +2152,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def get_some_info("`):** `05bbe11` — 2024-02-10 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (12 linhas #)
+  - bloco comentado grande (12 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
 
@@ -2169,11 +2171,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "class SequenceCollection("`):** `ed2ce85` — 2023-06-01 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Robson Francisco de Souza`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -2187,11 +2189,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_correspondent_position("`):** `f9c4957` — 2024-04-09 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -2205,11 +2207,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def read_predicted_topologies("`):** `ce56353` — 2024-05-17 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -2223,11 +2225,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def uniref50_add_info("`):** `f64855b` — 2024-05-24 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -2241,11 +2243,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def mview("`):** `dbc2d64` — 2024-06-21 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -2259,13 +2261,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Rodolfo Alvarenga Ribeiro
 - **Introdução (pickaxe `git log -S "def uniprot_to_ncbi("`):** `3c34b64` — 2024-05-29 — Rodolfo Alvarenga Ribeiro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - url externa: https://rest.uniprot.org/uniprotkb/{uniprot_id}.json
+  - url externa: https://rest.uniprot.org/uniprotkb/{uniprot_id}.json
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2278,14 +2280,14 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Maria Luiza Andreani
 - **Introdução (pickaxe `git log -S "def filter_neighbors_plus("`):** `2b05777` — 2026-08-13 — Maria Luiza Andreani
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/epsoares.py:1340`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/epsoares.py:1340`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: broken
-    - bloco comentado grande (13 linhas #)
+  - marcadores: broken
+  - bloco comentado grande (13 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Maria Luiza Andreani`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -2298,11 +2300,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2317,11 +2319,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2336,11 +2338,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2355,11 +2357,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2374,11 +2376,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2393,11 +2395,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2412,11 +2414,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2431,11 +2433,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2450,11 +2452,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2469,11 +2471,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2488,11 +2490,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2507,11 +2509,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2526,11 +2528,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_elements_or_cycle("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 7 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2545,11 +2547,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2564,11 +2566,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2583,11 +2585,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2602,11 +2604,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2621,11 +2623,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2640,11 +2642,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2659,11 +2661,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2678,11 +2680,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_annotation("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2697,11 +2699,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_stylesheet("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2716,11 +2718,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_input_boxes("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2735,11 +2737,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_elements_or_cycle("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 7 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2754,11 +2756,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def save_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2773,11 +2775,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def print_stored_data("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2792,11 +2794,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_image("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2811,11 +2813,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def add_group("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 6 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2830,11 +2832,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def update_layouts("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2849,11 +2851,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def modify_edge("`):** `1739875` — 2025-08-01 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 4 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2868,11 +2870,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def clique_jaccard_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2887,11 +2889,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def subgraph_stats("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2906,11 +2908,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_relations("`):** `e21006c` — 2024-11-07 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 9 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2926,11 +2928,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de importação em massa no intervalo (descartados):** `3adf523`
 - **Introdução (pickaxe `git log -S "def check_rneighbors("`):** `3adf523` — 2019-03-08 — kaihami · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2946,11 +2948,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de importação em massa no intervalo (descartados):** `3adf523`
 - **Introdução (pickaxe `git log -S "def check_rneighbors("`):** `3adf523` — 2019-03-08 — kaihami · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -2966,11 +2968,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de importação em massa no intervalo (descartados):** `3adf523`
 - **Introdução (pickaxe `git log -S "def check_rneighbors("`):** `3adf523` — 2019-03-08 — kaihami · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `bin/rsearch:251`
@@ -2986,11 +2988,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "class dict_options_dev("`):** `3adf523` — 2019-03-08 — kaihami · 5 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/core/dev/cli.py:707 (homônimo — verificar se é a mesma função)`
@@ -3006,11 +3008,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "class dict_options_dev("`):** `3adf523` — 2019-03-08 — kaihami · 5 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/core/cli.py:753 (homônimo — verificar se é a mesma função)`
@@ -3025,11 +3027,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe):** [sem evidência]
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3043,11 +3045,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "class FileCollection("`):** `db6c748` — 2023-12-14 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3061,11 +3063,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def update_database("`):** `50da12e` — 2022-11-16 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/trsantos.py:302`, `lib/rotifer/devel/alpha/trsantos.py:475`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/trsantos.py:302`, `lib/rotifer/devel/alpha/trsantos.py:475`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3079,11 +3081,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def getids2("`):** `b00dcd2` — 2023-01-23 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3097,11 +3099,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (3):** Gianlucca Gonçalves Nicastro, Robson Francisco de Souza, rodolfoar
 - **Introdução (pickaxe `git log -S "def cluster2aln("`):** `2591006` — 2022-05-25 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -3116,13 +3118,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (2):** Gianlucca Gonçalves Nicastro, rodolfoar
 - **Introdução (pickaxe `git log -S "def cluster_Co_occurrence("`):** `0c86ab9` — 2022-04-14 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: xxx,xxxx
+  - marcadores: xxx,xxxx
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3136,11 +3138,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (3):** Gianlucca G. Nicastro, Gianlucca Gonçalves Nicastro, Gianlucca Nicastro
 - **Introdução (pickaxe `git log -S "def hmmsearch_full2pandas("`):** `db472c1` — 2022-10-17 — Gianlucca Gonçalves Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -3155,11 +3157,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (2):** Gianlucca G. Nicastro, Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def hhr_to_aln("`):** `df6d548` — 2022-08-02 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -3174,11 +3176,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def add_arch_to_seqobj("`):** `eae51c2` — 2022-10-14 — Gianlucca Gonçalves Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -3193,13 +3195,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def scaled_repeat_region_svg("`):** `2bd7e3f` — 2026-08-28 — EdwardNSeven
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 3** — `lib/rotifer/devel/alpha/igem.py:101`, `lib/rotifer/devel/alpha/igem.py:2954`, `lib/rotifer/devel/alpha/igem.py:3171`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 3** — `lib/rotifer/devel/alpha/igem.py:101`, `lib/rotifer/devel/alpha/igem.py:2954`, `lib/rotifer/devel/alpha/igem.py:3171`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: no longer
+  - marcadores: no longer
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 
@@ -3212,11 +3214,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def annotate_community("`):** `ff827df` — 2022-08-08 — rodolfoar · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:17 (homônimo — verificar se é a mesma função)`
@@ -3231,11 +3233,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def dataframe_to_community("`):** `7a35537` — 2022-08-08 — rodolfoar · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:35 (homônimo — verificar se é a mesma função)`
@@ -3250,13 +3252,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def cluster_Co_occurrence("`):** `0c86ab9` — 2022-04-14 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: xxx,xxxx
+  - marcadores: xxx,xxxx
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Robson Francisco de Souza`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3270,11 +3272,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def parse_hhr("`):** `8cefc6d` — 2022-01-05 — Robson Francisco de Souza · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3289,11 +3291,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def seq_len("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/tools/search.py:599 (homônimo — verificar se é a mesma função)`
@@ -3309,11 +3311,11 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Commits de ruído no intervalo (descartados):** `29bd8c1`
 - **Introdução (pickaxe `git log -S "def seq_len("`):** `3adf523` — 2019-03-08 — kaihami · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/seq/seq.py:57 (homônimo — verificar se é a mesma função)`
@@ -3328,13 +3330,13 @@ Dois eixos convergem, o terceiro é fraco ou ausente. O padrão recomendado é e
 - **Autores distintos (1):** Eduardo Pereira Soares
 - **Introdução (pickaxe `git log -S "def cluster_Co_occurrence("`):** `0c86ab9` — 2022-04-14 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: xxx,xxxx
+  - marcadores: xxx,xxxx
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
@@ -3354,13 +3356,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def igem_pipeline("`):** `de77e4e` — 2026-06-16 — Eduardo Pereira Soares
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /databases/pfam/Pfam-A.hmm; /home/leep/epsoares/projects/igem/2026/data/all_models.hmm; /home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme
+  - caminho absoluto: /databases/pfam/Pfam-A.hmm; /home/leep/epsoares/projects/igem/2026/data/all_models.hmm; /home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Eduardo Pereira Soares`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3375,13 +3377,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def draw_architecture("`):** `90dddc5` — 2024-09-09 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (33 linhas #)
+  - bloco comentado grande (33 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3396,13 +3398,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def mmseqs_easy_search("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/fadb/tmp/nr.50.mmseqs.db
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/fadb/tmp/nr.50.mmseqs.db
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3417,13 +3419,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def run_dommain_annotation_farm("`):** `8619346` — 2025-05-23 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/rpsdb/allprofiles; /netmnt/vast01/cbb01/proteinworld/data/rpsdb/pwld_new_pfam
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/rpsdb/allprofiles; /netmnt/vast01/cbb01/proteinworld/data/rpsdb/pwld_new_pfam
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3438,13 +3440,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def run_dommain_annotation_farm_from_acc("`):** `705301e` — 2025-06-13 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/rpsdb/allprofiles; /netmnt/vast01/cbb01/proteinworld/data/rpsdb/pwld_new_pfam
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/data/rpsdb/allprofiles; /netmnt/vast01/cbb01/proteinworld/data/rpsdb/pwld_new_pfam
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3459,13 +3461,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Thiago Roberto dos Santos
 - **Introdução (pickaxe):** [sem evidência]
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (16 linhas #)
+  - bloco comentado grande (16 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Thiago Roberto dos Santos`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3480,13 +3482,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_seq_ids("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
 - **Sinais encontrados:**
-    - ARQUIVO NÃO PARSEIA: invalid syntax (linha 6)
+  - ARQUIVO NÃO PARSEIA: invalid syntax (linha 6)
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -3502,13 +3504,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_seq_ids("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
 - **Sinais encontrados:**
-    - ARQUIVO NÃO PARSEIA: invalid syntax (linha 5)
+  - ARQUIVO NÃO PARSEIA: invalid syntax (linha 5)
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -3524,13 +3526,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_seq_ids("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - **outros: 15** — `share/rotifer/snakemake/neighborhood/Snakefile:11`, `share/rotifer/snakemake/neighborhood/Snakefile:29`, `share/rotifer/snakemake/rps/Snakefile.bkp:35`, `share/rotifer/snakemake/rps/Snakefile:18`, `share/rotifer/snakemake/rps/Snakefile:35`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp2:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile.bkp_working:37`, `share/rotifer/snakemake/rps_from_acc/Snakefile2:19`…
 - **Sinais encontrados:**
-    - ARQUIVO NÃO PARSEIA: invalid syntax (linha 5)
+  - ARQUIVO NÃO PARSEIA: invalid syntax (linha 5)
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
@@ -3546,11 +3548,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def reverse_domains("`):** `e5165d6` — 2024-03-06 — rodolfoar · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/draw.py:176`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/draw.py:176`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3566,11 +3568,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def fix_direction("`):** `e5165d6` — 2024-03-06 — rodolfoar · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/draw.py:153`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/draw.py:153`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3586,11 +3588,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def rpsblast2table("`):** `0b74adf` — 2024-09-04 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1439`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1439`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3606,11 +3608,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def TMprediction("`):** `f7ef7f6` — 2024-09-04 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1441`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1441`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3626,11 +3628,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_plen("`):** `90dddc5` — 2024-09-09 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/gian_func.py:1352`, `lib/rotifer/devel/alpha/gian_func.py:1354`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/gian_func.py:1352`, `lib/rotifer/devel/alpha/gian_func.py:1354`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3646,11 +3648,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def extract_organism_from_description("`):** `a93375d` — 2024-09-10 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1464`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:1464`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -3666,13 +3668,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def uniprot2fasta("`):** `12e6763` — 2025-03-14 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - url externa: https://rest.uniprot.org/uniprotkb/stream
+  - url externa: https://rest.uniprot.org/uniprotkb/stream
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o comportamento desta função ainda é necessário, ou já foi absorvido por outro caminho de código?
@@ -3687,13 +3689,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def domain_seg("`):** `12e6763` — 2025-03-14 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3921`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3921`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/projects/TED/TED_database.db
+  - caminho absoluto: /netmnt/vast01/cbb01/proteinworld/People/gian/projects/TED/TED_database.db
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3708,13 +3710,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def add_block_to_graph("`):** `4412cbd` — 2026-06-23 — Eduardo Pereira Soares
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 4** — `lib/rotifer/devel/alpha/igem.py:104`, `lib/rotifer/devel/alpha/igem.py:1774`, `lib/rotifer/devel/alpha/igem.py:1866`, `lib/rotifer/devel/alpha/igem.py:2790`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 4** — `lib/rotifer/devel/alpha/igem.py:104`, `lib/rotifer/devel/alpha/igem.py:1774`, `lib/rotifer/devel/alpha/igem.py:1866`, `lib/rotifer/devel/alpha/igem.py:2790`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (20 linhas #)
+  - bloco comentado grande (20 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3729,14 +3731,14 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def build_genome_overview_svg("`):** `0eac1f4` — 2026-06-24 — EdwardNSeven
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 6** — `lib/rotifer/devel/alpha/igem.py:116`, `lib/rotifer/devel/alpha/igem.py:2336`, `lib/rotifer/devel/alpha/igem.py:2495`, `lib/rotifer/devel/alpha/igem.py:2499`, `lib/rotifer/devel/alpha/igem.py:2517`, `lib/rotifer/devel/alpha/igem.py:2537`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 6** — `lib/rotifer/devel/alpha/igem.py:116`, `lib/rotifer/devel/alpha/igem.py:2336`, `lib/rotifer/devel/alpha/igem.py:2495`, `lib/rotifer/devel/alpha/igem.py:2499`, `lib/rotifer/devel/alpha/igem.py:2517`, `lib/rotifer/devel/alpha/igem.py:2537`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - url externa: http://www.w3.org/2000/svg
-    - bloco comentado grande (13 linhas #)
+  - url externa: http://www.w3.org/2000/svg
+  - bloco comentado grande (13 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3751,13 +3753,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def build_genome_overview_interactive_html("`):** `ed96cf2` — 2026-06-24 — EdwardNSeven
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/igem.py:117`, `lib/rotifer/devel/alpha/igem.py:5709`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/igem.py:117`, `lib/rotifer/devel/alpha/igem.py:5709`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (14 linhas #)
+  - bloco comentado grande (14 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3772,14 +3774,14 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def build_scaled_block_svg("`):** `7959ce8` — 2026-08-27 — Eduardo Pereira Soares
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/igem.py:121`, `lib/rotifer/devel/alpha/igem.py:1386`, `lib/rotifer/devel/alpha/igem.py:3206`, `lib/rotifer/devel/alpha/igem.py:3220`, `lib/rotifer/devel/alpha/igem.py:3230`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/igem.py:121`, `lib/rotifer/devel/alpha/igem.py:1386`, `lib/rotifer/devel/alpha/igem.py:3206`, `lib/rotifer/devel/alpha/igem.py:3220`, `lib/rotifer/devel/alpha/igem.py:3230`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - url externa: http://www.w3.org/2000/svg
-    - bloco comentado grande (23 linhas #)
+  - url externa: http://www.w3.org/2000/svg
+  - bloco comentado grande (23 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3794,13 +3796,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def build_html_report("`):** `0eac1f4` — 2026-06-24 — EdwardNSeven
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 15** — `lib/rotifer/devel/alpha/epsoares.py:1389`, `lib/rotifer/devel/alpha/igem.py:135`, `lib/rotifer/devel/alpha/igem.py:1791`, `lib/rotifer/devel/alpha/igem.py:1811`, `lib/rotifer/devel/alpha/igem.py:2138`, `lib/rotifer/devel/alpha/igem.py:216`, `lib/rotifer/devel/alpha/igem.py:2323`, `lib/rotifer/devel/alpha/igem.py:2369`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 15** — `lib/rotifer/devel/alpha/epsoares.py:1389`, `lib/rotifer/devel/alpha/igem.py:135`, `lib/rotifer/devel/alpha/igem.py:1791`, `lib/rotifer/devel/alpha/igem.py:1811`, `lib/rotifer/devel/alpha/igem.py:2138`, `lib/rotifer/devel/alpha/igem.py:216`, `lib/rotifer/devel/alpha/igem.py:2323`, `lib/rotifer/devel/alpha/igem.py:2369`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (20 linhas #)
+  - bloco comentado grande (20 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`EdwardNSeven`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3815,13 +3817,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Maria Luiza Andreani
 - **Introdução (pickaxe `git log -S "def filter_fimo("`):** `cf1a588` — 2026-07-20 — Maria Luiza Andreani
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/epsoares.py:1263`, `lib/rotifer/devel/alpha/epsoares.py:1331`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/epsoares.py:1263`, `lib/rotifer/devel/alpha/epsoares.py:1331`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (14 linhas #)
+  - bloco comentado grande (14 linhas #)
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Maria Luiza Andreani`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -3836,18 +3838,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `calculate_positions` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 25. `convert_to_cytoscape(G, positions, layout_key, scaling_factor, x_scale, y_scale)` — Baixa
 
@@ -3858,18 +3860,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `convert_to_cytoscape` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 26. `get_network_community(G, community_to_color, weight, resolution_parameter)` — Baixa
 
@@ -3880,18 +3882,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `get_network_community` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 27. `calculate_positions(G, iterations)` — Baixa
 
@@ -3902,18 +3904,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `calculate_positions` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 28. `convert_to_cytoscape(G, positions, layout_key, scaling_factor, x_scale, y_scale)` — Baixa
 
@@ -3924,18 +3926,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `convert_to_cytoscape` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 29. `get_network_community(G, community_to_color, weight, resolution_parameter)` — Baixa
 
@@ -3946,18 +3948,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `get_network_community` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 30. `calculate_positions(G, iterations)` — Baixa
 
@@ -3968,18 +3970,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def calculate_positions("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 8** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:760`, `lib/rotifer/devel/alpha/net_functions.bkp2:622`, `lib/rotifer/devel/alpha/net_functions.bkp:450`, `lib/rotifer/devel/alpha/net_functions.good.bkp:751`, `lib/rotifer/devel/alpha/net_functions.py:779`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:768`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:751`, `lib/rotifer/devel/alpha/net_functions2.py:751`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `calculate_positions` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 31. `convert_to_cytoscape(G, positions, layout_key, scaling_factor, x_scale, y_scale)` — Baixa
 
@@ -3990,18 +3992,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def convert_to_cytoscape("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 14** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:630`, `lib/rotifer/devel/alpha/net_functions.bkp2:383`, `lib/rotifer/devel/alpha/net_functions.bkp2:545`, `lib/rotifer/devel/alpha/net_functions.bkp:376`, `lib/rotifer/devel/alpha/net_functions.good.bkp:441`, `lib/rotifer/devel/alpha/net_functions.good.bkp:642`, `lib/rotifer/devel/alpha/net_functions.py:455`, `lib/rotifer/devel/alpha/net_functions.py:656`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `convert_to_cytoscape` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 32. `get_network_community(G, community_to_color, weight, resolution_parameter)` — Baixa
 
@@ -4012,18 +4014,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_network_community("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 9** — `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:877`, `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py:972`, `lib/rotifer/devel/alpha/net_functions.bkp2:694`, `lib/rotifer/devel/alpha/net_functions.bkp:517`, `lib/rotifer/devel/alpha/net_functions.good.bkp:850`, `lib/rotifer/devel/alpha/net_functions.py:889`, `lib/rotifer/devel/alpha/net_functions.quebrada.py:884`, `lib/rotifer/devel/alpha/net_functions.working_20250627.py:850`…
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Nulo dentro do repositório: o arquivo é uma cópia de backup versionada, não importável por nome de módulo; o risco externo só existe se alguém importar o arquivo por caminho literal.
 - **Pergunta a responder antes de qualquer ação:** as 8 definições homônimas de `get_network_community` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 33. `get_sheet(gc, name, index)` — Baixa
 
@@ -4034,11 +4036,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def get_sheet("`):** `360a07f` — 2023-05-01 — Robson Francisco de Souza
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/rfsouza.py:48`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/rfsouza.py:48`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Robson Francisco de Souza`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -4054,13 +4056,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def hmmscan_linear("`):** `388df78` — 2026-03-16 — EdwardNSeven · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /databases/pfam/Pfam-A.hmm
+  - caminho absoluto: /databases/pfam/Pfam-A.hmm
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/hmmer.py:160 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Eduardo Pereira Soares`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -4076,11 +4078,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Gianlucca G. Nicastro, Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def annotate_seqobj("`):** `de526c6` — 2022-10-06 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4097,11 +4099,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Gianlucca G. Nicastro, Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def search2aln("`):** `de526c6` — 2022-10-06 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4118,11 +4120,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Gianlucca G. Nicastro, Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def full_annotate("`):** `bb9f16e` — 2022-11-14 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4139,13 +4141,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def get_alphafold_dssp("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/gian_func.py:4467`, `lib/rotifer/devel/alpha/gian_func.py:4469`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/gian_func.py:4467`, `lib/rotifer/devel/alpha/gian_func.py:4469`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - url externa: https://alphafold.ebi.ac.uk/files/AF-{afid}-F1-model_v4.pdb
+  - url externa: https://alphafold.ebi.ac.uk/files/AF-{afid}-F1-model_v4.pdb
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado?
@@ -4160,11 +4162,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def af_to_seq("`):** `922b31d` — 2023-08-02 — rodolfoar · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/db/uniprot/webapi/idmapping.py:530 (homônimo — verificar se é a mesma função)`
@@ -4181,13 +4183,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (26 linhas #)
+  - bloco comentado grande (26 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions2.py:137 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -4203,13 +4205,13 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def network_dash("`):** `ad06624` — 2025-01-23 — Gianlucca G. Nicastro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (25 linhas #)
+  - bloco comentado grande (25 linhas #)
 - ⚠ **Nome ambíguo:** 8 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/net_functions.py:137 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
@@ -4225,11 +4227,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def hmmer2aln("`):** `463d209` — 2023-01-18 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:147 (homônimo — verificar se é a mesma função)`
@@ -4246,11 +4248,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def hmmsearch_full2pandas("`):** `db472c1` — 2022-10-17 — Gianlucca Gonçalves Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4267,11 +4269,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def hhr_to_aln("`):** `df6d548` — 2022-08-02 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4288,11 +4290,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def annotate_seqobj("`):** `de526c6` — 2022-10-06 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4309,11 +4311,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def alnxaln("`):** `2dd9c9c` — 2022-11-29 — Gianlucca G. Nicastro · 3 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
@@ -4330,11 +4332,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Rodolfo Alvarenga Ribeiro
 - **Introdução (pickaxe `git log -S "def envelope_collection("`):** `5d72477` — 2023-02-08 — Rodolfo Alvarenga Ribeiro · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:865 (homônimo — verificar se é a mesma função)`
@@ -4351,11 +4353,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def columns_to_positions("`):** `0882fca` — 2023-07-11 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:1009 (homônimo — verificar se é a mesma função)`
@@ -4372,11 +4374,11 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def count_arch("`):** `6a2a990` — 2023-07-13 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/beta/blast.py:1041 (homônimo — verificar se é a mesma função)`
@@ -4393,18 +4395,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca Gonçalves Nicastro
 - **Introdução (pickaxe `git log -S "def get_id_mapping_results_search("`):** `9a788b4` — 2022-11-12 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca Gonçalves Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 3 definições homônimas de `get_id_mapping_results_search` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)_
 
 #### 51. `af_to_seq(seqobj)` — Baixa
 
@@ -4415,18 +4417,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def af_to_seq("`):** `922b31d` — 2023-08-02 — rodolfoar · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/idmapping_uniprot.py:215 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `af_to_seq` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — *Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder*
+- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — _Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder_
 
 #### 52. `html_highlight_consensus(s)` — Baixa
 
@@ -4437,19 +4439,19 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def html_highlight_consensus("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/aln2pdf.py:168`, `lib/rotifer/devel/alpha/aln2pdf.py:226`, `lib/rotifer/devel/alpha/aln2pdf.py:239`, `lib/rotifer/devel/alpha/gian_func.py:4424`, `lib/rotifer/devel/alpha/gian_func.py:4434`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/aln2pdf.py:168`, `lib/rotifer/devel/alpha/aln2pdf.py:226`, `lib/rotifer/devel/alpha/aln2pdf.py:239`, `lib/rotifer/devel/alpha/gian_func.py:4424`, `lib/rotifer/devel/alpha/gian_func.py:4434`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: todo
+  - marcadores: todo
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/gian_func.py:4349 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `html_highlight_consensus` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 53. `operon_fig(df, domain_dict)` — Baixa
 
@@ -4460,18 +4462,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def operon_fig("`):** `e5165d6` — 2024-03-06 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/igem.py:2`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/igem.py:2`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/trsantos.py:777 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `operon_fig` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *EdwardNSeven (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _EdwardNSeven (dono(s) do sandbox chamador)_
 
 #### 54. `split_domain(df, column, fill, domain_dict, strand, after, before, remove_tm)` — Baixa
 
@@ -4482,18 +4484,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def split_domain("`):** `e5165d6` — 2024-03-06 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 3** — `lib/rotifer/devel/alpha/draw.py:196`, `lib/rotifer/devel/alpha/gian_func.py:1917`, `lib/rotifer/devel/alpha/gian_func.py:2239`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 3** — `lib/rotifer/devel/alpha/draw.py:196`, `lib/rotifer/devel/alpha/gian_func.py:1917`, `lib/rotifer/devel/alpha/gian_func.py:2239`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/gian_func.py:1811 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `split_domain` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro; rodolfoar (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro; rodolfoar (dono(s) do sandbox chamador)_
 
 #### 55. `padding_df(df, how)` — Baixa
 
@@ -4504,18 +4506,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def padding_df("`):** `9d05e5c` — 2022-11-03 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3504`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3504`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 3 definições homônimas de `padding_df` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 56. `html_highlight_consensus(s)` — Baixa
 
@@ -4526,19 +4528,19 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Gianlucca G. Nicastro
 - **Introdução (pickaxe `git log -S "def html_highlight_consensus("`):** `bfc33a9` — 2025-05-12 — Gianlucca G. Nicastro
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/aln2pdf.py:168`, `lib/rotifer/devel/alpha/aln2pdf.py:226`, `lib/rotifer/devel/alpha/aln2pdf.py:239`, `lib/rotifer/devel/alpha/gian_func.py:4424`, `lib/rotifer/devel/alpha/gian_func.py:4434`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 5** — `lib/rotifer/devel/alpha/aln2pdf.py:168`, `lib/rotifer/devel/alpha/aln2pdf.py:226`, `lib/rotifer/devel/alpha/aln2pdf.py:239`, `lib/rotifer/devel/alpha/gian_func.py:4424`, `lib/rotifer/devel/alpha/gian_func.py:4434`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - marcadores: todo
+  - marcadores: todo
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/aln2pdf.py:379 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Gianlucca G. Nicastro`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `html_highlight_consensus` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 57. `get_id_mapping_results_search(url)` — Baixa
 
@@ -4549,18 +4551,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Rodolfo Alvarenga Ribeiro
 - **Introdução (pickaxe `git log -S "def get_id_mapping_results_search("`):** `9a788b4` — 2022-11-12 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`rodolfoar`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 3 definições homônimas de `get_id_mapping_results_search` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)_
 
 #### 58. `padding_df(df)` — Baixa
 
@@ -4571,18 +4573,18 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** rodolfoar
 - **Introdução (pickaxe `git log -S "def padding_df("`):** `9d05e5c` — 2022-11-03 — Gianlucca G. Nicastro · 4 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3504`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/gian_func.py:3504`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Robson Francisco de Souza`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 3 definições homônimas de `padding_df` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca G. Nicastro (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca G. Nicastro (dono(s) do sandbox chamador)_
 
 #### 59. `operon_fig(df, group_col, label_col, org_col, output_file, max_colors, highlight_query, query_same_direction, font_size, ignore_domains)` — Baixa
 
@@ -4593,19 +4595,19 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Thiago Roberto dos Santos
 - **Introdução (pickaxe `git log -S "def operon_fig("`):** `e5165d6` — 2024-03-06 — rodolfoar · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/igem.py:2`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 1** — `lib/rotifer/devel/alpha/igem.py:2`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - bloco comentado grande (17 linhas #)
+  - bloco comentado grande (17 linhas #)
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/draw.py:129 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Baixo dentro do repositório, mas o arquivo é sandbox pessoal (`Thiago Roberto dos Santos`) e scripts do próprio dono fora do repo podem importá-lo — confirmar com ele antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `operon_fig` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *EdwardNSeven (dono(s) do sandbox chamador)*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _EdwardNSeven (dono(s) do sandbox chamador)_
 
 #### 60. `hmmscan_linear(sequences, file, models_path, cpus, columns, rename)` — Baixa
 
@@ -4616,19 +4618,19 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (2):** Eduardo Pereira Soares, EdwardNSeven
 - **Introdução (pickaxe `git log -S "def hmmscan_linear("`):** `388df78` — 2026-03-16 — EdwardNSeven · 2 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - (c) devel/alpha: 0
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - (c) devel/alpha: 0
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais encontrados:**
-    - caminho absoluto: /databases/pfam/Pfam-A.hmm
+  - caminho absoluto: /databases/pfam/Pfam-A.hmm
 - ⚠ **Nome ambíguo:** 2 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** `lib/rotifer/devel/alpha/epsoares.py:370 (homônimo — verificar se é a mesma função)`
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 2 definições homônimas de `hmmscan_linear` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — *Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder*
+- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — _Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder_
 
 #### 61. `get_id_mapping_results_search(url)` — Baixa
 
@@ -4639,19 +4641,19 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 - **Autores distintos (1):** Robson Francisco de Souza
 - **Introdução (pickaxe `git log -S "def get_id_mapping_results_search("`):** `9a788b4` — 2022-11-12 — Gianlucca Gonçalves Nicastro · 6 commits mexeram nessa assinatura
 - **Call sites:**
-    - (a) núcleo: 0
-    - (b) CLI: 0
-    - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
-    - (d) testes/doc: 0
-    - outros: 0
+  - (a) núcleo: 0
+  - (b) CLI: 0
+  - **(c) devel/alpha: 2** — `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`
+  - (d) testes/doc: 0
+  - outros: 0
 - **Sinais textuais de obsolescência:** nenhum
 - ⚠ **Nome ambíguo:** 3 definições homônimas no repositório em arquivos distintos; as contagens acima podem pertencer a outra definição
 - **Substituta sugerida:** [sem evidência]
 - **Risco de quebra retroativa:** Módulo do núcleo importável: mesmo sem call site interno, um notebook ou script pessoal fora do repo pode importar este símbolo — exige confirmação humana antes de remover.
 - **Pergunta a responder antes de qualquer ação:** as 3 definições homônimas de `get_id_mapping_results_search` são a mesma função copiada ou funções diferentes? Se forem diferentes, a qual delas pertencem os call sites contados acima?
 - **Quem responde:** quem escreveu o código — as contagens desta ficha não distinguem homônimos
-- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — *Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)*
-- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — *Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder*
+- **Pergunta adicional:** o sandbox que a consome ainda está em uso, ou é scratchpad abandonado? — _Gianlucca Gonçalves Nicastro; rodolfoar (dono(s) do sandbox chamador)_
+- **Pergunta adicional:** existe notebook, script pessoal ou pipeline fora do repositório que importe este símbolo? — _Prof. Robson de Souza / equipe do LEEP — só quem roda os workflows do laboratório pode responder_
 
 ---
 
@@ -4659,14 +4661,14 @@ Evidência conflitante. Cada ficha termina com a pergunta exata que precisa ser 
 
 Funções definidas **fora** de `lib/rotifer/devel/alpha/` cujos **únicos** consumidores internos estão dentro do sandbox pessoal. Não são candidatas a remoção pelo critério do eixo 2 — são um alerta de acoplamento: código do núcleo mantido vivo apenas por scratchpads individuais.
 
-| Função | Definida em | Call sites em devel/alpha | Dono aparente do sandbox chamador (`git log --format=%an`) |
-|---|---|---|---|
-| `update_database` | `lib/rotifer/db/local/ete3.py:33` | `lib/rotifer/devel/alpha/trsantos.py:302`, `lib/rotifer/devel/alpha/trsantos.py:475` | `trsantos.py` → Thiago Roberto dos Santos (19 commits) |
-| `get_id_mapping_results_search` | `lib/rotifer/db/uniprot/webapi/idmapping.py:461` | `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179` | `idmapping_uniprot.py` → rodolfoar (9 commits); `uniprot.py` → Gianlucca Gonçalves Nicastro (1 commits) |
-| `padding_df` | `lib/rotifer/devel/beta/blast.py:782` | `lib/rotifer/devel/alpha/gian_func.py:3504` | `gian_func.py` → Gianlucca G. Nicastro (119 commits) |
-| `alnclu` | `lib/rotifer/devel/beta/blast.py:952` | `lib/rotifer/devel/alpha/rodolfo.py:959` | `rodolfo.py` → Robson Francisco de Souza (51 commits) |
-| `trim` | `lib/rotifer/devel/beta/sequence.py:1595` | `lib/rotifer/devel/alpha/gian_func.py:948`, `lib/rotifer/devel/alpha/igem.py:4878`, `lib/rotifer/devel/alpha/igem.py:4892`, `lib/rotifer/devel/alpha/igem.py:5067`, `lib/rotifer/devel/alpha/igem.py:5107`, `lib/rotifer/devel/alpha/malu.py:637` | `gian_func.py` → Gianlucca G. Nicastro (119 commits); `igem.py` → EdwardNSeven (43 commits); `malu.py` → Maria Luiza Andreani (22 commits) |
-| `select_neighbors` | `lib/rotifer/genome/data.py:355` | `lib/rotifer/devel/alpha/draw.py:159`, `lib/rotifer/devel/alpha/epsoares.py:153` | `draw.py` → rodolfoar (8 commits); `epsoares.py` → Eduardo Pereira Soares (113 commits) |
+| Função                          | Definida em                                      | Call sites em devel/alpha                                                                                                                                                                                                                         | Dono aparente do sandbox chamador (`git log --format=%an`)                                                                                 |
+| ------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `update_database`               | `lib/rotifer/db/local/ete3.py:33`                | `lib/rotifer/devel/alpha/trsantos.py:302`, `lib/rotifer/devel/alpha/trsantos.py:475`                                                                                                                                                              | `trsantos.py` → Thiago Roberto dos Santos (19 commits)                                                                                     |
+| `get_id_mapping_results_search` | `lib/rotifer/db/uniprot/webapi/idmapping.py:461` | `lib/rotifer/devel/alpha/idmapping_uniprot.py:246`, `lib/rotifer/devel/alpha/uniprot.py:179`                                                                                                                                                      | `idmapping_uniprot.py` → rodolfoar (9 commits); `uniprot.py` → Gianlucca Gonçalves Nicastro (1 commits)                                    |
+| `padding_df`                    | `lib/rotifer/devel/beta/blast.py:782`            | `lib/rotifer/devel/alpha/gian_func.py:3504`                                                                                                                                                                                                       | `gian_func.py` → Gianlucca G. Nicastro (119 commits)                                                                                       |
+| `alnclu`                        | `lib/rotifer/devel/beta/blast.py:952`            | `lib/rotifer/devel/alpha/rodolfo.py:959`                                                                                                                                                                                                          | `rodolfo.py` → Robson Francisco de Souza (51 commits)                                                                                      |
+| `trim`                          | `lib/rotifer/devel/beta/sequence.py:1595`        | `lib/rotifer/devel/alpha/gian_func.py:948`, `lib/rotifer/devel/alpha/igem.py:4878`, `lib/rotifer/devel/alpha/igem.py:4892`, `lib/rotifer/devel/alpha/igem.py:5067`, `lib/rotifer/devel/alpha/igem.py:5107`, `lib/rotifer/devel/alpha/malu.py:637` | `gian_func.py` → Gianlucca G. Nicastro (119 commits); `igem.py` → EdwardNSeven (43 commits); `malu.py` → Maria Luiza Andreani (22 commits) |
+| `select_neighbors`              | `lib/rotifer/genome/data.py:355`                 | `lib/rotifer/devel/alpha/draw.py:159`, `lib/rotifer/devel/alpha/epsoares.py:153`                                                                                                                                                                  | `draw.py` → rodolfoar (8 commits); `epsoares.py` → Eduardo Pereira Soares (113 commits)                                                    |
 
 Observações por caso:
 
@@ -4679,35 +4681,35 @@ Observações por caso:
 
 **Donos dos sandboxes em `lib/rotifer/devel/alpha/`** (autor com mais commits em cada arquivo):
 
-| Arquivo | Dono aparente | Commits | Último commit |
-|---|---|---|---|
-| `lib/rotifer/devel/alpha/__init__.py` | Gianlucca Gonçalves Nicastro | 9 | 2022-06-06 |
-| `lib/rotifer/devel/alpha/aln2pdf.py` | Gianlucca G. Nicastro | 3 | 2025-11-18 |
-| `lib/rotifer/devel/alpha/collection.py` | Robson Francisco de Souza | 5 | 2023-10-11 |
-| `lib/rotifer/devel/alpha/draw.py` | rodolfoar | 8 | 2025-04-03 |
-| `lib/rotifer/devel/alpha/epsoares.py` | Eduardo Pereira Soares | 113 | 2026-09-09 |
-| `lib/rotifer/devel/alpha/genome/draw.py` | Robson Francisco de Souza | 1 | 2024-05-02 |
-| `lib/rotifer/devel/alpha/gian_func.py` | Gianlucca G. Nicastro | 119 | 2026-04-13 |
-| `lib/rotifer/devel/alpha/idmapping_uniprot.py` | rodolfoar | 9 | 2024-05-29 |
-| `lib/rotifer/devel/alpha/igem.py` | EdwardNSeven | 43 | 2026-09-09 |
-| `lib/rotifer/devel/alpha/malu.py` | Maria Luiza Andreani | 22 | 2026-09-06 |
-| `lib/rotifer/devel/alpha/mapper.py` | Robson Francisco de Souza | 1 | 2022-06-22 |
-| `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.bkp` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.bkp2` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.good.bkp` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.py` | Gianlucca G. Nicastro | 3 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.quebrada.py` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions.working_20250627.py` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/net_functions2.py` | Gianlucca G. Nicastro | 1 | 2025-08-01 |
-| `lib/rotifer/devel/alpha/rfsouza.py` | Robson Francisco de Souza | 1 | 2023-05-01 |
-| `lib/rotifer/devel/alpha/rodolfo.py` | Robson Francisco de Souza | 51 | 2025-03-11 |
-| `lib/rotifer/devel/alpha/sequence/__init__.py` | rodolfoar | 1 | 2024-02-29 |
-| `lib/rotifer/devel/alpha/sequence/complete.py` | rodolfoar | 2 | 2024-03-01 |
-| `lib/rotifer/devel/alpha/snakemake.py` | Gianlucca G. Nicastro | 6 | 2026-04-13 |
-| `lib/rotifer/devel/alpha/snakemake2.py` | Gianlucca G. Nicastro | 1 | 2025-05-12 |
-| `lib/rotifer/devel/alpha/trsantos.py` | Thiago Roberto dos Santos | 19 | 2026-06-03 |
-| `lib/rotifer/devel/alpha/uniprot.py` | Gianlucca Gonçalves Nicastro | 1 | 2022-11-12 |
+| Arquivo                                                                 | Dono aparente                | Commits | Último commit |
+| ----------------------------------------------------------------------- | ---------------------------- | ------- | ------------- |
+| `lib/rotifer/devel/alpha/__init__.py`                                   | Gianlucca Gonçalves Nicastro | 9       | 2022-06-06    |
+| `lib/rotifer/devel/alpha/aln2pdf.py`                                    | Gianlucca G. Nicastro        | 3       | 2025-11-18    |
+| `lib/rotifer/devel/alpha/collection.py`                                 | Robson Francisco de Souza    | 5       | 2023-10-11    |
+| `lib/rotifer/devel/alpha/draw.py`                                       | rodolfoar                    | 8       | 2025-04-03    |
+| `lib/rotifer/devel/alpha/epsoares.py`                                   | Eduardo Pereira Soares       | 113     | 2026-09-09    |
+| `lib/rotifer/devel/alpha/genome/draw.py`                                | Robson Francisco de Souza    | 1       | 2024-05-02    |
+| `lib/rotifer/devel/alpha/gian_func.py`                                  | Gianlucca G. Nicastro        | 119     | 2026-04-13    |
+| `lib/rotifer/devel/alpha/idmapping_uniprot.py`                          | rodolfoar                    | 9       | 2024-05-29    |
+| `lib/rotifer/devel/alpha/igem.py`                                       | EdwardNSeven                 | 43      | 2026-09-09    |
+| `lib/rotifer/devel/alpha/malu.py`                                       | Maria Luiza Andreani         | 22      | 2026-09-06    |
+| `lib/rotifer/devel/alpha/mapper.py`                                     | Robson Francisco de Souza    | 1       | 2022-06-22    |
+| `lib/rotifer/devel/alpha/net_functions.backup_meioquebrada_20250708.py` | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.bkp`                             | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.bkp2`                            | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.good.bkp`                        | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.py`                              | Gianlucca G. Nicastro        | 3       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.quebrada.py`                     | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions.working_20250627.py`             | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/net_functions2.py`                             | Gianlucca G. Nicastro        | 1       | 2025-08-01    |
+| `lib/rotifer/devel/alpha/rfsouza.py`                                    | Robson Francisco de Souza    | 1       | 2023-05-01    |
+| `lib/rotifer/devel/alpha/rodolfo.py`                                    | Robson Francisco de Souza    | 51      | 2025-03-11    |
+| `lib/rotifer/devel/alpha/sequence/__init__.py`                          | rodolfoar                    | 1       | 2024-02-29    |
+| `lib/rotifer/devel/alpha/sequence/complete.py`                          | rodolfoar                    | 2       | 2024-03-01    |
+| `lib/rotifer/devel/alpha/snakemake.py`                                  | Gianlucca G. Nicastro        | 6       | 2026-04-13    |
+| `lib/rotifer/devel/alpha/snakemake2.py`                                 | Gianlucca G. Nicastro        | 1       | 2025-05-12    |
+| `lib/rotifer/devel/alpha/trsantos.py`                                   | Thiago Roberto dos Santos    | 19      | 2026-06-03    |
+| `lib/rotifer/devel/alpha/uniprot.py`                                    | Gianlucca Gonçalves Nicastro | 1       | 2022-11-12    |
 
 ---
 
@@ -4717,78 +4719,78 @@ As 37 definições abaixo passaram por todos os filtros mecânicos — zero call
 
 ### função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada — 14
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `acc2pfam` | `etc/profile.d/acc2pfam.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `acc2profiledb` | `etc/profile.d/acc2profiledb.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `acc2profiledb` | `etc/profile.d/acc2profiledb.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `aln_order_by_tree` | `etc/profile.d/aln_order_by_tree.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `aln_order_by_tree` | `etc/profile.d/aln_order_by_tree.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `distinct_dom_per_prot` | `etc/profile.d/distinct_dom_per_prot.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| Função                  | Local                                       | Por que não é legado                                                                                                                       |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `acc2pfam`              | `etc/profile.d/acc2pfam.zsh:1`              | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `acc2profiledb`         | `etc/profile.d/acc2profiledb.sh:1`          | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `acc2profiledb`         | `etc/profile.d/acc2profiledb.zsh:1`         | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `aln_order_by_tree`     | `etc/profile.d/aln_order_by_tree.sh:1`      | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `aln_order_by_tree`     | `etc/profile.d/aln_order_by_tree.zsh:1`     | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `distinct_dom_per_prot` | `etc/profile.d/distinct_dom_per_prot.sh:1`  | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
 | `distinct_dom_per_prot` | `etc/profile.d/distinct_dom_per_prot.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `dom_count` | `etc/profile.d/dom_count.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `dom_count` | `etc/profile.d/dom_count.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `dom_per_prot` | `etc/profile.d/dom_per_prot.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `dom_per_prot` | `etc/profile.d/dom_per_prot.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `runhmmscan` | `etc/profile.d/runhmmscan.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `tdesc` | `etc/profile.d/tdesc.sh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
-| `tdesc` | `etc/profile.d/tdesc.zsh:1` | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `dom_count`             | `etc/profile.d/dom_count.sh:1`              | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `dom_count`             | `etc/profile.d/dom_count.zsh:1`             | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `dom_per_prot`          | `etc/profile.d/dom_per_prot.sh:1`           | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `dom_per_prot`          | `etc/profile.d/dom_per_prot.zsh:1`          | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `runhmmscan`            | `etc/profile.d/runhmmscan.sh:1`             | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `tdesc`                 | `etc/profile.d/tdesc.sh:1`                  | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
+| `tdesc`                 | `etc/profile.d/tdesc.zsh:1`                 | função de shell publicada em etc/profile.d/ — é API interativa carregada no shell do pesquisador; ausência de call site interno é esperada |
 
 ### arquivo usa dispatch dinâmico — 12
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `ipgs_to_dict` | `lib/rotifer/db/methods.py:183` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `drop_release` | `lib/rotifer/db/uniprot/clickhouse.py:443` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `add_hhpred` | `lib/rotifer/devel/beta/sequence.py:730` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `to_bioalign` | `lib/rotifer/devel/beta/sequence.py:1060` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `add_jpred` | `lib/rotifer/devel/beta/sequence.py:1624` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `_to_df_styleTEX` | `lib/rotifer/devel/beta/sequence.py:2063` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `edit` | `lib/rotifer/devel/beta/sequence.py:2208` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `fetch_neighbors` | `lib/rotifer/devel/beta/sequence.py:2261` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `series_to_compact_frequency` | `lib/rotifer/genome/data.py:338` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `select_neighbors` | `lib/rotifer/genome/data.py:355` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `full_neighborhood` | `lib/rotifer/genome/data.py:541` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
-| `jaccard` | `lib/rotifer/genome/data.py:890` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| Função                        | Local                                      | Por que não é legado                                                                                         |
+| ----------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `ipgs_to_dict`                | `lib/rotifer/db/methods.py:183`            | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `drop_release`                | `lib/rotifer/db/uniprot/clickhouse.py:443` | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `add_hhpred`                  | `lib/rotifer/devel/beta/sequence.py:730`   | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `to_bioalign`                 | `lib/rotifer/devel/beta/sequence.py:1060`  | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `add_jpred`                   | `lib/rotifer/devel/beta/sequence.py:1624`  | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `_to_df_styleTEX`             | `lib/rotifer/devel/beta/sequence.py:2063`  | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `edit`                        | `lib/rotifer/devel/beta/sequence.py:2208`  | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `fetch_neighbors`             | `lib/rotifer/devel/beta/sequence.py:2261`  | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `series_to_compact_frequency` | `lib/rotifer/genome/data.py:338`           | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `select_neighbors`            | `lib/rotifer/genome/data.py:355`           | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `full_neighborhood`           | `lib/rotifer/genome/data.py:541`           | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
+| `jaccard`                     | `lib/rotifer/genome/data.py:890`           | arquivo usa dispatch dinâmico (globals()/getattr/eval com string) — call site não é rastreável estaticamente |
 
 ### hook de framework — 3
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `emit` | `lib/rotifer/core/logger.py:12` | hook de framework (emit é invocado internamente por pandas/logging, nunca por nome no código) |
-| `_constructor` | `lib/rotifer/genome/data.py:73` | hook de framework (_constructor é invocado internamente por pandas/logging, nunca por nome no código) |
-| `_constructor` | `lib/rotifer/seq/alignment.py:196` | hook de framework (_constructor é invocado internamente por pandas/logging, nunca por nome no código) |
+| Função         | Local                              | Por que não é legado                                                                                   |
+| -------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `emit`         | `lib/rotifer/core/logger.py:12`    | hook de framework (emit é invocado internamente por pandas/logging, nunca por nome no código)          |
+| `_constructor` | `lib/rotifer/genome/data.py:73`    | hook de framework (\_constructor é invocado internamente por pandas/logging, nunca por nome no código) |
+| `_constructor` | `lib/rotifer/seq/alignment.py:196` | hook de framework (\_constructor é invocado internamente por pandas/logging, nunca por nome no código) |
 
 ### callback de framework Perl/DBIx::Class — 3
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `DESTROY` | `perl/lib/Rotifer/DB/NCBI/Taxonomy.pm:996` | callback de framework Perl/DBIx::Class (DESTROY é chamado implicitamente pelo interpretador ou pela classe base) |
-| `can_call_new` | `perl/lib/Rotifer/DBIC/AnnotationDB/Component/BiosequenceComponent.pm:208` | callback de framework Perl/DBIx::Class (can_call_new é chamado implicitamente pelo interpretador ou pela classe base) |
+| Função         | Local                                                                       | Por que não é legado                                                                                                  |
+| -------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `DESTROY`      | `perl/lib/Rotifer/DB/NCBI/Taxonomy.pm:996`                                  | callback de framework Perl/DBIx::Class (DESTROY é chamado implicitamente pelo interpretador ou pela classe base)      |
+| `can_call_new` | `perl/lib/Rotifer/DBIC/AnnotationDB/Component/BiosequenceComponent.pm:208`  | callback de framework Perl/DBIx::Class (can_call_new é chamado implicitamente pelo interpretador ou pela classe base) |
 | `store_column` | `perl/lib/Rotifer/DBIC/AnnotationDB/Component/DynamicSubclassByTerm.pm:161` | callback de framework Perl/DBIx::Class (store_column é chamado implicitamente pelo interpretador ou pela classe base) |
 
 ### invocada por dispatch dinâmico no próprio arquivo — 3
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `runhmmscan` | `bin/scanseqs:186` | invocada por dispatch dinâmico no próprio arquivo (construção "run${...}") |
+| Função        | Local              | Por que não é legado                                                       |
+| ------------- | ------------------ | -------------------------------------------------------------------------- |
+| `runhmmscan`  | `bin/scanseqs:186` | invocada por dispatch dinâmico no próprio arquivo (construção "run${...}") |
 | `runrpsblast` | `bin/scanseqs:224` | invocada por dispatch dinâmico no próprio arquivo (construção "run${...}") |
 | `runpsiblast` | `bin/scanseqs:243` | invocada por dispatch dinâmico no próprio arquivo (construção "run${...}") |
 
 ### decorado como property/setter — acessado como atributo, não como chamada — 2
 
-| Função | Local | Por que não é legado |
-|---|---|---|
-| `freq_table` | `lib/rotifer/devel/beta/sequence.py:989` | decorado como property/setter — acessado como atributo, não como chamada |
+| Função            | Local                                     | Por que não é legado                                                     |
+| ----------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `freq_table`      | `lib/rotifer/devel/beta/sequence.py:989`  | decorado como property/setter — acessado como atributo, não como chamada |
 | `from_seqrecords` | `lib/rotifer/devel/beta/sequence.py:2322` | decorado como property/setter — acessado como atributo, não como chamada |
 
 ### Classes inteiras de falso positivo filtradas antes da pontuação
 
-| Classe | Quantidade | Evidência |
-|---|---|---|
-| Métodos `__dunder__` | 171 | Invocados pelo interpretador via protocolo (`__init__`, `__getitem__`, `__enter__`…), nunca por nome no código-fonte. |
-| Funções `pytest` em `test/` | 413 | Coletadas por convenção de nome pelo runner; ausência de call site é o funcionamento normal do framework. |
-| Exemplos e templates em `doc/` | 1 | `doc/examples/basic_rotifer_script_template.py` e similares existem para ser copiados, não chamados. |
+| Classe                         | Quantidade | Evidência                                                                                                             |
+| ------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| Métodos `__dunder__`           | 171        | Invocados pelo interpretador via protocolo (`__init__`, `__getitem__`, `__enter__`…), nunca por nome no código-fonte. |
+| Funções `pytest` em `test/`    | 413        | Coletadas por convenção de nome pelo runner; ausência de call site é o funcionamento normal do framework.             |
+| Exemplos e templates em `doc/` | 1          | `doc/examples/basic_rotifer_script_template.py` e similares existem para ser copiados, não chamados.                  |
 
 ### Casos verificados individualmente que merecem registro
 
@@ -4804,13 +4806,13 @@ run="run${pipeline[1]}"
 
 **`DESTROY` (`perl/lib/Rotifer/DB/NCBI/Taxonomy.pm:996`).** Método especial do Perl: chamado pelo interpretador na destruição do objeto. Remover causaria vazamento de recurso, não limpeza.
 
-**`can_call_new` (`.../BiosequenceComponent.pm:208`) e `store_column` (`.../DynamicSubclassByTerm.pm:161`).** São *overrides* da API de componentes do DBIx::Class, invocados pela classe base via `load_components`. O chamador está na dependência, não no repositório.
+**`can_call_new` (`.../BiosequenceComponent.pm:208`) e `store_column` (`.../DynamicSubclassByTerm.pm:161`).** São _overrides_ da API de componentes do DBIx::Class, invocados pela classe base via `load_components`. O chamador está na dependência, não no repositório.
 
 **`_constructor` (`lib/rotifer/genome/data.py:73`, `lib/rotifer/seq/alignment.py:196`) e `emit` (`lib/rotifer/core/logger.py:12`).** `_constructor` é a propriedade que o pandas consulta internamente ao propagar subclasses de `DataFrame`; `emit` é o método que `logging.Handler` chama. Ambos são contratos de framework.
 
 ---
 
-## Anexo — o que esta auditoria *não* prova
+## Anexo — o que esta auditoria _não_ prova
 
 1. **"Sem referência interna" não é "sem uso".** O repositório não contém os scripts pessoais, notebooks e pipelines que os pesquisadores do LEEP rodam fora dele. Toda função do núcleo (`lib/`) e todo módulo Perl instalável listado aqui pode ter consumidores invisíveis a esta varredura. Por isso a camada **Alta** é dominada por cópias de backup, arquivos que não compilam e código de sandbox — casos em que o consumo externo é fisicamente improvável — e não por "função antiga do núcleo sem chamador".
 2. **A resolução de nomes é textual.** Não há análise de escopo, herança ou import. Homônimos inflam a contagem de uso (direção segura) e ambiguidade foi sempre sinalizada.
