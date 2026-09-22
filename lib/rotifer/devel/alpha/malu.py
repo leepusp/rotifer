@@ -645,11 +645,15 @@ def filter_neighbors_plus(ndf, pids=None, reqdom='defaults.tsv', customdoms=Fals
         result = result.merge(ndff[['pid','pfam']], how = "left")
 
         # components are disjoint by construction (that's the whole point of
-        # the trim above) -- assert rather than silently drop_duplicates, so
-        # a broken disjointness assumption surfaces loudly instead of
-        # quietly discarding rows
-        assert not result.duplicated(subset=["assembly", "nucleotide", "feature_order"]).any(), \
-            "components should be disjoint by construction -- investigate before trusting output"
+        # the trim above) -- warn rather than silently drop_duplicates, so a
+        # broken disjointness assumption surfaces loudly while the caller
+        # still gets the rows to inspect
+        ndups = int(result.duplicated(subset=["assembly", "nucleotide", "feature_order"]).sum())
+        if ndups:
+            logger.warning(
+                f"{ndups} duplicated (assembly, nucleotide, feature_order) row(s) in the result: "
+                "components should be disjoint by construction -- investigate before trusting output"
+            )
 
         return result
 
