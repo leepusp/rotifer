@@ -889,7 +889,323 @@ def hmmscan(
 
     return dfs
 
-def run_fimo_single(meme_file, genome, out_dir=None, extra_args=None):
+# ------------------------------------------------------------------
+# GENOME INPUT HANDLING
+# ------------------------------------------------------------------
+# The FIMO pipeline needs two things out of a genome: the nucleotide
+# sequences FIMO scans and the CDS coordinates used to assign each hit to
+# the gene it may regulate. A GFF3 with an embedded ##FASTA section carries
+# both, and so does a GenBank flatfile (.gbff), so neither input should be
+# required to arrive pre-split into a FASTA plus an annotation file.
+#
+# The helpers below normalize any of these -- including gzipped files --
+# into the two objects the pipeline consumes. Parsing is delegated to
+# rotifer.genome (rgio.parse/rgu.seqrecords_to_dataframe), which already
+# supports GFF and every Bio.SeqIO format, instead of adding a second
+# GenBank reader to this module.
+
+_GENOME_FORMAT_BY_SUFFIX = {
+    ".gff": "gff",
+    ".gff3": "gff",
+    ".gb": "genbank",
+    ".gbk": "genbank",
+    ".gbf": "genbank",
+    ".gbff": "genbank",
+    ".genbank": "genbank",
+    ".embl": "embl",
+    ".fa": "fasta",
+    ".fas": "fasta",
+    ".fna": "fasta",
+    ".ffn": "fasta",
+    ".faa": "fasta",
+    ".fasta": "fasta",
+}
+
+
+def guess_genome_format(path):
+    """
+    Guess the format of a genome file from its extension.
+
+    Compression extensions ('.gz', '.bz2') are ignored, so
+    'GCF_000005845.2_genomic.gbff.gz' is recognized as GenBank.
+
+    Parameters
+    ----------
+    path : str | Path
+
+    Returns
+    -------
+    str | None
+        'gff', 'genbank', 'embl', 'fasta' or None when unrecognized.
+    """
+    suffixes = [s.lower() for s in Path(str(path)).suffixes]
+
+    while suffixes and suffixes[-1] in (".gz", ".bz2"):
+        suffixes.pop()
+
+    if not suffixes:
+        return None
+
+    return _GENOME_FORMAT_BY_SUFFIX.get(suffixes[-1])
+
+
+def parse_genome(genome, informat=None, **kwargs):
+    """
+    Iterate over the Bio.SeqRecord objects of an annotated genome file.
+
+    Thin wrapper around rotifer.genome.io.parse that guesses the format from
+    the file name and transparently opens compressed files.
+
+    Parameters
+    ----------
+    genome : str | Path
+        GFF (with a ##FASTA section) or any Bio.SeqIO format, such as the
+        GenBank flatfiles (.gbff) distributed by NCBI. May be gzipped.
+    informat : str | None
+        Format name. Guessed from the extension when None.
+
+    Yields
+    ------
+    Bio.SeqRecord.SeqRecord
+    """
+    import shutil
+    import rotifer.core.functions as rcf
+
+    genome = str(genome)
+    informat = informat or guess_genome_format(genome)
+
+    if informat is None:
+        raise ValueError(
+            f"Cannot guess the format of {genome}: pass informat explicitly"
+        )
+    if informat == "fasta":
+        raise ValueError(
+            f"{genome} is a plain FASTA file and carries no annotation"
+        )
+
+    compressed = Path(genome).suffix.lower() in (".gz", ".bz2")
+
+    # rgio.gff() takes a path and opens the file itself, while Bio.SeqIO
+    # formats are fed an open stream so that compressed files are read
+    # without a detour through the disk.
+    handles = []
+    try:
+        if informat == "gff":
+            if compressed:
+                plain = tempfile.NamedTemporaryFile(
+                    mode="wt", suffix=".gff", delete=False
+                )
+                handles.append(plain)
+                with rcf.open_compressed(genome, mode="rt") as fh:
+                    shutil.copyfileobj(fh, plain)
+                plain.close()
+                source = plain.name
+            else:
+                source = genome
+        else:
+            source = rcf.open_compressed(genome, mode="rt")
+            handles.append(source)
+
+        try:
+            for seqrecord in rgio.parse(source, informat=informat, **kwargs):
+                yield seqrecord
+        except IndexError:
+            if informat == "gff":
+                raise ValueError(
+                    f"{genome} has no ##FASTA section: its sequences must be "
+                    "provided separately"
+                )
+            raise
+
+    finally:
+        for handle in handles:
+            handle.close()
+            if informat == "gff" and os.path.exists(handle.name):
+                os.unlink(handle.name)
+
+
+def load_genome_annotation(genome, informat=None, exclude_type=["source", "gene", "region"], **kwargs):
+    """
+    Parse an annotated genome into a rotifer genome dataframe.
+
+    Equivalent to ``rgu.seqrecords_to_dataframe(rgio.parse(...))`` but with
+    format guessing and transparent decompression (see parse_genome).
+
+    Parameters
+    ----------
+    genome : str | Path | iterable[str | Path]
+        One or more GFF/GenBank/EMBL files.
+    informat : str | None
+        Format name, guessed per file when None.
+    exclude_type : list
+        Feature types dropped while building the table.
+
+    Returns
+    -------
+    rotifer.genome.data.NeighborhoodDF
+    """
+    if isinstance(genome, (str, Path)):
+        genome = [genome]
+
+    dfs = []
+    for path in genome:
+        dfs.append(
+            rgu.seqrecords_to_dataframe(
+                parse_genome(path, informat=informat),
+                exclude_type=exclude_type,
+                **kwargs,
+            )
+        )
+
+    if len(dfs) == 1:
+        return dfs[0]
+
+    return pd.concat(dfs, ignore_index=True)
+
+
+def genome_to_fasta(genome, informat=None, out=None):
+    """
+    Return the path of a nucleotide FASTA for a genome, extracting it when
+    the input is an annotated file (GFF with ##FASTA, GenBank, EMBL...).
+
+    FASTA inputs are returned untouched, so passing a plain .fna costs
+    nothing; compressed FASTA is decompressed because FIMO cannot read it.
+
+    Parameters
+    ----------
+    genome : str | Path
+    informat : str | None
+        Format name, guessed from the extension when None.
+    out : str | Path | None
+        Destination file. A temporary file is created when None.
+
+    Returns
+    -------
+    str
+        Path to an uncompressed FASTA file. It is the input path itself when
+        no conversion was needed, which is how callers know whether the file
+        is theirs to delete.
+    """
+    import shutil
+    from Bio import SeqIO
+    import rotifer.core.functions as rcf
+
+    genome = str(genome)
+    informat = informat or guess_genome_format(genome)
+    compressed = Path(genome).suffix.lower() in (".gz", ".bz2")
+
+    # Nothing to extract: hand FIMO the file it was given.
+    if informat in (None, "fasta") and not compressed:
+        return genome
+
+    if out is None:
+        handle = tempfile.NamedTemporaryFile(
+            mode="wt", suffix=".fna", delete=False
+        )
+        out = handle.name
+    else:
+        out = str(out)
+        handle = open(out, "wt")
+
+    try:
+        if informat in (None, "fasta"):
+            with rcf.open_compressed(genome, mode="rt") as fh:
+                shutil.copyfileobj(fh, handle)
+        else:
+            SeqIO.write(parse_genome(genome, informat=informat), handle, "fasta")
+    finally:
+        handle.close()
+
+    return out
+
+
+def genome_to_protein_fasta(genome, informat=None, out=None, codontable="Bacterial"):
+    """
+    Write the translation of every CDS of an annotated genome to a FASTA file.
+
+    Protein identifiers follow the same rule used by
+    rgu.seqrecords_to_dataframe (protein_id, else the GFF 'ID' attribute), so
+    the headers match the 'pid' column of the genome dataframe and of the
+    FIMO table produced by this pipeline.
+
+    Translations come from the /translation qualifier when present
+    (GenBank) and are computed from the genomic sequence otherwise, which
+    means a GFF only works when it carries a ##FASTA section.
+
+    Parameters
+    ----------
+    genome : str | Path
+    informat : str | None
+    out : str | Path | None
+        Destination file. A temporary file is created when None.
+    codontable : int | str
+        Genetic code used when a CDS has no /translation qualifier.
+
+    Returns
+    -------
+    str
+        Path of the FASTA file written.
+    """
+    from Bio import SeqIO
+    from Bio.Seq import Seq
+    from Bio.SeqRecord import SeqRecord
+
+    if out is None:
+        out = tempfile.NamedTemporaryFile(suffix=".faa", delete=False).name
+    else:
+        out = str(out)
+
+    records = []
+    for seqrecord in parse_genome(genome, informat=informat):
+        for ft in seqrecord.features:
+            if ft.type != "CDS" or "pseudo" in ft.qualifiers:
+                continue
+
+            qualifiers = ft.qualifiers
+            pid = None
+            for tag in ("protein_id", "ID"):
+                if tag in qualifiers:
+                    pid = qualifiers[tag][0]
+                    break
+            if pid is None:
+                continue
+
+            if "translation" in qualifiers:
+                protein = qualifiers["translation"][0]
+            else:
+                table = codontable
+                if "transl_table" in qualifiers:
+                    table = int(qualifiers["transl_table"][0])
+                try:
+                    # Pass the Seq, not the SeqRecord: SeqFeature.translate
+                    # mirrors the type it is given.
+                    protein = str(
+                        ft.translate(
+                            seqrecord.seq, table=table, cds=False, to_stop=True
+                        )
+                    )
+                except Exception:
+                    continue
+
+            records.append(
+                SeqRecord(
+                    Seq(protein),
+                    id=pid,
+                    description=qualifiers.get("product", [""])[0],
+                )
+            )
+
+    if not records:
+        raise ValueError(
+            f"No protein translation could be extracted from {genome}"
+        )
+
+    SeqIO.write(records, out, "fasta")
+
+    return out
+
+
+def run_fimo_single(meme_file, genome, out_dir=None, extra_args=None, informat=None):
     """
     Execute FIMO for a single genome.
 
@@ -898,16 +1214,21 @@ def run_fimo_single(meme_file, genome, out_dir=None, extra_args=None):
     meme_file : str | Path
         MEME motif file.
     genome : str | Path
-        FASTA file.
+        Nucleotide FASTA, or any annotated genome carrying its sequences
+        (GenBank/.gbff, GFF with a ##FASTA section), optionally compressed.
+        Annotated inputs are converted to a temporary FASTA for FIMO.
     out_dir : str | Path | None
         Output directory. If None, uses a temporary directory.
     extra_args : list[str] | None
         Additional CLI arguments for FIMO.
+    informat : str | None
+        Format of `genome`, guessed from the extension when None.
 
     Returns
     -------
     pd.DataFrame
-        Parsed FIMO output with an additional 'genome' column.
+        Parsed FIMO output with an additional 'genome' column, which always
+        names the file given by the caller rather than the temporary FASTA.
     """
     meme_file = Path(meme_file)
     genome = Path(genome)
@@ -918,20 +1239,29 @@ def run_fimo_single(meme_file, genome, out_dir=None, extra_args=None):
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = ["fimo", "--oc", str(out_dir)]
-    if extra_args:
-        cmd.extend(extra_args)
-    cmd.extend([str(meme_file), str(genome)])
+    fasta = genome_to_fasta(genome, informat=informat)
 
-    subprocess.run(cmd, check=True)
+    try:
+        cmd = ["fimo", "--oc", str(out_dir)]
+        if extra_args:
+            cmd.extend(extra_args)
+        cmd.extend([str(meme_file), str(fasta)])
 
-    df = pd.read_csv(out_dir / "fimo.tsv", sep="\t", comment="#")
+        subprocess.run(cmd, check=True)
+
+        df = pd.read_csv(out_dir / "fimo.tsv", sep="\t", comment="#")
+
+    finally:
+        # Only remove what this call created.
+        if str(fasta) != str(genome):
+            os.unlink(fasta)
+
     df["genome"] = genome.name
 
     return df
 
 
-def run_fimo_batch(meme_file, genomes, extra_args=None, n_jobs=1):
+def run_fimo_batch(meme_file, genomes, extra_args=None, n_jobs=1, informat=None):
     """
     Execute FIMO across multiple genomes.
 
@@ -939,9 +1269,12 @@ def run_fimo_batch(meme_file, genomes, extra_args=None, n_jobs=1):
     ----------
     meme_file : str | Path
     genomes : iterable[str | Path]
+        FASTA and/or annotated genomes (see run_fimo_single).
     extra_args : list[str] | None
     n_jobs : int
         Parallel jobs (uses joblib if >1)
+    informat : str | None
+        Format of the inputs, guessed per file when None.
 
     Returns
     -------
@@ -950,15 +1283,19 @@ def run_fimo_batch(meme_file, genomes, extra_args=None, n_jobs=1):
     """
     if isinstance(genomes, (str, Path)):
         genomes = [genomes]
-        genomes = list(genomes)
     else:
         genomes = list(genomes)
-        
+
     if n_jobs == 1:
-        dfs = [run_fimo_single(meme_file, g, extra_args=extra_args) for g in genomes]
+        dfs = [
+            run_fimo_single(meme_file, g, extra_args=extra_args, informat=informat)
+            for g in genomes
+        ]
     else:
         dfs = Parallel(n_jobs=n_jobs)(
-            delayed(run_fimo_single)(meme_file, g, extra_args=extra_args)
+            delayed(run_fimo_single)(
+                meme_file, g, extra_args=extra_args, informat=informat
+            )
             for g in genomes
         )
 
@@ -968,6 +1305,10 @@ def run_fimo_batch(meme_file, genomes, extra_args=None, n_jobs=1):
 def build_gff_index(gffs):
     """
     Build an index of CDS features from one or more GFF/GFF3 files.
+
+    This is the fast path for GFF: the annotation section is read straight
+    into pandas, so plain GFF files -- with or without a ##FASTA section --
+    are supported. Other formats go through build_annotation_index().
 
     Parameters
     ----------
@@ -979,7 +1320,14 @@ def build_gff_index(gffs):
     dict[str, pd.DataFrame]
         Mapping:
             seqid -> dataframe containing CDS features sorted by coordinates.
+
+        The 'pid' column follows the same rule as
+        rgu.seqrecords_to_dataframe (the protein_id attribute, else ID), so
+        identifiers match those of a genome dataframe parsed from the same
+        file.
     """
+
+    import rotifer.core.functions as rcf
 
     # Accept single file or iterable of files
     if isinstance(gffs, (str, Path)):
@@ -1018,7 +1366,9 @@ def build_gff_index(gffs):
         # Find FASTA section if present
         fasta_line = None
 
-        with gff.open() as fh:
+        # open_compressed, so gzipped GFFs are scanned like plain ones;
+        # pandas infers the compression from the extension on its own.
+        with rcf.open_compressed(str(gff), mode="rt") as fh:
             for i, line in enumerate(fh):
                 if line.startswith("##FASTA"):
                     fasta_line = i
@@ -1053,6 +1403,13 @@ def build_gff_index(gffs):
         cds["start"] = cds["start"].astype("int64")
         cds["end"] = cds["end"].astype("int64")
 
+        # Protein ID, using the same precedence as rgu.seqrecords_to_dataframe
+        attributes = cds["attributes"].fillna("").astype(str)
+        cds["pid"] = (
+            attributes.str.extract(r"(?:^|;)protein_id=([^;]*)", expand=False)
+            .fillna(attributes.str.extract(r"(?:^|;)ID=([^;]*)", expand=False))
+        )
+
         cds.sort_values(
             ["seqid", "start", "end"],
             inplace=True,
@@ -1086,6 +1443,156 @@ def build_gff_index(gffs):
     return gff_dict
 
 
+def cds_index_from_dataframe(gendf):
+    """
+    Build a CDS index from a rotifer genome dataframe.
+
+    Accepts anything shaped like the output of rgu.seqrecords_to_dataframe
+    (columns 'nucleotide', 'start', 'end', 'strand', 'pid', 'type'), which is
+    how GenBank/EMBL annotation reaches this pipeline -- and also lets a
+    caller that already parsed its genome reuse that table instead of
+    reading the annotation a second time.
+
+    Parameters
+    ----------
+    gendf : pd.DataFrame
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Same structure as build_gff_index().
+    """
+    missing = [
+        c for c in ("nucleotide", "start", "end", "strand", "type")
+        if c not in gendf.columns
+    ]
+    if missing:
+        raise ValueError(
+            f"Not a genome dataframe, missing column(s): {', '.join(missing)}"
+        )
+
+    cds = gendf.loc[gendf["type"] == "CDS"].copy()
+
+    index = {}
+    if cds.empty:
+        return index
+
+    cds["start"] = pd.to_numeric(cds["start"], errors="coerce")
+    cds["end"] = pd.to_numeric(cds["end"], errors="coerce")
+    cds = cds.dropna(subset=["start", "end"])
+
+    pid = cds["pid"] if "pid" in cds.columns else pd.Series(np.nan, index=cds.index)
+
+    # Rebuild a GFF-like attribute string so 'next_protein' stays as
+    # informative as it is for GFF input.
+    attributes = "ID=" + pid.fillna("").astype(str)
+    for column, tag in (("locus", "locus_tag"), ("gene", "gene"), ("product", "product")):
+        if column in cds.columns:
+            extra = cds[column].fillna("").astype(str)
+            attributes = attributes.mask(
+                extra.ne(""), attributes + ";" + tag + "=" + extra
+            )
+
+    cds = pd.DataFrame(
+        {
+            "seqid": cds["nucleotide"].astype(str),
+            "start": cds["start"].astype("int64"),
+            "end": cds["end"].astype("int64"),
+            "strand": cds["strand"].map(normalize_strand),
+            "pid": pid,
+            "attributes": attributes,
+        }
+    )
+
+    for seqid, subdf in cds.groupby("seqid", sort=False):
+        index[seqid] = (
+            subdf.sort_values(["start", "end"], kind="mergesort")
+            .reset_index(drop=True)
+        )
+
+    return index
+
+
+def _merge_cds_index(index, other):
+    """
+    Merge CDS index `other` into `index`, concatenating shared seqids.
+    """
+    for seqid, subdf in other.items():
+        if seqid in index:
+            index[seqid] = (
+                pd.concat([index[seqid], subdf], ignore_index=True)
+                .sort_values(["start", "end"], kind="mergesort")
+                .reset_index(drop=True)
+            )
+        else:
+            index[seqid] = subdf
+
+    return index
+
+
+def build_annotation_index(annotation, informat=None):
+    """
+    Build a CDS index from any supported annotation input.
+
+    This is the format-agnostic entry point used by the FIMO pipeline. It
+    accepts:
+
+    * GFF/GFF3 files, read by build_gff_index()
+    * GenBank (.gbff, .gbk), EMBL and any other Bio.SeqIO format, parsed
+      through rotifer.genome and converted by cds_index_from_dataframe()
+    * an already parsed genome dataframe (rgu.seqrecords_to_dataframe)
+    * an index already built by one of the functions above, returned as is
+
+    Compressed (.gz/.bz2) GenBank files are read directly.
+
+    Parameters
+    ----------
+    annotation : str | Path | iterable | pd.DataFrame | dict
+    informat : str | None
+        Format of the file(s), guessed from each extension when None.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        seqid -> CDS features sorted by coordinates.
+    """
+    if isinstance(annotation, dict):
+        return annotation
+
+    if isinstance(annotation, pd.DataFrame):
+        return cds_index_from_dataframe(annotation)
+
+    if isinstance(annotation, (str, Path)):
+        paths = [annotation]
+    elif isinstance(annotation, Iterable):
+        paths = list(annotation)
+    else:
+        raise TypeError(
+            "annotation must be a path, an iterable of paths, a genome "
+            "dataframe or a CDS index"
+        )
+
+    index = {}
+    for path in paths:
+        fmt = informat or guess_genome_format(path)
+
+        if fmt == "gff":
+            part = build_gff_index(path)
+        elif fmt in (None, "fasta"):
+            raise ValueError(
+                f"{path} carries no annotation: pass a GFF or GenBank file, "
+                "or set informat explicitly"
+            )
+        else:
+            part = cds_index_from_dataframe(
+                load_genome_annotation(path, informat=fmt)
+            )
+
+        _merge_cds_index(index, part)
+
+    return index
+
+
 _STRAND_ALIASES = {"+": "+", "1": "+", 1: "+", "-": "-", "-1": "-", -1: "-"}
 
 
@@ -1105,7 +1612,7 @@ def normalize_strand(value):
     return _STRAND_ALIASES.get(value)
 
 
-def get_next_protein(df, gff_dict, max_distance=50):
+def get_next_protein(df, annotation, max_distance=50, informat=None):
     """
     Annotate each FIMO hit with the nearest downstream CDS on the same
     strand as the repeat (i.e. the gene lying after the last repeat in the
@@ -1123,28 +1630,31 @@ def get_next_protein(df, gff_dict, max_distance=50):
       tandem array only the last repeat -- the one actually abutting the gene --
       gets annotated, while the upstream copies are left empty.
 
-    Also extracts a normalized protein ID (pid) from GFF attributes.
-
     Parameters
     ----------
     df : pd.DataFrame
         FIMO output. Must contain:
         ['sequence_name', 'start', 'stop', 'strand']
-    gff_dict : dict[str, pd.DataFrame]
-        Output of build_gff_index().
+    annotation : dict | str | Path | pd.DataFrame
+        Anything build_annotation_index() accepts: a CDS index built by
+        build_gff_index()/build_annotation_index(), a GFF or GenBank file, or
+        a parsed genome dataframe.
     max_distance : int, default 50
         Maximum number of base pairs allowed between the end of the repeat and
         the start of the downstream CDS. Use None to disable the cutoff.
+    informat : str | None
+        Annotation format, guessed from the file name when None.
 
     Returns
     -------
     pd.DataFrame
         Original dataframe with:
-        - next_protein : raw GFF attributes
+        - next_protein : annotation attributes of the CDS
         - next_protein_distance : gap in bp between repeat and CDS
         - next_protein_strand : strand of the CDS, always equal to the repeat's
-        - pid : extracted protein ID
+        - pid : protein ID of the CDS
     """
+    gff_dict = build_annotation_index(annotation, informat=informat)
 
     # Index the CDSs by (seqid, strand) once, so a repeat can only ever look at
     # genes co-oriented with it. Rows whose strand is missing or unrecognized
@@ -1160,21 +1670,26 @@ def get_next_protein(df, gff_dict, max_distance=50):
                     .reset_index(drop=True)
                 )
 
+    # Indexes built from a genome dataframe, and those built by
+    # build_gff_index(), already carry the protein ID; only a hand-made index
+    # would leave it out, and there it is parsed from the attributes below.
+    has_pid = all("pid" in cds.columns for cds in gff_dict.values())
+
     def _get(row):
         strand = normalize_strand(row["strand"])
         if strand is None:
-            return None, None, None
+            return None, None, None, None
 
         cds = by_strand.get((row["sequence_name"], strand))
         if cds is None:
-            return None, None, None
+            return None, None, None, None
 
         if strand == "+":
             # Transcription runs left to right: take the first CDS starting
             # after the end of the repeat.
             hits = cds[cds["start"].values > row["stop"]]
             if hits.empty:
-                return None, None, None
+                return None, None, None, None
             hit = hits.iloc[0]
             distance = hit["start"] - row["stop"]
 
@@ -1184,23 +1699,27 @@ def get_next_protein(df, gff_dict, max_distance=50):
             # in FIMO's plus-strand coordinates.
             hits = cds[cds["end"].values < row["start"]]
             if hits.empty:
-                return None, None, None
+                return None, None, None, None
             hit = hits.iloc[-1]
             distance = row["start"] - hit["end"]
 
         if max_distance is not None and distance > max_distance:
-            return None, None, None
+            return None, None, None, None
 
-        return hit["attributes"], distance, strand
+        pid = hit["pid"] if has_pid else None
+
+        return hit["attributes"], distance, strand, pid
 
     df = df.copy()
-    df[["next_protein", "next_protein_distance", "next_protein_strand"]] = df.apply(
-        _get, axis=1, result_type="expand"
+    df[["next_protein", "next_protein_distance", "next_protein_strand", "pid"]] = (
+        df.apply(_get, axis=1, result_type="expand")
     )
 
-    # parse ID (vectorized)
-    df["pid"] = df["next_protein"].str.split(";", expand=True)[0].str.replace("ID=cds-", "", regex=False)
-    #df.drop('next_protein', axis = 1, inplace = True)
+    if not has_pid:
+        df["pid"] = (
+            df["next_protein"].str.split(";", expand=True)[0]
+            .str.replace("ID=cds-", "", regex=False)
+        )
 
     return df
 
@@ -1286,115 +1805,198 @@ def filter_repeat_arrays(df, min_distance=2, max_distance=15, min_repeats=2, inp
     return df[df["repeat_count"] >= min_repeats]
 
 
-def fimo_pipeline(meme_file, genomes, gffs, n_jobs=1, filter=True, length=20, max_distance=50):
+def fimo_pipeline(meme_file, genomes=None, annotation=None, informat=None,
+                  n_jobs=1, filter=True, length=20, max_distance=50, gffs=None):
     """
     End-to-end execution:
     FIMO → annotate next protein → cluster hits.
 
+    Sequences and annotation may come from the same file. A GenBank flatfile
+    (.gbff) or a GFF carrying a ##FASTA section is enough on its own:
+
+        fimo_pipeline(meme, 'GCF_000005845.2_genomic.gbff.gz')
+
+    while a plain GFF, which has no sequences, is passed alongside the
+    nucleotide FASTA:
+
+        fimo_pipeline(meme, 'genome.fna', 'genome.gff')
+
     Parameters
     ----------
+    meme_file : str | Path
+        MEME motif file.
+    genomes : str | Path | iterable | None
+        Sequences FIMO scans: FASTA, or annotated genomes carrying their
+        sequences. Defaults to `annotation` when None.
+    annotation : str | Path | iterable | pd.DataFrame | dict | None
+        Annotation used to find the gene downstream of each hit. Accepts GFF,
+        GenBank/EMBL, an already parsed genome dataframe or a CDS index (see
+        build_annotation_index). Defaults to `genomes` when None.
+    informat : str | None
+        Format of the input files, guessed from each file name when None.
+        It applies to `genomes` and `annotation` alike, so set it only when
+        one file plays both roles or both share the same format.
+    n_jobs : int
+        Parallel FIMO jobs.
+    filter : bool
+        Drop hits farther than `length` bp from the previous hit.
+    length : int
+        Cutoff used when filter is True.
     max_distance : int, default 50
         Maximum distance, in bp, between the end of the repeat and the start of
         the downstream CDS (see get_next_protein). Use None to disable.
+    gffs : deprecated
+        Former name of `annotation`.
 
     Returns
     -------
     pd.DataFrame
     """
-    df = run_fimo_batch(meme_file, genomes, n_jobs=n_jobs)
-    gff_dict = build_gff_index(gffs)
-    df = get_next_protein(df, gff_dict, max_distance=max_distance)
+    if annotation is None:
+        annotation = gffs
+
+    if genomes is None and annotation is None:
+        raise ValueError("Either genomes or annotation must be given")
+
+    # A single annotated file plays both roles.
+    if genomes is None:
+        if isinstance(annotation, (pd.DataFrame, dict)):
+            raise ValueError(
+                "genomes is required: a parsed annotation has no sequences "
+                "for FIMO to scan"
+            )
+        genomes = annotation
+    if annotation is None:
+        annotation = genomes
+
+    df = run_fimo_batch(meme_file, genomes, n_jobs=n_jobs, informat=informat)
+    df = get_next_protein(df, annotation, max_distance=max_distance, informat=informat)
     df = get_distances_repeats(df, filter=filter, length=length)
 
     return df
 
-def igem_pipeline(genome_annotation, genome_format, genome_protein_fasta, genome_nucleotide_fasta, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
+def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=None, genome_nucleotide_fasta=None, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
     search_models='/home/leep/epsoares/projects/igem/2026/data/search_models.hmm', hmmsearch_score_filter=30, hmmsearch_evalue_filter=1e-4, return_hmmscan=False, after=10, before=10, run_fimo=True,
     meme_file='/home/leep/epsoares/projects/igem/2026/data/heptarepeats2.meme', return_fimo=False, make_figure=True, output_report='neighborhood_report.html', 
     repeat_max_distance=50, repeat_min_spacing=2, repeat_max_spacing=15, min_repeats=2, 
     color_dict=None, domain_dict=None, seed=4, patience=4, max_distance=50, max_extend=30, 
     domains_filter='/home/leep/epsoares/projects/igem/2026/data/hmm_modelnames.tsv', organism=None, add_sequences=True, normalize_orientation=False,
     filter_columns=['seq_type', 'assembly', 'gene', 'origin', 'topology', 'taxid', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']):
-    ''' 
-    Doc
     '''
+    Run the whole iGEM analysis on one genome.
 
-    # filter=False: filter_repeat_arrays() needs every hit, including the first
-    # copy of each array (whose distance is NaN), to count array sizes.
-    fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, genome_annotation, max_distance=repeat_max_distance, filter=False)
-    fimo = filter_repeat_arrays(fimo, min_distance=repeat_min_spacing, max_distance=repeat_max_spacing, min_repeats=min_repeats)
-    gen = rgu.seqrecords_to_dataframe(rgio.parse(genome_annotation, informat=genome_format), exclude_type=['source', 'gene', 'region'])
-    
-    if genome_format == 'gff':
-        fimo['pid'] = fimo.pid.str.split('ID=', expand=True)[1]
+    The genome annotation may be a GFF or a GenBank flatfile (.gbff, also
+    gzipped). When the annotation carries its sequences -- always for
+    GenBank, and for a GFF with a ##FASTA section -- genome_nucleotide_fasta
+    and genome_protein_fasta are optional and extracted from it.
 
-    fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
-    hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
-    hsearch = hmmsearch(search_models, genome_protein_fasta)
-    hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query(f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}')
-    l = hsearch_hits.sequence.tolist()
-    pids_list = fimo.pid.dropna().tolist() + l
-    add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
-    gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
-    # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
-    ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
-                                 max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
-    ndf['repeat_start'] = ndf.pid.map(fimo.set_index('pid').start.to_dict())
-    ndf['repeat_end'] = ndf.pid.map(fimo.set_index('pid').stop.to_dict())
-    ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
-    ndf['pfam_coord'] = ndf.pid.map(hscan.set_index('sequence').pfam_coord.to_dict())
+    Parameters
+    ----------
+    genome_annotation : str | Path
+        GFF or GenBank annotation of the genome.
+    genome_format : str | None
+        'gff', 'genbank', ... Guessed from the file name when None.
+    genome_protein_fasta : str | Path | None
+        Protein FASTA used by hmmscan/hmmsearch. Extracted from
+        genome_annotation when None.
+    genome_nucleotide_fasta : str | Path | None
+        Nucleotide FASTA scanned by FIMO. Extracted from genome_annotation
+        when None.
+    '''
+    genome_format = genome_format or guess_genome_format(genome_annotation)
 
-    if add_sequences:
-        seqs = rdbs.sequence(genome_protein_fasta)
-        ndf['sequence'] = ndf.pid.map(seqs.df.set_index('id').sequence.to_dict())
-        matched = int(ndf.sequence.notna().sum())
-        total = int(ndf.pid.notna().sum())
-        print(f'Sequences attached to {matched} of {total} proteins')
-        if total and not matched:
-            print(f'  WARNING: no pid matched a header in {genome_protein_fasta} -- '
-                  'the report will have no sequences')
+    # Parse the annotation once and reuse the table: it drives both the
+    # repeat-to-gene assignment inside fimo_pipeline() and every neighborhood
+    # operation below, so their protein IDs cannot disagree, whatever the
+    # annotation format.
+    gen = load_genome_annotation(genome_annotation, informat=genome_format)
 
-    # Tag every neighborhood with the search that recovered its query: the
-    # heptarepeat MEME/FIMO scan ('Heptarepeat') or the HMM that matched it in
-    # hmmsearch (the model's own name). A query found by both searches, or by
-    # more than one model, carries every tag joined by '+'.
-    hepta_pids = set(fimo.pid.dropna())
-    model_by_pid = (hsearch_hits.astype({'model': str}).groupby('sequence')['model'].agg(lambda names: '+'.join(dict.fromkeys(names))).to_dict())
+    derived = []
+    if genome_nucleotide_fasta is None:
+        genome_nucleotide_fasta = genome_to_fasta(genome_annotation, informat=genome_format)
+        derived.append(genome_nucleotide_fasta)
+    if genome_protein_fasta is None:
+        genome_protein_fasta = genome_to_protein_fasta(genome_annotation, informat=genome_format)
+        derived.append(genome_protein_fasta)
 
-    def _query_source(pid):
-        tags = ['Heptarepeat'] if pid in hepta_pids else []
-        if pid in model_by_pid:
-            tags.append(model_by_pid[pid])
-        return '+'.join(tags) if tags else np.nan
+    try:
+        # filter=False: filter_repeat_arrays() needs every hit, including the first
+        # copy of each array (whose distance is NaN), to count array sizes.
+        fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, gen, max_distance=repeat_max_distance, filter=False)
+        fimo = filter_repeat_arrays(fimo, min_distance=repeat_min_spacing, max_distance=repeat_max_spacing, min_repeats=min_repeats)
 
-    query_source = {pid: _query_source(pid) for pid in dict.fromkeys(pids_list)}
-    ndf['query_source'] = ndf.pid.map(query_source)
+        fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
+        hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
+        hsearch = hmmsearch(search_models, genome_protein_fasta)
+        hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query(f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}')
+        l = hsearch_hits.sequence.tolist()
+        pids_list = fimo.pid.dropna().tolist() + l
+        add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
+        gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
+        # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
+        ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
+                                     max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
+        ndf['repeat_start'] = ndf.pid.map(fimo.set_index('pid').start.to_dict())
+        ndf['repeat_end'] = ndf.pid.map(fimo.set_index('pid').stop.to_dict())
+        ndf['repeat_strand'] = ndf.pid.map(fimo.set_index('pid').strand.to_dict())
+        ndf['pfam_coord'] = ndf.pid.map(hscan.set_index('sequence').pfam_coord.to_dict())
 
-    # neighbors inherit the tag(s) of their block's query row(s)
-    block_source = (
-        ndf.loc[ndf['query_source'].notna(), ['block_id', 'query_source']]
-        .groupby('block_id')['query_source']
-        .agg(lambda tags: '+'.join(dict.fromkeys('+'.join(tags).split('+'))))
-        .to_dict()
-    )
-    ndf['query_source'] = ndf['block_id'].map(block_source)
+        if add_sequences:
+            seqs = rdbs.sequence(genome_protein_fasta)
+            ndf['sequence'] = ndf.pid.map(seqs.df.set_index('id').sequence.to_dict())
+            matched = int(ndf.sequence.notna().sum())
+            total = int(ndf.pid.notna().sum())
+            print(f'Sequences attached to {matched} of {total} proteins')
+            if total and not matched:
+                print(f'  WARNING: no pid matched a header in {genome_protein_fasta} -- '
+                      'the report will have no sequences')
 
-    if filter_columns:
-        ndf = ndf.drop(columns=[c for c in filter_columns if c in ndf.columns])
+        # Tag every neighborhood with the search that recovered its query: the
+        # heptarepeat MEME/FIMO scan ('Heptarepeat') or the HMM that matched it in
+        # hmmsearch (the model's own name). A query found by both searches, or by
+        # more than one model, carries every tag joined by '+'.
+        hepta_pids = set(fimo.pid.dropna())
+        model_by_pid = (hsearch_hits.astype({'model': str}).groupby('sequence')['model'].agg(lambda names: '+'.join(dict.fromkeys(names))).to_dict())
 
-    if organism:
-        ndf['organism'] = organism
+        def _query_source(pid):
+            tags = ['Heptarepeat'] if pid in hepta_pids else []
+            if pid in model_by_pid:
+                tags.append(model_by_pid[pid])
+            return '+'.join(tags) if tags else np.nan
 
-    if make_figure:
-        rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict,
-                               normalize_orientation=normalize_orientation)
-        print(f'figure saved in {output_report}')
+        query_source = {pid: _query_source(pid) for pid in dict.fromkeys(pids_list)}
+        ndf['query_source'] = ndf.pid.map(query_source)
 
-    if return_fimo and return_hmmscan:
-        return ndf, fimo, hscan
-    elif return_fimo:
-        return ndf, fimo
-    elif return_hmmscan:
-        return ndf, hscan
+        # neighbors inherit the tag(s) of their block's query row(s)
+        block_source = (
+            ndf.loc[ndf['query_source'].notna(), ['block_id', 'query_source']]
+            .groupby('block_id')['query_source']
+            .agg(lambda tags: '+'.join(dict.fromkeys('+'.join(tags).split('+'))))
+            .to_dict()
+        )
+        ndf['query_source'] = ndf['block_id'].map(block_source)
 
-    return ndf
+        if filter_columns:
+            ndf = ndf.drop(columns=[c for c in filter_columns if c in ndf.columns])
+
+        if organism:
+            ndf['organism'] = organism
+
+        if make_figure:
+            rdai.build_html_report(ndf, output_file=output_report, custom_colors=color_dict, rename_map=domain_dict,
+                                   normalize_orientation=normalize_orientation)
+            print(f'figure saved in {output_report}')
+
+        if return_fimo and return_hmmscan:
+            return ndf, fimo, hscan
+        elif return_fimo:
+            return ndf, fimo
+        elif return_hmmscan:
+            return ndf, hscan
+
+        return ndf
+    finally:
+        # Remove only the FASTA files this call extracted from the annotation.
+        for path in derived:
+            if os.path.exists(path):
+                os.unlink(path)
