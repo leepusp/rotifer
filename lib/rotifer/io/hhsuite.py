@@ -16,7 +16,7 @@ hhr = import_path(os.path.realpath(__file__).split("rotifer")[0] + "rotifer/bin/
 # Parse output tables
 def read_hhr(indir, suffix=".hhr"):
     '''
-    Parse **all** HH-suite (*.hhr) output files located in a
+    Parse **all** HH-suite (``*.hhr``) output files located in a
     directory or, alternatively, a list of .hhr files
 
     Parameters
@@ -32,7 +32,7 @@ def read_hhr(indir, suffix=".hhr"):
 
     Examples
     --------
-    Parsing all *.hhr files at once
+    Parsing all ``*.hhr`` files at once
 
     >>> from rotifer.io import hhsuite
     >>> df = hhsuite.read_hhr(hhrdir)
@@ -45,7 +45,7 @@ def read_hhr(indir, suffix=".hhr"):
 
 def parse_hhr(indir, suffix=".hhr"):
     '''
-    Parse HH-suite (*.hhr) output files.
+    Parse HH-suite (``*.hhr``) output files.
 
     Parameters
     ----------
@@ -64,7 +64,7 @@ def parse_hhr(indir, suffix=".hhr"):
 
     >>> from rotifer.io import hhsuite
     >>> for hhr in hhsuite.parse_hhr(hhrdir):
-    >>>    hhr.to_csv("hhr.tsv", sep="\t", index=False)
+    ...     hhr.to_csv("hhr.tsv", sep="\\t", index=False)
     '''
     if not isinstance(indir,list):
         if os.path.exists(indir) and os.path.isdir(indir):
