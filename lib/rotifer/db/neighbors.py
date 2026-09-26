@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+"""
+Fetch gene neighborhoods from the laboratory's PostgreSQL server.
+
+This is the original implementation behind the ``rneighbors``
+program. It builds temporary tables of query accessions, joins them
+against the ``ftable`` feature table and prints neighborhoods in
+either the ``gi2operons`` or the tabular format.
+
+.. deprecated::
+   This module is superseded by
+   :class:`rotifer.db.methods.GeneNeighborhoodCursor` and its
+   backends (:mod:`rotifer.db.ncbi`, :mod:`rotifer.db.sql.sqlite3`),
+   which fetch the same data without a dedicated database server.
+   Nothing in :mod:`rotifer.db` imports it.
+
+Warnings
+--------
+This module does not currently import: it has a syntax error at
+line 131, and several methods contain further errors. It is
+excluded from the API reference. See ``docs/OPEN_QUESTIONS.md``.
+"""
 
 import argparse # Not our command line parser of choice but better than none
 import os
@@ -9,6 +30,42 @@ import rotifer
 logger = rotifer.logging.getLogger(__name__)
 
 class rneighbors:
+    """
+    Query gene neighborhoods on a PostgreSQL feature database.
+
+    Call :meth:`runRneighbors` to connect, submit the query
+    accessions and print the results.
+
+    Parameters
+    ----------
+    above : int, default 3
+        Maximum number of neighbors upstream of each target.
+    below : int, default 3
+        Maximum number of neighbors downstream of each target.
+    outformat : str, default 'gi2operons'
+        Output format. One of ``gi2operons`` (blocks), ``table``
+        (tab separated), ``missing`` (queries with no match) or
+        ``query`` (queries with a match).
+    input_file : iterable of str
+        Protein accessions to search for.
+    gacc : list of str, default []
+        Restrict the search to these genomic accessions.
+    asm : list of str, default []
+        Restrict the search to these assemblies.
+    database : str, default 'rotifer'
+        PostgreSQL database name.
+    port : str, default '5433'
+        PostgreSQL server port.
+    host : str, default '10.1.1.1'
+        PostgreSQL server address.
+    user : str, default 'rotifer'
+        PostgreSQL user name.
+
+    Attributes
+    ----------
+    db : psycopg2.extensions.connection
+        Database connection, opened by :meth:`connect`.
+    """
     def __init__(self, above = 3, below = 3,
                  outformat = 'gi2operons', input_file ='',
                  gacc = [], asm = [],
@@ -29,6 +86,18 @@ class rneighbors:
         self.user = user # DB user
 
     def connect(self):
+        """
+        Open the connection to the PostgreSQL server.
+
+        The connection is stored in ``self.db`` and uses
+        ``psycopg2.extras.DictCursor`` so rows can be addressed by
+        column name.
+
+        Notes
+        -----
+        On failure this method logs a critical message and calls
+        ``exit(1)`` instead of raising.
+        """
         try:
             dsn = "dbname=" + self.database + " user=" + self.user + " host=" + self.host + ' port=' + self.port
             self.db  = psycopg2.connect(dsn, cursor_factory=DictCursor)
@@ -38,6 +107,16 @@ class rneighbors:
             exit(1)
 
     def lsqlAsm(self):
+        """
+        Build the statements that filter queries by assembly.
+
+        Returns
+        -------
+        list of str
+            Statements inserting ``self.asm`` into the ``uasm``
+            temporary table and populating ``uquery`` from
+            ``ftable``.
+        """
         move = [
             '''
             INSERT INTO uasm(assembly) VALUES {0}
@@ -57,6 +136,16 @@ class rneighbors:
         return move
 
     def lsqlGacc(self):
+        """
+        Build the statements that filter queries by genomic accession.
+
+        Returns
+        -------
+        list of str
+            Statements inserting ``self.gacc`` into the ``ugacc``
+            temporary table and populating ``uquery`` from
+            ``ftable``.
+        """
         move = [
             '''
             insert into ugacc(genomic_accession) values {0}
@@ -78,6 +167,19 @@ class rneighbors:
         return move
 
     def baseSql(self):
+        """
+        Build the statements that create the temporary tables.
+
+        Formats ``self.input_file`` into a values list, stored as
+        ``self.ids``.
+
+        Returns
+        -------
+        list of str
+            Statements creating the ``upid`` and ``uquery``
+            temporary tables and loading the query accessions into
+            ``upid``.
+        """
         self.ids=",".join(map(lambda x: str("('" + x + "')"), self.input_file))
 
         lsql = [
@@ -97,6 +199,15 @@ class rneighbors:
         return lsql
 
     def basicSql(self):
+        """
+        Build the unfiltered statement that populates ``uquery``.
+
+        Returns
+        -------
+        list of str
+            A single statement selecting from ``ftable`` every
+            feature whose protein accession appears in ``upid``.
+        """
         move = [
             '''
             INSERT INTO uquery (
@@ -113,11 +224,23 @@ class rneighbors:
         return move
 
     def post_ids(self):
-        '''
-        Send queris (like NCBI epost)
-        Build SQL statements
-        Decide if filter by ASM, GACC or nothing
-        '''
+        """
+        Submit the query accessions to the database.
+
+        Creates the temporary tables, loads the query accessions
+        into ``upid`` and populates ``uquery``, choosing the
+        assembly filter, the genomic accession filter or no filter
+        at all according to ``self.asm`` and ``self.gacc``. The
+        number of accessions submitted and matched is logged at
+        debug level.
+
+        Notes
+        -----
+        The filter is chosen by two consecutive ``if`` statements
+        rather than ``if``/``elif``, so an assembly filter is
+        discarded whenever ``self.gacc`` is empty. See
+        ``docs/OPEN_QUESTIONS.md``.
+        """
         if self.asm:
             lsql = self.baseSql() + self.lsqlAsm()
         if self.gacc:
@@ -133,6 +256,25 @@ class rneighbors:
         logger.debug(f'## Number of proteins found in the SQL database: {cursor.fetchone()[0]}')
 
     def runRneighbors(self, stop = True):
+        """
+        Connect, run the query and print the neighborhoods.
+
+        Consecutive intervals closer than one feature apart are
+        merged before printing, so overlapping neighborhoods appear
+        as a single block.
+
+        Parameters
+        ----------
+        stop : bool, default True
+            Whether to call ``sys.exit(0)`` when finished.
+
+        Notes
+        -----
+        The ``missing`` and ``query`` output formats are selected by
+        two consecutive ``if`` statements and the ``else`` branch
+        binds only to the second, so ``missing`` also runs the
+        neighborhood branch. See ``docs/OPEN_QUESTIONS.md``.
+        """
         self.connect() # connect to DB
         self.post_ids() # post to DB
 
@@ -178,18 +320,59 @@ class rneighbors:
             pass
 
     def missing(self, cursor):
+        """
+        Log the query accessions that matched nothing.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+        """
         lost = self.fetch_missing_queries(cursor)
         lost = list(map(lambda x: str(x[0]), lost))
         if len(lost):
             logger.warning('\n'.join(lost))
 
     def query(self, cursor):
+        """
+        Log the query accessions that matched a feature.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+
+        Notes
+        -----
+        This method raises before logging: it calls
+        ``str(x[0], lost)`` and ``join(lost)`` where
+        ``str(x[0])`` and ``'\\n'.join(lost)`` are meant. See
+        ``docs/OPEN_QUESTIONS.md``.
+        """
         lost = self.fetch_queries(cursor)
         lost = list(map(lambda x: str(x[0], lost)))
         if len(lost):
             logger.warning('\n',join(lost))
 
     def gi2operons(self, cursor, contig, interval):
+        """
+        Print one neighborhood in the ``gi2operons`` block format.
+
+        Column widths are computed from the block being printed, so
+        each block is aligned independently. Target features are
+        marked with ``-->`` in the first column.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the queries.
+        contig : psycopg2.extras.DictRow
+            Row describing the nucleotide sequence, as returned by
+            :meth:`fetch_contigs`.
+        interval : psycopg2.extras.DictRow
+            Row describing the neighborhood boundaries, as returned
+            by :meth:`fetch_intervals`.
+        """
         # Prepare main query to fetch a block
         sql = '''
             SELECT
@@ -254,6 +437,26 @@ class rneighbors:
         print("---------------------------------------")
 
     def table(self, cursor, contig, interval, print_header):
+        """
+        Print one neighborhood in the tab separated format.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+        contig : psycopg2.extras.DictRow
+            Row describing the nucleotide sequence.
+        interval : psycopg2.extras.DictRow
+            Row describing the neighborhood boundaries.
+        print_header : int
+            Whether the column header still has to be printed.
+
+        Returns
+        -------
+        int
+            0 once the header has been printed, so that callers can
+            pass the value to the next call and emit it only once.
+        """
         sql = '''
             SELECT
                 ft.genomic_accession as nucleotide,
@@ -286,6 +489,30 @@ class rneighbors:
         return print_header
 
     def fetch_intervals(self, cursor, ntid, above, below):
+        """
+        Select the neighborhood boundaries of every query on a contig.
+
+        Boundaries are computed by the ``first_upstream_neighbor``
+        and ``last_downstream_neighbor`` functions defined in the
+        database.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+        ntid : str
+            Genomic accession to search.
+        above : int
+            Number of neighbors upstream of each target.
+        below : int
+            Number of neighbors downstream of each target.
+
+        Returns
+        -------
+        psycopg2.extensions.cursor
+            The same cursor, ready to iterate over rows carrying the
+            ``gomin`` and ``gomax`` boundaries.
+        """
         args=(ntid, above, below)
         sql = '''
         SELECT genomic_accession, product_accession, genomic_order,
@@ -299,6 +526,19 @@ class rneighbors:
         return cursor
 
     def fetch_queries(self,cursor):
+        """
+        Fetch the query accessions that matched a feature.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+
+        Returns
+        -------
+        list of psycopg2.extras.DictRow
+            One row per accession found in ``uquery``.
+        """
         cursor.execute('''
             SELECT DISTINCT p.product_accession AS missing_queries
             FROM upid AS p LEFT OUTER JOIN uquery AS q USING (product_accession)
@@ -307,6 +547,19 @@ class rneighbors:
         return cursor.fetchall()
 
     def fetch_missing_queries(self,cursor):
+        """
+        Fetch the query accessions that matched nothing.
+
+        Parameters
+        ----------
+        cursor : psycopg2.extensions.cursor
+            Cursor used to run the query.
+
+        Returns
+        -------
+        list of psycopg2.extras.DictRow
+            One row per accession absent from ``uquery``.
+        """
         cursor.execute('''
             SELECT DISTINCT p.product_accession AS missing_queries
             FROM upid AS p LEFT OUTER JOIN uquery AS q USING (product_accession)
@@ -315,6 +568,16 @@ class rneighbors:
         return cursor.fetchall()
 
     def fetch_contigs(self):
+       """
+       Fetch the nucleotide sequences carrying at least one query.
+
+       Returns
+       -------
+       psycopg2.extensions.cursor
+           Cursor over the distinct assembly, genomic accession,
+           organism name and lineage of every match, ordered by
+           lineage and organism.
+       """
        cursor = self.db.cursor()
        sql = '''
        SELECT DISTINCT assembly, genomic_accession, organism_name, lineage
