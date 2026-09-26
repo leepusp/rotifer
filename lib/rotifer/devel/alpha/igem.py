@@ -11,11 +11,12 @@ Each block is drawn as one row of the figure:
     [ text label ]  [gene] [gene] [QUERY] [gene] [gene] ...
 
 The text label is a 3-line box with the reference query protein id, the
-block id and the organism name. Every neighbor gene is drawn pointing
-right, regardless of its real strand, so a row never has arrows pointing
-in different directions; only the query gene's own arrow still reflects
-its real strand. Genes are colored by a domain/annotation label (Pfam,
-Aravind, or free-text product, depending on `label_col`).
+block id and the organism name. Every gene is drawn as an arrow pointing
+the way its strand says, after the whole block has been mirrored (when
+needed) so the reference query reads left-to-right -- so neighbors
+transcribed the other way point back at it. Genes are colored by a
+domain/annotation label (Pfam, Aravind, or free-text product, depending
+on `label_col`).
 
 If a block contains more than one query gene, the one closest to the
 middle of the block (by gene order) is used as that block's "reference"
@@ -30,6 +31,17 @@ strand  : +1 / -1 (controls arrow direction and orientation normalization)
 query   : 1/'1'/True marks the query gene of a block; everything else is
           treated as a non-query gene. Optional -- if absent, no gene is
           treated as a query.
+repeat_start / repeat_end : optional. Genomic coordinates of a
+          regulatory region of DNA a protein binds; a row with both set
+          gets a pink square drawn at that position in both neighborhood
+          figures (Graphviz and to-scale). `repeat_strand` (+1/-1 or
+          '+'/'-'), also optional, only labels the marker's strand -- it
+          does not move it.
+
+Strands shown to the reader (gene and regulatory-region pop-ups) are
+always genomic, in the same frame as the coordinates printed next to
+them. Mirroring a block onto its query's orientation
+(`normalize_block_strand`) changes only how the arrows are drawn.
 ... plus whatever `group_col`, `org_col` and `label_col` point at.
 
 `genome_overview_fig` additionally uses `nucleotide`, `start`, `end`
@@ -42,10 +54,10 @@ neighborhood_figure(df, ...) -> pandas.DataFrame
     Builds the per-block neighborhood figure (one row per block, gene
     detail) and writes it to `output_file`.
 genome_overview_fig(df, ...) -> pandas.DataFrame
-    Builds a genome-wide companion figure: one horizontal track per
-    contig, with every block marked at its actual genomic position --
-    "where are these neighborhoods", as opposed to neighborhood_figure's
-    "what's in each neighborhood".
+    Builds a genome-wide companion figure: every contig wrapped over
+    stacked lines of one megabase each, with every block marked at its
+    actual genomic position -- "where are these neighborhoods", as
+    opposed to neighborhood_figure's "what's in each neighborhood".
 build_html_report(df, ...) -> str
     Runs both of the above and assembles a single, self-contained HTML
     page with the genome overview, the neighborhood figure, and the
@@ -67,11 +79,28 @@ pipeline.
     compute_label_width          shared padding width for row labels
     pad_and_escape               pad + HTML-escape one label string
     build_row_label_html         the 3-line HTML label for one block
-    build_color_map              domain -> fill color, incl. user overrides
+    normalize_color_value        repair a hex code missing its '#'
+    build_color_map              domain -> fill color (user dict or auto)
+    resolve_domain_color         one gene's fill, matching whole
+                                  architectures and single domains alike
+    resolve_gene_color           a gene row's fill, matching both its
+                                  display label and its real annotation
+    resolve_fallback_color       the 'Other' catch-all color, if any
+    build_label_color_map        re-key a color dict onto display labels
+    build_color_legend_html      legend grouped by color, named by
+                                  functional category
     select_reference_query_index which query anchors a multi-query block
     normalize_block_strand       optionally mirror a block to a common
                                   query orientation
     gene_node_style               Graphviz node attributes for one gene
+    has_repeat_region             does a row carry a regulatory-region span
+    repeat_region_span            (low, high, strand) from the repeat_* columns
+    repeat_region_tooltip         one-line "regulatory region a-b (+ strand)"
+    build_repeat_tooltip_html     pop-up body: label + coordinates + strand
+    repeat_region_node_style      Graphviz attributes for the pink DNA square
+    scaled_repeat_region_svg      the same pink square (own lane) for to-scale
+    block_is_ascending            is a block drawn 5'->3' left-to-right
+    count_genes_before_repeat     how many genes sit left of a repeat square
     add_block_to_graph            add one full row (label + genes) to the
                                   graph, with optional left/right padding
     chain_align_nodes             pull one node per row into the same
@@ -80,14 +109,24 @@ pipeline.
     neighborhood_figure            main neighborhood-figure orchestrator
     compute_block_extents         one row per block: contig, span, ref query
     assign_label_lanes            stagger overlapping labels into lanes
+    resolve_contig_length         a contig's length, with a fallback
+    contig_segments               cut a contig into the 1 Mb windows the
+                                  overview draws one per line
+    blocks_in_segment             the blocks overlapping one such window
     build_genome_overview_svg     static genome-wide SVG from extents
     build_genome_overview_interactive_html  zoomable overview (used in report)
     genome_overview_fig           genome-wide-figure orchestrator
     render_dataframe_html         a dataframe as a plain <table>
     render_neighborhood_svgs_by_block  one SVG per block (per-result views)
+    build_scaled_block_svg        one block drawn to real genomic scale
+    render_scaled_svgs_by_block   one to-scale SVG per block
+    build_sequence_index          one copy of every protein sequence,
+                                   keyed by accession, for the report's JS
     build_gene_tooltip_html       per-protein hover "info window" body
     annotate_neighborhood_svg     inject those tooltips into a graphviz SVG
-    build_neighborhood_panels     pop-up selector + single merged figure stack
+    normalize_svg_fonts           widen graphviz's bare font name into
+                                   the shared font stack
+    build_neighborhood_panels     pop-up selector + merged figure/to-scale stacks
     render_table_card             sortable/filterable/downloadable table widget
     render_neighborhood_table_card single merged, block-tagged table (all blocks)
     compute_domain_stats          reference-query + full-architecture domain counts
@@ -103,7 +142,7 @@ very different rendering paths are used:
   * The neighborhood figures (the gene-arrow rows) are laid out by
     **Graphviz** -- the same C graph-layout engine behind `dot` -- which
     we drive from Python through the **pygraphviz** binding. Each gene
-    is a Graphviz node (`shape=rarrow`/`larrow`/`triangle`), each row is
+    is a Graphviz node (`shape=cds`/`triangle`), each row is
     a same-rank subgraph, and invisible weighted edges nudge things into
     alignment; Graphviz's `dot` engine does the placement and writes
     **SVG**. We then do light text surgery on that SVG to attach
@@ -119,6 +158,8 @@ server-side or in a desktop toolkit.
 """
 
 import html
+import json
+import math
 import os
 import re
 import shutil
@@ -135,10 +176,146 @@ import seaborn as sns
 # transmembrane regions, etc.) or simply mean "no annotation".
 DEFAULT_IGNORE_DOMAINS = ['TM', 'SP', 'LP', 'LIPO', 'SIG']
 
-# Default header branding logo, pre-prepared for inline embedding.
-# Pass to `build_html_report` as `header_logo`, or use
-# `read_svg_logo(path)` to swap in your own SVG file.
-SHARP_HEADER_LOGO = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" zoomAndPan="magnify" viewBox="0 0 810 1012.49997" preserveAspectRatio="xMidYMid meet" version="1.0"><defs><filter x="0%" y="0%" width="100%" height="100%" id="050de061e5"><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" color-interpolation-filters="sRGB"/></filter><filter x="0%" y="0%" width="100%" height="100%" id="4fcb26cbf3"><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.2126 0.7152 0.0722 0 0" color-interpolation-filters="sRGB"/></filter><g/><clipPath id="2b33e3c2d3"><path d="M 48.925781 145.703125 L 723.054688 145.703125 L 723.054688 819.835938 L 48.925781 819.835938 Z M 48.925781 145.703125 " clip-rule="nonzero"/></clipPath><clipPath id="0475d7ad1b"><path d="M 385.992188 145.703125 C 199.835938 145.703125 48.925781 296.613281 48.925781 482.769531 C 48.925781 668.925781 199.835938 819.835938 385.992188 819.835938 C 572.148438 819.835938 723.054688 668.925781 723.054688 482.769531 C 723.054688 296.613281 572.148438 145.703125 385.992188 145.703125 Z M 385.992188 145.703125 " clip-rule="nonzero"/></clipPath><clipPath id="d20bebb775"><path d="M 0.925781 0.703125 L 675.054688 0.703125 L 675.054688 674.835938 L 0.925781 674.835938 Z M 0.925781 0.703125 " clip-rule="nonzero"/></clipPath><clipPath id="4f3de7ccd1"><path d="M 337.992188 0.703125 C 151.835938 0.703125 0.925781 151.613281 0.925781 337.769531 C 0.925781 523.925781 151.835938 674.835938 337.992188 674.835938 C 524.148438 674.835938 675.054688 523.925781 675.054688 337.769531 C 675.054688 151.613281 524.148438 0.703125 337.992188 0.703125 Z M 337.992188 0.703125 " clip-rule="nonzero"/></clipPath><clipPath id="9c0b549aea"><rect x="0" width="676" y="0" height="675"/></clipPath><clipPath id="dbcc122e99"><path d="M 0.199219 305 L 809.800781 305 L 809.800781 679.808594 L 0.199219 679.808594 Z M 0.199219 305 " clip-rule="nonzero"/></clipPath><mask id="c9d8498719"><g filter="url(#050de061e5)"><g filter="url(#4fcb26cbf3)" transform="matrix(1.189189, 0, 0, 1.189889, -153.303221, 304.994196)"><image x="0" y="0" width="851" xlink:href="data:image/png;base64,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" height="315" preserveAspectRatio="xMidYMid meet"/></g></g></mask><clipPath id="a5ce00304d"><rect x="0" width="256" y="0" height="51"/></clipPath></defs><g clip-path="url(#2b33e3c2d3)"><g clip-path="url(#0475d7ad1b)"><g transform="matrix(1, 0, 0, 1, 48, 145)"><g clip-path="url(#9c0b549aea)"><g clip-path="url(#d20bebb775)"><g clip-path="url(#4f3de7ccd1)"><path fill="#8f003c" d="M 0.925781 0.703125 L 675.054688 0.703125 L 675.054688 674.835938 L 0.925781 674.835938 Z M 0.925781 0.703125 " fill-opacity="1" fill-rule="nonzero"/></g></g></g></g></g></g><g clip-path="url(#dbcc122e99)"><g mask="url(#c9d8498719)"><g transform="matrix(1.189189, 0, 0, 1.189889, -153.303221, 304.994196)"><image x="0" y="0" width="851" xlink:href="data:image/png;base64,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" height="315" preserveAspectRatio="xMidYMid meet"/></g></g></g><g transform="matrix(1, 0, 0, 1, 257, 94)"><g clip-path="url(#a5ce00304d)"><g fill="#ffffff" fill-opacity="1"><g transform="translate(7.721789, 44.304424)"><g><path d="M 10.453125 -21.0625 L 15.921875 -5.671875 L 13.015625 -4.625 L 2.015625 -11.25 L 5.34375 -1.90625 L 1.828125 -0.65625 L -3.640625 -16.046875 L -0.703125 -17.09375 L 10.265625 -10.46875 L 6.953125 -19.8125 Z M 10.453125 -21.0625 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(30.352066, 36.494205)"><g><path d="M 13.203125 -6.875 L 14.03125 -3.953125 L 1.859375 -0.53125 L -2.5625 -16.25 L 9.328125 -19.59375 L 10.15625 -16.671875 L 1.875 -14.34375 L 2.828125 -10.9375 L 10.140625 -12.984375 L 10.9375 -10.15625 L 3.625 -8.109375 L 4.640625 -4.46875 Z M 13.203125 -6.875 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(50.238438, 30.868056)"><g><path d="M 22.96875 -21.15625 L 20.875 -4.109375 L 16.890625 -3.328125 L 11.234375 -13.5 L 9.734375 -1.921875 L 5.765625 -1.140625 L -2.65625 -16.109375 L 1.203125 -16.875 L 7.03125 -6.328125 L 8.59375 -18.328125 L 12.015625 -19 L 17.921875 -8.390625 L 19.40625 -20.453125 Z M 22.96875 -21.15625 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(81.945524, 25.143312)"><g/></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(93.666381, 23.632309)"><g><path d="M 7.71875 -16.96875 C 9.164062 -17.082031 10.4375 -16.9375 11.53125 -16.53125 C 12.632812 -16.132812 13.503906 -15.515625 14.140625 -14.671875 C 14.785156 -13.835938 15.15625 -12.816406 15.25 -11.609375 C 15.34375 -10.410156 15.132812 -9.34375 14.625 -8.40625 C 14.125 -7.46875 13.359375 -6.722656 12.328125 -6.171875 C 11.304688 -5.617188 10.070312 -5.285156 8.625 -5.171875 L 5.359375 -4.921875 L 5.703125 -0.4375 L 1.9375 -0.140625 L 0.6875 -16.421875 Z M 8.1875 -8.234375 C 9.320312 -8.316406 10.164062 -8.625 10.71875 -9.15625 C 11.269531 -9.6875 11.507812 -10.40625 11.4375 -11.3125 C 11.363281 -12.226562 11.015625 -12.90625 10.390625 -13.34375 C 9.765625 -13.789062 8.882812 -13.972656 7.75 -13.890625 L 4.6875 -13.65625 L 5.125 -8 Z M 8.1875 -8.234375 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(115.785637, 22.106735)"><g><path d="M 12.34375 -0.109375 L 9.140625 -4.640625 L 8.953125 -4.625 L 5.671875 -4.59375 L 5.71875 -0.046875 L 1.9375 -0.015625 L 1.78125 -16.34375 L 8.84375 -16.40625 C 10.289062 -16.425781 11.550781 -16.203125 12.625 -15.734375 C 13.695312 -15.265625 14.523438 -14.585938 15.109375 -13.703125 C 15.691406 -12.816406 15.988281 -11.769531 16 -10.5625 C 16.007812 -9.34375 15.722656 -8.289062 15.140625 -7.40625 C 14.566406 -6.53125 13.75 -5.851562 12.6875 -5.375 L 16.40625 -0.15625 Z M 12.171875 -10.515625 C 12.160156 -11.429688 11.859375 -12.128906 11.265625 -12.609375 C 10.671875 -13.097656 9.804688 -13.335938 8.671875 -13.328125 L 5.59375 -13.296875 L 5.640625 -7.609375 L 8.71875 -7.640625 C 9.851562 -7.648438 10.710938 -7.90625 11.296875 -8.40625 C 11.890625 -8.90625 12.179688 -9.609375 12.171875 -10.515625 Z M 12.171875 -10.515625 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(138.000846, 22.03285)"><g><path d="M 9.8125 0.890625 C 8.113281 0.785156 6.609375 0.324219 5.296875 -0.484375 C 3.992188 -1.296875 2.992188 -2.363281 2.296875 -3.6875 C 1.609375 -5.019531 1.3125 -6.488281 1.40625 -8.09375 C 1.507812 -9.6875 1.984375 -11.097656 2.828125 -12.328125 C 3.679688 -13.566406 4.804688 -14.507812 6.203125 -15.15625 C 7.597656 -15.800781 9.144531 -16.070312 10.84375 -15.96875 C 12.53125 -15.863281 14.03125 -15.40625 15.34375 -14.59375 C 16.65625 -13.78125 17.660156 -12.707031 18.359375 -11.375 C 19.054688 -10.050781 19.351562 -8.59375 19.25 -7 C 19.15625 -5.394531 18.679688 -3.972656 17.828125 -2.734375 C 16.972656 -1.503906 15.84375 -0.566406 14.4375 0.078125 C 13.039062 0.722656 11.5 0.992188 9.8125 0.890625 Z M 10.015625 -2.328125 C 10.984375 -2.273438 11.863281 -2.441406 12.65625 -2.828125 C 13.457031 -3.210938 14.101562 -3.789062 14.59375 -4.5625 C 15.082031 -5.332031 15.359375 -6.222656 15.421875 -7.234375 C 15.484375 -8.242188 15.316406 -9.15625 14.921875 -9.96875 C 14.523438 -10.789062 13.957031 -11.445312 13.21875 -11.9375 C 12.476562 -12.425781 11.625 -12.695312 10.65625 -12.75 C 9.6875 -12.8125 8.796875 -12.644531 7.984375 -12.25 C 7.179688 -11.863281 6.535156 -11.285156 6.046875 -10.515625 C 5.554688 -9.753906 5.28125 -8.867188 5.21875 -7.859375 C 5.15625 -6.847656 5.320312 -5.929688 5.71875 -5.109375 C 6.113281 -4.285156 6.6875 -3.628906 7.4375 -3.140625 C 8.1875 -2.660156 9.046875 -2.390625 10.015625 -2.328125 Z M 10.015625 -2.328125 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(162.736992, 23.835322)"><g><path d="M 4.875 0.90625 C 3.78125 0.757812 2.800781 0.425781 1.9375 -0.09375 C 1.070312 -0.625 0.390625 -1.300781 -0.109375 -2.125 L 2.28125 -4.375 C 3.019531 -3.070312 3.957031 -2.351562 5.09375 -2.21875 C 6.601562 -2.019531 7.46875 -2.8125 7.6875 -4.59375 L 8.671875 -12.296875 L 2.984375 -13.015625 L 3.359375 -16.03125 L 12.796875 -14.84375 L 11.46875 -4.328125 C 11.21875 -2.347656 10.535156 -0.921875 9.421875 -0.046875 C 8.304688 0.828125 6.789062 1.144531 4.875 0.90625 Z M 4.875 0.90625 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(180.365157, 26.17341)"><g><path d="M 14.890625 -0.3125 L 14.328125 2.671875 L 1.90625 0.359375 L 4.890625 -15.6875 L 17.03125 -13.4375 L 16.484375 -10.46875 L 8.03125 -12.03125 L 7.375 -8.53125 L 14.84375 -7.140625 L 14.3125 -4.265625 L 6.84375 -5.65625 L 6.15625 -1.9375 Z M 14.890625 -0.3125 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(200.75288, 30.117753)"><g><path d="M 9.390625 2.671875 C 7.773438 2.253906 6.40625 1.53125 5.28125 0.5 C 4.15625 -0.519531 3.375 -1.75 2.9375 -3.1875 C 2.5 -4.625 2.484375 -6.128906 2.890625 -7.703125 C 3.285156 -9.265625 4.015625 -10.566406 5.078125 -11.609375 C 6.148438 -12.660156 7.425781 -13.375 8.90625 -13.75 C 10.382812 -14.125 11.941406 -14.101562 13.578125 -13.6875 C 14.929688 -13.332031 16.101562 -12.769531 17.09375 -12 C 18.082031 -11.238281 18.835938 -10.316406 19.359375 -9.234375 L 16.453125 -7.65625 C 15.691406 -9.164062 14.523438 -10.125 12.953125 -10.53125 C 11.960938 -10.78125 11.03125 -10.785156 10.15625 -10.546875 C 9.28125 -10.304688 8.53125 -9.859375 7.90625 -9.203125 C 7.289062 -8.546875 6.859375 -7.726562 6.609375 -6.75 C 6.359375 -5.769531 6.347656 -4.835938 6.578125 -3.953125 C 6.804688 -3.078125 7.25 -2.328125 7.90625 -1.703125 C 8.5625 -1.078125 9.382812 -0.640625 10.375 -0.390625 C 11.945312 0.0117188 13.429688 -0.269531 14.828125 -1.25 L 16.640625 1.5 C 15.648438 2.226562 14.535156 2.691406 13.296875 2.890625 C 12.066406 3.085938 10.765625 3.015625 9.390625 2.671875 Z M 9.390625 2.671875 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(222.238595, 35.794573)"><g><path d="M 9.140625 -10.984375 L 4.171875 -12.578125 L 5.109375 -15.5 L 18.65625 -11.125 L 17.71875 -8.203125 L 12.734375 -9.8125 L 8.65625 2.796875 L 5.0625 1.625 Z M 9.140625 -10.984375 "/></g></g></g><g fill="#ffffff" fill-opacity="1"><g transform="translate(240.874326, 42.039073)"><g/></g></g></g></g></svg>'
+# Label for a gene with no domain annotation. Free-text 'product'
+# descriptions are deliberately NOT used as a fallback -- they are
+# sentence-length, never repeat between genes, and so blow up both the
+# arrow labels and the color/statistics counts. Anything without a real
+# domain hit is simply Unknown, and stays uncolored (see
+# `build_color_map`) and uncounted (see `compute_domain_stats`).
+UNKNOWN_DOMAIN_LABEL = 'Unknown'
+
+# Raw annotation values that mean "nothing here", whatever column they
+# come from. Compared case-insensitively against the stripped value.
+BLANK_ANNOTATION_VALUES = ('', 'nan', 'none', 'na', 'n/a', '-', '?', 'unk',
+                           'unknown', 'no hit', 'nohit')
+
+# Functional categories a gene can fall into, and the color each one is
+# painted with. This is the palette a color dictionary is normally built
+# from: `custom_colors` maps each domain (or, via `rename_map`, each
+# domain already renamed to its category) onto one of these colors, and
+# the report legend groups every domain sharing a color back under the
+# category name here -- so a legend has six readable rows instead of one
+# row per Pfam id. Order matters: it is the order the legend lists in.
+DEFAULT_DOMAIN_CATEGORIES = {
+    'Biosynthesis': '#F7AA9D',
+    'Tailoring':    '#F8D5C8',
+    'Regulatory':   '#A8D5A8',
+    'Transport':    '#A9C9E8',
+    'Immunity':     '#FFE9A8',
+    'Other':        '#D0D0D0',
+}
+
+# The catch-all category. When a color map contains this key, genes that
+# match no other entry are painted with it instead of being left white --
+# that is what an "Other" bucket is for, and it keeps a figure from
+# looking uncolored just because the dictionary does not name every
+# domain in the data. See `resolve_domain_color`.
+FALLBACK_COLOR_KEY = 'Other'
+
+# Default header branding logo: the SVG file loaded into the report's
+# top-nav brand slot. `build_html_report` resolves it through
+# `resolve_logo`, so `header_logo` accepts either a path (with `~`
+# expanded) or ready-to-embed SVG markup.
+SHARP_HEADER_LOGO_PATH = '~/projects/igem/2026/data/logo.svg'
+
+# External sequence-analysis services a protein can be sent to straight
+# from its info window, turning the report from a picture into a place
+# to start the next analysis from. Each entry is:
+#
+#   name  : the text on the chip.
+#   url   : where clicking it goes. '{seq}' (the bare amino-acid
+#           string), '{fasta}' (the FASTA record, header included) and
+#           '{pid}' (the accession) are substituted, URL-encoded, at
+#           click time.
+#   copy  : True for a service that cannot receive a query through its
+#           URL at all. The report then copies the protein's FASTA to
+#           the clipboard and opens the tool, and the sequence still has
+#           to be PASTED into the tool's own box -- it does not arrive
+#           filled in. False for a link that really does carry the
+#           query, where the tool opens with the sequence already in it.
+#   title : hover text saying what the chip will do.
+#
+# The split is a hard limit of the services, not a style choice, and it
+# was checked rather than assumed:
+#
+#   * NCBI BLAST documents a URL parameter (QUERY=) that takes a whole
+#     sequence, so that link genuinely arrives pre-filled.
+#   * search.foldseek.com runs the MMseqs2-App frontend, whose query box
+#     is initialised from the browser's own IndexedDB and never from the
+#     URL -- it reads route parameters only for its "load accession"
+#     button. Its API (POST /ticket with a `q` field) submits a job and
+#     hands back a ticket to poll, which is not a redirect and is not
+#     something a static page should fire off on someone's behalf.
+#   * SeqHub, InterPro and HHpred likewise document no URL parameter
+#     that pre-loads a sequence.
+#
+# So for those four, copy-then-paste is the best that exists, and the
+# chip says so instead of pretending otherwise. If any of them gains a
+# query parameter later, moving it across is a one-line change: put the
+# parameter in `url` with a '{seq}' or '{fasta}' placeholder and set
+# `copy: False`.
+#
+# A `copy: False` entry whose URL would come out too long for a GET --
+# an NRPS/PKS megasynthase in a '{seq}' link -- falls back to
+# copy-then-open by itself, so the chip never builds a URL that would be
+# truncated (see `toolChipFor` in the report's JavaScript).
+#
+# '{pid}' is still substituted for anyone who wants an accession-keyed
+# chip, but nothing here uses it: these tables are usually built from a
+# private GenBank/GFF annotation, where a pid is a locus tag rather than
+# a public accession, and a lookup chip would just land on an empty
+# search page.
+#
+# Pass your own list as `external_tools` to add, drop or reorder these;
+# `external_tools=[]` leaves the chips out entirely.
+DEFAULT_EXTERNAL_TOOLS = [
+    {'name': 'BLASTp',
+     'url': ('https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE=Proteins&PROGRAM=blastp'
+             '&BLAST_PROGRAMS=blastp&DATABASE=nr&QUERY={seq}'),
+     'copy': False,
+     'title': 'NCBI blastp against nr -- opens with this sequence already filled in'},
+    {'name': 'Foldseek',
+     'url': 'https://search.foldseek.com/search',
+     'copy': True,
+     'title': 'Foldseek structure search (AlphaFold/PDB)'},
+    {'name': 'SeqHub',
+     'url': 'https://seqhub.org/',
+     'copy': True,
+     'title': 'SeqHub sequence annotation and analysis'},
+    {'name': 'InterPro',
+     'url': 'https://www.ebi.ac.uk/interpro/search/sequence/',
+     'copy': True,
+     'title': 'InterProScan domain annotation'},
+    {'name': 'HHpred',
+     'url': 'https://toolkit.tuebingen.mpg.de/tools/hhpred',
+     'copy': True,
+     'title': 'HHpred remote-homology detection'},
+]
+
+# Bases drawn per line in the genome-wide overview: every contig is cut
+# into windows of this size and wrapped over as many lines as it needs
+# (a 5 Mb chromosome becomes five 1 Mb lines), which keeps one and the
+# same bp-per-pixel scale across every line and every contig. See
+# `contig_segments`; pass `segment_length=None` to draw one line per
+# contig instead, each stretched to its own length.
+DEFAULT_SEGMENT_LENGTH = 1_000_000
+
+# ---------------------------------------------------------------------------
+# Typography
+# ---------------------------------------------------------------------------
+# Every piece of generated markup -- the report stylesheet, the
+# hand-written SVGs and the Graphviz figures -- pulls its fonts from
+# here, so a gene label, a table cell and a tooltip are all set in the
+# same face. Written with single quotes inside so the same string is
+# valid both in CSS (`font-family: ...`) and inside a double-quoted SVG
+# attribute (`font-family="..."`).
+MONO_FONT_STACK = "Consolas, 'SF Mono', Menlo, monospace"
+SANS_FONT_STACK = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+# Graphviz resolves a single font name, not a CSS stack; this is the
+# first entry of MONO_FONT_STACK so Graphviz nodes match the SVG text
+# drawn around them (it falls back to its own default if unavailable).
+GRAPHVIZ_FONT_NAME = 'Consolas'
 
 
 
@@ -146,19 +323,31 @@ SHARP_HEADER_LOGO = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http:/
 # Column preparation
 # ---------------------------------------------------------------------------
 
+def _blank_annotation_mask(series):
+    """
+    Which entries of a raw annotation column mean "no annotation":
+    missing values, blanks, and the placeholder strings in
+    `BLANK_ANNOTATION_VALUES`.
+    """
+    text = series.astype(str).str.strip().str.lower()
+    return series.isna() | text.isin(BLANK_ANNOTATION_VALUES)
+
+
 def resolve_domain_labels(df, label_col='pfam'):
     """
     Build the 'domain' column that gene node labels/colors are based on.
 
     When `label_col == 'pfam'` (the default), a gene with no Pfam hit
-    falls back to its 'aravind' annotation, then to its free-text
-    'product' description, and finally to the literal string 'unk' if
-    none of those are available either. This mirrors the common
-    situation where only some genes in a neighborhood have a Pfam domain.
+    falls back to its 'aravind' annotation, and to `UNKNOWN_DOMAIN_LABEL`
+    if that is missing too. The free-text 'product' description is *not*
+    used as a fallback: it is prose, effectively unique per gene, so it
+    turns arrow labels into sentences and inflates the color map and the
+    domain statistics with values that are not domains at all.
 
-    For any other `label_col`, that column is used as-is (missing values
-    become 'unk'); if the column does not exist at all, every gene gets
-    'unk'.
+    For any other `label_col`, that column is used as-is; if the column
+    does not exist at all, every gene gets `UNKNOWN_DOMAIN_LABEL`. In
+    every case a blank/placeholder value (see `BLANK_ANNOTATION_VALUES`)
+    counts as missing, not as a domain of its own.
 
     Parameters
     ----------
@@ -174,17 +363,47 @@ def resolve_domain_labels(df, label_col='pfam'):
 
     if label_col == 'pfam':
         domain = out['pfam'] if 'pfam' in out.columns else pd.Series(np.nan, index=out.index)
+        domain = domain.mask(_blank_annotation_mask(domain))
         if 'aravind' in out.columns:
-            domain = domain.fillna(out['aravind'])
-        if 'product' in out.columns:
-            domain = domain.fillna(out['product'])
-        out['domain'] = domain.fillna('unk')
+            aravind = out['aravind'].mask(_blank_annotation_mask(out['aravind']))
+            domain = domain.fillna(aravind)
+        out['domain'] = domain.fillna(UNKNOWN_DOMAIN_LABEL)
     elif label_col in out.columns:
-        out['domain'] = out[label_col].fillna('unk')
+        column = out[label_col]
+        out['domain'] = column.mask(_blank_annotation_mask(column)).fillna(UNKNOWN_DOMAIN_LABEL)
     else:
-        out['domain'] = 'unk'
+        out['domain'] = UNKNOWN_DOMAIN_LABEL
 
     return out
+
+
+_STRAND_SIGNS = {1: 1, '1': 1, '+': 1, '+1': 1, -1: -1, '-1': -1, '-': -1}
+
+
+def coerce_strand(value):
+    """
+    Normalize any of the strand conventions this module has to deal with
+    -- +1/-1 integers (rotifer tables), '+'/'-' characters (FIMO/GFF) or
+    their string forms -- to +1, -1, or None when the value is missing
+    or not a strand.
+
+    Used for both gene and regulatory-region strands so a '+'/'-' column
+    is never silently dropped on one code path and honored on another.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+    elif value is None:
+        return None
+    else:
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            return None
+    try:
+        return _STRAND_SIGNS.get(value)
+    except TypeError:
+        return None
 
 
 def flag_query_rows(df):
@@ -259,9 +478,18 @@ def prepare_dataframe(df, group_col='block_id', org_col='organism', label_col='p
                        rename_map=None):
     """
     Normalize a raw input table into the columns the rest of this module
-    relies on: 'ID' (block id), 'org_name', 'domain', 'is_query' and
-    'pid_order' (an integer 0..n_blocks-1, in first-seen order, used to
-    group rows into figure rows).
+    relies on: 'ID' (block id), 'org_name', 'domain', 'domain_raw',
+    'is_query' and 'pid_order' (an integer 0..n_blocks-1, in first-seen
+    order, used to group rows into figure rows).
+
+    'domain' is the label the figures print -- after `rename_map` has
+    been applied. 'domain_raw' is the same annotation BEFORE renaming,
+    i.e. the real HMM/Pfam match. Both are kept because they answer
+    different questions: the renamed one is what a reader should see on
+    an arrow, the raw one is what a color dictionary is usually keyed on
+    (`custom_colors={'methyltransferase_bgc': ...}`) and what the hover
+    info window must report, since "which model actually hit this
+    protein" is not something a display label can answer.
 
     Parameters mirror `neighborhood_figure`.
 
@@ -272,11 +500,17 @@ def prepare_dataframe(df, group_col='block_id', org_col='organism', label_col='p
     out = df.copy()
     out['ID'] = out[group_col] if group_col in out.columns else 'Unknown_Block'
     out['org_name'] = out[org_col] if org_col in out.columns else 'Unknown Organism'
+    # Resolve the annotation once before renaming and once after, so the
+    # real model names survive alongside the display labels.
+    raw_domain = resolve_domain_labels(out, label_col)['domain']
     out = rename_label_values(out, label_col=label_col, rename_map=rename_map)
     out = resolve_domain_labels(out, label_col)
+    out['domain_raw'] = raw_domain
     out = flag_query_rows(out)
     out['pid_order'] = pd.factorize(out['ID'])[0]
-    return out.reset_index(drop=True)
+    # Fix each block's anchor query here, so every view agrees on it.
+    out = mark_reference_query(out.reset_index(drop=True))
+    return out
 
 
 def compute_label_width(df):
@@ -316,14 +550,19 @@ def build_row_label_html(query_pid, block_id, org_name, width, font_size):
     query_str = pad_and_escape(query_pid, width)
     block_str = pad_and_escape(block_id, width)
     org_str = pad_and_escape(org_name, width)
+    # One FACE for all three lines (`GRAPHVIZ_FONT_NAME`, the same face
+    # the gene arrows use); emphasis comes from <B>/<I> rather than from
+    # a face name like "Consolas italic", which Graphviz cannot resolve
+    # and silently falls back to a default font for.
+    face = GRAPHVIZ_FONT_NAME
     return (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0">'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas" POINT-SIZE="{font_size}">'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
         f'<B>{query_str}</B></FONT></TD></TR>'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas" POINT-SIZE="{font_size}">'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
         f'{block_str}</FONT></TD></TR>'
-        f'<TR><TD ALIGN="LEFT"><FONT FACE="Consolas italic" POINT-SIZE="{font_size}">'
-        f'{org_str}</FONT></TD></TR>'
+        f'<TR><TD ALIGN="LEFT"><FONT FACE="{face}" POINT-SIZE="{font_size}">'
+        f'<I>{org_str}</I></FONT></TD></TR>'
         '</TABLE>>'
     )
 
@@ -332,21 +571,72 @@ def build_row_label_html(query_pid, block_id, org_name, width, font_size):
 # Colors
 # ---------------------------------------------------------------------------
 
+# A bare 3/6/8-digit hex string ('2F80ED') is a very easy thing to write
+# in a color dictionary and a completely silent failure downstream:
+# Graphviz warns "not a known color" and fills the gene BLACK, while an
+# SVG `fill="2F80ED"` is invalid and paints it black too -- so the gene
+# reads as "not colored". Anything else (a named color, 'rgb(...)', an
+# already-'#'-prefixed hex) is passed through untouched.
+_BARE_HEX_RE = re.compile(r'^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$')
+
+
+def normalize_color_value(value):
+    """
+    Repair a color string that is a hex code missing its leading '#'.
+
+    Parameters
+    ----------
+    value : str
+        A color as written in a color dictionary.
+
+    Returns
+    -------
+    str
+        The same color, with '#' prepended when it was a bare hex code.
+
+    Examples
+    --------
+    >>> normalize_color_value('2F80ED')
+    '#2F80ED'
+    >>> normalize_color_value('#8F003C')
+    '#8F003C'
+    >>> normalize_color_value('tomato')
+    'tomato'
+    """
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    return f'#{text}' if _BARE_HEX_RE.match(text) else text
+
+
 def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
     """
     Decide which fill color each domain/annotation value gets.
 
-    Priority order:
+    There are two mutually exclusive modes:
 
-    1. Anything explicitly listed in `custom_colors` keeps that exact
-       color. These do not count against `max_colors`.
-    2. Domains seen on a query gene get an automatic color next (these
-       are usually the reason the figure exists).
-    3. The remaining `max_colors` slots go to the most frequent of the
+    **User dictionary** -- if `custom_colors` is given, the returned map
+    is exactly that dictionary and nothing else. No palette is generated
+    and `max_colors`/`ignore_domains` are not consulted: the figure uses
+    only the colors the user asked for, every other gene stays white.
+    That keeps a hand-picked scheme readable -- an auto-palette filling
+    the remaining slots competes with it for attention and makes the
+    legend meaningless.
+
+    **Automatic** -- with no `custom_colors`, colors are assigned in this
+    priority order:
+
+    1. Domains seen on a query gene get a color first (these are usually
+       the reason the figure exists).
+    2. The remaining `max_colors` slots go to the most frequent of the
        remaining domains, by gene count.
-    4. Everything else -- including anything in `ignore_domains`, the
-       literal value 'unk'/blank/'-'/'?', and anything containing the
-       word "hypothetical" -- is left white (no color).
+    3. Everything else -- including anything in `ignore_domains`, the
+       literal value 'unk'/'Unknown'/blank/'-'/'?', and anything
+       containing the word "hypothetical" -- is left white (no color).
+
+    Either way the keys need not be whole architecture strings: a key
+    naming a single domain colors every gene whose architecture contains
+    it, because the lookup itself is done by `resolve_domain_color`.
 
     Parameters
     ----------
@@ -354,45 +644,58 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
         Must already have 'domain' and 'is_query' columns (see
         `prepare_dataframe`).
     max_colors : int
-        Number of *automatically chosen* colors, on top of any fixed via
-        `custom_colors`.
+        Number of automatically chosen colors. Ignored entirely when
+        `custom_colors` is given.
     ignore_domains : list[str] or None
         Domain values that never get an automatic color (case
-        insensitive). Defaults to `DEFAULT_IGNORE_DOMAINS`.
+        insensitive). Defaults to `DEFAULT_IGNORE_DOMAINS`. Ignored
+        entirely when `custom_colors` is given.
     custom_colors : dict[str, str] or None
-        Explicit {domain_value: color} overrides. Keys should match the
-        values that appear in the 'domain' column -- i.e. typically the
-        raw Pfam identifiers when `label_col='pfam'` (the default).
-        Values can be any color Graphviz/seaborn understands, e.g.
-        '#ff8800' or 'tomato'.
+        Explicit {domain: color} dictionary. A key can be either a whole
+        architecture string ('HTH_1+LysR_substrate') or a single domain
+        ('LysR_substrate'), in which case every gene whose architecture
+        contains that domain is painted with it -- see
+        `resolve_domain_color`. Keys are matched against the *renamed*
+        values (see `rename_label_values`), i.e. typically raw Pfam
+        identifiers when `label_col='pfam'` (the default). Values can be
+        any color Graphviz/seaborn understands, e.g. '#ff8800' or
+        'tomato'.
         Example: `custom_colors={'LysR_substrate': '#ff8800', 'PrpF': 'tomato'}`
 
     Returns
     -------
     dict[str, str]
-        Mapping from domain value to color string.
+        Mapping from domain value to color string. Insertion order is
+        preserved, so a user dictionary comes back in the order it was
+        written (which is the order the report legend lists it in).
     """
+    # A user dictionary is the whole scheme, not a set of overrides on
+    # top of an automatic one -- see the docstring. Values are repaired
+    # on the way in (see `normalize_color_value`) so one hex code written
+    # without its '#' doesn't silently turn its genes black.
+    if custom_colors:
+        return {key: normalize_color_value(value)
+                for key, value in custom_colors.items()}
+
     if ignore_domains is None:
         ignore_domains = DEFAULT_IGNORE_DOMAINS
-    custom_colors = dict(custom_colors) if custom_colors else {}
 
-    ignore_lower = [d.lower() for d in ignore_domains] + ['unk', ' ', '-', '?']
+    ignore_lower = [d.lower() for d in ignore_domains] + ['unk', 'unknown', ' ', '-', '?']
     domain_str = df['domain'].astype(str)
     is_ignorable = (
         domain_str.str.lower().isin(ignore_lower)
         | domain_str.str.lower().str.contains('hypothetical', na=False)
     )
-    already_colored = domain_str.isin(custom_colors)
 
     query_domains = (
-        df.loc[df['is_query'] & ~is_ignorable & ~already_colored, 'domain']
+        df.loc[df['is_query'] & ~is_ignorable, 'domain']
         .unique()
         .tolist()
     )
 
     remaining_slots = max(0, max_colors - len(query_domains))
     freq_domains = (
-        df.loc[~is_ignorable & ~already_colored & ~domain_str.isin(query_domains), 'domain']
+        df.loc[~is_ignorable & ~domain_str.isin(query_domains), 'domain']
         .value_counts()
         .head(remaining_slots)
         .index
@@ -401,10 +704,298 @@ def build_color_map(df, max_colors=5, ignore_domains=None, custom_colors=None):
 
     auto_domains = query_domains + freq_domains
     palette = sns.color_palette('pastel', len(auto_domains)).as_hex() if auto_domains else []
+    return dict(zip(auto_domains, palette))
 
-    color_map = dict(custom_colors)
-    color_map.update(dict(zip(auto_domains, palette)))
-    return color_map
+
+def _lookup_color(domain, color_map):
+    """
+    The raw color-map lookup behind `resolve_domain_color` and
+    `resolve_gene_color`: returns None -- not a default -- when nothing
+    matched, so a caller can try a second candidate value before giving
+    up and falling back.
+
+    Match order: the whole value, then each '+'-separated component left
+    to right, then both again case-insensitively.
+    """
+    if not color_map or domain is None:
+        return None
+    if isinstance(domain, float) and pd.isna(domain):
+        return None
+
+    text = str(domain)
+    if text in color_map:
+        return normalize_color_value(color_map[text])
+
+    parts = [part.strip() for part in text.split('+') if part.strip()]
+    for part in parts:
+        if part in color_map:
+            return normalize_color_value(color_map[part])
+
+    lowered = {str(key).lower(): value for key, value in color_map.items()}
+    for candidate in [text] + parts:
+        hit = lowered.get(candidate.lower())
+        if hit is not None:
+            return normalize_color_value(hit)
+    return None
+
+
+def resolve_domain_color(domain, color_map, default='#ffffff'):
+    """
+    Look up the fill color for one domain/architecture value.
+
+    A gene's domain is often a multi-domain architecture string
+    ('HTH_1+LysR_substrate'), while the keys of a user's `custom_colors`
+    dictionary usually name a single domain. Matching whole strings only
+    would leave such a gene white even though the domain the user asked
+    to color is right there in it, so the lookup goes:
+
+    1. the whole value, exactly as it appears;
+    2. otherwise each '+'-separated component, left to right -- the
+       first one with an entry wins and the WHOLE gene is painted that
+       color, not just "the part that matched";
+    3. both of the above again, case-insensitively;
+    4. the catch-all `FALLBACK_COLOR_KEY` ('Other') entry, if the map
+       has one -- a dictionary that names an "Other" category is saying
+       every gene belongs somewhere, so unmatched genes go there instead
+       of staying white;
+    5. `default` when there is no catch-all either.
+
+    Left-to-right component order makes the result deterministic when an
+    architecture carries more than one colored domain: the leading
+    domain, which is what the architecture is usually named for, wins.
+
+    The color that comes back is always run through
+    `normalize_color_value`, so a dictionary entry written as a bare hex
+    ('2F80ED') still paints instead of turning the gene black.
+
+    For a gene row use `resolve_gene_color` instead -- it also matches
+    the pre-rename annotation, which is what a color dictionary keyed on
+    HMM model names needs.
+
+    Parameters
+    ----------
+    domain : str or None
+        A domain/architecture value. None/NaN falls through to the
+        catch-all/`default` like any other unmatched value.
+    color_map : dict[str, str]
+        Domain -> color, from `build_color_map` (or given directly).
+    default : str
+        Color for a value that matched nothing and had no catch-all to
+        fall back on -- white for gene arrows, the neutral marker color
+        for the genome overview.
+
+    Returns
+    -------
+    str
+        A color string.
+
+    Examples
+    --------
+    >>> resolve_domain_color('HTH_1+LysR_substrate', {'LysR_substrate': 'tomato'})
+    'tomato'
+    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato'})
+    '#ffffff'
+    >>> resolve_domain_color('GntR', {'LysR_substrate': 'tomato', 'Other': '#D0D0D0'})
+    '#D0D0D0'
+    """
+    hit = _lookup_color(domain, color_map)
+    return hit if hit is not None else resolve_fallback_color(color_map, default)
+
+
+def resolve_gene_color(row, color_map, default='#ffffff',
+                        keys=('domain', 'domain_raw')):
+    """
+    Fill color for one gene row, matched against BOTH the label the
+    figure prints and the original annotation behind it.
+
+    This is the lookup every gene arrow goes through, and the reason it
+    exists is `rename_map`: renaming runs before coloring, so a table
+    whose 'pfam' column said 'methyltransferase_bgc' carries
+    'Methyltransferase' by the time a color is chosen. A color
+    dictionary keyed on the HMM model names -- which is how these
+    dictionaries are normally written, because that is what the models
+    are called -- would then match nothing at all and the whole figure
+    would come out white. Trying 'domain' first and 'domain_raw' second
+    means a dictionary may be keyed on either name, or a mix of the two.
+
+    Falls back to the map's 'Other' bucket, then to `default`, exactly
+    like `resolve_domain_color`.
+
+    Parameters
+    ----------
+    row : pandas.Series or dict
+        A prepared gene row (see `prepare_dataframe`).
+    color_map : dict[str, str]
+    default : str
+    keys : sequence[str]
+        Which fields to try, in order. The default pair suits gene rows;
+        the genome overview passes its own ('query_domain',
+        'query_domain_raw').
+
+    Returns
+    -------
+    str
+        A color string.
+    """
+    for key in keys:
+        hit = _lookup_color(row.get(key), color_map)
+        if hit is not None:
+            return hit
+    return resolve_fallback_color(color_map, default)
+
+
+def resolve_fallback_color(color_map, default='#ffffff'):
+    """
+    The color a gene gets when no entry of `color_map` matches it: the
+    map's catch-all `FALLBACK_COLOR_KEY` ('Other', matched case
+    insensitively) when it has one, else `default`.
+
+    Kept separate from `resolve_domain_color` so the legend can ask the
+    same question -- "is there an Other bucket, and what color is it" --
+    without re-deriving the rule.
+    """
+    if not color_map:
+        return default
+    for key, value in color_map.items():
+        if str(key).lower() == FALLBACK_COLOR_KEY.lower():
+            return normalize_color_value(value)
+    return default
+
+
+def build_label_color_map(working, color_map):
+    """
+    Translate a color dictionary keyed on raw annotations into one keyed
+    on the labels the report actually displays.
+
+    The statistics section counts the DISPLAY labels ('Methyltransferase'),
+    while a color dictionary is usually keyed on the raw HMM model names
+    ('methyltransferase_bgc') -- so the bars would come out uncolored
+    even though the gene arrows are right. This walks the distinct
+    (label, raw) pairs in the data, resolves each pair the way
+    `resolve_gene_color` resolves a gene, and keys the result by the
+    label and by each of its '+'-separated components (which is what the
+    "Domains" granularity counts).
+
+    Only labels that actually matched are included, so anything unmatched
+    keeps the bar list's own neutral default instead of being painted
+    white on a white card.
+
+    Parameters
+    ----------
+    working : pandas.DataFrame
+        Prepared table with 'domain' and (optionally) 'domain_raw'.
+    color_map : dict[str, str]
+
+    Returns
+    -------
+    dict[str, str]
+        Display label (whole and per component) -> color.
+    """
+    if not color_map or working.empty or 'domain' not in working.columns:
+        return dict(color_map or {})
+
+    columns = ['domain'] + (['domain_raw'] if 'domain_raw' in working.columns else [])
+    out = {}
+    for pair in working[columns].drop_duplicates().to_dict('records'):
+        color = _lookup_color(pair.get('domain'), color_map)
+        if color is None:
+            color = _lookup_color(pair.get('domain_raw'), color_map)
+        if color is None:
+            continue
+        label = str(pair.get('domain'))
+        out.setdefault(label, color)
+        for part in label.split('+'):
+            part = part.strip()
+            if part:
+                out.setdefault(part, color)
+    return out
+
+
+def build_color_legend_html(color_map, categories=None, include_repeat=False,
+                             title='Legend', max_names=3):
+    """
+    Render the color legend shown beside the neighborhoods sub-tabs
+    (Figure / To scale / Table).
+
+    The legend is grouped BY COLOR, not by domain: every domain painted
+    the same color collapses into one row. With a category palette like
+    `DEFAULT_DOMAIN_CATEGORIES` -- where dozens of Pfam domains share
+    the six category colors -- that turns an unreadable wall of ids into
+    six rows named "Biosynthesis", "Tailoring", and so on.
+
+    A group is named after whichever entry of `categories` carries its
+    color; a color that is in no category (an automatic palette, or a
+    one-off the user picked) is named by the domains themselves, up to
+    `max_names` of them, with the full list in the row's tooltip.
+
+    Row order follows `categories` first -- so the legend reads in the
+    order the category dictionary was written -- and then any remaining
+    colors in `color_map` order. A category whose color is nowhere in
+    `color_map` is left out: the legend describes the scheme actually in
+    force, not every category that exists.
+
+    Parameters
+    ----------
+    color_map : dict[str, str]
+        Domain -> color (see `build_color_map`). Empty/None gives '' --
+        a report with no colors simply grows no legend.
+    categories : dict[str, str] or None
+        {category name: color}, e.g. `DEFAULT_DOMAIN_CATEGORIES`. Used
+        only to name and order the groups; it never changes what any
+        gene is painted. None means "name every group by its domains".
+    include_repeat : bool
+        Append a row for the heptarepeat marker (`REPEAT_REGION_LABEL`
+        in `REPEAT_REGION_FILL`). It is drawn in both neighborhood
+        views but is not a gene, so it is not in `color_map` and has to
+        be added here. Pass True only when the data actually has repeat
+        regions.
+    title : str
+        Small caption in front of the swatches.
+    max_names : int
+        How many domain names an uncategorized group spells out before
+        it falls back to "+N more".
+
+    Returns
+    -------
+    str
+        HTML markup, or '' when there is nothing to show.
+    """
+    groups = {}
+    for domain, color in (color_map or {}).items():
+        groups.setdefault(normalize_color_value(color), []).append(str(domain))
+
+    rows = []
+    if categories:
+        for name, color in categories.items():
+            key = normalize_color_value(color)
+            members = groups.pop(key, None)
+            if members is not None:
+                rows.append((key, str(name), members))
+    # colors the category dictionary said nothing about, in map order
+    for key, members in groups.items():
+        shown = ', '.join(members[:max_names])
+        if len(members) > max_names:
+            shown += f' +{len(members) - max_names} more'
+        rows.append((key, shown, members))
+
+    if include_repeat:
+        rows.append((REPEAT_REGION_FILL, REPEAT_REGION_LABEL, [REPEAT_REGION_LABEL]))
+
+    if not rows:
+        return ''
+
+    items = ''.join(
+        f'<span class="nb-legend-item" title="{html.escape(", ".join(members), quote=True)}">'
+        f'<span class="nb-legend-swatch" '
+        f'style="background:{html.escape(color, quote=True)}"></span>'
+        f'<span class="nb-legend-name">{html.escape(name)}</span></span>'
+        for color, name, members in rows
+    )
+    return (
+        '<div class="nb-legend" id="nb-legend">'
+        f'<span class="nb-legend-title">{html.escape(str(title))}</span>'
+        f'{items}</div>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -417,9 +1008,19 @@ def select_reference_query_index(block_df):
     orientation, centering and the row label, when the block contains
     more than one.
 
-    The query closest to the middle of the block, by gene order, is
-    used -- it best represents "the middle of the region". Ties prefer
-    the more upstream (lower position) one.
+    When the block carries an 'is_reference_query' marking (put there by
+    `mark_reference_query`, which `prepare_dataframe` runs once on the
+    table in genomic order), that marked row is returned as-is. This is
+    what keeps every view agreeing on which gene is "the" query: the
+    positional rule below depends on row order, and a block that
+    `normalize_block_strand` has reversed can otherwise resolve a tie to
+    a *different* gene than the unreversed block did -- so the mirrored
+    Graphviz row and the to-scale row would orient on, label, and center
+    on two different proteins.
+
+    Falling back on that marking, the query closest to the middle of the
+    block, by gene order, is used -- it best represents "the middle of
+    the region". Ties prefer the more upstream (lower position) one.
 
     Returns the row's label in `block_df.index` (not a bare position),
     so the same gene can still be found correctly after `block_df` is
@@ -444,13 +1045,52 @@ def select_reference_query_index(block_df):
     if len(query_index_labels) == 1:
         return query_index_labels[0]
 
+    if 'is_reference_query' in block_df.columns:
+        marked = block_df.index[block_df['is_reference_query'].fillna(False).astype(bool)]
+        if len(marked):
+            return marked[0]
+
     positions = np.flatnonzero(block_df['is_query'].to_numpy())
     middle = (len(block_df) - 1) / 2
     ranked = sorted(zip(positions, query_index_labels), key=lambda p: (abs(p[0] - middle), p[0]))
     return ranked[0][1]
 
 
-def normalize_block_strand(block_df, normalize_orientation=True):
+def mark_reference_query(df, group_col='pid_order'):
+    """
+    Resolve, once and for the whole table, which query gene anchors each
+    block, and record it in a boolean 'is_reference_query' column.
+
+    Every view has to answer "which gene is this row about": the
+    Graphviz figure orients and labels on it, the to-scale figure labels
+    and mirrors on it, and the genome overview marks it. Each of them
+    used to re-derive that answer from `select_reference_query_index`,
+    whose middle-of-the-block rule is positional -- so a block with two
+    equally central queries could resolve to one gene before
+    `normalize_block_strand` reversed it and to the other one after,
+    leaving the same block attributed to two different proteins in two
+    different views. Deciding it here, on the table in genomic order,
+    makes all of them read the same answer instead.
+
+    An existing marking is kept, so re-preparing an already prepared
+    table (as the per-block figures do) never reassigns the anchor.
+    """
+    out = df.copy()
+    if 'is_reference_query' not in out.columns:
+        out['is_reference_query'] = False
+    out['is_reference_query'] = out['is_reference_query'].fillna(False).astype(bool)
+
+    group_col = group_col if group_col in out.columns else 'ID'
+    for _, block in out.groupby(group_col, sort=False):
+        if block['is_reference_query'].any():
+            continue
+        ref_idx = select_reference_query_index(block)
+        if ref_idx is not None:
+            out.loc[ref_idx, 'is_reference_query'] = True
+    return out
+
+
+def normalize_block_strand(block_df, normalize_orientation=False):
     """
     Optionally mirror a block so its reference query gene always points
     the same way (strand +1, drawn as a right-pointing arrow).
@@ -470,30 +1110,58 @@ def normalize_block_strand(block_df, normalize_orientation=True):
         Rows for a single block, already in genomic (left-to-right) order.
     normalize_orientation : bool
 
+    'strand' (and 'repeat_strand') afterwards is the strand *as drawn*.
+    The true genomic strands are preserved in 'genomic_strand' and
+    'genomic_repeat_strand', which are always present in the result,
+    flipped or not. Mirroring is a display convention -- the figures
+    still print real, unmirrored coordinates -- so anything reporting a
+    strand to the reader (tooltips, pop-ups) must use the genomic
+    columns; only the arrow geometry follows the flipped ones. Reporting
+    the flipped strand next to unflipped coordinates is what made the
+    same gene read '+' in one view and '-' in the other.
+
     Returns
     -------
     pandas.DataFrame
-        `block_df` unchanged, or a reversed/strand-flipped copy.
+        `block_df` with the genomic strand columns added, reversed and
+        strand-flipped when the block had to be mirrored.
     """
+    def _with_genomic_strands(df):
+        out = df.copy()
+        out['genomic_strand'] = pd.to_numeric(out['strand'].map(coerce_strand), errors='coerce')
+        if 'repeat_strand' in out.columns:
+            out['genomic_repeat_strand'] = pd.to_numeric(
+                out['repeat_strand'].map(coerce_strand), errors='coerce')
+        return out
+
     if not normalize_orientation:
-        return block_df
+        return _with_genomic_strands(block_df)
 
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is None or block_df.loc[ref_idx, 'strand'] != -1:
-        return block_df
+        return _with_genomic_strands(block_df)
 
-    flipped = block_df.iloc[::-1].copy()
-    flipped['strand'] = -flipped['strand']
+    flipped = _with_genomic_strands(block_df).iloc[::-1].copy()
+    flipped['strand'] = -flipped['genomic_strand']
+    if 'repeat_strand' in flipped.columns:
+        flipped['repeat_strand'] = -flipped['genomic_repeat_strand']
     return flipped
 
 
+# Graphviz shape used for gene arrows: `cds` is the synthetic-biology
+# CDS pentagon -- a rectangle whose leading end tapers to a point. It
+# points right by default and `orientation=180` turns it around, which
+# is how minus-strand genes are drawn.
+GENE_ARROW_SHAPE = 'cds'
+GENE_ARROW_LEFT_ORIENTATION = 180
+
 # Graphviz 'orientation' (degrees) that makes a `shape=triangle` node
-# point left. Since every neighbor gene is now always drawn pointing
-# right (see `gene_node_style`), a collapsed opposite-strand neighbor's
-# triangle always points the other way -- left -- regardless of which
-# strand the query itself happens to be on. (Verified empirically by
-# rendering test shapes with Graphviz 2.43: a plain triangle points up
-# by default, and `orientation=90` rotates it to point left.)
+# point left. Collapsed neighbors are by definition on the strand
+# opposite the query's, and blocks are normalized so the query reads
+# left-to-right, so their triangle always points left. (Verified
+# empirically by rendering test shapes with Graphviz 2.43: a plain
+# triangle points up by default, and `orientation=90` rotates it to
+# point left.)
 COLLAPSED_TRIANGLE_ORIENTATION = 90
 
 
@@ -507,21 +1175,22 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
     Decide the Graphviz node attributes (shape/color/label/size) for one
     gene.
 
-    Neighbor genes (anything that is not the query) are always drawn as
-    a right-pointing arrow, regardless of their real strand -- this
-    keeps every row reading in one consistent direction instead of a mix
-    of arrows pointing every which way. The query gene is the one
-    exception: its shape still reflects its real strand (right for +1,
-    left for -1, a plain box for anything else), since the query's own
-    orientation is usually exactly the thing worth seeing at a glance.
-    Every gene is filled per `color_map` and labeled with its
-    domain/annotation; the query additionally gets a red, thicker
-    outline when `highlight_query` is True.
+    Every gene is drawn as a `cds` arrow (a rectangle tapering to a
+    point at its leading end) whose direction follows its strand: right
+    for +1, left for -1, and a plain box for anything else. Since
+    `normalize_block_strand` has usually already mirrored the block onto
+    the reference query's strand, a row reads left-to-right along the
+    query's transcription direction, and genes transcribed the other way
+    visibly point back at it. Every gene is filled per `color_map` --
+    through `resolve_domain_color`, so a color keyed on a single domain
+    fills the whole arrow of every multi-domain architecture containing
+    it -- and labeled with its domain/annotation; the query additionally
+    gets a red, thicker outline when `highlight_query` is True.
 
     When `collapse_opposite_strand` is True, neighbors on the strand
     *opposite* the query's (`query_canonical_strand`) are drawn instead
-    as small, unlabeled, grey triangles pointing left (the opposite of
-    the direction every other neighbor points) -- a lightweight
+    as small, unlabeled, grey triangles pointing left (back against the
+    query's direction) -- a lightweight
     "something is here, transcribed the other way" cue instead of giving
     them the same visual weight as same-strand neighbors. The query gene
     itself is never collapsed.
@@ -542,7 +1211,7 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
     dict
         Keyword arguments for `AGraph.add_node`.
     """
-    strand_val = row.get('strand', 1)
+    strand_val = coerce_strand(row.get('strand', 1))
     is_target = bool(row['is_query'])
 
     opposite_strand = (
@@ -565,34 +1234,276 @@ def gene_node_style(row, query_canonical_strand, color_map, highlight_query=True
             penwidth='1',
         )
 
-    if is_target:
-        node_shape = 'rarrow' if strand_val == 1 else 'larrow' if strand_val == -1 else 'box'
+    # Every gene -- query or neighbor -- points the way its strand says.
+    # After `normalize_block_strand` that strand is the block-normalized
+    # one, so a row reads left-to-right along the query's transcription
+    # direction and opposite-strand neighbors point back at it.
+    if strand_val == 1:
+        shape_attrs = dict(shape=GENE_ARROW_SHAPE)
+    elif strand_val == -1:
+        shape_attrs = dict(shape=GENE_ARROW_SHAPE,
+                           orientation=GENE_ARROW_LEFT_ORIENTATION)
     else:
-        node_shape = 'rarrow'  # neighbors always point right, regardless of real strand
+        shape_attrs = dict(shape='box')
 
     return dict(
+        **shape_attrs,
         label=str(row['domain']),
-        shape=node_shape,
         style='filled',
         fixedsize='false',  # text length dictates the box size naturally
         margin='0.1,0.05',
         height='0.4',
         color='red' if (highlight_query and is_target) else 'black',
         penwidth='3' if (highlight_query and is_target) else '1',
-        fillcolor=color_map.get(row['domain'], '#ffffff'),
+        fillcolor=resolve_gene_color(row, color_map),
         fontsize=font_size,
-        fontname='Consolas',
+        fontname=GRAPHVIZ_FONT_NAME,
     )
+
+
+# ---------------------------------------------------------------------------
+# Regulatory ("repeat") region marker
+# ---------------------------------------------------------------------------
+
+REPEAT_REGION_FILL = '#ff9ecb'
+REPEAT_REGION_OUTLINE = '#c2185b'
+
+# What the regulatory regions detected by the pipeline are: FIMO hits of
+# the heptarepeat motif. Used as the title of the marker's info window.
+REPEAT_REGION_LABEL = 'Heptarepeat'
+
+
+def has_repeat_region(row, start_col='repeat_start', end_col='repeat_end'):
+    """
+    True when `row` carries a usable regulatory-region span -- i.e. both
+    `repeat_start` and `repeat_end` are present and non-null.
+
+    Those two columns are optional. They give the genomic coordinates of
+    a regulatory region of DNA that a protein binds to (a "repeat"); a
+    row without them, or with NaN in either, simply gets no marker drawn.
+    """
+    if start_col not in row.index or end_col not in row.index:
+        return False
+    return pd.notna(row[start_col]) and pd.notna(row[end_col])
+
+
+def repeat_region_span(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Parse the regulatory-region columns into a clean
+    ``(low_coord, high_coord, strand)`` triple.
+
+    The two endpoints may be entered in either order, so they are
+    returned sorted low..high; positioning of the marker is therefore
+    independent of the order they were given in. `repeat_strand` is
+    coerced by `coerce_strand`, so both the +1/-1 of a rotifer table and
+    the '+'/'-' straight out of FIMO are understood -- reading it as an
+    int alone silently turned every '+'/'-' heptarepeat strand into an
+    unknown '?'.
+
+    The strand does not move the square -- placement is by coordinate --
+    it is only carried through for labelling/tooltips, and it is always
+    the *genomic* strand, matching the genomic coordinates shown beside
+    it, even when the block is drawn reverse-complemented.
+    """
+    lo, hi = sorted((float(repeat_start), float(repeat_end)))
+    return lo, hi, coerce_strand(repeat_strand)
+
+
+def repeat_region_tooltip(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Human-readable one-liner for a regulatory region: its low..high
+    coordinates plus the strand when known (e.g.
+    ``regulatory region 116,121-116,127 (- strand)``).
+    """
+    try:
+        lo, hi, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    except (TypeError, ValueError):
+        return 'regulatory region'
+    text = f'regulatory region {lo:,.0f}-{hi:,.0f}'
+    if strand in (1, -1):
+        text += f' ({"+" if strand == 1 else "-"} strand)'
+    return text
+
+
+def build_repeat_tooltip_html(repeat_start, repeat_end, repeat_strand=None):
+    """
+    Inner HTML of the hover/click info window ("pop-up") for a
+    regulatory-region marker: a bold `REPEAT_REGION_LABEL` title, then
+    `.t-row` spans for the genomic coordinates and the strand.
+
+    Same shape as `build_gene_tooltip_html`, so the report's tooltip
+    card renders it with identical styling. `repeat_strand` is the
+    *genomic* strand -- the same frame as the coordinates printed right
+    above it, and never the mirrored one a reverse-complemented block is
+    drawn in; pass +1 / -1 / '+' / '-' / None.
+    """
+    lo, hi, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    strand_str = '+' if strand == 1 else '&minus;' if strand == -1 else '?'
+    return ''.join([
+        f"<b>{html.escape(REPEAT_REGION_LABEL)}</b>",
+        "<span class='t-row'>regulatory region &middot; protein-binding site</span>",
+        f"<span class='t-row'>coords&nbsp;&middot;&nbsp;{_fmt_int(lo)}&ndash;{_fmt_int(hi)} bp</span>",
+        f"<span class='t-row'>strand&nbsp;&middot;&nbsp;{strand_str}</span>",
+    ])
+
+
+def repeat_region_node_style():
+    """
+    Graphviz node attributes for the pink square that marks a regulatory
+    region (a stretch of DNA a protein binds) next to its gene in a
+    neighborhood row.
+
+    It is deliberately a small fixed-size square, not an arrow: it is a
+    DNA feature, not a gene, so it must not read as one. The style is
+    constant -- size and position carry no data, and the hover/click
+    pop-up is attached later by `annotate_neighborhood_svg` (same
+    mechanism as the gene nodes), so no graphviz `tooltip` is set here.
+    """
+    return dict(
+        label='',
+        shape='box',
+        style='filled',
+        fixedsize='true',
+        width='0.22',
+        height='0.22',
+        fillcolor=REPEAT_REGION_FILL,
+        color=REPEAT_REGION_OUTLINE,
+        penwidth='1.5',
+    )
+
+
+# Minimum on-screen width (SVG user units) of a regulatory-region marker
+# in the to-scale figure: these regions are only a handful of bp and
+# would otherwise collapse to an invisible hairline at contig scale.
+REPEAT_REGION_MARKER_MIN_PX = 12.0
+
+
+def scaled_repeat_region_svg(x_start, x_end, lane_top, lane_bottom, connector_y,
+                             repeat_start, repeat_end, repeat_strand=None,
+                             flip=False, clamp_min=None, clamp_max=None):
+    """
+    SVG markup for the pink square that marks a regulatory region in a
+    *to-scale* block figure (`build_scaled_block_svg`).
+
+    The square sits in its own lane *above* the gene band (y from
+    `lane_top` to `lane_bottom`) so it never sits on top of a gene
+    arrow, with a thin connector line dropped from it down to
+    `connector_y` (the top edge of the gene band) to show which locus it
+    marks. `x_start`/`x_end` are the region's endpoints already
+    projected to SVG user units (that function's `to_x`); they may
+    arrive in either order when the block is reverse-complemented. The
+    marker is centred on the region and at least
+    `REPEAT_REGION_MARKER_MIN_PX` wide, so a few-bp region still reads as
+    a square and only an unusually long region widens into a pink bar.
+
+    The group is `class="node nb-repeat"` with a `data-tip` pop-up
+    (`build_repeat_tooltip_html`: label, coordinates, strand), picked up
+    by the report's tooltip JS exactly like a gene. `repeat_strand`
+    (+1/-1, or '+'/'-') sets only that pop-up / the `<title>`, never the
+    geometry, and it is reported as the *genomic* strand on mirrored
+    blocks too -- the pop-up prints real coordinates next to it, and the
+    Graphviz view reports the genomic strand as well, so negating it
+    here made the same heptarepeat read '+' beside a '-' coordinate span
+    and disagree between the two views. `flip` is accepted for callers
+    that still pass it and no longer changes anything.
+
+    `clamp_min`/`clamp_max` are the x bounds of the track the caller is
+    drawing into. They matter because the marker is widened to
+    `REPEAT_REGION_MARKER_MIN_PX` symmetrically about the region's
+    midpoint: a region sitting hard against either end of the window --
+    which is exactly where a promoter repeat belonging to the first or
+    last gene lands -- would otherwise have half that padding hanging
+    outside the frame. The square is slid (never squashed) back inside,
+    and its connector follows it so the two stay joined. Leave them None
+    to draw with no clamping at all.
+    """
+    lo, hi = sorted((x_start, x_end))
+    width = max(hi - lo, REPEAT_REGION_MARKER_MIN_PX)
+    x = (lo + hi) / 2 - width / 2
+    if clamp_min is not None:
+        x = max(x, clamp_min)
+    if clamp_max is not None:
+        # never past the right edge, but a marker wider than the whole
+        # track still starts at clamp_min rather than being pushed left
+        x = min(x, max(clamp_max - width, clamp_min if clamp_min is not None else clamp_max - width))
+    mid = x + width / 2
+    height = lane_bottom - lane_top
+    _, _, strand = repeat_region_span(repeat_start, repeat_end, repeat_strand)
+    tip_attr = html.escape(build_repeat_tooltip_html(repeat_start, repeat_end, strand), quote=True)
+    title = html.escape(repeat_region_tooltip(repeat_start, repeat_end, strand))
+    parts = [f'<g class="node nb-repeat" data-tip="{tip_attr}"><title>{title}</title>']
+    if connector_y is not None and connector_y > lane_bottom:
+        parts.append(
+            f'<line x1="{mid:.1f}" y1="{lane_bottom:.1f}" x2="{mid:.1f}" y2="{connector_y:.1f}" '
+            f'stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1" stroke-opacity="0.45"/>'
+        )
+    parts.append(
+        f'<rect x="{x:.1f}" y="{lane_top:.1f}" '
+        f'width="{width:.1f}" height="{height:.1f}" rx="1.5" '
+        f'fill="{REPEAT_REGION_FILL}" stroke="{REPEAT_REGION_OUTLINE}" stroke-width="1.2"/>'
+    )
+    parts.append('</g>')
+    return ''.join(parts)
+
+
+def block_is_ascending(positions):
+    """
+    True if a block's genes run left-to-right in *increasing* genomic
+    coordinate (the usual case), False if the block was mirrored by
+    `normalize_block_strand` (reference query on the minus strand), which
+    reverses the rows so coordinates decrease left-to-right.
+
+    `positions` is a per-gene coordinate (midpoint, or `start`) in
+    row/draw order. A block with fewer than two usable coordinates is
+    treated as ascending.
+    """
+    finite = [float(p) for p in positions if pd.notna(p)]
+    return len(finite) < 2 or finite[-1] >= finite[0]
+
+
+def count_genes_before_repeat(gene_positions, repeat_position, ascending=True):
+    """
+    How many gene arrows sit to the left of a regulatory-region square --
+    i.e. the index at which to splice the square into the gene sequence
+    so it lands where the region actually falls among the genes.
+
+    `gene_positions` and `repeat_position` are comparable genomic
+    coordinates in the same frame; `neighborhood_figure` passes gene and
+    region *midpoints*, so a region that falls inside a gene snaps to
+    whichever side of that gene its centre is closer to. Ascending block:
+    a gene is to the left when its position is below the region's.
+    Mirrored (descending) block: the comparison flips. Genes with an
+    unknown position never count as being to the left.
+    """
+    n = 0
+    for p in gene_positions:
+        if pd.isna(p):
+            continue
+        if (float(p) < repeat_position) if ascending else (float(p) > repeat_position):
+            n += 1
+    return n
 
 
 # ---------------------------------------------------------------------------
 # Graph assembly
 # ---------------------------------------------------------------------------
 
+def _genomic_strand(row, genomic_col, drawn_col):
+    """
+    The true genomic strand of `row`, preferring the column
+    `normalize_block_strand` preserves and falling back to the drawn one
+    for blocks that never went through it.
+    """
+    value = row.get(genomic_col)
+    if coerce_strand(value) is None:
+        value = row.get(drawn_col)
+    return coerce_strand(value)
+
+
 def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
                         highlight_query=True, collapse_opposite_strand=False,
                         font_size=10, left_pad=0, right_pad=0, spacer_width=0.6,
-                        show_row_label=True):
+                        show_row_label=True, seq_col='sequence'):
     """
     Add one full row (label box + every gene) to `graph`, wiring
     everything together with invisible same-rank edges so it is drawn as
@@ -634,6 +1545,10 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         something else already identifies the block (e.g. the report's
         neighborhood selector), so repeating it inside every stacked
         figure would just be noise.
+    seq_col : str, default 'sequence'
+        Column read into each gene's metadata as its amino-acid
+        sequence (used by `build_gene_tooltip_html` for the info
+        window's copy-able FASTA block). Missing column -> no sequence.
 
     Returns
     -------
@@ -642,12 +1557,14 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
          query (see `select_reference_query_index`), or None if this
          block has no query gene, 'gene_nodes': [node ids, left-to-right],
          'gene_meta': {node id -> per-gene info dict (pid, start, end,
-         strand, domain, product, plen, is_query)}}.
+         strand, domain, product, plen, sequence, is_query);
+         regulatory-region nodes get {is_repeat, repeat_start,
+         repeat_end, repeat_strand} instead}}.
     """
     ref_idx = select_reference_query_index(block_df)
     if ref_idx is not None:
         query_pid = block_df.loc[ref_idx, 'pid']
-        query_canonical_strand = block_df.loc[ref_idx, 'strand']
+        query_canonical_strand = coerce_strand(block_df.loc[ref_idx, 'strand'])
     else:
         query_pid = 'No Query'
         query_canonical_strand = 1
@@ -668,6 +1585,22 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
     gene_node_ids = []
     gene_meta = {}
     query_node_id = None
+    # Regulatory-region squares are collected here as
+    # (insertion_index_into_gene_sequence, region_midpoint, node_id) and
+    # spliced in *after* every gene node exists, so each square lands
+    # where its region actually falls relative to the gene coordinates
+    # rather than always right after the gene it is annotated on.
+    repeat_placements = []
+    if {'start', 'end'} <= set(block_df.columns):
+        gene_positions = ((block_df['start'].astype('float64')
+                           + block_df['end'].astype('float64')) / 2).tolist()
+    elif 'start' in block_df.columns:
+        gene_positions = block_df['start'].astype('float64').tolist()
+    else:
+        gene_positions = [None] * len(block_df)
+    has_coords = any(pd.notna(p) for p in gene_positions)
+    ascending = block_is_ascending(gene_positions)
+
     for row_position, (row_idx, row) in enumerate(block_df.iterrows()):
         node_id = f'gene_{block_index}_{row_position}'
         style = gene_node_style(
@@ -686,14 +1619,51 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
             pid=row.get('pid'),
             start=row.get('start'),
             end=row.get('end'),
-            strand=row.get('strand'),
+            # The genomic strand, not the mirrored one the arrow is drawn
+            # with: the pop-up prints real coordinates, so it must print
+            # the strand those coordinates are on.
+            strand=_genomic_strand(row, 'genomic_strand', 'strand'),
             domain=row.get('domain'),
+            domain_raw=row.get('domain_raw'),
             product=row.get('product'),
             plen=row.get('plen'),
+            sequence=row.get(seq_col),
             is_query=bool(row['is_query']),
         )
         if row_idx == ref_idx:
             query_node_id = node_id
+        # A pink square for the regulatory region this protein binds. It
+        # is not a gene: no domain label/color, and it stays out of
+        # gene_node_ids and the query-alignment machinery. It does get a
+        # gene_meta entry, but only so the pop-up can be attached later.
+        if has_repeat_region(row):
+            repeat_id = f'repeat_{block_index}_{row_position}'
+            graph.add_node(repeat_id, **repeat_region_node_style())
+            # Carried only so annotate_neighborhood_svg can build the
+            # pop-up; kept out of gene_node_ids / query alignment.
+            gene_meta[repeat_id] = dict(
+                is_repeat=True,
+                repeat_start=row.get('repeat_start'),
+                repeat_end=row.get('repeat_end'),
+                repeat_strand=_genomic_strand(row, 'genomic_repeat_strand', 'repeat_strand'),
+            )
+            r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
+            repeat_mid = (r_lo + r_hi) / 2
+            if has_coords:
+                insert_at = count_genes_before_repeat(gene_positions, repeat_mid, ascending)
+            else:
+                insert_at = row_position + 1  # no coordinates: keep it beside its gene
+            repeat_placements.append((insert_at, repeat_mid, repeat_id))
+
+    # gene arrows plus any regulatory-region squares, in left-to-right draw
+    # order. Splice right-to-left so earlier indices stay valid; on an
+    # index tie the more downstream region ends up further right (further
+    # left for a mirrored block).
+    row_sequence_ids = list(gene_node_ids)
+    tie_key = lambda p: (p[0], p[1] if ascending else -p[1], p[2])
+    for insert_at, _region_mid, repeat_id in sorted(repeat_placements, key=tie_key, reverse=True):
+        insert_at = max(0, min(insert_at, len(row_sequence_ids)))
+        row_sequence_ids.insert(insert_at, repeat_id)
 
     spacer_ids_left = [f'spacer_{block_index}_L{i}' for i in range(left_pad)]
     spacer_ids_right = [f'spacer_{block_index}_R{i}' for i in range(right_pad)]
@@ -701,7 +1671,7 @@ def add_block_to_graph(graph, block_df, block_index, label_width, color_map,
         graph.add_node(spacer_id, label='', shape='box', style='invis',
                         width=spacer_width, height=0.01)
 
-    row_node_ids = [label_node_id] + spacer_ids_left + gene_node_ids + spacer_ids_right
+    row_node_ids = [label_node_id] + spacer_ids_left + row_sequence_ids + spacer_ids_right
     graph.add_subgraph(row_node_ids, rank='same')
     for a, b in zip(row_node_ids[:-1], row_node_ids[1:]):
         graph.add_edge(a, b, style='invis', penwidth=0)
@@ -743,10 +1713,10 @@ def chain_align_nodes(graph, node_ids, weight=10000):
 def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='organism',
                         output_file='operon_fig_out.svg', max_colors=5,
                         highlight_query=True, font_size=10, ignore_domains=None,
-                        custom_colors=None, rename_map=None, normalize_orientation=True,
+                        custom_colors=None, rename_map=None, normalize_orientation=False,
                         align_query_center=False, collapse_opposite_strand=False,
                         spacer_width=0.6, color_map=None, collect_node_meta=False,
-                        show_row_label=True):
+                        show_row_label=True, seq_col='sequence'):
     """
     Draw a gene-neighborhood ("operon") figure, one row per block, and
     write it to `output_file`.
@@ -790,7 +1760,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         component-by-component on '+'-joined architecture strings (e.g.
         'GntR+FCD'), not only on an exact whole-string match. See
         `rename_label_values`.
-    normalize_orientation : bool, default True
+    normalize_orientation : bool, default False
         If True, blocks whose reference query (see
         `select_reference_query_index`) is on the minus strand are
         mirrored so every reference query is drawn pointing the same
@@ -824,9 +1794,8 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
 
     Notes
     -----
-    Every neighbor gene (anything that is not a query) is always drawn
-    pointing right, regardless of its real strand -- see
-    `gene_node_style`. A block with more than one query gene uses the
+    Every gene is drawn pointing the way its (block-normalized) strand
+    says -- see `gene_node_style`. A block with more than one query gene uses the
     one closest to the middle of the block as its reference for
     orientation/centering/labeling, but every query gene is still
     outlined in red -- see `select_reference_query_index`.
@@ -854,6 +1823,12 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         shows that info), so stacking several selected figures doesn't
         repeat it before every one. Left on by default here since
         `neighborhood_figure` is also used standalone.
+    seq_col : str, default 'sequence'
+        Column holding each protein's amino-acid sequence. When the
+        column is present, every gene's info window gains a "Copy
+        sequence" button and a FASTA block; when it is absent the info
+        window is unchanged. Only carried into `collect_node_meta`
+        output -- it does not affect the drawn figure.
     """
     working = prepare_dataframe(
         df, group_col=group_col, org_col=org_col, label_col=label_col, rename_map=rename_map
@@ -897,6 +1872,7 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
             right_pad=right_pad,
             spacer_width=spacer_width,
             show_row_label=show_row_label,
+            seq_col=seq_col,
         )
         blocks_info.append(info)
 
@@ -907,6 +1883,15 @@ def neighborhood_figure(df, group_col='block_id', label_col='pfam', org_col='org
         chain_align_nodes(graph, [info['query_node'] for info in blocks_info])
 
     graph.draw(output_file, prog='dot')
+
+    # A standalone figure gets the same font widening the report applies
+    # to its embedded copies (see `normalize_svg_fonts`), so opening the
+    # file on its own doesn't render in some other face.
+    if str(output_file).lower().endswith('.svg'):
+        with open(output_file, encoding='utf-8') as handle:
+            svg = handle.read()
+        with open(output_file, 'w', encoding='utf-8') as handle:
+            handle.write(normalize_svg_fonts(svg))
 
     if collect_node_meta:
         node_meta = {}
@@ -952,8 +1937,11 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
     -------
     pandas.DataFrame
         One row per block, columns: ID, nucleotide, block_start,
-        block_end, contig_length, query_pid, query_domain, org_name,
-        n_genes. `query_pid`/`query_domain` are None for a block with
+        block_end, contig_length, query_pid, query_domain,
+        query_domain_raw, org_name, n_genes. `query_domain` is the
+        renamed display label and `query_domain_raw` the original
+        annotation behind it (see `prepare_dataframe`); both are None
+        for a block with
         no query.
     """
     records = []
@@ -967,9 +1955,14 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
         if ref_idx is not None:
             query_pid = block_df.loc[ref_idx, 'pid']
             query_domain = block_df.loc[ref_idx, 'domain']
+            # the pre-rename annotation too, so the overview marker can
+            # be colored by a dictionary keyed on HMM model names
+            query_domain_raw = (block_df.loc[ref_idx, 'domain_raw']
+                                if 'domain_raw' in block_df.columns else query_domain)
         else:
             query_pid = None
             query_domain = None
+            query_domain_raw = None
 
         records.append(dict(
             ID=block_df['ID'].iloc[0],
@@ -979,6 +1972,7 @@ def compute_block_extents(working, nucleotide_col='nucleotide', start_col='start
             contig_length=contig_length,
             query_pid=query_pid,
             query_domain=query_domain,
+            query_domain_raw=query_domain_raw,
             org_name=block_df['org_name'].iloc[0],
             n_genes=len(block_df),
         ))
@@ -1033,27 +2027,117 @@ def assign_label_lanes(x_positions, min_gap=280, n_lanes=3):
     return lane_of
 
 
+def resolve_contig_length(contig_blocks):
+    """
+    Best available total length for the contig described by
+    `contig_blocks` (the rows of `compute_block_extents` sharing one
+    nucleotide): its `contig_length`, or -- when that is missing or
+    nonsensical -- the furthest block end seen on it.
+    """
+    contig_length = contig_blocks['contig_length'].iloc[0]
+    if not contig_length or pd.isna(contig_length) or contig_length <= 0:
+        contig_length = contig_blocks['block_end'].max()
+    # a contig with no usable length or coordinates at all still has to
+    # draw *something* -- one line, of nominal length
+    if not contig_length or pd.isna(contig_length) or contig_length <= 0:
+        contig_length = 1
+    return float(contig_length)
+
+
+def contig_segments(contig_length, segment_length=DEFAULT_SEGMENT_LENGTH):
+    """
+    Cut a contig into the consecutive windows the overview draws one
+    per line -- `segment_length` bp each, the last one being whatever
+    is left over.
+
+    This is what turns a 5 Mb chromosome into five stacked 1 Mb lines
+    instead of one squeezed track: every line covers the same number of
+    bases, so the bp-per-pixel scale is identical on every line of
+    every contig and two markers the same width really are the same
+    length.
+
+    Parameters
+    ----------
+    contig_length : float
+    segment_length : float or None
+        Bases per line. `None`/0 (or a negative value) means "don't
+        split" -- a single window covering the whole contig, i.e. the
+        one-track-per-contig layout this figure had before.
+
+    Returns
+    -------
+    list[tuple[float, float]]
+        `[(start, end), ...]`, half-open, in ascending order; always at
+        least one window.
+    """
+    contig_length = float(contig_length or 0)
+    if contig_length <= 0:
+        contig_length = 1.0
+    if not segment_length or segment_length <= 0:
+        return [(0.0, contig_length)]
+    n_segments = max(1, int(math.ceil(contig_length / float(segment_length))))
+    return [(i * float(segment_length), min((i + 1) * float(segment_length), contig_length))
+            for i in range(n_segments)]
+
+
+def blocks_in_segment(contig_blocks, seg_start, seg_end):
+    """
+    The rows of `contig_blocks` whose genomic span overlaps the
+    half-open window `[seg_start, seg_end)`. A block straddling a
+    segment boundary comes back for both segments -- each line draws
+    its own clipped piece of it.
+    """
+    spans = contig_blocks[['block_start', 'block_end']].astype(float)
+    keep = (spans['block_end'] >= seg_start) & (spans['block_start'] < seg_end)
+    return contig_blocks[keep.fillna(False).astype(bool)]
+
+
+def _format_bp_short(value):
+    """Compact bp/kb/Mb rendering of a length, e.g. `5.12 Mb`."""
+    value = float(value)
+    if value >= 1e6:
+        return f'{value / 1e6:.2f} Mb'
+    if value >= 1e3:
+        return f'{value / 1e3:.0f} kb'
+    return f'{value:.0f} bp'
+
+
+def _format_bp_range(start, end):
+    """
+    A segment's coordinate range, both ends in whichever unit suits its
+    upper bound, e.g. `2.00-3.00 Mb`.
+    """
+    if end >= 1e6:
+        return f'{start / 1e6:.2f}\u2013{end / 1e6:.2f} Mb'
+    if end >= 1e3:
+        return f'{start / 1e3:.0f}\u2013{end / 1e3:.0f} kb'
+    return f'{start:.0f}\u2013{end:.0f} bp'
+
+
 def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b',
                                marker_color='#2a6f77', track_width=760, left_margin=190,
                                top_margin=30, row_height=92, track_height=10,
                                font_size=11, label_lanes=3, label_lane_gap=18,
-                               max_labels_per_track=25):
+                               max_labels_per_track=25,
+                               segment_length=DEFAULT_SEGMENT_LENGTH):
     """
     Render a *static* SVG showing where every block/neighborhood sits
-    along its nucleotide (contig), one horizontal track per distinct
-    nucleotide.
+    along its nucleotide (contig).
+
+    Each contig is drawn wrapped over as many lines as it needs, one
+    line per `segment_length` bases (1 Mb by default) -- so a 5 Mb
+    chromosome is five stacked lines and a 0.3 Mb plasmid is a single
+    short one. A full line of sequence always takes `track_width`
+    pixels, which means the scale is the same everywhere in the figure:
+    a marker twice as wide really is twice as long, on any line and on
+    any contig. Pass `segment_length=None` for the old behavior (one
+    line per contig, each stretched to its own length).
 
     This is the standalone/fallback renderer (what `genome_overview_fig`
     writes to a file). For a crowded genome the interactive version in
     `build_html_report` is far more usable -- this static one can only
     fit so many text labels before they collide, which is exactly why
     `max_labels_per_track` exists.
-
-    Each track is scaled independently to its own `contig_length` -- a
-    50 kb plasmid and a 9 Mb chromosome both draw at the same pixel
-    width -- since the point of this figure is "where is this block
-    relative to its own contig", not a comparison of absolute distance
-    across contigs of very different sizes.
 
     Parameters
     ----------
@@ -1069,17 +2153,21 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
     marker_color : str
         Fallback marker fill.
     track_width, left_margin, top_margin, row_height, track_height : float
-        Layout, in SVG user units (effectively pixels).
+        Layout, in SVG user units (effectively pixels). `track_width` is
+        the width of one *full* segment, not of a whole contig.
     font_size : int
     label_lanes, label_lane_gap : int, float
-        Up to this many staggered rows are used above each track for
+        Up to this many staggered rows are used above each line for
         block labels; see `assign_label_lanes`. Increase `row_height`
-        if labels still collide with the row above.
+        if labels still collide with the line above.
     max_labels_per_track : int
-        If a track has more than this many blocks, its text labels are
-        omitted entirely (markers are still drawn) -- a crowded track's
-        labels just turn into noise, as in a whole-chromosome view with
-        hundreds of hits. Set very high to always label.
+        If a single line carries more than this many blocks, its text
+        labels are omitted entirely (markers are still drawn) -- a
+        crowded line's labels just turn into noise. Set very high to
+        always label.
+    segment_length : float or None
+        Bases drawn per line (default 1 Mb); `None` draws each contig
+        on one line scaled to its own length. See `contig_segments`.
 
     Returns
     -------
@@ -1088,59 +2176,115 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
     """
     color_map = color_map or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide'])) if not extents.empty else []
+    track_x0 = left_margin
+    # `row_height` is the height of a *fully labelled* line; a line that
+    # ends up using fewer label lanes (most of them, once a chromosome
+    # is cut into megabases) is that much shorter.
+    base_row_height = max(28.0, row_height - label_lanes * label_lane_gap)
+    group_gap = 12.0
+
+    # Lay every line out first: a contig contributes one per segment,
+    # and each line's height depends on how many label lanes it needs,
+    # so the figure's height only follows from the finished list.
+    rows = []
+    for nucleotide in nucleotides:
+        contig_blocks = extents[extents['nucleotide'] == nucleotide]
+        contig_length = resolve_contig_length(contig_blocks)
+        segments = contig_segments(contig_length, segment_length)
+        # a full line of sequence is always `track_width` wide, so the
+        # bp-per-pixel scale is identical everywhere in the figure; a
+        # short last segment simply draws a stub of a line
+        full_span = float(segment_length) if (segment_length and segment_length > 0) else contig_length
+        full_span = full_span or 1.0
+
+        for seg_index, (seg_start, seg_end) in enumerate(segments):
+            seg_blocks = blocks_in_segment(contig_blocks, seg_start, seg_end)
+
+            def to_x(pos, _start=seg_start, _span=full_span):
+                return track_x0 + ((pos - _start) / _span) * track_width
+
+            # a block is labelled on the line holding its midpoint, so
+            # one cut in two by a segment boundary is still named once
+            labelled = []
+            if len(seg_blocks) <= max_labels_per_track:
+                for _, block in seg_blocks.iterrows():
+                    mid = (float(block['block_start']) + float(block['block_end'])) / 2
+                    if seg_start <= mid < seg_end:
+                        labelled.append((block, to_x(mid)))
+            lanes = assign_label_lanes([x for _, x in labelled],
+                                       min_gap=label_lane_gap * 12, n_lanes=label_lanes)
+            used_lanes = max(lanes) + 1 if lanes else 0
+            lead = group_gap if (seg_index == 0 and rows) else 0.0
+
+            rows.append(dict(
+                nucleotide=nucleotide, contig_length=contig_length,
+                seg_start=seg_start, seg_end=seg_end,
+                seg_index=seg_index, n_segments=len(segments),
+                blocks=seg_blocks, to_x=to_x,
+                seg_width=track_width * (seg_end - seg_start) / full_span,
+                labels=list(zip(labelled, lanes)), lead=lead,
+                height=lead + used_lanes * label_lane_gap + base_row_height,
+                lane_offset=lead + used_lanes * label_lane_gap,
+            ))
 
     fig_width = left_margin + track_width + 40
-    fig_height = top_margin + len(nucleotides) * row_height + 20
+    fig_height = top_margin + sum(row['height'] for row in rows) + 20
 
     parts = [
         f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
-        f'font-family="Consolas, \'SF Mono\', Menlo, monospace" font-size="{font_size}">',
+        f'font-family="{MONO_FONT_STACK}" font-size="{font_size}">',
         f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
     ]
 
-    for row_i, nucleotide in enumerate(nucleotides):
-        row_blocks = extents[extents['nucleotide'] == nucleotide]
-        contig_length = row_blocks['contig_length'].iloc[0]
-        if not contig_length or pd.isna(contig_length) or contig_length <= 0:
-            contig_length = max(row_blocks['block_end'].max(), 1)
+    y = top_margin
+    for row in rows:
+        to_x = row['to_x']
+        seg_start, seg_end = row['seg_start'], row['seg_end']
+        is_first = row['seg_index'] == 0
+        is_wrapped = row['n_segments'] > 1
+        track_y = y + row['lane_offset']
 
-        track_y = top_margin + row_i * row_height + label_lanes * label_lane_gap
-        track_x0 = left_margin
-
-        def to_x(pos, _x0=track_x0, _len=contig_length):
-            return _x0 + (pos / _len) * track_width
+        # hairline between contigs, so a chromosome's stack of lines
+        # reads as one thing
+        if row['lead']:
+            parts.append(
+                f'<line x1="20" y1="{y + row["lead"] / 2:.1f}" x2="{fig_width - 20:.0f}" '
+                f'y2="{y + row["lead"] / 2:.1f}" stroke="#eee" stroke-width="1"/>'
+            )
 
         parts.append(
             f'<text x="{track_x0 - 10:.0f}" y="{track_y + track_height / 2 + 4:.0f}" '
-            f'text-anchor="end" fill="#222">{html.escape(str(nucleotide))}</text>'
+            f'text-anchor="end" fill="{"#222" if is_first else "#999"}">'
+            f'{html.escape(str(row["nucleotide"]))}</text>'
         )
+        if is_wrapped:
+            sub_label = _format_bp_range(seg_start, seg_end)
+            if is_first:
+                sub_label += f' of {_format_bp_short(row["contig_length"])}'
+        else:
+            sub_label = f'{row["contig_length"]:,.0f} bp'
         parts.append(
             f'<text x="{track_x0 - 10:.0f}" y="{track_y + track_height / 2 + 4 + font_size + 2:.0f}" '
-            f'text-anchor="end" fill="#888" font-size="{font_size - 2}">{contig_length:,.0f} bp</text>'
+            f'text-anchor="end" fill="#888" font-size="{font_size - 2}">{html.escape(sub_label)}</text>'
         )
         parts.append(
-            f'<rect x="{track_x0:.1f}" y="{track_y:.1f}" width="{track_width:.1f}" height="{track_height:.1f}" '
-            f'fill="#e3e3e3" stroke="#999" stroke-width="0.5" rx="2"/>'
+            f'<rect x="{track_x0:.1f}" y="{track_y:.1f}" width="{row["seg_width"]:.1f}" '
+            f'height="{track_height:.1f}" fill="#e3e3e3" stroke="#999" stroke-width="0.5" rx="2"/>'
         )
 
-        show_labels = len(row_blocks) <= max_labels_per_track
-        mid_x = [to_x((b['block_start'] + b['block_end']) / 2) for _, b in row_blocks.iterrows()]
-        lanes = assign_label_lanes(mid_x, min_gap=label_lane_gap * 12, n_lanes=label_lanes)
-
-        for (_, block), x_mid, lane in zip(row_blocks.iterrows(), mid_x, lanes):
-            x0 = to_x(block['block_start'])
-            x1 = to_x(block['block_end'])
+        for _, block in row['blocks'].iterrows():
+            x0 = to_x(max(float(block['block_start']), seg_start))
+            x1 = to_x(min(float(block['block_end']), seg_end))
             marker_w = max(4.0, x1 - x0)
-            fill = color_map.get(block['query_domain'], marker_color)
-
+            fill = resolve_gene_color(block, color_map, default=marker_color,
+                                      keys=('query_domain', 'query_domain_raw'))
             parts.append(
                 f'<rect x="{x0:.1f}" y="{track_y - 3:.1f}" width="{marker_w:.1f}" '
                 f'height="{track_height + 6:.1f}" fill="{fill}" stroke="{highlight_color}" '
                 f'stroke-width="1.2" rx="1.5"/>'
             )
 
-            if not show_labels:
-                continue
+        for (block, x_mid), lane in row['labels']:
             label_y = track_y - 10 - lane * label_lane_gap
             parts.append(
                 f'<line x1="{x_mid:.1f}" y1="{label_y + 4:.1f}" x2="{x_mid:.1f}" y2="{track_y - 3:.1f}" '
@@ -1151,6 +2295,8 @@ def build_genome_overview_svg(extents, color_map=None, highlight_color='#c0392b'
                 f'<text x="{x_mid:.1f}" y="{label_y:.1f}" text-anchor="middle" fill="#222">'
                 f'{html.escape(str(label_text))}</text>'
             )
+
+        y += row['height']
 
     parts.append('</svg>')
     return '\n'.join(parts)
@@ -1171,12 +2317,21 @@ def _slug(text):
 def build_genome_overview_interactive_html(extents, color_map=None,
                                             marker_color='#2a6f77',
                                             highlight_color='#c0392b',
-                                            base_track_height=14):
+                                            base_track_height=14,
+                                            segment_length=DEFAULT_SEGMENT_LENGTH):
     """
     Build the *interactive* genome overview used by `build_html_report`:
-    one horizontal track per nucleotide (contig), where each block is a
-    marker positioned at its genomic span, and where the surrounding
-    report provides zoom/pan and hover tooltips.
+    each block is a marker positioned at its genomic span, and the
+    surrounding report provides zoom/pan and hover tooltips.
+
+    Every contig is drawn wrapped over consecutive lines of
+    `segment_length` bases (1 Mb by default), stacked as one group --
+    so a full line always means the same number of bases and marker
+    widths are comparable across lines and contigs. A block straddling
+    a boundary is drawn as its clipped piece on each of the two lines;
+    both pieces carry the same tooltip and block link, and both light
+    up when that block is selected. Pass `segment_length=None` for the
+    old one-line-per-contig layout.
 
     Unlike `build_genome_overview_svg`, this does NOT bake any text
     labels into the figure -- that is exactly what turns a
@@ -1186,10 +2341,11 @@ def build_genome_overview_interactive_html(extents, color_map=None,
     links it to that block's own panel in the neighborhoods section
     (click a marker to jump to it).
 
-    Each marker stores its position as fractions of its contig length
-    (`data-fs`/`data-fe`), so the report's JS can re-place every marker
-    at any zoom level without this function knowing the final pixel
-    width.
+    Each marker stores its position as fractions of a *full* segment
+    (`data-fs`/`data-fe`), and each line carries the fraction of a full
+    segment it actually covers (`data-frac` on `.go-inner`), so the
+    report's JS can re-place everything at any zoom level without this
+    function knowing the final pixel width.
 
     Parameters
     ----------
@@ -1202,6 +2358,9 @@ def build_genome_overview_interactive_html(extents, color_map=None,
         Fallback fill and the marker border color.
     base_track_height : int
         Marker/track height in pixels.
+    segment_length : float or None
+        Bases per line (default 1 Mb); `None` puts each contig on a
+        single line scaled to its own length. See `contig_segments`.
 
     Returns
     -------
@@ -1213,66 +2372,108 @@ def build_genome_overview_interactive_html(extents, color_map=None,
     color_map = color_map or {}
     nucleotides = list(dict.fromkeys(extents['nucleotide'])) if not extents.empty else []
 
-    rows = []
+    groups = []
     for nucleotide in nucleotides:
-        row_blocks = extents[extents['nucleotide'] == nucleotide]
-        contig_length = row_blocks['contig_length'].iloc[0]
-        if not contig_length or pd.isna(contig_length) or contig_length <= 0:
-            contig_length = max(row_blocks['block_end'].max(), 1)
+        contig_blocks = extents[extents['nucleotide'] == nucleotide]
+        contig_length = resolve_contig_length(contig_blocks)
+        segments = contig_segments(contig_length, segment_length)
+        full_span = float(segment_length) if (segment_length and segment_length > 0) else contig_length
+        full_span = full_span or 1.0
 
-        markers = []
-        for _, block in row_blocks.iterrows():
-            fs = max(0.0, min(1.0, block['block_start'] / contig_length))
-            fe = max(0.0, min(1.0, block['block_end'] / contig_length))
-            if fe < fs:
-                fs, fe = fe, fs
-            fill = color_map.get(block['query_domain'], marker_color)
+        rows = []
+        for seg_index, (seg_start, seg_end) in enumerate(segments):
+            seg_blocks = blocks_in_segment(contig_blocks, seg_start, seg_end)
 
-            label = block['query_pid'] if block['query_pid'] is not None else block['ID']
-            domain = block['query_domain'] if block['query_domain'] is not None else '-'
-            tip_html = (
-                f"<b>{html.escape(str(label))}</b>"
-                f"<span class='t-row'>block&nbsp;&middot;&nbsp;{html.escape(str(block['ID']))}</span>"
-                f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>"
-                f"<span class='t-row'>organism&nbsp;&middot;&nbsp;{html.escape(str(block['org_name']))}</span>"
-                f"<span class='t-row'>position&nbsp;&middot;&nbsp;{block['block_start']:,.0f}&ndash;{block['block_end']:,.0f} bp</span>"
-                f"<span class='t-row'>genes&nbsp;&middot;&nbsp;{int(block['n_genes'])}</span>"
+            markers = []
+            for _, block in seg_blocks.iterrows():
+                # clipped to this line, as a fraction of a full segment
+                fs = (max(float(block['block_start']), seg_start) - seg_start) / full_span
+                fe = (min(float(block['block_end']), seg_end) - seg_start) / full_span
+                fs = max(0.0, min(1.0, fs))
+                fe = max(0.0, min(1.0, fe))
+                if fe < fs:
+                    fs, fe = fe, fs
+                fill = resolve_gene_color(block, color_map, default=marker_color,
+                                          keys=('query_domain', 'query_domain_raw'))
+
+                label = block['query_pid'] if block['query_pid'] is not None else block['ID']
+                # the real HMM match, like the neighborhood pop-ups (see
+                # `build_gene_tooltip_html`) -- not a rename_map label
+                domain = block.get('query_domain_raw') or block['query_domain'] or '-'
+                tip_html = (
+                    f"<b>{html.escape(str(label))}</b>"
+                    f"<span class='t-row'>block&nbsp;&middot;&nbsp;{html.escape(str(block['ID']))}</span>"
+                    f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>"
+                    f"<span class='t-row'>organism&nbsp;&middot;&nbsp;{html.escape(str(block['org_name']))}</span>"
+                    f"<span class='t-row'>position&nbsp;&middot;&nbsp;{block['block_start']:,.0f}&ndash;{block['block_end']:,.0f} bp</span>"
+                    f"<span class='t-row'>genes&nbsp;&middot;&nbsp;{int(block['n_genes'])}</span>"
+                )
+                tip_attr = html.escape(tip_html, quote=True)
+
+                markers.append(
+                    f'<div class="go-marker" data-block="{_slug(block["ID"])}" '
+                    f'data-fs="{fs:.6f}" data-fe="{fe:.6f}" data-tip="{tip_attr}" '
+                    f'style="background:{fill};border-color:{highlight_color};"></div>'
+                )
+
+            is_first = seg_index == 0
+            is_wrapped = len(segments) > 1
+            # each line is named by the slice of the contig it covers;
+            # the contig's total length is stated once, on its first line
+            span_label = _format_bp_range(seg_start, seg_end) if is_wrapped else f'{contig_length:,.0f} bp'
+            total_label = (f'<div class="go-total">of {_format_bp_short(contig_length)}</div>'
+                           if (is_wrapped and is_first) else '')
+
+            rows.append(
+                '<div class="go-track" style="--track-h:%dpx;">'
+                '<div class="go-track-label"><div class="go-contig%s">%s</div>'
+                '<div class="go-len">%s</div>%s</div>'
+                '<div class="go-viewport"><div class="go-inner" data-frac="%.6f">'
+                '<div class="go-axis"></div>%s</div></div>'
+                '</div>' % (
+                    base_track_height,
+                    '' if is_first else ' cont',
+                    html.escape(str(nucleotide)),
+                    html.escape(span_label),
+                    total_label,
+                    (seg_end - seg_start) / full_span,
+                    ''.join(markers),
+                )
             )
-            tip_attr = html.escape(tip_html, quote=True)
 
-            markers.append(
-                f'<div class="go-marker" data-block="{_slug(block["ID"])}" '
-                f'data-fs="{fs:.6f}" data-fe="{fe:.6f}" data-tip="{tip_attr}" '
-                f'style="background:{fill};border-color:{highlight_color};"></div>'
-            )
+        groups.append(f'<div class="go-contig-group">{"".join(rows)}</div>')
 
-        rows.append(
-            '<div class="go-track" style="--track-h:%dpx;">'
-            '<div class="go-track-label"><div class="go-contig">%s</div>'
-            '<div class="go-len">%s bp</div></div>'
-            '<div class="go-viewport"><div class="go-inner"><div class="go-axis"></div>%s</div></div>'
-            '</div>' % (
-                base_track_height,
-                html.escape(str(nucleotide)),
-                f'{contig_length:,.0f}',
-                ''.join(markers),
-            )
-        )
-
+    scale_hint = (f'each line spans {_format_bp_short(segment_length)}'
+                  if segment_length and segment_length > 0 else 'each line spans one contig')
     controls = (
         '<div class="go-controls">'
         '<button type="button" id="go-zoom-out" title="Zoom out">&minus;</button>'
         '<span id="go-zoom-val">1x</span>'
         '<button type="button" id="go-zoom-in" title="Zoom in">+</button>'
         '<button type="button" id="go-zoom-reset" title="Reset zoom and pan">reset</button>'
-        '<span class="go-hint">scroll to pan &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
+        f'<span class="go-hint">{scale_hint} &middot; scroll or drag the bar to pan every line &middot; ctrl/&#8984;+scroll or buttons to zoom &middot; click a marker to open it</span>'
         '</div>'
+    )
+
+    # One scrollbar for the whole figure: every line shares the same
+    # bp-per-pixel scale and pans together, so a single bar (aligned to
+    # the track grid, under the sequence lines) drives all of them at
+    # once. The per-line `.go-viewport` scrollbars stay hidden -- see the
+    # `.go-viewport` CSS. Starts `disabled` (dimmed, inert) until a zoom
+    # makes the content wider than the viewport; the JS toggles that.
+    scrollbar = (
+        '<div class="go-scrollbar-row">'
+        '<div class="go-scrollbar-spacer"></div>'
+        '<div class="go-scrollbar disabled" id="go-scrollbar">'
+        '<div class="go-scrollbar-thumb" id="go-scrollbar-thumb"></div>'
+        '</div></div>'
     )
 
     # NOTE: the shared tooltip div lives once at <body> level in the report
     # template (outside every page-section), not here -- a page-section is
     # display:none when inactive, which would hide an embedded tooltip too.
-    return f'<div class="go-wrap">{controls}{"".join(rows)}</div>'
+    return f'<div class="go-wrap">{controls}{scrollbar}{"".join(groups)}</div>'
+
 
 
 def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col='pfam',
@@ -1289,6 +2490,11 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     `custom_colors`, `max_colors` and `ignore_domains` mean exactly what
     they mean in `neighborhood_figure` -- pass the same values to both if
     you want the two figures to agree on domain colors/renamed names.
+
+    Each contig is wrapped over consecutive lines of one megabase (see
+    `contig_segments` and `build_genome_overview_svg`'s
+    `segment_length`, forwarded through `**svg_kwargs`), so every line
+    of the figure is drawn at the same bp-per-pixel scale.
 
     This writes the *static* SVG version (see `build_genome_overview_svg`).
     The interactive, zoomable version with hover tooltips lives in
@@ -1310,7 +2516,7 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     **svg_kwargs :
         Forwarded to `build_genome_overview_svg` (layout/color tuning,
         e.g. `track_width`, `row_height`, `marker_color`,
-        `max_labels_per_track`).
+        `max_labels_per_track`, `segment_length`).
 
     Returns
     -------
@@ -1330,7 +2536,7 @@ def genome_overview_fig(df, group_col='block_id', org_col='organism', label_col=
     )
     svg = build_genome_overview_svg(extents, color_map=color_map, **svg_kwargs)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(svg)
 
     return extents
@@ -1354,6 +2560,34 @@ def _strip_svg_prolog(svg):
     return svg[idx:] if idx != -1 else svg
 
 
+# Graphviz writes the single font name it was given (`GRAPHVIZ_FONT_NAME`)
+# straight into the SVG, with no fallbacks -- so a browser on a machine
+# without that exact face silently drops to its default (usually a serif),
+# and the Graphviz figures stop matching the hand-written SVGs next to
+# them. `normalize_svg_fonts` widens it back into the full stack.
+_GRAPHVIZ_FONT_ATTR_RE = re.compile(r'font-family="%s"' % re.escape(GRAPHVIZ_FONT_NAME))
+
+
+def normalize_svg_fonts(svg):
+    """
+    Give Graphviz's bare `font-family="<name>"` the same fallback chain
+    (`MONO_FONT_STACK`) every other piece of the report uses, so gene
+    labels, ruler ticks, table cells and tooltips all render in one face.
+
+    Parameters
+    ----------
+    svg : str
+        SVG markup as written by Graphviz.
+
+    Returns
+    -------
+    str
+        The same markup with the font attribute widened. Text already
+        carrying a full stack is left alone.
+    """
+    return _GRAPHVIZ_FONT_ATTR_RE.sub(f'font-family="{MONO_FONT_STACK}"', svg)
+
+
 def _fmt_int(value):
     """Format a number with thousands separators, or '?' if missing."""
     if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -1364,21 +2598,115 @@ def _fmt_int(value):
         return html.escape(str(value))
 
 
+def build_sequence_index(df, group_col='block_id', seq_col='sequence', pid_col='pid'):
+    """
+    Collect every protein sequence in the table into the one compact
+    index the report's JavaScript works from.
+
+    Sequences are deliberately NOT inlined into the figures. The same
+    protein is drawn twice (once in the Figure view, once in the To
+    scale view) and would otherwise be embedded twice per block, and
+    once more in the merged table -- three copies of every sequence in
+    a page that is already megabytes of SVG. Keeping one copy here,
+    keyed by accession, lets the info window, the per-protein copy
+    button and the whole-selection FASTA export all read the same data.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The raw input table.
+    group_col : str
+        Column identifying each block; its values become slugs (see
+        `_slug`), matching the ones the figures and the selector use.
+    seq_col : str
+        Column holding the amino-acid sequences. A table without it
+        gives an empty index, and the report then simply grows no
+        sequence features.
+    pid_col : str
+        Column holding the accession each sequence is keyed by.
+
+    Returns
+    -------
+    dict
+        ``{'seqs': {pid: sequence}, 'blocks': {slug: [pid, ...]}}``.
+        Whitespace is stripped from each sequence, it is upper-cased,
+        and a trailing stop-codon '*' is dropped. Proteins with no
+        sequence are left out of both maps, so a slug can be missing
+        entirely; the first sequence seen for a pid wins.
+    """
+    index = {'seqs': {}, 'blocks': {}}
+    if seq_col not in df.columns or pid_col not in df.columns:
+        return index
+
+    columns = [pid_col, seq_col]
+    has_group = group_col in df.columns
+    if has_group:
+        columns.append(group_col)
+
+    # dict-of-dicts rather than lists: dedupes each block's pids in O(1)
+    # while keeping first-seen (i.e. genomic) order.
+    members = {}
+    for values in df[columns].itertuples(index=False, name=None):
+        pid, seq = values[0], values[1]
+        if pid is None or (isinstance(pid, float) and pd.isna(pid)):
+            continue
+        pid = str(pid)
+        if pid not in index['seqs']:
+            if seq is None or (isinstance(seq, float) and pd.isna(seq)):
+                continue
+            clean = re.sub(r'\s+', '', str(seq)).upper().rstrip('*')
+            if not clean:
+                continue
+            index['seqs'][pid] = clean
+        slug = _slug(values[2]) if has_group else ''
+        members.setdefault(slug, {})[pid] = None
+
+    index['blocks'] = {slug: list(pids) for slug, pids in members.items()}
+    return index
+
+
+def _json_for_script(payload):
+    """
+    Serialize `payload` for embedding in a
+    `<script type="application/json">` block.
+
+    '</' is escaped ('\\/' being a legal JSON string escape for '/') so
+    a value can never close the script tag early and spill into the
+    document as markup.
+    """
+    return json.dumps(payload, separators=(',', ':')).replace('</', '<\\/')
+
+
 def build_gene_tooltip_html(meta):
     """
     Build the inner HTML of the hover "info window" for a single protein
     in a neighborhood figure.
 
-    The title is the protein id. Then a role line:
+    The title is the protein id, followed by a star/"query" marker on
+    query genes only. Every gene -- query included -- then lists its
+    domain/architecture, so the query's own domain is never hidden
+    behind the fact that it is the query.
 
-      * the query gene shows a "query" marker (this is the
-        "change domain for query" behavior -- where a neighbor would
-        list its domain, the query instead announces that it *is* the
-        query);
-      * a neighbor lists its domain/architecture.
+    The domain line reports the REAL match -- the HMM/Pfam model names
+    as they came out of the search ('domain_raw'), never a `rename_map`
+    display label. An arrow is short and has to read at a glance, so a
+    rename is right there; the info window is where someone goes to find
+    out what actually hit the protein, and answering that with a
+    renamed label would make the model impossible to look up. When a
+    rename did change the value, the label the arrow shows is added on
+    its own line so the two are easy to connect.
 
     Followed by genomic coordinates, strand, length and product when
     those fields are available.
+
+    When the metadata carries a 'sequence', an empty
+    `<span class="t-seq-slot" data-pid="...">` is appended. Inside the
+    report, JavaScript fills that slot from the page's sequence index
+    (see `build_sequence_index`) with the FASTA record, copy/download
+    buttons and the external-tool chips; the slot is used instead of
+    the sequence itself so the report holds one copy of each protein
+    rather than one per figure. Nothing fills it outside the report, so
+    a standalone figure just carries an empty span.
 
     Parameters
     ----------
@@ -1399,10 +2727,21 @@ def build_gene_tooltip_html(meta):
 
     if meta.get('is_query'):
         rows.append("<span class='t-row t-query'>&#9733;&nbsp;query</span>")
-    else:
-        domain = meta.get('domain')
-        domain = '-' if domain is None or (isinstance(domain, float) and pd.isna(domain)) else domain
-        rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(str(domain))}</span>")
+
+    def _clean(value):
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        return str(value)
+
+    label = _clean(meta.get('domain'))
+    # 'domain_raw' is only absent for metadata built before renaming was
+    # tracked; fall back to the label so the row never disappears.
+    matched = _clean(meta.get('domain_raw')) or label or '-'
+    rows.append(f"<span class='t-row'>domain&nbsp;&middot;&nbsp;{html.escape(matched)}</span>")
+    if label and label != matched:
+        rows.append(
+            f"<span class='t-row'>shown&nbsp;as&nbsp;&middot;&nbsp;{html.escape(label)}</span>"
+        )
 
     start, end = meta.get('start'), meta.get('end')
     if start is not None or end is not None:
@@ -1414,13 +2753,34 @@ def build_gene_tooltip_html(meta):
     strand_str = '+' if strand == 1 else '&minus;' if strand == -1 else '?'
     rows.append(f"<span class='t-row'>strand&nbsp;&middot;&nbsp;{strand_str}</span>")
 
+    seq = meta.get('sequence')
+    if seq is not None and not (isinstance(seq, float) and pd.isna(seq)):
+        seq = re.sub(r'\s+', '', str(seq)).upper().rstrip('*')
+    else:
+        seq = ''
+
     plen = meta.get('plen')
     if plen is not None and not (isinstance(plen, float) and pd.isna(plen)):
         rows.append(f"<span class='t-row'>length&nbsp;&middot;&nbsp;{_fmt_int(plen)} aa</span>")
+    elif seq:
+        rows.append(f"<span class='t-row'>length&nbsp;&middot;&nbsp;{_fmt_int(len(seq))} aa</span>")
 
     product = meta.get('product')
     if product is not None and not (isinstance(product, float) and pd.isna(product)):
         rows.append(f"<span class='t-row'>product&nbsp;&middot;&nbsp;{html.escape(str(product))}</span>")
+
+    # An empty anchor for the sequence block and the external-tool
+    # chips, rather than the sequence itself: the report holds one copy
+    # of every protein in a page-level index and fills this slot in on
+    # the fly (see the `hydrateTip` JavaScript), so a sequence is never
+    # embedded twice over -- once in the Figure SVG and again in the To
+    # scale one. Outside the report -- a standalone `neighborhood_figure`
+    # call -- there is nothing to fill it with and the slot stays empty,
+    # which is why it carries no text of its own.
+    if seq and pid is not None and not (isinstance(pid, float) and pd.isna(pid)):
+        rows.append(
+            f"<span class='t-row t-seq-slot' data-pid='{html.escape(str(pid), quote=True)}'></span>"
+        )
 
     return ''.join(rows)
 
@@ -1442,8 +2802,11 @@ def annotate_neighborhood_svg(svg, node_meta):
 
     For every `<g class="node">` whose `<title>` names a gene that has
     metadata, this adds `class="node nb-gene"` and a `data-tip`
-    attribute (the HTML from `build_gene_tooltip_html`). Label boxes,
-    spacers and any node without metadata are left untouched.
+    attribute (the HTML from `build_gene_tooltip_html`). A
+    regulatory-region node (`is_repeat` meta) instead gets
+    `class="node nb-repeat"` and the `build_repeat_tooltip_html` pop-up.
+    Label boxes, spacers and any node without metadata are left
+    untouched.
 
     This is plain text surgery on graphviz's SVG output rather than a
     graphviz feature: graphviz can attach a `tooltip` (which becomes a
@@ -1468,9 +2831,15 @@ def annotate_neighborhood_svg(svg, node_meta):
         meta = node_meta.get(name)
         if not meta:
             return match.group(0)
-        tip = html.escape(build_gene_tooltip_html(meta), quote=True)
         gid = match.group('gid')
-        new_header = f'<g id="{gid}" class="node nb-gene" data-tip="{tip}">'
+        if meta.get('is_repeat'):
+            tip = html.escape(build_repeat_tooltip_html(
+                meta.get('repeat_start'), meta.get('repeat_end'),
+                meta.get('repeat_strand')), quote=True)
+            new_header = f'<g id="{gid}" class="node nb-repeat" data-tip="{tip}">'
+        else:
+            tip = html.escape(build_gene_tooltip_html(meta), quote=True)
+            new_header = f'<g id="{gid}" class="node nb-gene" data-tip="{tip}">'
         return match.group(0).replace(f'<g id="{gid}" class="node">', new_header, 1)
 
     return _NODE_GROUP_RE.sub(repl, svg)
@@ -1519,9 +2888,349 @@ def render_neighborhood_svgs_by_block(df, group_col, color_map, operon_kwargs, t
         _working, node_meta = neighborhood_figure(
             block_df, group_col=group_col, output_file=path,
             color_map=color_map, collect_node_meta=True, **kw)
-        with open(path) as f:
-            svg = _strip_svg_prolog(f.read())
+        with open(path, encoding='utf-8') as f:
+            svg = normalize_svg_fonts(_strip_svg_prolog(f.read()))
         svgs[slug] = annotate_neighborhood_svg(svg, node_meta)
+    return svgs
+
+
+# ---------------------------------------------------------------------------
+# To-scale ("biological scale") neighborhood view
+# ---------------------------------------------------------------------------
+
+def _nice_tick_step(span, target_ticks=6):
+    """
+    Pick a round tick interval (1/2/5 x 10^n) that puts roughly
+    `target_ticks` ticks across `span` base pairs.
+    """
+    if span <= 0:
+        return 1
+    raw = span / max(target_ticks, 1)
+    magnitude = 10 ** math.floor(math.log10(raw))
+    for multiple in (1, 2, 5):
+        if raw <= multiple * magnitude:
+            return multiple * magnitude
+    return 10 * magnitude
+
+
+def _format_bp_tick(value, step):
+    """
+    Format a genomic coordinate for an axis tick: plain bp for small
+    steps, kb once the ticks are 1 kb or more apart.
+    """
+    if step >= 1000:
+        text = f'{value / 1000:,.1f}'.rstrip('0').rstrip('.')
+        return f'{text} kb'
+    return f'{value:,.0f}'
+
+
+def build_scaled_block_svg(block_df, color_map=None, nucleotide_col='nucleotide',
+                            start_col='start', end_col='end',
+                            normalize_orientation=False, highlight_query=True,
+                            track_width=900, left_margin=210, right_margin=30,
+                            gene_height=26, font_size=11, min_gene_width=2.0,
+                            show_row_label=True, seq_col='sequence'):
+    """
+    Draw one block to *biological scale*: genes placed by their real
+    genomic coordinates, so arrow widths are proportional to gene
+    lengths and the gaps between arrows are the real intergenic
+    distances.
+
+    This is the counterpart to `neighborhood_figure`, which lays genes
+    out by Graphviz in even, text-sized boxes -- great for reading
+    domain labels across rows, but it says nothing about how long a
+    gene is or how far apart two genes sit. Here the x axis *is* the
+    contig, in base pairs, with a labeled ruler underneath.
+
+    Genes keep the same fill colors (`color_map`) and the same red query
+    outline as the Graphviz figure, and each one is wrapped in the same
+    `class="node nb-gene" data-tip="..."` group the report's JavaScript
+    uses for its per-protein info window -- so hovering and click-to-pin
+    work here exactly as they do in the Figure view.
+
+    Rows carrying `repeat_start`/`repeat_end` also get a pink square
+    marking that regulatory region, in a dedicated lane *above* the gene
+    band (so it never overlaps an arrow) at the region's real x, with a
+    connector line down to the band -- see `scaled_repeat_region_svg`.
+    It carries the same hover/click pop-up as a gene
+    (`build_repeat_tooltip_html`: label, coordinates, strand).
+    `repeat_strand`, if given, only sets the strand shown in that pop-up
+    -- it does not move the square, and it is reported in genomic terms
+    (like every coordinate and gene strand in the pop-ups) even when the
+    block is drawn mirrored.
+
+    Orientation follows the same rule as `normalize_block_strand`: when
+    `normalize_orientation` is True and the block's reference query is
+    on the minus strand, the whole block is drawn reverse-complemented
+    (coordinates mirrored, arrows flipped) so the query reads
+    left-to-right. The ruler still shows real coordinates -- they simply
+    count down from left to right -- and the header says so.
+
+    Parameters
+    ----------
+    block_df : pandas.DataFrame
+        One block, already through `prepare_dataframe` (needs 'pid',
+        'domain', 'is_query', 'strand', plus `start_col`/`end_col`).
+    color_map : dict[str, str] or None
+        Domain -> fill color, as everywhere else (see `build_color_map`).
+    nucleotide_col, start_col, end_col : str
+        Per-gene contig and genomic span columns.
+    seq_col : str, default 'sequence'
+        Column carried into each gene's info window as its amino-acid
+        sequence (copy-able FASTA block). Missing column -> no sequence.
+    normalize_orientation : bool, default False
+        Mirror the block so its reference query points right.
+    highlight_query : bool, default True
+        Outline query genes in red.
+    track_width, left_margin, right_margin, gene_height, font_size : float
+        Layout, in SVG user units (effectively pixels at 100% zoom).
+    min_gene_width : float
+        Floor on how narrow an arrow may get, so a very short gene in a
+        very wide block stays visible (and hoverable).
+    show_row_label : bool, default True
+        Draw the left-hand query-id / block-id / organism label column.
+
+    Returns
+    -------
+    str
+        A self-contained `<svg>...</svg>` fragment.
+    """
+    color_map = color_map or {}
+    block = block_df.reset_index(drop=True)
+
+    starts = pd.to_numeric(block.get(start_col), errors='coerce') if start_col in block.columns else None
+    ends = pd.to_numeric(block.get(end_col), errors='coerce') if end_col in block.columns else None
+    if starts is None or ends is None:
+        spans = None
+    else:
+        lows = np.fmin(starts, ends)
+        highs = np.fmax(starts, ends)
+        spans = [(lo, hi) for lo, hi in zip(lows, highs)]
+
+    valid = [s for s in (spans or []) if not (pd.isna(s[0]) or pd.isna(s[1]))]
+    if not valid:
+        return ('<svg viewBox="0 0 420 40" xmlns="http://www.w3.org/2000/svg" '
+                f'font-family="{MONO_FONT_STACK}" font-size="11">'
+                '<text x="8" y="24" fill="#888">No genomic coordinates for this block.</text></svg>')
+
+    lo = min(s[0] for s in valid)
+    hi = max(s[1] for s in valid)
+
+    # Regulatory regions have to be inside the drawn window too, not
+    # just the genes. A heptarepeat sits in the promoter, upstream of
+    # the gene it belongs to, so as soon as that gene is the first of
+    # the neighborhood (or the last, on a mirrored block) its repeat
+    # falls outside the gene extent -- and `to_x` then projects it left
+    # of the track, on top of the label column or clipped off the
+    # viewBox entirely. Widening the window to cover every span actually
+    # drawn is what keeps it in frame; the ruler reads off the same
+    # lo/hi, so it goes on describing exactly what is on screen.
+    for _, row in block.iterrows():
+        if not has_repeat_region(row):
+            continue
+        r_lo, r_hi, _ = repeat_region_span(row['repeat_start'], row['repeat_end'])
+        lo = min(lo, r_lo)
+        hi = max(hi, r_hi)
+
+    span = max(hi - lo, 1)
+
+    ref_idx = select_reference_query_index(block)
+    flip = bool(
+        normalize_orientation and ref_idx is not None
+        and block.loc[ref_idx, 'strand'] == -1
+    )
+
+    if not show_row_label:
+        left_margin = 20
+
+    def to_x(pos):
+        frac = (hi - pos) / span if flip else (pos - lo) / span
+        return left_margin + frac * track_width
+
+    # Regulatory-region squares get their own lane above the gene band
+    # (only reserved when the block actually has one), so they never sit
+    # on top of a gene arrow.
+    has_any_repeat = any(has_repeat_region(r) for _, r in block.iterrows())
+    repeat_lane_top = 24
+    repeat_lane_h = 12 if has_any_repeat else 0
+    repeat_reserve = (repeat_lane_h + 8) if has_any_repeat else 0
+
+    header_y = 16
+    band_top = 30 + repeat_reserve
+    band_bottom = band_top + gene_height
+    band_mid = (band_top + band_bottom) / 2
+    axis_y = band_bottom + 22
+    fig_width = left_margin + track_width + right_margin
+    fig_height = axis_y + 26
+
+    parts = [
+        f'<svg viewBox="0 0 {fig_width:.0f} {fig_height:.0f}" xmlns="http://www.w3.org/2000/svg" '
+        f'font-family="{MONO_FONT_STACK}" font-size="{font_size}">',
+        f'<rect x="0" y="0" width="{fig_width:.0f}" height="{fig_height:.0f}" fill="white"/>',
+    ]
+
+    # header: contig, span, and whether we mirrored the block
+    nucleotide = block[nucleotide_col].iloc[0] if nucleotide_col in block.columns else ''
+    header = f'{nucleotide}  {lo:,.0f}-{hi:,.0f}  ({span:,.0f} bp)'
+    if flip:
+        header += '  · reverse-complemented'
+    parts.append(
+        f'<text x="{left_margin:.0f}" y="{header_y}" fill="#888" font-size="{font_size - 1}">'
+        f'{html.escape(header)}</text>'
+    )
+
+    # left-hand label column, same three lines as the Graphviz figure
+    if show_row_label:
+        query_pid = block.loc[ref_idx, 'pid'] if ref_idx is not None else ''
+        label_lines = [
+            (str(query_pid), 'bold', '#111'),
+            (str(block['ID'].iloc[0]) if 'ID' in block.columns else '', 'normal', '#333'),
+            (str(block['org_name'].iloc[0]) if 'org_name' in block.columns else '', 'italic', '#555'),
+        ]
+        for i, (text, style, fill) in enumerate(label_lines):
+            style_attr = ' font-weight="700"' if style == 'bold' else (
+                ' font-style="italic"' if style == 'italic' else '')
+            parts.append(
+                f'<text x="8" y="{band_top - 2 + i * (font_size + 3):.0f}" fill="{fill}"'
+                f'{style_attr}>{html.escape(text)}</text>'
+            )
+
+    # the contig line every gene sits on
+    parts.append(
+        f'<line x1="{left_margin:.1f}" y1="{band_mid:.1f}" '
+        f'x2="{left_margin + track_width:.1f}" y2="{band_mid:.1f}" '
+        f'stroke="#d0d0d0" stroke-width="1.5"/>'
+    )
+
+    # ---- genes ----
+    for i, row in block.iterrows():
+        g_lo, g_hi = spans[i]
+        if pd.isna(g_lo) or pd.isna(g_hi):
+            continue
+        x_a, x_b = sorted((to_x(g_lo), to_x(g_hi)))
+        width = max(x_b - x_a, min_gene_width)
+        x_b = x_a + width
+
+        strand_val = coerce_strand(row.get('strand', 1))
+        drawn_strand = -strand_val if (flip and strand_val in (1, -1)) else strand_val
+        head = min(9.0, width * 0.45)
+        if drawn_strand == -1:
+            pts = [(x_b, band_top), (x_a + head, band_top), (x_a, band_mid),
+                   (x_a + head, band_bottom), (x_b, band_bottom)]
+        elif drawn_strand == 1:
+            pts = [(x_a, band_top), (x_b - head, band_top), (x_b, band_mid),
+                   (x_b - head, band_bottom), (x_a, band_bottom)]
+        else:
+            pts = [(x_a, band_top), (x_b, band_top), (x_b, band_bottom), (x_a, band_bottom)]
+        points = ' '.join(f'{x:.1f},{y:.1f}' for x, y in pts)
+
+        is_target = bool(row['is_query'])
+        stroke = 'red' if (highlight_query and is_target) else '#333'
+        stroke_width = '2.4' if (highlight_query and is_target) else '1'
+        fill = resolve_gene_color(row, color_map)
+
+        meta = dict(
+            pid=row.get('pid'),
+            start=row.get(start_col),
+            end=row.get(end_col),
+            strand=coerce_strand(strand_val),
+            domain=row.get('domain'),
+            domain_raw=row.get('domain_raw'),
+            product=row.get('product'),
+            plen=row.get('plen'),
+            sequence=row.get(seq_col),
+            is_query=is_target,
+        )
+        tip = html.escape(build_gene_tooltip_html(meta), quote=True)
+
+        parts.append(f'<g class="node nb-gene" data-tip="{tip}">')
+        parts.append(
+            f'<polygon points="{points}" fill="{fill}" stroke="{stroke}" '
+            f'stroke-width="{stroke_width}"/>'
+        )
+        # the domain label only fits inside wide-enough arrows; the rest
+        # rely on the hover/click info window
+        label = str(row.get('domain', ''))
+        if label and width >= len(label) * font_size * 0.62 + 8:
+            parts.append(
+                f'<text x="{(x_a + x_b) / 2:.1f}" y="{band_mid + font_size / 3:.1f}" '
+                f'text-anchor="middle" fill="#111" pointer-events="none">'
+                f'{html.escape(label)}</text>'
+            )
+        parts.append('</g>')
+
+    # ---- regulatory regions ----
+    # In their own lane above the gene band (x by real coordinate via
+    # to_x(), so they follow the same reverse-complement flip as the
+    # genes); a connector line drops to the top of the band.
+    for _, row in block.iterrows():
+        if not has_repeat_region(row):
+            continue
+        rs = float(row['repeat_start'])
+        re_ = float(row['repeat_end'])
+        parts.append(scaled_repeat_region_svg(
+            to_x(rs), to_x(re_), repeat_lane_top, repeat_lane_top + repeat_lane_h,
+            band_top, rs, re_,
+            repeat_strand=row.get('repeat_strand'), flip=flip,
+            clamp_min=left_margin, clamp_max=left_margin + track_width,
+        ))
+
+    # ---- ruler ----
+    parts.append(
+        f'<line x1="{left_margin:.1f}" y1="{axis_y:.1f}" '
+        f'x2="{left_margin + track_width:.1f}" y2="{axis_y:.1f}" '
+        f'stroke="#999" stroke-width="1"/>'
+    )
+    step = _nice_tick_step(span)
+    first_tick = math.ceil(lo / step) * step
+    tick = first_tick
+    while tick <= hi:
+        x = to_x(tick)
+        parts.append(
+            f'<line x1="{x:.1f}" y1="{axis_y:.1f}" x2="{x:.1f}" y2="{axis_y + 5:.1f}" '
+            f'stroke="#999" stroke-width="1"/>'
+        )
+        parts.append(
+            f'<text x="{x:.1f}" y="{axis_y + 17:.1f}" text-anchor="middle" fill="#777" '
+            f'font-size="{font_size - 1}">{_format_bp_tick(tick, step)}</text>'
+        )
+        tick += step
+
+    parts.append('</svg>')
+    return '\n'.join(parts)
+
+
+def render_scaled_svgs_by_block(working, color_map=None, nucleotide_col='nucleotide',
+                                 start_col='start', end_col='end', **kwargs):
+    """
+    Render one to-scale figure per block (see `build_scaled_block_svg`).
+
+    Parameters
+    ----------
+    working : pandas.DataFrame
+        The prepared table from `prepare_dataframe` (blocks are taken
+        from its 'pid_order'/'ID' columns, so block order matches
+        `compute_block_extents`).
+    color_map : dict[str, str] or None
+        Shared domain -> color mapping, so a domain is the same color
+        here, in the Graphviz figures and in the genome overview.
+    nucleotide_col, start_col, end_col : str
+        Coordinate columns, passed through.
+    **kwargs
+        Any other `build_scaled_block_svg` option.
+
+    Returns
+    -------
+    dict[str, str]
+        Block slug (see `_slug`) -> SVG markup.
+    """
+    svgs = {}
+    for _, block_df in working.groupby('pid_order', sort=True):
+        slug = _slug(block_df['ID'].iloc[0])
+        svgs[slug] = build_scaled_block_svg(
+            block_df, color_map=color_map, nucleotide_col=nucleotide_col,
+            start_col=start_col, end_col=end_col, **kwargs,
+        )
     return svgs
 
 
@@ -1637,7 +3346,7 @@ def compute_domain_stats(working, scope='all', ignore_domains=None):
         actually surrounds the queries, with the query's own domain
         removed from the count entirely.
 
-    Generic/uninformative values (`ignore_domains`, plus 'unk'/'-'/'?' and
+    Generic/uninformative values (`ignore_domains`, plus 'unk'/'Unknown'/'-'/'?' and
     anything containing "hypothetical") are dropped. For architectures a
     component is dropped from the composite; if nothing meaningful remains,
     the whole architecture is skipped.
@@ -1659,7 +3368,8 @@ def compute_domain_stats(working, scope='all', ignore_domains=None):
         'domain' and 'count', sorted by count descending. (The first is
         atomic single domains; the second is composite architectures.)
     """
-    ignore = {d.lower() for d in (ignore_domains or DEFAULT_IGNORE_DOMAINS)} | {'unk', '-', '?', ''}
+    ignore = ({d.lower() for d in (ignore_domains or DEFAULT_IGNORE_DOMAINS)}
+              | {'unk', 'unknown', '-', '?', ''})
 
     if scope == 'query' and 'is_query' in working.columns:
         subset = working[working['is_query']]
@@ -1737,7 +3447,7 @@ def build_bar_list_html(counts_df, color_map=None, marker_color='#2a6f77'):
         domain = str(row['domain'])
         count = int(row['count'])
         pct = (count / max_count * 100) if max_count else 0
-        fill = color_map.get(domain, marker_color)
+        fill = resolve_domain_color(domain, color_map, default=marker_color)
         rows.append(
             '<div class="bar-row" data-domain="' + html.escape(domain.lower()) + '" '
             'data-count="' + str(count) + '" data-name="' + html.escape(domain) + '">'
@@ -1920,10 +3630,18 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     --accent-soft: #e4f0f1;
     --selected: #fdecdc;
     --selected-line: #e07b39;
+    /* two faces for the whole page: sans for chrome/prose, mono for
+       every piece of data (ids, domains, coordinates, table cells) --
+       both injected from MONO_FONT_STACK/SANS_FONT_STACK so the HTML,
+       the SVGs and the Graphviz figures agree */
+    --font-sans: $font_sans;
+    --font-mono: $font_mono;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.45;}
+    font-family:var(--font-sans);line-height:1.45;}
+  /* form controls do not inherit the page font by default */
+  button,input,select,textarea{font-family:inherit;}
 
   /* ---- top nav ---- */
   .top-nav{
@@ -1941,7 +3659,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .top-logo-wrap svg{height:40px;width:auto;display:block;}
   .brand-name{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:-.01em;}
 
-  .top-tabs{display:flex;flex:1;gap:0;overflow-x:auto;}
+  .top-tabs{display:flex;flex:1;gap:0;}
   .top-tab{
     display:flex;align-items:center;gap:7px;padding:13px 20px;
     font-size:13px;cursor:pointer;border:none;background:none;color:var(--muted);
@@ -1976,13 +3694,66 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     position:fixed;display:none;z-index:1000;pointer-events:none;
     background:#1f2430;color:#fff;border-radius:8px;padding:10px 13px;
     font-size:12px;max-width:330px;box-shadow:0 6px 22px rgba(0,0,0,.28);
-    font-family:Consolas,"SF Mono",Menlo,monospace;line-height:1.5;
+    font-family:var(--font-mono);line-height:1.5;
   }
   .go-tooltip b{display:block;margin-bottom:3px;font-size:12.5px;}
   .go-tooltip .t-row{display:block;color:#cdd3da;}
   .go-tooltip .t-query{color:#ffd28a;font-weight:700;}
+  /* pinned (click-to-keep) card: stays put, takes the mouse so its text
+     can be selected, and grows a close button */
+  .go-tooltip.pinned{
+    pointer-events:auto;user-select:text;padding-right:26px;
+    border:1px solid #4a5468;box-shadow:0 10px 30px rgba(0,0,0,.42);
+  }
+  .go-tooltip .tip-close{
+    position:absolute;top:4px;right:7px;cursor:pointer;display:none;
+    color:#9aa4b4;font-size:15px;line-height:1;padding:2px 3px;
+  }
+  .go-tooltip.pinned .tip-close{display:block;}
+  .go-tooltip .tip-close:hover{color:#fff;}
+  /* amino-acid sequence + external-tool chips inside a protein info
+     window. A card that is merely following the mouse shows only the
+     one-line hint: it cannot be clicked (pointer-events:none) and a
+     200px-tall card chasing the cursor is unusable anyway. Clicking the
+     gene pins the card, which reveals the sequence and the chips. */
+  .go-tooltip .t-seq-slot{display:block;margin-top:7px;}
+  .go-tooltip .t-seq-hint{display:block;color:#8b94a4;font-size:10.5px;font-style:italic;}
+  .go-tooltip.pinned .t-seq-hint{display:none;}
+  .go-tooltip .t-seq-full{display:none;}
+  .go-tooltip.pinned .t-seq-full{display:block;}
+  .go-tooltip .t-seq-bar{display:flex;gap:6px;margin-bottom:5px;}
+  .go-tooltip .t-seq-copy,.go-tooltip .t-seq-dl{
+    font:inherit;font-size:11px;cursor:pointer;color:#cdd3da;background:#2b3242;
+    border:1px solid #4a5468;border-radius:5px;padding:2px 9px;white-space:nowrap;
+  }
+  .go-tooltip .t-seq-copy:hover,.go-tooltip .t-seq-dl:hover{color:#fff;border-color:#6b768c;}
+  .go-tooltip .t-seq{
+    display:block;white-space:pre;overflow:auto;
+    max-height:148px;max-width:294px;
+    font-family:var(--font-mono);font-size:10.5px;line-height:1.4;
+    color:#e6e9ee;background:#161a22;border-radius:5px;padding:6px 8px;
+    user-select:text;
+  }
+  .go-tooltip .t-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;}
+  .go-tooltip .t-tools-title{
+    color:#8b94a4;font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;
+  }
+  .go-tooltip .t-tool{
+    font-size:10.5px;text-decoration:none;white-space:nowrap;
+    color:#bcd7f5;background:#243044;border:1px solid #3c5170;
+    border-radius:11px;padding:2px 9px;
+  }
+  .go-tooltip .t-tool:hover{background:#314561;color:#fff;border-color:#5b7ba6;}
+  .go-tooltip .t-tools-note{
+    flex-basis:100%;color:#8b94a4;font-size:9.5px;font-style:italic;margin-top:1px;
+  }
+  /* chips that copy the sequence before opening the tool read
+     differently from ones that carry the query in the link itself */
+  .go-tooltip .t-tool[data-copy]::after{content:'\2398';margin-left:4px;opacity:.65;}
   .nb-gene{cursor:pointer;}
   .nb-gene:hover polygon,.nb-gene:hover ellipse{stroke-width:2.4px;}
+  .nb-repeat{cursor:pointer;}
+  .nb-repeat:hover rect,.nb-repeat:hover polygon{stroke-width:2.2px;}
 
   /* ---- genome overview ---- */
   .go-controls{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
@@ -1991,13 +3762,27 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;
   }
   .go-controls button:hover{background:var(--accent-soft);border-color:var(--accent);}
-  #go-zoom-val{font-family:Consolas,"SF Mono",Menlo,monospace;font-size:13px;min-width:38px;text-align:center;}
+  #go-zoom-val{font-family:var(--font-mono);font-size:13px;min-width:38px;text-align:center;}
   .go-hint{color:var(--muted);font-size:12px;margin-left:6px;}
-  .go-track{display:grid;grid-template-columns:150px 1fr;align-items:center;margin:14px 0;gap:12px;}
-  .go-track-label{text-align:right;font-family:Consolas,"SF Mono",Menlo,monospace;overflow:hidden;}
+  /* one contig = one group of stacked lines, each covering the same
+     number of bases; lines of a group sit tight, groups are separated */
+  .go-contig-group{margin:0 0 22px;}
+  .go-contig-group+.go-contig-group{border-top:1px solid var(--line);padding-top:16px;}
+  .go-track{display:grid;grid-template-columns:150px 1fr;align-items:center;margin:2px 0;gap:12px;}
+  .go-track-label{text-align:right;font-family:var(--font-mono);overflow:hidden;}
   .go-contig{font-size:13px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .go-len{font-size:11px;color:var(--muted);}
-  .go-viewport{overflow-x:auto;overflow-y:hidden;cursor:grab;padding:18px 0;}
+  /* continuation lines of the same contig repeat its name, muted */
+  .go-contig.cont{color:var(--muted);}
+  .go-len{font-size:11px;color:var(--muted);white-space:nowrap;}
+  /* contig total, stated once on its first line */
+  .go-total{font-size:10px;color:var(--muted);opacity:.75;white-space:nowrap;}
+  /* pans by wheel/drag (see the JS), so its scrollbar is hidden -- one
+     per line would be a stack of grey bars between the contigs */
+  .go-viewport{
+    overflow-x:auto;overflow-y:hidden;cursor:grab;padding:10px 0;
+    scrollbar-width:none;-ms-overflow-style:none;
+  }
+  .go-viewport::-webkit-scrollbar{width:0;height:0;display:none;}
   .go-viewport.grabbing{cursor:grabbing;}
   .go-inner{position:relative;height:var(--track-h,14px);}
   .go-axis{
@@ -2010,6 +3795,23 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .go-marker:hover{transform:scaleY(1.45);z-index:3;}
   .go-marker.selected{box-shadow:0 0 0 2px var(--selected-line);z-index:2;}
+  /* one shared horizontal scrollbar driving every line at once (each
+     .go-viewport hides its own). The empty spacer keeps the bar aligned
+     with the sequence lines rather than the contig-label column. */
+  .go-scrollbar-row{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:2px 0 20px;}
+  .go-scrollbar{
+    position:relative;height:12px;border-radius:6px;
+    background:var(--accent-soft);border:1px solid var(--line);
+    cursor:pointer;user-select:none;touch-action:none;
+  }
+  .go-scrollbar.disabled{opacity:.35;pointer-events:none;}
+  .go-scrollbar-thumb{
+    position:absolute;top:1px;bottom:1px;left:0;width:100%;
+    border-radius:5px;background:var(--accent);opacity:.5;
+    transition:opacity .12s;
+  }
+  .go-scrollbar:hover .go-scrollbar-thumb,
+  .go-scrollbar.grabbing .go-scrollbar-thumb{opacity:.8;}
 
   /* ---- neighborhoods: toolbar ---- */
   .nb-toolbar{
@@ -2024,6 +3826,10 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-icon-btn:hover{background:var(--accent-soft);border-color:var(--accent);}
   .nb-icon-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
+  /* `display:flex` above would otherwise beat the browser's own
+     [hidden] rule, so the FASTA buttons could not be hidden when the
+     table carries no sequences */
+  .nb-icon-btn[hidden]{display:none;}
   .nb-zoom-group{display:flex;align-items:center;gap:0;margin-left:auto;
     border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .nb-zoom-group button{
@@ -2033,13 +3839,13 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-zoom-group button:last-child{border-right:none;}
   .nb-zoom-group button:hover{background:var(--accent-soft);}
   #nb-zoom-val{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12px;
+    font-family:var(--font-mono);font-size:12px;
     min-width:44px;text-align:center;padding:0 4px;background:#fff;border-right:1px solid var(--line);
   }
 
   /* current-block breadcrumb */
   .nb-crumb{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
+    font-family:var(--font-mono);font-size:12.5px;
     color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   }
   .nb-crumb b{color:var(--ink);}
@@ -2059,6 +3865,24 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .nb-subtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
   .nb-subtab:hover{color:var(--ink);}
 
+  /* color legend, on the same line as the sub-tabs but pushed to the
+     far side; wraps onto more rows rather than pushing the tabs around */
+  .nb-legend{
+    display:flex;align-items:center;gap:6px 12px;margin-left:auto;
+    flex-wrap:wrap;justify-content:flex-end;max-width:60%;padding:0 2px 6px;
+  }
+  .nb-legend-title{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  }
+  .nb-legend-item{
+    display:inline-flex;align-items:center;gap:5px;
+    font-family:var(--font-mono);font-size:11.5px;color:var(--ink);white-space:nowrap;
+  }
+  .nb-legend-swatch{
+    width:11px;height:11px;border-radius:3px;flex-shrink:0;
+    border:1px solid rgba(31,36,48,.28);
+  }
+
   /* ONE window holds every currently-selected neighborhood -- no separate
      boxed "windows" per block, just a divider between stacked blocks */
   .nb-window{
@@ -2069,11 +3893,21 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
      so figure vs table applies to the whole merged selection at once */
   .nb-window.view-figure .nb-view-figure{display:block;}
   .nb-window.view-table  .nb-view-table{display:block;}
+  .nb-window.view-scale  .nb-view-scale{display:block;}
 
   /* one block's row inside the single merged figure stack */
   .nb-fig-block{display:none;}
   .nb-fig-block.active{display:block;}
   .nb-fig-block.active ~ .nb-fig-block.active{margin-top:22px;}
+
+  /* same, for the to-scale stack (its own class so block selection can
+     toggle both stacks without the slug list being counted twice) */
+  .nb-scale-block{display:none;}
+  .nb-scale-block.active{display:block;}
+  .nb-scale-block.active ~ .nb-scale-block.active{
+    margin-top:18px;border-top:1px solid var(--line);padding-top:14px;
+  }
+  .nb-scale-note{color:var(--muted);font-size:12px;margin:0 0 12px;}
 
   /* figure wrapper: full width, zoom stretches it (chrome lives on .nb-window now) */
   .nb-fig-scroll{overflow-x:auto;}
@@ -2107,7 +3941,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-sel-search{
     margin:12px 16px 0;padding:8px 12px;border:1px solid var(--line);
-    border-radius:7px;font-size:13px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    border-radius:7px;font-size:13px;font-family:var(--font-mono);
   }
   .nb-sel-actions{display:flex;gap:8px;padding:8px 16px;align-items:center;}
   .nb-sel-actions button{
@@ -2126,14 +3960,14 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .nb-sel-list{overflow-y:auto;padding:4px 8px 16px;}
   .nb-sel-group-title{
-    font-family:Consolas,"SF Mono",Menlo,monospace;font-size:11px;
+    font-family:var(--font-mono);font-size:11px;
     color:var(--accent);margin:12px 8px 4px;letter-spacing:.05em;
   }
   .nb-sel-count{color:var(--muted);}
   .nb-sel-item{
     display:flex;align-items:center;gap:10px;padding:8px 10px;
     border-radius:7px;cursor:pointer;font-size:13px;
-    font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-family:var(--font-mono);
   }
   .nb-sel-item:hover{background:var(--accent-soft);}
   .nb-sel-item.active{background:var(--selected);color:#7a3b12;}
@@ -2150,7 +3984,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .tbl-filter{
     flex:1 1 200px;padding:6px 10px;border:1px solid var(--line);
-    border-radius:6px;font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    border-radius:6px;font-size:12.5px;font-family:var(--font-mono);
   }
   .tbl-filter:focus{outline:2px solid var(--accent);outline-offset:1px;}
   .tbl-count{font-size:12px;color:var(--muted);white-space:nowrap;}
@@ -2164,7 +3998,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .tbl-dl-btn:hover{opacity:.88;}
   .tbl-scroll{max-height:420px;overflow:auto;}
   table{border-collapse:collapse;width:100%;
-    font-size:12.5px;font-family:Consolas,"SF Mono",Menlo,monospace;}
+    font-size:12.5px;font-family:var(--font-mono);}
   /* header row 1: column names (sticky row 0) */
   thead tr.tbl-head-labels th{
     position:sticky;top:0;z-index:3;background:var(--accent-soft);color:var(--ink);
@@ -2181,7 +4015,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   }
   .tbl-col-filter{
     width:100%;padding:3px 6px;font-size:11.5px;
-    font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-family:var(--font-mono);
     border:1px solid var(--line);border-radius:4px;background:#fff;
   }
   .tbl-col-filter:focus{outline:1px solid var(--accent);}
@@ -2220,7 +4054,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .bar-list{display:flex;flex-direction:column;gap:3px;max-height:480px;overflow-y:auto;padding-right:6px;}
   .bar-row{
     display:grid;grid-template-columns:190px 1fr 48px;align-items:center;gap:10px;
-    font-size:12px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-size:12px;font-family:var(--font-mono);
   }
   .bar-row.hidden-row{display:none;}
   .bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:#222;}
@@ -2237,7 +4071,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
     position:fixed;z-index:801;background:#fff;border:1px solid var(--line);
     border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);
     min-width:240px;max-width:300px;max-height:80vh;overflow-y:auto;
-    font-size:13px;font-family:Consolas,"SF Mono",Menlo,monospace;
+    font-size:13px;font-family:var(--font-mono);
   }
   .cfp-head{
     display:flex;align-items:center;padding:10px 14px 8px;
@@ -2249,21 +4083,21 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
   .cfp-num-ops{display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px;}
   .cfp-op-btn{
     padding:4px 9px;border:1px solid var(--line);background:#fff;
-    border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;
+    border-radius:20px;font-size:12px;cursor:pointer;
   }
   .cfp-op-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
   .cfp-op-btn:hover:not(.active){background:var(--accent-soft);}
   .cfp-num-inputs{padding:0 14px 10px;display:flex;gap:6px;align-items:center;}
   .cfp-num-inputs input{
     flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:6px;
-    font-size:13px;font-family:inherit;
+    font-size:13px;
   }
   .cfp-num-inputs input:focus{outline:1px solid var(--accent);}
   .cfp-num-inputs .cfp-between-sep{color:var(--muted);font-size:11px;}
   /* text/categorical mode */
   .cfp-text-search{
     margin:10px 14px 6px;padding:6px 10px;border:1px solid var(--line);
-    border-radius:6px;font-size:12.5px;font-family:inherit;display:block;width:calc(100% - 28px);
+    border-radius:6px;font-size:12.5px;display:block;width:calc(100% - 28px);
   }
   .cfp-text-search:focus{outline:1px solid var(--accent);}
   .cfp-val-actions{display:flex;gap:6px;padding:0 14px 6px;}
@@ -2311,6 +4145,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
 
   @media(max-width:820px){
     .go-track{grid-template-columns:100px 1fr;}
+    .go-scrollbar-row{grid-template-columns:100px 1fr;}
     .nb-zoom-group{margin-left:0;}
     .top-meta{display:none;}
   }
@@ -2339,7 +4174,7 @@ HTML_REPORT_TEMPLATE = Template(r"""<!DOCTYPE html>
 <div class="page-section active" data-page="overview">
 <div class="sec-inner">
   <h1 class="sec-title">$title</h1>
-  <p class="sec-desc">Genome-wide position of each neighborhood. One track per contig, scaled to its own length. Hover a marker for details; click to open that neighborhood.</p>
+  <p class="sec-desc">Genome-wide position of each neighborhood. Every contig is wrapped over stacked lines of equal length, so distances are comparable everywhere. Hover a marker for details; click to open that neighborhood.</p>
   <div class="panel">
 $genome_overview
   </div>
@@ -2350,12 +4185,23 @@ $genome_overview
 <div class="page-section" data-page="neighborhoods">
 <div class="sec-inner">
   <h1 class="sec-title">Neighborhoods</h1>
-  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>Table</b> toggle switches every visible block at once. Hover any gene arrow for its info window.</p>
+  <p class="sec-desc">Use the <b>&#9776; Select</b> button to choose which neighborhoods are in view -- pick as many as you like, they all show together in one window below. The <b>Figure</b> / <b>To scale</b> / <b>Table</b> toggle switches every visible block at once -- <b>Figure</b> spaces genes evenly so the domain labels read across rows, <b>To scale</b> places them at their real genomic coordinates. Hover any gene arrow for its info window, or <b>click</b> it to pin the window open -- a pinned window shows the protein's sequence, with buttons to copy or download it and chips that send it to <b>BLASTp</b>, <b>Foldseek</b>, <b>SeqHub</b>, <b>InterPro</b> and <b>HHpred</b>. BLASTp opens with the sequence already filled in; the rest have no way to be pre-filled from a link, so those chips copy the sequence and open the tool for you to paste it (they are marked &#9112;). <b>Copy FASTA</b> / <b>FASTA</b> above do the same for every protein in the neighborhoods you have selected.</p>
 
   <div class="nb-toolbar">
     <button type="button" class="nb-icon-btn" id="nb-sel-open">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/><line x1="5" y1="5" x2="19" y2="5"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="19" x2="19" y2="19"/></svg>
       Select
+    </button>
+
+    <button type="button" class="nb-icon-btn nb-seq-btn" id="nb-copy-fasta" hidden
+            title="Copy every protein of the selected neighborhoods, as one FASTA">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      Copy FASTA
+    </button>
+    <button type="button" class="nb-icon-btn nb-seq-btn" id="nb-dl-fasta" hidden
+            title="Download every protein of the selected neighborhoods as a .faa file">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/></svg>
+      FASTA
     </button>
 
     <div class="nb-zoom-group">
@@ -2380,12 +4226,18 @@ $genome_overview
 
   <div class="nb-view-tabs" id="nb-view-tabs">
     <button type="button" class="nb-subtab active" data-view="nb-view-figure">&#9654; Figure</button>
+    <button type="button" class="nb-subtab" data-view="nb-view-scale">&#8596; To scale</button>
     <button type="button" class="nb-subtab" data-view="nb-view-table">&#9776; Table</button>
+$nb_legend
   </div>
 
   <div class="nb-window view-figure" id="nb-window">
     <div class="nb-view nb-view-figure">
 $nb_fig_stack
+    </div>
+    <div class="nb-view nb-view-scale">
+      <p class="nb-scale-note">Genes drawn to <b>biological scale</b>: arrow width is the real gene length and the gaps are the real intergenic distances, along a base-pair ruler. Blocks whose query sits on the minus strand are shown reverse-complemented, so the ruler counts down.</p>
+$nb_scale_stack
     </div>
     <div class="nb-view nb-view-table">
 $nb_table_card
@@ -2478,12 +4330,94 @@ $stats_selector
 
 <footer>Made by <b>S(H)ARP</b> &mdash; Biosynthetic Gene Cluster Analysis</footer>
 
+<!-- One copy of every protein sequence, keyed by accession, plus the
+     accessions of each block; and the external services a protein can
+     be sent to. Both are read once by the script below. -->
+<script type="application/json" id="nb-seq-data">$nb_seq_data</script>
+<script type="application/json" id="nb-tools-data">$nb_tools_data</script>
+
 <script>
 (function () {
   // ── helpers ──────────────────────────────────────────────────────────
   function qs(sel, ctx) { return (ctx || document).querySelector(sel); }
   function qsa(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function readJSON(sel, fallback) {
+    var el = qs(sel);
+    if (!el) return fallback;
+    try { return JSON.parse(el.textContent) || fallback; } catch (err) { return fallback; }
+  }
+  function saveText(text, filename, mime) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' }));
+    a.download = filename;
+    a.click();
+  }
+  // Clipboard API where it exists (it needs a secure context, which a
+  // report opened over file:// is not), a hidden textarea everywhere else.
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done || function () {}, function () {});
+      return;
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (err) {}
+    document.body.removeChild(ta);
+    if (done) done();
+  }
+  function flash(btn, msg) {
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = msg;
+    setTimeout(function () { btn.innerHTML = btn.dataset.label; }, 1400);
+  }
+
+  // ── protein sequences + the services they can be sent to ─────────────
+  var NBSEQ   = readJSON('#nb-seq-data', { seqs: {}, blocks: {} });
+  var NBTOOLS = readJSON('#nb-tools-data', []);
+  var HAS_SEQ = Object.keys(NBSEQ.seqs || {}).length > 0;
+
+  function fastaFor(pid) {
+    var s = (NBSEQ.seqs || {})[pid];
+    if (!s) return '';
+    var out = '>' + pid;
+    for (var i = 0; i < s.length; i += 60) out += '\n' + s.slice(i, i + 60);
+    return out;
+  }
+  function fastaForPids(pids) {
+    var recs = pids.map(fastaFor).filter(Boolean);
+    return recs.length ? recs.join('\n') + '\n' : '';
+  }
+  // '{seq}' / '{fasta}' / '{pid}' are filled in here rather than when
+  // the page is written, so one tool list serves every protein.
+  function toolHref(spec, pid) {
+    var seq = (NBSEQ.seqs || {})[pid] || '';
+    return String(spec.url)
+      .replace('{seq}', encodeURIComponent(seq))
+      .replace('{fasta}', encodeURIComponent(fastaFor(pid)))
+      .replace('{pid}', encodeURIComponent(pid));
+  }
+  // A link that carries the sequence works for an ordinary protein and
+  // cannot work for an NRPS/PKS megasynthase: browsers and servers cut
+  // a GET off somewhere above 8 KB, and an over-long URL fails silently
+  // or lands on an error page. Past a safe budget such a chip drops the
+  // query parameter and becomes a copy-then-open one instead, so the
+  // sequence still gets there -- by clipboard rather than by URL.
+  var URL_BUDGET = 6000;
+  function toolChipFor(spec, pid) {
+    var url = String(spec.url);
+    if (spec.copy) return { href: toolHref(spec, pid), copy: true };
+    var href = toolHref(spec, pid);
+    var carriesSeq = url.indexOf('{seq}') >= 0 || url.indexOf('{fasta}') >= 0;
+    if (!carriesSeq || href.length <= URL_BUDGET) return { href: href, copy: false };
+    return { href: url.replace(/[?&][^?&=]*=\{(?:seq|fasta)\}/g, ''), copy: true };
+  }
 
   // ── top-level page tabs ───────────────────────────────────────────────
   var pageTabs = qsa('.top-tab');
@@ -2499,14 +4433,59 @@ $stats_selector
   var goTracks = qsa('.go-track');
   var tip = qs('#go-tooltip');
   var goZoomVal = qs('#go-zoom-val');
+  var goScrollbar = qs('#go-scrollbar');
+  var goThumb = qs('#go-scrollbar-thumb');
+  var goSyncing = false;   // guards the viewport <-> viewport <-> bar echo
+
+  // Every line shares one bp-per-pixel scale, so the same scrollLeft on
+  // each shows the same genomic window. `_base` is a viewport's unzoomed
+  // width; `_base * goZoom` is the width of a full line, and the pannable
+  // range is that minus one viewport.
+  function goMetrics() {
+    var ref = goTracks[0];
+    var view = ref ? (ref._base || ref.querySelector('.go-viewport').clientWidth || 600) : 600;
+    var content = view * goZoom;
+    return { view: view, content: content, max: Math.max(0, content - view) };
+  }
+  function goSyncScrollbar(sl) {
+    if (!goScrollbar || !goThumb || !goTracks.length) return;
+    var m = goMetrics();
+    if (sl == null) {
+      var vp0 = goTracks[0].querySelector('.go-viewport');
+      sl = vp0 ? vp0.scrollLeft : 0;
+    }
+    if (m.max <= 1) {
+      goScrollbar.classList.add('disabled');
+      goThumb.style.left = '0px'; goThumb.style.width = '100%';
+      return;
+    }
+    goScrollbar.classList.remove('disabled');
+    var barW = goScrollbar.clientWidth;
+    var thumbW = Math.max(28, Math.min(barW, barW * m.view / m.content));
+    var left = (sl / m.max) * (barW - thumbW);
+    goThumb.style.width = thumbW + 'px';
+    goThumb.style.left = Math.max(0, Math.min(barW - thumbW, left)) + 'px';
+  }
+  function goScrollAll(sl) {
+    var m = goMetrics();
+    sl = Math.max(0, Math.min(m.max, sl));
+    goSyncing = true;
+    goTracks.forEach(function (tr) { tr.querySelector('.go-viewport').scrollLeft = sl; });
+    goSyncing = false;
+    goSyncScrollbar(sl);
+  }
 
   function goLayout() {
     goTracks.forEach(function (tr) {
       var vp = tr.querySelector('.go-viewport');
       var inner = tr.querySelector('.go-inner');
       var base = tr._base || vp.clientWidth || 600;
+      // `base * goZoom` is the width of a FULL line (one segment); a
+      // short last segment draws a stub of it, but at the same scale,
+      // so markers are placed against the full width either way.
       var w = base * goZoom;
-      inner.style.width = w + 'px';
+      var frac = parseFloat(inner.dataset.frac || '1') || 1;
+      inner.style.width = (w * frac) + 'px';
       qsa('.go-marker', inner).forEach(function (m) {
         var left = parseFloat(m.dataset.fs) * w;
         var ww = Math.max(5, (parseFloat(m.dataset.fe) - parseFloat(m.dataset.fs)) * w);
@@ -2514,6 +4493,7 @@ $stats_selector
       });
     });
     if (goZoomVal) goZoomVal.textContent = (goZoom < 10 ? goZoom.toFixed(1) : Math.round(goZoom)) + 'x';
+    goSyncScrollbar();
   }
   function goSetZoom(z) { goZoom = Math.min(500, Math.max(1, z)); goLayout(); }
   function initBases() { goTracks.forEach(function (tr) { tr._base = tr.querySelector('.go-viewport').clientWidth || 600; }); }
@@ -2538,36 +4518,160 @@ $stats_selector
     on(vp, 'mousedown', function(e){ if(e.target.classList.contains('go-marker')) return; drag=true; sx=e.clientX; ss=vp.scrollLeft; vp.classList.add('grabbing'); });
     on(window, 'mousemove', function(e){ if(drag) vp.scrollLeft=ss-(e.clientX-sx); });
     on(window, 'mouseup', function(){ drag=false; vp.classList.remove('grabbing'); });
+    // any pan (wheel, drag, ctrl+wheel re-centre) on one line mirrors to
+    // every other line and moves the shared bar with it
+    on(vp, 'scroll', function () {
+      if (goSyncing) return;
+      goSyncing = true;
+      var sl = vp.scrollLeft;
+      goTracks.forEach(function (o) {
+        var ovp = o.querySelector('.go-viewport');
+        if (ovp !== vp) ovp.scrollLeft = sl;
+      });
+      goSyncing = false;
+      goSyncScrollbar(sl);
+    });
   });
 
-  // ── shared tooltip ────────────────────────────────────────────────────
+  // ── genome overview: the one shared scrollbar ─────────────────────────
+  if (goScrollbar && goThumb) {
+    var barDrag = false, barThumbW = 0, barGrabDX = 0;
+    var barScrollFromClientX = function (clientX) {
+      var rect = goScrollbar.getBoundingClientRect();
+      var travel = rect.width - barThumbW;
+      var x = clientX - rect.left - barGrabDX;
+      var frac = travel > 0 ? Math.max(0, Math.min(1, x / travel)) : 0;
+      goScrollAll(frac * goMetrics().max);
+    };
+    on(goThumb, 'mousedown', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      barDrag = true;
+      barThumbW = goThumb.offsetWidth;
+      barGrabDX = e.clientX - goThumb.getBoundingClientRect().left;
+      goScrollbar.classList.add('grabbing');
+    });
+    on(goScrollbar, 'mousedown', function (e) {
+      if (e.target === goThumb) return;          // a click on the trough jumps there
+      barThumbW = goThumb.offsetWidth;
+      barGrabDX = barThumbW / 2;
+      barScrollFromClientX(e.clientX);
+    });
+    on(window, 'mousemove', function (e) { if (barDrag) barScrollFromClientX(e.clientX); });
+    on(window, 'mouseup', function () {
+      if (!barDrag) return;
+      barDrag = false; goScrollbar.classList.remove('grabbing');
+    });
+  }
+
+  // ── shared tooltip ─────────────────────────────────────
+  // One card, two modes: it follows the mouse while hovering, and a
+  // click *pins* it -- frozen where it was opened and ignoring every
+  // hover -- so its text can be read and selected without keeping the
+  // pointer on the gene. A pinned card closes on its ×, on a click
+  // anywhere outside it, or on Escape.
+  var tipPinned = false;
   function moveTip(e) {
     var x=e.clientX+14, y=e.clientY+14, r=tip.getBoundingClientRect();
     if (x+r.width>window.innerWidth)  x=e.clientX-r.width-14;
     if (y+r.height>window.innerHeight) y=e.clientY-r.height-14;
     tip.style.left=x+'px'; tip.style.top=y+'px';
   }
-  function attachTip(el) {
-    on(el, 'mouseenter', function(e){ tip.innerHTML=el.dataset.tip; tip.style.display='block'; moveTip(e); });
-    on(el, 'mousemove',  moveTip);
-    on(el, 'mouseleave', function(){ tip.style.display='none'; });
+  // Fill the empty .t-seq-slot a protein tooltip carries (see
+  // build_gene_tooltip_html) with the FASTA record, its copy/download
+  // buttons and the external-tool chips. Done here rather than in the
+  // embedded markup so each sequence lives in the page exactly once.
+  function hydrateTip(root) {
+    qsa('.t-seq-slot', root).forEach(function (slot) {
+      var pid = slot.dataset.pid;
+      if (!pid || !(NBSEQ.seqs || {})[pid]) return;
+      var anyCopy = false;
+      var chips = NBTOOLS.map(function (t) {
+        var chip = toolChipFor(t, pid);
+        // Say plainly which of the two a chip is. A service that cannot
+        // be pre-filled from a link still needs a Ctrl+V at the other
+        // end, and a chip that implied otherwise would just look broken
+        // when the tool opened with an empty box.
+        var hint = chip.copy
+          ? ' — copies the sequence, opens the tool, then paste it with Ctrl+V'
+            + ' (this service cannot be pre-filled from a link)'
+          : '';
+        if (chip.copy) anyCopy = true;
+        return '<a class="t-tool" target="_blank" rel="noopener noreferrer"'
+             + ' href="' + esc(chip.href) + '"'
+             + (chip.copy ? ' data-copy="' + esc(pid) + '"' : '')
+             + ' title="' + esc((t.title || t.name) + hint) + '">'
+             + esc(t.name) + '</a>';
+      }).join('');
+      if (anyCopy) chips += '<span class="t-tools-note">⎘ = copied, paste at the other end</span>';
+      slot.innerHTML =
+        '<span class="t-seq-hint">click the gene to pin this window &mdash; sequence and tools</span>'
+        + '<span class="t-seq-full">'
+        +   '<span class="t-seq-bar">'
+        +     '<button type="button" class="t-seq-copy" data-pid="' + esc(pid) + '">&#128203;&nbsp;Copy FASTA</button>'
+        +     '<button type="button" class="t-seq-dl" data-pid="' + esc(pid) + '">&#8681;&nbsp;.faa</button>'
+        +   '</span>'
+        +   '<code class="t-seq">' + esc(fastaFor(pid)) + '</code>'
+        +   (chips ? '<span class="t-tools"><span class="t-tools-title">send to</span>' + chips + '</span>' : '')
+        + '</span>';
+    });
   }
+  function showTip(content, e) {
+    tip.innerHTML = content + '<span class="tip-close" title="Close">&times;</span>';
+    hydrateTip(tip);
+    tip.style.display = 'block';
+    moveTip(e);
+  }
+  function hideTip()  { tip.style.display='none'; }
+  function unpinTip() { tipPinned=false; tip.classList.remove('pinned'); hideTip(); }
+  function pinTip(el, e) {
+    tipPinned = false;             // let showTip/moveTip place the fresh card
+    showTip(el.dataset.tip, e);
+    tipPinned = true;
+    tip.classList.add('pinned');
+    moveTip(e);                    // re-place it: pinning just revealed the sequence
+  }
+  function attachTip(el) {
+    on(el, 'mouseenter', function(e){ if (!tipPinned) showTip(el.dataset.tip, e); });
+    on(el, 'mousemove',  function(e){ if (!tipPinned) moveTip(e); });
+    on(el, 'mouseleave', function(){ if (!tipPinned) hideTip(); });
+  }
+  on(tip, 'click', function (e) {
+    if (e.target.classList.contains('tip-close')) { unpinTip(); return; }
+    e.stopPropagation();           // clicks inside a pinned card keep it open
+    var el = e.target;
+    if (el.classList.contains('t-seq-copy')) {
+      copyText(fastaFor(el.dataset.pid), function () {
+        flash(el, '&#10003;&nbsp;Copied');
+      });
+      return;
+    }
+    if (el.classList.contains('t-seq-dl')) {
+      saveText(fastaFor(el.dataset.pid), el.dataset.pid + '.faa', 'text/plain');
+      return;
+    }
+    // A chip for a service with no URL query API: put the FASTA on the
+    // clipboard on the way out, so the tool's paste box is one Ctrl-V
+    // away. The click is NOT cancelled -- the anchor still opens.
+    var chip = el.closest ? el.closest('.t-tool[data-copy]') : null;
+    if (chip) copyText(fastaFor(chip.dataset.copy));
+  });
+  on(document, 'click', function () { if (tipPinned) unpinTip(); });
   var goMarkers = qsa('.go-marker');
-  goMarkers.forEach(function(m){ attachTip(m); on(m,'click',function(){ openNeighborhood(m.dataset.block); }); });
-  // ── per-protein tooltip (same hover card as the genome overview) ────────────
-  // Hover  → show the go-tooltip following the mouse (identical to genome overview).
-  // Click  → immediately hide the tooltip.
-  qsa('.nb-gene').forEach(function (el) {
+  goMarkers.forEach(function(m){ attachTip(m); on(m,'click',function(){ unpinTip(); openNeighborhood(m.dataset.block); }); });
+  // ── per-protein / regulatory-region info window (same card as the genome overview) ──
+  // Hover → the card follows the mouse; click → it stays put until closed.
+  qsa('.nb-gene, .nb-repeat').forEach(function (el) {
     attachTip(el);
     on(el, 'click', function (e) {
-      e.stopPropagation();
-      tip.style.display = 'none';
+      e.stopPropagation();         // don't let the document handler unpin it
+      pinTip(el, e);
     });
   });
 
   // ── neighborhood selection (single merged figure + single merged table) ──
-  var figBlocks = qsa('.nb-fig-block');
-  var selItems  = qsa('.nb-sel-item');
+  var figBlocks   = qsa('.nb-fig-block');
+  var scaleBlocks = qsa('.nb-scale-block');
+  var selItems    = qsa('.nb-sel-item');
   var allSlugs  = figBlocks.map(function(f){ return f.dataset.block; });
 
   // Which slugs are currently shown (set by applySelection)
@@ -2577,7 +4681,7 @@ $stats_selector
   // window at once via a class on .nb-window.
   var nbWindowEl = qs('#nb-window');
   function setNbView(name) {
-    if (nbWindowEl) nbWindowEl.className = 'nb-window ' + (name === 'nb-view-table' ? 'view-table' : 'view-figure');
+    if (nbWindowEl) nbWindowEl.className = 'nb-window ' + name.replace('nb-view-', 'view-');
     qsa('#nb-view-tabs .nb-subtab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === name); });
   }
   qsa('#nb-view-tabs .nb-subtab').forEach(function (t) {
@@ -2597,6 +4701,7 @@ $stats_selector
     activeSet = {};
     slugs.forEach(function(s){ activeSet[s]=true; });
     figBlocks.forEach(function(f){ f.classList.toggle('active', !!activeSet[f.dataset.block]); });
+    scaleBlocks.forEach(function(f){ f.classList.toggle('active', !!activeSet[f.dataset.block]); });
     selItems.forEach(function(i){
       i.classList.toggle('active', !!activeSet[i.dataset.block]);
       var cb = i.querySelector('input[type=checkbox]');
@@ -2613,6 +4718,33 @@ $stats_selector
     applySelection(slug ? [slug] : []);
   }
   window._selectBlock = selectBlock;
+
+  // ── FASTA for whatever is selected ───────────────────────────────────
+  // Reads the same index the info windows do, in the blocks' own order,
+  // and dedupes: one protein shared by two overlapping neighborhoods is
+  // still written once.
+  function selectedPids() {
+    var out = [], seen = {};
+    Object.keys(activeSet).forEach(function (slug) {
+      ((NBSEQ.blocks || {})[slug] || []).forEach(function (pid) {
+        if (!seen[pid]) { seen[pid] = 1; out.push(pid); }
+      });
+    });
+    return out;
+  }
+  qsa('.nb-seq-btn').forEach(function (b) { b.hidden = !HAS_SEQ; });
+  on(qs('#nb-copy-fasta'), 'click', function () {
+    var pids = selectedPids(), btn = qs('#nb-copy-fasta');
+    if (!pids.length) { flash(btn, 'no sequences here'); return; }
+    copyText(fastaForPids(pids), function () {
+      flash(btn, '&#10003;&nbsp;' + pids.length + ' copied');
+    });
+  });
+  on(qs('#nb-dl-fasta'), 'click', function () {
+    var pids = selectedPids(), btn = qs('#nb-dl-fasta');
+    if (!pids.length) { flash(btn, 'no sequences here'); return; }
+    saveText(fastaForPids(pids), 'neighborhoods.faa', 'text/plain');
+  });
 
   function openNeighborhood(slug) {
     showPage('neighborhoods');
@@ -2654,7 +4786,7 @@ $stats_selector
     return fig._natW;
   }
   function nbLayout() {
-    qsa('.nb-fig-block .nb-fig').forEach(function(f){
+    qsa('.nb-fig').forEach(function(f){
       var w = nbNaturalWidth(f) * nbZoom;
       f.style.width = Math.max(60, Math.round(w)) + 'px';
     });
@@ -2713,7 +4845,7 @@ $stats_selector
     closeSel();
   });
   on(window, 'keydown', function(e){
-    if(e.key==='Escape') { closeSel(); closeStatsSel(); tip.style.display='none'; }
+    if(e.key==='Escape') { closeSel(); closeStatsSel(); unpinTip(); }
     if(e.key==='ArrowRight' && !e.target.matches('input,textarea')) navigate(1);
     if(e.key==='ArrowLeft'  && !e.target.matches('input,textarea')) navigate(-1);
   });
@@ -3197,7 +5329,7 @@ $stats_selector
 
 
 def render_neighborhood_table_card(df, group_col='block_id', filename='neighborhoods.csv',
-                                    max_rows=None):
+                                    max_rows=None, drop_cols=()):
     """
     Build ONE sortable/filterable/downloadable table-card containing every
     row of `df`, with each `<tr>` tagged `data-block="<slug>"` (see
@@ -3217,6 +5349,12 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
         Suggested name for downloads.
     max_rows : int or None
         Optional row cap. `None` (the default) embeds every row.
+    drop_cols : sequence[str]
+        Columns to leave out of the table (missing ones are ignored).
+        The report uses it for the sequence column: a 300-character
+        cell in every row makes the table unreadable and its CSV export
+        enormous, and the sequences are already one click away in each
+        protein's info window and in the FASTA export.
 
     Returns
     -------
@@ -3225,7 +5363,11 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
         can target it directly.
     """
     shown = df if max_rows is None else df.head(max_rows)
+    # Slugs first: `group_col` is safe from `drop_cols` in practice, but
+    # this way the row tags never depend on that.
     slugs = shown[group_col].map(_slug) if group_col in shown.columns else [''] * len(shown)
+    if drop_cols:
+        shown = shown.drop(columns=[c for c in drop_cols if c in shown.columns])
 
     header_cells = ''.join(f'<th>{html.escape(str(c))}</th>' for c in shown.columns)
     body_rows = []
@@ -3258,7 +5400,8 @@ def render_neighborhood_table_card(df, group_col='block_id', filename='neighborh
     )
 
 
-def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all'):
+def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all',
+                               scale_svgs=None):
     """
     Build the neighborhoods section's inner fragments for the pop-up
     (icon) multi-select model.
@@ -3286,19 +5429,27 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
     default_view : str
         Which blocks are active on load: 'all' (every block) or 'first'
         (just the first block).
+    scale_svgs : dict[str, str] or None
+        Slug -> to-scale SVG markup (see `render_scaled_svgs_by_block`),
+        for the window's "To scale" sub-view. None leaves that stack
+        empty.
 
     Returns
     -------
-    (str, str)
-        (fig_stack_html, selector_items_html).
+    (str, str, str)
+        (fig_stack_html, scale_stack_html, selector_items_html).
     """
     if extents.empty:
-        return '<div class="nb-empty">No blocks to show.</div>', ''
+        empty = '<div class="nb-empty">No blocks to show.</div>'
+        return empty, empty, ''
+
+    scale_svgs = scale_svgs or {}
 
     nucleotides = list(dict.fromkeys(extents['nucleotide']))
     first_slug = _slug(extents.iloc[0]['ID'])
 
     fig_blocks = []
+    scale_blocks = []
     selector_items = []
 
     for nucleotide in nucleotides:
@@ -3316,6 +5467,10 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
                 f'<div class="nb-fig-block{active}" data-block="{slug}">'
                 f'<div class="nb-fig">{block_svgs.get(slug, "")}</div></div>'
             )
+            scale_blocks.append(
+                f'<div class="nb-scale-block{active}" data-block="{slug}">'
+                f'<div class="nb-fig">{scale_svgs.get(slug, "")}</div></div>'
+            )
             selector_items.append(
                 f'<div class="nb-sel-item" data-block="{slug}" role="button" tabindex="0" '
                 f'title="{html.escape(str(block["ID"]))}">'
@@ -3327,7 +5482,10 @@ def build_neighborhood_panels(extents, block_svgs, table_card, default_view='all
     fig_stack = (
         f'<div class="nb-fig-scroll"><div id="nb-fig-stack">{"".join(fig_blocks)}</div></div>'
     )
-    return fig_stack, ''.join(selector_items)
+    scale_stack = (
+        f'<div class="nb-fig-scroll"><div id="nb-scale-stack">{"".join(scale_blocks)}</div></div>'
+    )
+    return fig_stack, scale_stack, ''.join(selector_items)
 
 
 def read_svg_logo(path):
@@ -3351,24 +5509,59 @@ def read_svg_logo(path):
         `build_html_report`.
     """
     import re as _re
-    svg = open(path).read()
+    svg = open(path, encoding='utf-8').read()
     svg = _re.sub(r'<\?xml[^?]*\?>\s*', '', svg)
     svg = _re.sub(r'\s+width="[^"]*"', '', svg, count=1)
     svg = _re.sub(r'\s+height="[^"]*"', '', svg, count=1)
     return svg.strip()
 
 
+def resolve_logo(value):
+    """
+    Turn a `header_logo`/`footer_logo` argument into inline SVG markup.
+
+    Accepts either ready-to-embed SVG markup (returned unchanged) or the
+    path of an SVG file (`~` expanded), which is read through
+    `read_svg_logo`. A path that does not exist gives an empty string,
+    so a report still builds on a machine without the branding file.
+
+    Parameters
+    ----------
+    value : str or None
+        SVG markup, a path to an SVG file, or None/'' for "no logo".
+
+    Returns
+    -------
+    str
+        SVG markup, or '' when there is nothing to embed.
+    """
+    if not value:
+        return ''
+    if value.lstrip().startswith('<'):
+        return value
+    path = os.path.expanduser(value)
+    if not os.path.exists(path):
+        return ''
+    return read_svg_logo(path)
+
+
 def build_html_report(df, output_file='operon_report.html', title='Gene Neighborhood Report',
                        group_col='block_id', org_col='organism', label_col='pfam',
                        rename_map=None, custom_colors=None, max_colors=5, ignore_domains=None,
+                       color_categories=DEFAULT_DOMAIN_CATEGORIES,
                        nucleotide_col='nucleotide', start_col='start', end_col='end',
-                       length_col='nlen', operon_kwargs=None, max_table_rows=None,
+                       length_col='nlen', seq_col='sequence',
+                       normalize_orientation=False,
+                       external_tools=DEFAULT_EXTERNAL_TOOLS, table_include_seq=False,
+                       operon_kwargs=None, max_table_rows=None,
                        work_dir=None, default_view='all',
+                       overview_segment_length=DEFAULT_SEGMENT_LENGTH,
                        software_name='S(H)ARP',
-                       header_logo=SHARP_HEADER_LOGO, footer_logo=None):
+                       header_logo=SHARP_HEADER_LOGO_PATH, footer_logo=None):
     """
     Build one self-contained, interactive HTML page for a single input
-    table: a zoomable genome-wide overview with hover tooltips, a
+    table: a zoomable genome-wide overview with hover tooltips (each
+    contig wrapped over stacked lines of equal length), a
     multi-select neighborhoods section, and a statistics section.
 
     Neighborhoods section behavior:
@@ -3386,12 +5579,27 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         with the number of neighbors in it; the zoom controls stretch it;
       * every protein has a hover info window (id, coordinates, strand,
         length, product; the query protein is flagged as the query in
-        place of a domain line).
+        place of a domain line). When `df` carries a `seq_col` column,
+        pinning that window also shows the protein's FASTA record with
+        copy/download buttons and a row of chips that send it to
+        BLASTp, Foldseek, SeqHub, InterPro, HHpred and the rest of
+        `external_tools` -- pre-filled where the service supports it,
+        copied to the clipboard for pasting where it does not;
+      * the toolbar can copy or download every protein of the selected
+        neighborhoods as a single FASTA.
 
     A single shared domain -> color map is computed once (from the whole
     table, honoring `rename_map`/`custom_colors`/`max_colors`/
     `ignore_domains`) and reused for the genome overview and every
     per-block figure, so a given domain is the same color everywhere.
+    Passing `custom_colors` makes that dictionary the *only* color
+    scheme -- no automatic palette is added (see `build_color_map`).
+    A key naming a single domain paints every gene whose architecture
+    contains it, and a dictionary carrying an 'Other' entry paints every
+    remaining gene with it rather than leaving it white (see
+    `resolve_domain_color`). The colors in use are listed as a legend
+    beside the neighborhoods Figure/To scale/Table sub-tabs, grouped by
+    color and named through `color_categories`.
 
     Parameters
     ----------
@@ -3405,9 +5613,50 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     rename_map, custom_colors, max_colors, ignore_domains :
         Color/label controls, identical in meaning to
         `neighborhood_figure`; applied once, globally.
+    color_categories : dict[str, str] or None
+        {category name: color} used to name and order the legend rows --
+        every domain sharing a category's color is listed under that one
+        name (see `build_color_legend_html`). Defaults to
+        `DEFAULT_DOMAIN_CATEGORIES`, which is the palette
+        `custom_colors` is normally built from; pass None to name each
+        legend row by its domains instead. This never changes what a
+        gene is painted, only how the legend reads.
     nucleotide_col, start_col, end_col, length_col : str
         Genomic-coordinate columns for the overview (see
         `compute_block_extents`).
+    normalize_orientation : bool, default False
+        Whether to mirror a block whose reference query sits on the
+        minus strand, so every query reads left-to-right. Off by
+        default: the figures show each neighborhood in its real genomic
+        orientation, and the to-scale ruler counts up rather than down.
+        Set True to line every query up in the same direction, at the
+        cost of some blocks being drawn reverse-complemented (they are
+        labelled as such). Applies to the Figure and To scale views
+        alike. Passing it inside `operon_kwargs` still works and takes
+        precedence.
+    seq_col : str, default 'sequence'
+        Column holding each protein's amino-acid sequence. When `df`
+        has it, pinning a protein's info window (click its gene) shows
+        the FASTA record with "Copy FASTA" / ".faa" buttons and a row
+        of chips that send the protein to an external service; the
+        neighborhoods toolbar also grows "Copy FASTA" / "FASTA"
+        buttons covering every protein of the selected neighborhoods.
+        Without the column none of that appears. The sequence is never
+        fetched -- it must already be a column of `df`.
+    external_tools : list[dict] or None, default `DEFAULT_EXTERNAL_TOOLS`
+        The services offered as chips in each protein's info window --
+        BLASTp, Foldseek, SeqHub, InterPro and HHpred by default. See
+        `DEFAULT_EXTERNAL_TOOLS` for the shape of an entry and for which
+        services can be pre-filled from a link (only BLASTp) versus
+        which can only be handed the sequence through the clipboard.
+        Pass `[]` (or None) to leave the chips out. Chips only appear on
+        proteins that have a sequence.
+    table_include_seq : bool, default False
+        Whether to keep `seq_col` as a column of the merged
+        neighborhoods table. It is dropped by default: a 300-character
+        cell in every row makes the table unreadable and bloats its CSV
+        export, and the sequences are already available through the
+        info windows and the FASTA export.
     operon_kwargs : dict or None
         Extra per-figure options forwarded to `neighborhood_figure` for
         each block (e.g. `collapse_opposite_strand=True`, `font_size`,
@@ -3423,16 +5672,22 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     default_view : str, default 'all'
         Which neighborhoods are selected on load: 'all' (every block) or
         'first' (just the first one).
+    overview_segment_length : float or None, default 1 Mb
+        Bases per line in the genome overview: each contig is wrapped
+        over as many lines of this size as it needs, which keeps the
+        same bp-per-pixel scale on every line of every contig. Pass
+        None for one line per contig, scaled to its own length
+        (see `contig_segments`).
     software_name : str, default 'S(H)ARP'
         Name shown in the report footer ("Made by ...").
     header_logo : str or None
-        SVG string (already prepared for inline embedding) to show in the
-        top-nav brand slot. Defaults to `SHARP_HEADER_LOGO` (bundled).
-        Use `read_svg_logo(path)` to load a custom SVG from disk, or
-        pass `None` to leave the slot empty.
+        Logo for the top-nav brand slot: either the path of an SVG file
+        (`~` expanded) or ready-to-embed SVG markup -- see
+        `resolve_logo`. Defaults to `SHARP_HEADER_LOGO_PATH`; a path
+        that does not exist, or `None`, leaves the slot empty.
     footer_logo : str or None
-        SVG string for the footer logo. Defaults to None (no footer logo).
-        Same conventions as `header_logo`.
+        Logo for the footer. Defaults to None (no footer logo). Same
+        conventions as `header_logo`.
 
     Returns
     -------
@@ -3451,7 +5706,17 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         end_col=end_col, length_col=length_col,
     )
 
-    genome_overview = build_genome_overview_interactive_html(extents, color_map=color_map)
+    genome_overview = build_genome_overview_interactive_html(
+        extents, color_map=color_map, segment_length=overview_segment_length,
+    )
+
+    # The heptarepeat marker is drawn in both neighborhood views but is
+    # not a gene, so it is absent from `color_map` and has to be told to
+    # the legend -- and only when this table actually has repeat spans.
+    has_repeat = bool(
+        not working.empty
+        and working.apply(has_repeat_region, axis=1).any()
+    )
 
     own_tmp = work_dir is None
     tmp_dir = work_dir or tempfile.mkdtemp(prefix='operon_report_')
@@ -3463,7 +5728,11 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         per_block_operon_kwargs = dict(operon_kwargs)
         per_block_operon_kwargs.update(
             org_col=org_col, label_col=label_col, rename_map=rename_map,
+            seq_col=seq_col,
         )
+        # `operon_kwargs` is the older way in and still wins, so a caller
+        # already passing it there keeps working unchanged.
+        per_block_operon_kwargs.setdefault('normalize_orientation', normalize_orientation)
         block_svgs = render_neighborhood_svgs_by_block(
             df, group_col=group_col, color_map=color_map,
             operon_kwargs=per_block_operon_kwargs, tmp_dir=tmp_dir,
@@ -3476,15 +5745,27 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
     # report's JS shows only the rows for whichever blocks are selected.
     nb_table_card = render_neighborhood_table_card(
         df, group_col=group_col, filename='neighborhoods.csv', max_rows=max_table_rows,
+        drop_cols=() if table_include_seq else (seq_col,),
     )
 
-    nb_fig_stack, nb_selector = build_neighborhood_panels(
+    # Same blocks, drawn to real genomic scale for the "To scale" sub-view.
+    scale_svgs = render_scaled_svgs_by_block(
+        working, color_map=color_map, nucleotide_col=nucleotide_col,
+        start_col=start_col, end_col=end_col, seq_col=seq_col,
+        normalize_orientation=operon_kwargs.get('normalize_orientation', normalize_orientation),
+    )
+
+    nb_fig_stack, nb_scale_stack, nb_selector = build_neighborhood_panels(
         extents, block_svgs, nb_table_card, default_view=default_view,
+        scale_svgs=scale_svgs,
     )
 
     # Statistics (granularity x scope, all computed inside build_stats_section_html)
+    # The stats bars count display labels, so they need the color
+    # dictionary re-keyed onto those (see `build_label_color_map`).
     stats_html, stats_selector = build_stats_section_html(
-        working, color_map=color_map, ignore_domains=ignore_domains,
+        working, color_map=build_label_color_map(working, color_map),
+        ignore_domains=ignore_domains,
     )
 
     n_blocks = df[group_col].nunique() if group_col in df.columns else 'NA'
@@ -3492,17 +5773,32 @@ def build_html_report(df, output_file='operon_report.html', title='Gene Neighbor
         title=html.escape(title),
         n_genes=f'{len(df):,}',
         n_blocks=n_blocks,
+        font_sans=SANS_FONT_STACK,
+        font_mono=MONO_FONT_STACK,
         genome_overview=genome_overview,
+        nb_legend=build_color_legend_html(
+            color_map, categories=color_categories,
+            include_repeat=has_repeat,
+        ),
         nb_fig_stack=nb_fig_stack,
+        nb_scale_stack=nb_scale_stack,
         nb_table_card=nb_table_card,
         nb_selector=nb_selector,
         stats_html=stats_html,
         stats_selector=stats_selector,
+        nb_seq_data=_json_for_script(
+            build_sequence_index(df, group_col=group_col, seq_col=seq_col)
+        ),
+        nb_tools_data=_json_for_script(list(external_tools or [])),
         software_name=html.escape(software_name),
-        header_logo_html=header_logo or '',
+        header_logo_html=resolve_logo(header_logo),
     )
 
-    with open(output_file, 'w') as f:
+    # Explicitly UTF-8: the page declares `<meta charset="utf-8">` and
+    # carries non-ASCII glyphs (sort arrows, arrows, dashes), so writing
+    # it in the platform's default encoding mojibakes it on some systems
+    # and fails outright on a Windows cp1252 default.
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_doc)
 
     return output_file

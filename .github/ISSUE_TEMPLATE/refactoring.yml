@@ -1,0 +1,63 @@
+name: Refactoring
+description: Flag code that needs refactoring (technical debt, cleanup, legacy code)
+title: "[Refactor]: "
+labels: ["refactor", "tech-debt"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this to flag code that works but needs improvement — legacy code,
+        duplication, or anything hard to maintain. Please point to the exact
+        file(s) and explain *why* it needs refactoring, not just *what* to change.
+
+  - type: input
+    id: location
+    attributes:
+      label: File(s) / location
+      description: The path(s) to the code that needs refactoring, with line numbers if helpful.
+      placeholder: "e.g. lib/rotifer/devel/alpha/net_functions.py:34"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong?
+      description: Why does this code need refactoring? (e.g. duplication, tight coupling, dead code, unclear logic, IO mixed with logic.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested improvement
+      description: How you'd approach the refactoring, if you have an idea. Leave blank if unsure.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of ROTIFER is affected?
+      description: If you're not sure, choose "Not sure" and describe below.
+      options:
+        - Python library (lib/rotifer)
+        - Perl library (perl/lib)
+        - Command-line tool (bin/ or sbin/)
+        - Installation / packaging (conda)
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: Before you submit
+      description: Please confirm the following before filing.
+      options:
+        - label: I have read the [Contributing Guidelines](https://github.com/leepusp/rotifer/blob/master/CONTRIBUTING.md) for this project.
+          required: true
+        - label: I agree to follow the [Code of Conduct](https://github.com/leepusp/rotifer/blob/master/CODE_OF_CONDUCT.md) that this project adheres to.
+          required: true
+        - label: I have searched the [issue tracker](https://github.com/leepusp/rotifer/issues) for a refactoring request that matches this one, without success.
+          required: true

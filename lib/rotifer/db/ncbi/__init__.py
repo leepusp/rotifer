@@ -623,7 +623,10 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
         self.tries = tries
         self.cache = cache
         self.giveup.update(["HTTP Error 400"])
-        self.giveup.update(["no IPG","No IPG"])
+        # A protein with no IPG cannot be placed on a genome, and
+        # every backend of this cursor needs one, so the verdict
+        # binds them all
+        self.final_errors.update(["no IPG","No IPG"])
         if not eukaryotes:
             self.giveup.update(["Eukaryot","eukaryot"])
 
@@ -742,7 +745,7 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
         if isinstance(ipgs,types.NoneType):
             from rotifer.db.ncbi import entrez
             if self.progress:
-                logger.warn(f'Downloading IPGs for {len(targets)} proteins....')
+                logger.warning(f'Downloading IPGs for {len(targets)} proteins....')
             ic = entrez.IPGCursor(progress=self.progress, tries=self.tries)
             ipgs = ic.fetchall(targets)
             self.update_missing(data=ic.remove_missing())
@@ -752,7 +755,9 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.
         ipgs = ipgs[ipgs.id.isin(ipgs[ipgs.pid.isin(targets) | ipgs.representative.isin(targets)].id)]
         missing = targets - set(ipgs.pid).union(ipgs.representative)
         if missing:
-            self.update_missing(missing,"Not found in IPGs",False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing,"Not found in IPGs",False,final=True)
             targets = targets - missing
         if len(ipgs) == 0:
             return [seqrecords_to_dataframe([])]

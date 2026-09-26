@@ -150,7 +150,128 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
             except:
                 logger.error(f'Module {module.__name__} does not define a {myname} class')
                 continue
-            self.cursors[modulename] = cursorClass(**kwargs)
+            self.cursors[modulename] = cursorClass(**self.backend_arguments(modulename, kwargs))
+
+    def backend_arguments(self, name, arguments):
+        """
+        Adjust the arguments one backend is built with.
+
+        Shared attributes are shared because they mean the same thing
+        everywhere, and most do. Where one does not -- a path naming a
+        directory for one backend and a file for another -- this is
+        where a delegator says so, rather than the backends guessing
+        from what they were handed.
+
+        Parameters
+        ----------
+        name : str
+            Which backend is being built.
+        arguments : dict
+            The shared attributes, as they would be passed.
+
+        Returns
+        -------
+        dict
+            What to pass instead. The same dictionary by default.
+        """
+        return arguments
+
+    # Shared attributes for which None is a value in its own right,
+    # rather than a request to use the backend's own default. Only
+    # these can be cleared on the backends after construction.
+    _nullable_attributes = frozenset()
+
+    def content_of(self, cursor):
+        """
+        Ask a backend to identify its data, tolerating a refusal.
+
+        Working out what may be skipped is an optimisation, so a
+        backend that raises while answering must cost nothing worse
+        than being consulted.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend to ask.
+
+        Returns
+        -------
+        hashable or None
+            None when the backend cannot or will not say.
+        """
+        try:
+            return cursor.content_id()
+        except Exception:
+            logger.debug(f'content_id() failed for {type(cursor).__name__}', exc_info=1)
+            return None
+
+    def redundant(self, cursor, consulted):
+        """
+        Find whether a backend would repeat what another already did.
+
+        Backends are asked in order, cheapest first, and a later one
+        is usually there to cover what the earlier ones do not have.
+        When two of them serve the same data, though, the later one
+        has nothing left to add, and skipping it saves whatever it
+        would have cost -- which for a backend that scans a file is
+        the whole point.
+
+        This never suppresses a backend that might know something the
+        others do not: only an identical
+        :meth:`~rotifer.db.core.BaseCursor.content_id` counts, and a
+        backend unable to name its data returns None and is always
+        consulted.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend about to be asked.
+        consulted : dict
+            Content identifiers already seen, mapped to the name of
+            the backend that offered them.
+
+        Returns
+        -------
+        str or None
+            Name of the backend that already served this data, or
+            None when this backend should be consulted.
+        """
+        content = self.content_of(cursor)
+        if isinstance(content, types.NoneType):
+            return None
+        return consulted.get(content)
+
+    def absorb_missing(self, cursor):
+        """
+        Take note of what a backend could not retrieve.
+
+        Called once a backend has been exhausted rather than for each
+        result it yields, because a backend that finds nothing yields
+        nothing and its reasons would otherwise never be recorded.
+
+        The two flags aggregate differently, because they answer
+        different questions. ``retry`` becomes the disjunction across
+        backends: on a delegator it means that at least one of them
+        might still succeed on another attempt, so an unreachable
+        server leaves the entry worth retrying even after a later
+        backend answers "not found" for good. ``final`` is kept by
+        :meth:`~rotifer.db.core.BaseCursor.update_missing`, which
+        never downgrades it.
+
+        Parameters
+        ----------
+        cursor : rotifer.db.core.BaseCursor
+            The backend to copy from.
+        """
+        data = dict()
+        for accession, entry in cursor._missing.items():
+            entry = self._missing_record(entry)
+            previous = self._missing.get(accession)
+            if previous and self._missing_record(previous)[2]:
+                entry = [entry[0], entry[1], True, entry[3]]
+            data[accession] = entry
+        if data:
+            self.update_missing(data=data)
 
     def __setattr__(self, name, value):
         """
@@ -171,9 +292,13 @@ class DelegatorCursor(rotifer.db.core.BaseCursor):
         """
         super().__setattr__(name, value)
         if hasattr(self,'cursors') and hasattr(self,'_shared_attributes') and name in self._shared_attributes:
+            nullable = getattr(self, '_nullable_attributes', frozenset())
             for cursor in self.cursors.values():
-                if hasattr(cursor,name) and not isinstance(value,types.NoneType):
-                    cursor.__setattr__(name,value)
+                if not hasattr(cursor,name):
+                    continue
+                if isinstance(value,types.NoneType) and name not in nullable:
+                    continue
+                cursor.__setattr__(name,value)
 
 class SequentialDelegatorCursor(DelegatorCursor):
     """
@@ -235,6 +360,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
         # Call cursors
         data = []
         todo = deepcopy(targets)
+        consulted = dict()
         for i in range(0,len(self.readers)):
             if len(todo) == 0:
                 break
@@ -243,6 +369,13 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 cursor = self.cursors[cursorName]
             else:
                 continue
+            served_by = self.redundant(cursor, consulted)
+            if served_by:
+                logger.info(f'Skipping backend {cursorName}: same data as {served_by}')
+                continue
+            content = self.content_of(cursor)
+            if not isinstance(content,types.NoneType):
+                consulted.setdefault(content, cursorName)
             result = cursor.__getitem__(todo, *args, **kwargs)
             found = self.getids(result, *args, **kwargs)
             done = targets.intersection(found)
@@ -259,7 +392,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 data.extend(result)
             else:
                 data.append(result)
-            todo = todo - done
+            todo = todo - done - self.missing_ids(final=True)
         if len(targets) == 1 and len(data) == 1:
             data = data[0]
         return data
@@ -281,6 +414,7 @@ class SequentialDelegatorCursor(DelegatorCursor):
 
         # Call cursors
         todo = deepcopy(targets)
+        consulted = dict()
         for i in range(0,len(self.readers)):
             if len(todo) == 0:
                 break
@@ -289,6 +423,13 @@ class SequentialDelegatorCursor(DelegatorCursor):
                 cursor = self.cursors[cursorName]
             else:
                 continue
+            served_by = self.redundant(cursor, consulted)
+            if served_by:
+                logger.info(f'Skipping backend {cursorName}: same data as {served_by}')
+                continue
+            content = self.content_of(cursor)
+            if not isinstance(content,types.NoneType):
+                consulted.setdefault(content, cursorName)
             for result in cursor.fetchone(todo, *args, **kwargs):
                 found = self.getids(result, *args, **kwargs)
                 done = todo.intersection(found)
@@ -302,9 +443,17 @@ class SequentialDelegatorCursor(DelegatorCursor):
                         continue
                     self.cursors[j].insert(result)
                 self.remove_missing(done)
-                self.update_missing(data=cursor._missing)
                 todo = todo - done
                 yield result
+
+            # A backend that finds nothing yields nothing, so what it
+            # could not do has to be collected once it is exhausted
+            # rather than alongside each result it returns
+            self.absorb_missing(cursor)
+
+            # Entries some backend declared final will not be found by
+            # any of the others either, so stop carrying them along
+            todo = todo - self.missing_ids(final=True)
 
     def fetchall(self, accessions, *args, **kwargs):
         """

@@ -125,7 +125,7 @@ class GenomeCursor:
                 if isinstance(s.assembly,str):
                     assemblies.add(s.assembly)
                 else:
-                    logger.warn(f'Unknown assembly type {type(assembly)}: {assembly}')
+                    logger.warning(f'Unknown assembly type {type(assembly)}: {assembly}')
             elif hasattr(s,"dbxrefs") and isinstance(s.dbxrefs,list):
                 for x in s.dbxrefs:
                     if 'Assembly:' in x:
@@ -451,3 +451,384 @@ class GeneNeighborhoodCursor:
         else:
             return seqrecords_to_dataframe([])
 
+
+class MappingCursor:
+    """
+    Mixin for cursors that translate identifiers through UniProt.
+
+    Every such query has the same shape, whichever direction it runs
+    in: identifiers of one or more databases are matched, their
+    UniProtKB accessions are found, and the identifiers those
+    accessions carry in one or more other databases are returned.
+    Asking for the cross-references of an accession, asking which
+    accession an external identifier belongs to, and translating
+    between two external databases are that one query with different
+    ends pinned, so cursors mixing this class in implement it once.
+
+    The two ends are named by :meth:`fetchall` and :meth:`fetchone`
+    rather than by the constructor, because they describe a question
+    rather than a data source: one cursor can answer many of them.
+
+    Attributes
+    ----------
+    columns : list of str
+        ``['source', 'source_type', 'accession', 'target',
+        'target_type']``: the queried identifier, the database it
+        belongs to, the UniProtKB accession linking the two ends, the
+        identifier found, and the database that one belongs to.
+    """
+
+    #: Database of sequence checksums in ``idmapping.dat``. A sequence
+    #: is looked up by its checksum, which is what makes an identical
+    #: sequence findable whatever it has been called.
+    CHECKSUM = 'CRC64'
+
+    #: Name standing for a UniProtKB accession where a database name
+    #: is expected. It is not a row of the mapping table but its join
+    #: key, so both ends accept it and mean the accession itself.
+    UNIPROTKB = 'UniProtKB-AC'
+
+    _columns = ['source','source_type','accession','target','target_type']
+
+    @property
+    def columns(self):
+        """
+        Column names of the mapping dataframe.
+
+        Returns
+        -------
+        list of str
+        """
+        return list(self._columns)
+
+    @staticmethod
+    def is_sequence(obj):
+        """
+        Find whether an object carries sequences rather than names one.
+
+        Parameters
+        ----------
+        obj : object
+
+        Returns
+        -------
+        bool
+            True for a Biopython record and for rotifer's own sequence
+            object, which holds many at once.
+        """
+        if hasattr(obj, 'seq'):
+            return True
+        frame = getattr(obj, 'df', None)
+        return isinstance(frame, pd.DataFrame) and 'sequence' in frame.columns
+
+    @classmethod
+    def checksum(cls, sequence):
+        """
+        The checksum UniProt knows a sequence by.
+
+        UniProt identifies a sequence by a CRC64 of its residues, and
+        publishes those in ``idmapping.dat`` like any other identifier.
+        Biopython computes the same value, prefixed, so the prefix is
+        dropped.
+
+        Parameters
+        ----------
+        sequence : str
+            The residues.
+
+        Returns
+        -------
+        str
+            Sixteen uppercase hexadecimal digits.
+        """
+        from Bio.SeqUtils.CheckSum import crc64
+
+        return crc64(str(sequence).strip().upper()).replace('CRC-', '')
+
+    @classmethod
+    def sequence_checksums(cls, obj):
+        """
+        Read the sequences out of an object and check each one.
+
+        Parameters
+        ----------
+        obj : Bio.SeqRecord.SeqRecord, rotifer sequence, or iterable
+            One or more sequences, in any of the shapes rotifer passes
+            them around in.
+
+        Returns
+        -------
+        dict
+            Checksum to the names the sequences carrying it were given.
+            Several names can share one checksum, which is the point:
+            the same sequence under two names is one sequence.
+        """
+        found = {}
+
+        def record(name, residues):
+            if not residues:
+                return
+            found.setdefault(cls.checksum(residues), set()).add(str(name))
+
+        if hasattr(obj, 'seq'):
+            record(getattr(obj, 'id', ''), obj.seq)
+            return found
+        frame = getattr(obj, 'df', None)
+        if isinstance(frame, pd.DataFrame) and 'sequence' in frame.columns:
+            names = frame['id'] if 'id' in frame.columns else frame.index
+            for name, residues in zip(names, frame['sequence']):
+                record(name, residues)
+            return found
+        if isinstance(obj, typing.Iterable) and not isinstance(obj, str):
+            for item in obj:
+                for key, names in cls.sequence_checksums(item).items():
+                    found.setdefault(key, set()).update(names)
+        return found
+
+    def parse_ids(self, accessions, as_string=True):
+        """
+        Accept sequences wherever identifiers are accepted.
+
+        A sequence is not an identifier, but it has one: its checksum,
+        which UniProt publishes like any other. Turning them into
+        checksums here means every cursor and every access style takes
+        sequences without knowing it, and the names they came under
+        are remembered so a caller can find their way back from a
+        result.
+
+        Parameters
+        ----------
+        accessions : str, iterable, sequence object or mixture
+            Identifiers, sequences, or both.
+        as_string : bool, default True
+            Passed through.
+
+        Returns
+        -------
+        set of str
+        """
+        if not isinstance(accessions, (list, tuple, set)):
+            accessions = [accessions]
+        plain, checksums = [], {}
+        for item in accessions:
+            if self.is_sequence(item):
+                for key, names in self.sequence_checksums(item).items():
+                    checksums.setdefault(key, set()).update(names)
+            else:
+                plain.append(item)
+        if checksums:
+            if not hasattr(self, '_checksums'):
+                self._checksums = {}
+            for key, names in checksums.items():
+                self._checksums.setdefault(key, set()).update(names)
+            plain.extend(checksums)
+        return super().parse_ids(plain, as_string=as_string)
+
+    @property
+    def checksums(self):
+        """
+        What the sequences given so far were called.
+
+        A result names a sequence by its checksum, since that is what
+        the data holds. This says which of the sequences handed in
+        carried it.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``source`` and ``sequence``, ready to be merged
+            onto a result by its ``source`` column.
+        """
+        rows = [ {'source': key, 'sequence': name}
+                 for key, names in getattr(self, '_checksums', {}).items()
+                 for name in sorted(names) ]
+        return pd.DataFrame(rows, columns=['source','sequence'])
+
+    @staticmethod
+    def parse_databases(databases):
+        """
+        Normalize a ``source`` or ``target`` argument to a list.
+
+        Parameters
+        ----------
+        databases : str, iterable of str or None
+            One database name, several, or None for every database.
+
+        Returns
+        -------
+        list of str or None
+            None when no filter was asked for, which every backend
+            reads as "any database".
+        """
+        if isinstance(databases, types.NoneType):
+            return None
+        if isinstance(databases, str) or not isinstance(databases, typing.Iterable):
+            databases = [databases]
+        names = [ str(x) for x in databases if not isinstance(x, types.NoneType) ]
+        return names or None
+
+    def databases(self):
+        """
+        Name the databases this cursor can map to and from.
+
+        A backend that knows its own vocabulary lets a delegator ask
+        it only for the databases it could answer for, and record the
+        rest as unanswerable here rather than as absent everywhere.
+        The distinction matters: a database missing from a backend is
+        a gap in that copy of the data, while a database no backend
+        supports is a gap in the answer.
+
+        Returns
+        -------
+        set of str or None
+            None when the cursor cannot enumerate them, which is read
+            as "any", so nothing is narrowed on its account.
+        """
+        return None
+
+    def unsupported(self, databases):
+        """
+        Pick the databases this cursor cannot answer for.
+
+        Parameters
+        ----------
+        databases : list of str or None
+            Databases asked for, or None for every database.
+
+        Returns
+        -------
+        list of str
+            Empty when the cursor supports them all, or cannot say.
+        """
+        known = self.databases()
+        if isinstance(known, types.NoneType) or isinstance(databases, types.NoneType):
+            return []
+        return [ x for x in databases if x != self.UNIPROTKB and x not in known ]
+
+    def supported(self, databases):
+        """
+        Narrow a list of databases to the ones this cursor can serve.
+
+        Parameters
+        ----------
+        databases : list of str or None
+            Databases asked for, or None for every database.
+
+        Returns
+        -------
+        list of str or None
+            None is passed through, meaning every database this
+            cursor has.
+        """
+        known = self.databases()
+        if isinstance(known, types.NoneType) or isinstance(databases, types.NoneType):
+            return databases
+        return [ x for x in databases if x == self.UNIPROTKB or x in known ]
+
+    def empty(self):
+        """
+        Build an empty mapping dataframe.
+
+        Returns
+        -------
+        pandas.DataFrame
+            No rows, and the columns listed in :attr:`columns`.
+        """
+        return pd.DataFrame([], columns=self.columns)
+
+    def getids(self, obj, *args, **kwargs):
+        """
+        Report which queried identifiers were translated.
+
+        Only the ``source`` column is read. It holds what the caller
+        asked about, so what a delegator still has to look for
+        elsewhere is exactly what is missing from it; the identifiers
+        found are answers, not queries, and counting them would mark
+        the wrong things as done.
+
+        Parameters
+        ----------
+        obj : pandas.DataFrame, set, str, iterable or None
+            Mappings produced by the cursor, or a collection of
+            identifiers, returned as a set.
+
+        Returns
+        -------
+        set of str
+        """
+        if isinstance(obj, types.NoneType):
+            return set()
+        elif isinstance(obj, set):
+            return deepcopy(obj)
+        elif isinstance(obj, pd.DataFrame):
+            if obj.empty or 'source' not in obj.columns:
+                return set()
+            return set(obj['source'].dropna().astype(str))
+        elif isinstance(obj, str):
+            return {obj}
+        elif isinstance(obj, typing.Iterable):
+            return set([ str(x) for x in obj ])
+        else:
+            raise TypeError(f'Unknown object type {type(obj)}: {obj}')
+
+    def _with_checksums(self, accessions, source):
+        """
+        Make sure a query built from sequences looks where they live.
+
+        Naming source databases and then passing a sequence would look
+        past it: a sequence is only ever found under
+        :attr:`CHECKSUM`, so that is added rather than the query
+        quietly returning nothing.
+
+        Parameters
+        ----------
+        accessions : object
+            Whatever was handed to the query.
+        source : list of str or None
+            The source databases asked for.
+
+        Returns
+        -------
+        list of str or None
+            None is left alone, since it already looks everywhere.
+        """
+        source = self.parse_databases(source)
+        if isinstance(source, types.NoneType):
+            return source
+        items = accessions if isinstance(accessions, (list, tuple, set)) else [accessions]
+        if any(self.is_sequence(x) for x in items) and self.CHECKSUM not in source:
+            return list(source) + [self.CHECKSUM]
+        return source
+
+    def fetchall(self, accessions, source=None, target=None, *args, **kwargs):
+        """
+        Translate every identifier, as a single dataframe.
+
+        Parameters
+        ----------
+        accessions : str or iterable of str
+            Identifiers to translate.
+        source : str or list of str, optional
+            Databases the queried identifiers belong to. None accepts
+            any, and :attr:`UNIPROTKB` means they are UniProtKB
+            accessions.
+        target : str or list of str, optional
+            Databases to translate into. None returns every database,
+            and :attr:`UNIPROTKB` returns the accession itself.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The columns listed in :attr:`columns`. Empty, with those
+            columns, when nothing is found.
+        """
+        source = self._with_checksums(accessions, source)
+        stack = []
+        for df in self.fetchone(accessions, source=source, target=target, *args, **kwargs):
+            stack.append(df)
+        if not stack:
+            return self.empty()
+        # Sources overlap: a database several of them carry yields the
+        # same row from each, and a mapping stated twice is still one
+        # mapping.
+        return pd.concat(stack, ignore_index=True).drop_duplicates().reset_index(drop=True)

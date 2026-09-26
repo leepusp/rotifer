@@ -125,7 +125,9 @@ class SimpleParallelProcessCursor(rotifer.db.core.BaseCursor):
             self.remove_missing(found)
         missing = targets - found
         if missing:
-            self.update_missing(missing, error or f'Not found.')
+            # Absent from a reply that did arrive: no error to blame
+            # and nothing a further attempt here would change
+            self.update_missing(missing, error or f'Not found.', retry=False if error is None else None)
 
         return obj
 
@@ -253,11 +255,15 @@ class SimpleParallelProcessCursor(rotifer.db.core.BaseCursor):
         targets = self.parse_ids(accessions)
         with ProcessPoolExecutor(max_workers=self.threads) as executor:
             if self.progress:
-                tqdmobj = tqdm(total=len(targets), initial=0)
+                tqdmobj = tqdm(total=len(targets), initial=0, desc=self.progress_label)
             tasks = []
             missing = self.remove_missing()
             for chunk in self.splitter(list(targets), *args, **kwargs):
-                tasks.append(executor.submit(self.worker, chunk))
+                # worker() and everything below it take these, and a
+                # cursor whose query is described by them -- which
+                # database to map to, say -- gets None instead if they
+                # are dropped here
+                tasks.append(executor.submit(self.worker, chunk, *args, **kwargs))
             self.update_missing(data=missing)
             completed = set()
             for x in as_completed(tasks):
@@ -398,7 +404,10 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         # Patterns expected in error messages that
         # signal for giving up missing entries
         self.giveup.update(["HTTP Error 400"])
-        self.giveup.update(["no IPG","No IPG"])
+        # A protein with no IPG cannot be placed on a genome, and
+        # every backend of this cursor needs one, so the verdict
+        # binds them all
+        self.final_errors.update(["no IPG","No IPG"])
         if not eukaryotes:
             self.giveup.update(["Eukaryot","eukaryot"])
 
@@ -438,7 +447,9 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         ipgs = ipgs[ipgs[self._target_column].isin(best[self._target_column])]
         missing = targets - self.ipg_proteins(ipgs)
         if missing:
-            self.update_missing(missing,"No IPGs",False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing,"No IPGs",False,final=True)
             targets = targets - missing
             if len(targets) == 0:
                 return objlist
@@ -683,7 +694,7 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
         if isinstance(ipgs,types.NoneType):
             from rotifer.db.ncbi import entrez
             if self.progress:
-                logger.warn(f'Downloading IPGs for {len(targets)} proteins...')
+                logger.warning(f'Downloading IPGs for {len(targets)} proteins...')
             ic = entrez.IPGCursor(progress=self.progress, tries=self.tries)
             ipgs = ic.fetchall(targets)
             targets = targets - ic.missing_ids()
@@ -693,12 +704,14 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
             valid = ipgs[valid].id.drop_duplicates()
             ipgs = ipgs[ipgs.id.isin(valid)]
         if self.progress:
-            logger.warn(f'Processing {len(ipgs)} rows of {ipgs.id.nunique()} IPGs.')
+            logger.warning(f'Processing {len(ipgs)} rows of {ipgs.id.nunique()} IPGs.')
 
         # Check for proteins without IPGs
         missing = targets - self.ipg_proteins(ipgs)
         if missing:
-            self.update_missing(missing, error="Not found in IPGs", retry=False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing, error="Not found in IPGs", retry=False, final=True)
             targets = targets - missing
         if len(ipgs) == 0:
             return [seqrecords_to_dataframe([])]
@@ -743,8 +756,8 @@ class GeneNeighborhoodCursor(rotifer.db.core.BaseCursor):
 
             if self.progress:
                 m = f'Downloading {len(genomes)} genomes for {len(targets)} proteins in {len(tasks)} batches, using {self.threads} threads ({self.batch_size} targets/batch)'
-                logger.warn(m)
-                tqdmobj = tqdm(total=len(genomes), initial=0)
+                logger.warning(m)
+                tqdmobj = tqdm(total=len(genomes), initial=0, desc=self.progress_label)
 
             # Actually processing batches
             try:

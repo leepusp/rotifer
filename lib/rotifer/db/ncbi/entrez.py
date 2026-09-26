@@ -853,7 +853,10 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         self.fttype = fttype
         self.eukaryotes = eukaryotes
         self.giveup.update(["HTTP Error 400"])
-        self.giveup.update(["no IPG","No IPG"])
+        # A protein with no IPG cannot be placed on a genome, and
+        # every backend of this cursor needs one, so the verdict
+        # binds them all
+        self.final_errors.update(["no IPG","No IPG"])
         if not eukaryotes:
             self.giveup.update(["Eukaryot","eukaryot"])
 
@@ -917,7 +920,9 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
         ipgs = ipgs[ipgs.nucleotide.isin(best.nucleotide)]
         missing = targets - self.getids(ipgs)
         if missing:
-            self.update_missing(missing, error="No IPGs", retry=False)
+            # No IPG means no way to place the protein on a genome,
+            # and every backend of this cursor needs one
+            self.update_missing(missing, error="No IPGs", retry=False, final=True)
             targets = targets - missing
             if len(targets) == 0:
                 return objlist
@@ -1177,8 +1182,8 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, Nucleoti
             if self.progress:
                 pids = set(nucleotides.pid).union(nucleotides.representative)
                 pids = len(pids.intersection(targets))
-                logger.warn(f'Downloading {len(todo)} nucleotides for {pids} proteins...')
-                p = tqdm(total=len(todo), initial=0)
+                logger.warning(f'Downloading {len(todo)} nucleotides for {pids} proteins...')
+                p = tqdm(total=len(todo), initial=0, desc=self.progress_label)
             tasks = []
             missing = self.remove_missing()
             for chunk in self.splitter(targets, nucleotides):

@@ -85,7 +85,7 @@ class FastaCursor(rotifer.db.parallel.SimpleParallelProcessCursor):
                 logger.error(f'{p}: no such file!')
                 continue
             if not os.path.exists(p + ".ssi"):
-                logger.warn(f'Building {self.executable} index for {p}...')
+                logger.warning(f'Building {self.executable} index for {p}...')
                 try:
                     subprocess.run([self.executable,"--index",p])
                 except:
@@ -182,7 +182,9 @@ class FastaCursor(rotifer.db.parallel.SimpleParallelProcessCursor):
             if not targets:
                 break
         if targets:
-            self.update_missing(targets, "Not found")
+            # A local index does not change between attempts, but
+            # another backend may well hold the sequence
+            self.update_missing(targets, "Not found", retry=False)
         return StringIO(data)
 
     def parser(self, stream, accession, *args, **kwargs):

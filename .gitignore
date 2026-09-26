@@ -50,3 +50,8 @@ docs/api/generated/
 
 # Claude Code session data (worktrees, local state)
 .claude/
+# Virtual environments
+.venv/
+
+# Distribution / packaging
+lib/rotifer.egg-info/

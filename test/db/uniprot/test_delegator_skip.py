@@ -1,0 +1,613 @@
+#!/usr/bin/env python3
+"""Tests that the UniProt delegator skips a backend repeating another one.
+
+These duplicate, against `rotifer.db.uniprot.BaseUniProtDelegatorCursor`, what
+test/db/test_delegator_redundancy.py checks against the generic delegator --
+and that duplication is the point.
+
+`BaseUniProtDelegatorCursor` overrides `fetchone` for a reason of its own: the
+generic version hands every result to every writer, including results a writer
+just returned as a reader. Because it is a separate loop, it did not inherit
+the skip when that was added to the generic delegator, and the generic tests
+kept passing while a real query still scanned the whole 90 GB mirror. Anything
+that reimplements the delegation loop has to be tested on its own loop.
+
+Run under pytest, or standalone: python test/db/uniprot/test_delegator_skip.py
+"""
+
+import os
+
+import pandas as pd
+import pytest
+
+import rotifer.db.core
+import rotifer.db.methods
+from rotifer.db import uniprot
+
+
+class Backend(rotifer.db.methods.MappingCursor, rotifer.db.core.BaseCursor):
+    """A mapping backend with a fixed content_id that counts being asked."""
+
+    def __init__(self, content=None, accessions=(), databases=None):
+        super().__init__(progress=False)
+        self._content = content
+        self._accessions = list(accessions)
+        self._databases = databases
+        self.asked = 0
+        self.asked_targets = []
+        self.asked_ids = []
+
+    def content_id(self):
+        return self._content
+
+    def databases(self):
+        return self._databases
+
+    def fetchone(self, accessions, source=None, target=None, *args, **kwargs):
+        self.asked += 1
+        self.asked_targets.append(tuple(target or ()))
+        wanted = self.parse_ids(accessions)
+        self.asked_ids.append(tuple(sorted(wanted)))
+        # With no target named a backend returns everything it has,
+        # which is what makes the union across backends visible.
+        served = list(target) if target else sorted(self._databases or ['RefSeq'])
+        rows = [{'source': a, 'source_type': self.UNIPROTKB, 'accession': a,
+                 'target': f'{a}_{t}', 'target_type': t}
+                for a in self._accessions if a in wanted
+                for t in served
+                if self._databases is None or t in self._databases]
+        # A real cursor records what it could not find, and the
+        # delegator has to cope with that: an identifier one backend
+        # answered will be reported missing by the next one asked.
+        lost = wanted - {row['source'] for row in rows}
+        if lost:
+            self.update_missing(lost, error='Not found.', retry=False)
+        if rows:
+            yield pd.DataFrame(rows, columns=self.columns)
+
+
+class Delegator(uniprot.BaseUniProtDelegatorCursor):
+    """A UniProt delegator over backends handed to it directly."""
+
+    def __init__(self, backends, readers):
+        self._backends = backends
+        super().__init__(readers=readers)
+
+    def reset_cursors(self):
+        self.cursors = dict(getattr(self, '_backends', {}))
+
+
+def build(*specs):
+    backends = {}
+    order = []
+    for spec in specs:
+        name, content, accs = spec[:3]
+        databases = spec[3] if len(spec) > 3 else None
+        backends[name] = Backend(content, accs, databases)
+        order.append(name)
+    return Delegator(backends, order), backends
+
+
+def test_same_content_skips_the_expensive_backend():
+    """The regression: clickhouse and the mirror loaded from one file, so the
+    mirror has nothing to add and must not be scanned."""
+    delegator, backends = build(('clickhouse', 'idmapping.dat:90:1', ['P00750']),
+                                ('mirror', 'idmapping.dat:90:1', ['P00750']))
+    delegator.fetchall(['P00750'])
+    assert backends['clickhouse'].asked == 1
+    assert backends['mirror'].asked == 0
+
+
+def test_the_skip_holds_when_nothing_was_found():
+    """The case that actually cost 78 seconds: an accession absent from both.
+    Skipping must follow from the backends holding the same data, not from the
+    first one having answered."""
+    delegator, backends = build(('clickhouse', 'idmapping.dat:90:1', []),
+                                ('mirror', 'idmapping.dat:90:1', []))
+    result = delegator.fetchall(['ABSENT'])
+    assert backends['mirror'].asked == 0
+    assert result.empty and list(result.columns) == [
+        'source', 'source_type', 'accession', 'target', 'target_type']
+
+
+def test_a_differing_release_still_consults_the_mirror():
+    """A table loaded from another release is not a substitute: the mirror may
+    hold entries it does not."""
+    delegator, backends = build(('clickhouse', 'idmapping.dat:90:1', []),
+                                ('mirror', 'idmapping.dat:91:2', ['P00750']))
+    frame = delegator.fetchall(['P00750'])
+    assert backends['mirror'].asked == 1
+    assert frame['source'].tolist() == ['P00750']
+
+
+def test_an_unrecorded_load_consults_the_mirror():
+    """content_id is None for a load that was never recorded, e.g. one that was
+    interrupted. Nothing may be skipped on the strength of that."""
+    delegator, backends = build(('clickhouse', None, []),
+                                ('mirror', 'idmapping.dat:90:1', ['P00750']))
+    delegator.fetchall(['P00750'])
+    assert backends['mirror'].asked == 1
+
+
+def test_webapi_is_still_consulted_after_both_local_backends():
+    """Why this is not the `final` flag: a web service holds different data, so
+    it must still be asked for what the local copies lack."""
+    delegator, backends = build(('clickhouse', 'idmapping.dat:90:1', []),
+                                ('mirror', 'idmapping.dat:90:1', []),
+                                ('webapi', None, ['P00750']))
+    frame = delegator.fetchall(['P00750'])
+    assert backends['mirror'].asked == 0
+    assert backends['webapi'].asked == 1
+    assert frame['source'].tolist() == ['P00750']
+
+
+def test_getitem_skips_too():
+    delegator, backends = build(('clickhouse', 'idmapping.dat:90:1', ['P00750']),
+                                ('mirror', 'idmapping.dat:90:1', ['P00750']))
+    delegator['P00750']
+    assert backends['mirror'].asked == 0
+
+
+if __name__ == '__main__':
+    import sys
+    failures = 0
+    for name, test in sorted(globals().items()):
+        if not name.startswith('test_') or not callable(test):
+            continue
+        try:
+            test()
+            ok, detail = True, ''
+        except Exception as exc:
+            ok, detail = False, f'{type(exc).__name__}: {exc}'
+        failures += not ok
+        print('  %-52s %s' % (name, 'ok' if ok else 'FAILED'))
+        if detail:
+            print('      %s' % detail)
+    print('ALL PASS' if not failures else '%d FAILURES' % failures)
+    sys.exit(1 if failures else 0)
+
+
+# ------------------------------------------------- database level coverage
+
+def test_a_database_only_the_second_backend_has_is_asked_for_there():
+    """Finding every identifier is not the same as answering every question:
+    a database the first backend cannot map is still owed, and the loop must
+    not stop merely because nothing is left to look up."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                               target=['RefSeq', 'PIR'])
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['PIR', 'RefSeq']
+
+
+def test_each_backend_is_asked_only_for_what_it_supports():
+    """An unsupported database must fall through rather than come back empty,
+    which would be indistinguishable from an absent identifier."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'PIR'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq', 'PIR'])
+    assert backends['clickhouse'].asked_targets == [('RefSeq',)]
+    assert backends['webapi'].asked_targets == [('PIR',)]  # only what the first could not do
+
+
+def test_a_backend_supporting_none_of_the_databases_is_skipped():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'PIR'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['PIR'])
+    assert backends['clickhouse'].asked == 0
+    assert backends['webapi'].asked == 1
+
+
+def test_a_database_no_backend_knows_is_refused():
+    """A misspelled database is a mistake, not an absence. Answering it with
+    an empty frame made it indistinguishable from a correctly spelled database
+    that simply has no mappings, so it is refused instead."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'Pfam'}),
+    )
+    with pytest.raises(ValueError, match='unknown target database'):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Nonesuch'])
+
+
+def test_the_refusal_names_the_end_it_came_from():
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError, match='unknown source database'):
+        delegator.fetchall(['P00750'], source=['Nonesuch'], target=['RefSeq'])
+
+
+def test_a_misspelling_is_offered_the_right_name():
+    """The vocabulary is already in hand, so the message can say what was
+    probably meant rather than only that something was wrong."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq', 'UniParc'}))
+    with pytest.raises(ValueError, match=r"did you mean 'RefSeq'"):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Refseq'])
+
+
+def test_a_difference_of_case_is_offered_on_its_own():
+    """Case is the commonest slip and the least ambiguous to fix, so it is
+    suggested by itself rather than among near misses."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq', 'RefSeq_NT'}))
+    with pytest.raises(ValueError, match=r"did you mean 'RefSeq'\?"):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['refseq'])
+
+
+def test_a_name_like_nothing_at_all_gets_no_suggestion():
+    """A suggestion that is not close is worse than none: it sends the reader
+    after a name they never meant."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError) as raised:
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Zzzzzz'])
+    assert 'did you mean' not in str(raised.value)
+
+
+def test_several_unknown_names_are_reported_together():
+    """One query, one complaint: fixing them one error at a time is tedious
+    when the vocabulary could have named them all at once."""
+    delegator, backends = build(('clickhouse', 'x:1:1', [], {'RefSeq'}))
+    with pytest.raises(ValueError, match='unknown target databases'):
+        delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                           target=['Zzzz', 'Qqqq'])
+
+
+def test_the_accession_itself_is_always_a_valid_end():
+    """UNIPROTKB is the table's key rather than one of its databases, so it
+    appears in no vocabulary and must not be refused."""
+    delegator, backends = build(('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}))
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=[Backend.UNIPROTKB])
+
+
+def test_nothing_is_refused_when_no_backend_can_enumerate():
+    """With nothing to check against, a name cannot be called wrong: the
+    mirror might hold anything."""
+    delegator, backends = build(('mirror', None, ['P00750'], None))
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Anything'])
+
+
+def test_a_database_failure_is_no_longer_a_missing_identifier():
+    """missing is about identifiers that were not found. A database that does
+    not exist is a different kind of problem and belongs in an exception."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert delegator.missing_ids() == set()
+
+
+def test_a_covered_database_is_not_reported_missing():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert delegator.missing_ids() == set()
+
+
+def test_an_unknown_vocabulary_narrows_nothing():
+    """databases() returning None means 'cannot say', so such a backend is
+    asked for everything rather than skipped."""
+    delegator, backends = build(('mirror', None, ['P00750'], None))
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB,
+                               target=['RefSeq', 'Pfam'])
+    # the order is sorted, so that a query is deterministic
+    assert [sorted(x) for x in backends['mirror'].asked_targets] == [['Pfam', 'RefSeq']]
+    assert delegator.missing_ids() == set()
+
+
+def test_a_backend_skipped_for_a_database_still_speaks_for_its_data():
+    """Regression, and the two skip rules meeting: clickhouse holds the whole
+    file, so a database it does not carry is not in the file either, and the
+    mirror reading that same file must not be scanned to discover it.
+
+    Recording what a backend holds only after the capability check hid exactly
+    that: the mirror was scanned for a database the table had already shown to
+    be absent, and the database was then reported as covered rather than
+    missing. Live, that was 79 seconds instead of 4.
+    """
+    delegator, backends = build(
+        ('clickhouse', 'idmapping.dat:90:1', ['P00750'], {'RefSeq'}),
+        ('mirror', 'idmapping.dat:90:1', ['P00750'], None),
+        ('webapi', None, ['P00750'], {'Pfam'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Pfam'])
+    assert backends['clickhouse'].asked == 0     # cannot map Pfam
+    assert backends['mirror'].asked == 0         # same data, so neither can it
+    assert backends['webapi'].asked == 1         # the one that can
+
+
+def test_a_backend_with_other_data_is_still_asked():
+    """The converse: a backend whose data differs may well have the database,
+    so being unable to map it elsewhere says nothing about it."""
+    delegator, backends = build(
+        ('clickhouse', 'idmapping.dat:90:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['Pfam'])
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['Pfam']
+    assert delegator.missing_ids() == set()
+
+
+def test_an_open_ended_query_is_answered_by_every_backend():
+    """The backends hold different vocabularies, so 'every database' is the
+    union of what they have. With no list given, none of them can be said to
+    have covered it, and stopping at the first would return the less complete
+    answer to the most permissive question."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=None)
+    assert backends['clickhouse'].asked == 1
+    assert backends['webapi'].asked == 1
+    assert sorted(set(frame.target_type)) == ['Pfam', 'RefSeq']
+
+
+def test_naming_the_targets_still_stops_early():
+    """A list that has been ticked off needs no further backend: the point of
+    consulting them all is the absence of a list, not the absence of a limit."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq', 'Pfam'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=['RefSeq'])
+    assert backends['webapi'].asked == 0
+
+
+def test_a_mapping_two_backends_agree_on_appears_once():
+    """Overlapping sources state the same mapping, and a mapping stated twice
+    is still one mapping."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB, target=None)
+    assert len(frame) == 1 and frame.duplicated().sum() == 0
+
+
+# ------------------------------------------------------ combined vocabulary
+
+def test_the_vocabulary_is_the_union_of_the_backends():
+    """The backends hold different databases, so what the delegator can answer
+    for is the union of theirs and not any one of them."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq', 'GI'}),
+        ('webapi', None, [], {'RefSeq', 'Pfam'}),
+    )
+    assert delegator.databases() == {'RefSeq', 'GI', 'Pfam'}
+
+
+def test_a_backend_that_cannot_enumerate_adds_nothing():
+    """The mirror cannot name its vocabulary without reading 90 GB. It says so
+    by returning None, which must neither empty the union nor make it
+    unbounded."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('mirror', 'x:1:1', [], None),
+    )
+    assert delegator.databases() == {'RefSeq'}
+
+
+def test_no_backend_can_enumerate_means_no_answer():
+    """None is 'cannot say', and a delegator whose backends all say that
+    cannot say either."""
+    delegator, backends = build(('mirror', None, [], None))
+    assert delegator.databases() is None
+
+
+def test_the_union_says_which_backend_has_what():
+    """The union alone cannot tell a database nobody has from one only the
+    slow backend has, so the breakdown is available too."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    assert delegator.databases_by_backend() == {
+        'clickhouse': {'RefSeq'}, 'webapi': {'Pfam'}}
+
+
+def test_nothing_is_unsupported_while_a_backend_cannot_say():
+    """A backend that cannot enumerate might hold anything, so the union names
+    what is known to be reachable rather than a limit."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('mirror', 'x:1:1', [], None),
+    )
+    assert delegator.unsupported(['Nonesuch']) == []
+
+
+def test_an_unknown_database_is_unsupported_when_every_backend_can_say():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    assert delegator.unsupported(['Nonesuch']) == ['Nonesuch']
+    assert delegator.unsupported(['RefSeq', 'Pfam']) == []
+
+
+# ------------------------------------------------- the sqlite3 backend
+
+def test_no_sqlite3_backend_unless_asked_for():
+    """There is no file to assume, so the backend exists only when one is
+    named."""
+    from rotifer.db import uniprot as up
+    assert 'sqlite3' not in up.MappingCursor.__init__.__defaults__[0]
+
+
+def test_sqlitedb_true_takes_the_default_file():
+    from rotifer.db import uniprot as up
+    resolved = up.BaseUniProtDelegatorCursor.resolve_sqlitedb(True)
+    assert resolved.endswith(os.path.join('.rotifer', 'share', 'rotifer.sqlite3'))
+
+
+def test_sqlitedb_names_a_file_of_your_own(tmp_path):
+    from rotifer.db import uniprot as up
+    wanted = str(tmp_path / 'sub' / 'project.sqlite3')
+    resolved = up.BaseUniProtDelegatorCursor.resolve_sqlitedb(wanted)
+    assert resolved == wanted
+    # the file need not exist, but somewhere to put it must
+    assert os.path.isdir(os.path.dirname(wanted))
+
+
+@pytest.mark.parametrize('value', [None, False])
+def test_no_file_means_no_backend(value):
+    from rotifer.db import uniprot as up
+    assert up.BaseUniProtDelegatorCursor.resolve_sqlitedb(value) is None
+
+
+def test_sqlite3_goes_before_the_web_service():
+    """It answers the same question two to three orders of magnitude faster:
+    milliseconds against a round trip that cannot beat about a second."""
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(
+        ['clickhouse', 'webapi', 'mirror'])
+    assert order == ['clickhouse', 'sqlite3', 'webapi', 'mirror']
+
+
+def test_sqlite3_goes_last_when_there_is_no_web_service():
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(['clickhouse', 'mirror'])
+    assert order == ['clickhouse', 'mirror', 'sqlite3']
+
+
+def test_asking_twice_does_not_add_it_twice():
+    from rotifer.db import uniprot as up
+    order = up.BaseUniProtDelegatorCursor._with_sqlite3(
+        ['clickhouse', 'sqlite3', 'webapi'])
+    assert order.count('sqlite3') == 1
+
+
+def test_the_readers_given_are_not_modified():
+    """The default reader list is shared between every cursor built without
+    one, so inserting into it would leak into the next."""
+    from rotifer.db import uniprot as up
+    given = ['clickhouse', 'webapi']
+    up.BaseUniProtDelegatorCursor._with_sqlite3(given)
+    assert given == ['clickhouse', 'webapi']
+
+
+def test_the_sqlite3_backend_is_given_the_file_not_the_mirror():
+    """`path` names a mirror's root to every other backend here and a database
+    file to this one, which is what backend_arguments exists to settle."""
+    delegator, backends = build(('clickhouse', 'x:1:1', []))
+    delegator.sqlitedb = '/tmp/somewhere/project.sqlite3'
+    arguments = delegator.backend_arguments('sqlite3', {'path': '/mirror/root'})
+    assert arguments['path'] == '/tmp/somewhere/project.sqlite3'
+    # every other backend keeps the mirror
+    assert delegator.backend_arguments('mirror', {'path': '/mirror/root'})['path'] \
+        == '/mirror/root'
+
+
+# ------------------------------------------ what missing is allowed to mean
+
+def test_an_identifier_one_backend_answered_is_not_missing():
+    """Regression. An open ended query asks every backend for every
+    identifier, so a later one is asked about identifiers an earlier one
+    already resolved and reports the ones it does not carry as missing.
+    Absorbing that verbatim left an accession listed as missing in the same
+    breath as thirteen rows about it."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['A0ABD7BIQ8'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['A0ABD7BIQ8'], source=Backend.UNIPROTKB)
+    assert not frame.empty
+    assert delegator.missing_ids() == set()
+
+
+def test_an_identifier_nobody_answered_is_still_missing():
+    """The other half: clearing what was answered must not clear what was
+    not."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', [], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    delegator.fetchall(['NOWHERE'], source=Backend.UNIPROTKB)
+    assert 'NOWHERE' in delegator.missing_ids()
+
+
+def test_a_mixed_query_reports_only_the_one_that_was_not_found():
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['FOUND'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    frame = delegator.fetchall(['FOUND', 'LOST'], source=Backend.UNIPROTKB)
+    assert set(frame.source) == {'FOUND'}
+    assert delegator.missing_ids() == {'LOST'}
+
+
+def test_a_backend_keeps_its_own_view_of_what_it_lacks():
+    """Only the delegator's answer is corrected. A backend still records what
+    it could not find, which is what lets a delegator decide who to ask
+    next."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['A0ABD7BIQ8'], {'RefSeq'}),
+        ('webapi', None, [], {'Pfam'}),
+    )
+    delegator.fetchall(['A0ABD7BIQ8'], source=Backend.UNIPROTKB)
+    assert 'A0ABD7BIQ8' in backends['webapi'].missing_ids()
+
+
+# --------------------------------- coverage by identifier and by database
+
+def test_a_backend_is_asked_only_for_the_databases_still_owed():
+    """The pair is what the question is about: an identifier is not done
+    because something answered for it, and a database is not done because it
+    answered for something else."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq', 'KEGG'}),
+        ('webapi', None, ['P00750'], {'KEGG', 'Pfam'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    # clickhouse answered RefSeq and KEGG, so only Pfam is left for webapi
+    assert backends['webapi'].asked_targets == [('Pfam',)]
+
+
+def test_a_backend_with_nothing_left_to_add_is_not_asked():
+    """Everything it maps has already answered for every identifier, so a
+    request would return rows that are already in hand."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'RefSeq'}),
+    )
+    delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    assert backends['webapi'].asked == 0
+
+
+def test_only_the_identifiers_still_owed_are_asked_about():
+    """One identifier answered and one not means the second backend hears
+    about the second alone."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['ANSWERED'], {'RefSeq'}),
+        ('webapi', None, ['ANSWERED', 'OWED'], {'RefSeq'}),
+    )
+    delegator.fetchall(['ANSWERED', 'OWED'], source=Backend.UNIPROTKB)
+    assert backends['webapi'].asked == 1
+    assert backends['webapi'].asked_ids == [('OWED',)]
+
+
+def test_a_backend_that_cannot_enumerate_is_asked_about_what_is_unresolved():
+    """Nothing can be called covered on its behalf, since it will not say what
+    it holds, so it is asked for whatever no backend has resolved."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['ANSWERED'], {'RefSeq'}),
+        ('mirror', None, ['OWED'], None),
+    )
+    delegator.fetchall(['ANSWERED', 'OWED'], source=Backend.UNIPROTKB)
+    assert backends['mirror'].asked_ids == [('OWED',)]
+
+
+def test_the_union_still_comes_back_whole():
+    """Narrowing what is asked must not narrow what is returned."""
+    delegator, backends = build(
+        ('clickhouse', 'x:1:1', ['P00750'], {'RefSeq'}),
+        ('webapi', None, ['P00750'], {'Pfam', 'GO'}),
+    )
+    frame = delegator.fetchall(['P00750'], source=Backend.UNIPROTKB)
+    assert sorted(set(frame.target_type)) == ['GO', 'Pfam', 'RefSeq']

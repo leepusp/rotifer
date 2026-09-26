@@ -20,8 +20,11 @@ setup(
     package_dir={"": "lib"},  # Root directory for the packages
     python_requires=">=3.6",  # Specify minimum Python version
     install_requires=[
-        "numpy",   # Add your dependencies here
+        "numpy",
         "pandas",
+        "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
+        "tqdm",                # progress bars in rotifer.db
+        "clickhouse-connect",  # rotifer.db.clickhouse
     ],
     license="BSD-3-Clause",
     classifiers=[

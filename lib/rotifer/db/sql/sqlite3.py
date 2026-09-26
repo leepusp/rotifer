@@ -130,6 +130,252 @@ class BaseSQLite3Cursor(rotifer.db.core.BaseCursor):
         sql = self._dbconn.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}'").fetchall()
         return len(sql) > 0
 
+    #: One registry per database file, shared by every table in it,
+    #: naming the file each was loaded from. Spelled and shaped as in
+    #: :class:`rotifer.db.sql.clickhouse.core.BaseClickHouseCursor`, so
+    #: that provenance reads the same whichever SQL backend holds it.
+    _sources_table = 'rotifer_sources'
+
+    #: Tables these cursors read, keyed by the role each plays. A
+    #: cursor joining several has no single table to be named after.
+    tables = {'features': 'features'}
+
+    def table_name(self, role=None):
+        """
+        Name the table filling one role in this cursor's queries.
+
+        Parameters
+        ----------
+        role : str, optional
+            Which of the cursor's tables. May be omitted only when
+            there is one.
+
+        Returns
+        -------
+        str
+        """
+        if isinstance(role, types.NoneType):
+            if len(self.tables) == 1:
+                return next(iter(self.tables.values()))
+            raise KeyError(
+                f'{self.__name__} reads {len(self.tables)} tables '
+                f'({", ".join(sorted(self.tables))}), so one must be named'
+            )
+        if role not in self.tables:
+            raise KeyError(f'{self.__name__} has no table for {role!r}: '
+                           f'known roles are {sorted(self.tables)}')
+        return self.tables[role]
+
+    @property
+    def sources_table(self):
+        """
+        Name of this database's load registry.
+
+        Returns
+        -------
+        str
+        """
+        return self._sources_table
+
+    @property
+    def source_version(self):
+        """
+        Version label distinguishing loads into the same table.
+
+        Databases holding several versions at once override this. The
+        default is a single unversioned body of data.
+
+        Returns
+        -------
+        str
+        """
+        return ''
+
+    def create_sources(self):
+        """
+        Create this database's load registry, if it is missing.
+
+        A row is written only by a load that ran to completion, which
+        is what lets :meth:`content_id` tell a database holding a
+        whole copy of a file from one a failed load left partly
+        filled.
+        """
+        self._dbconn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self._sources_table} (
+                "table"   TEXT NOT NULL,
+                version   TEXT NOT NULL DEFAULT '',
+                source    TEXT NOT NULL,
+                size      INTEGER NOT NULL,
+                mtime     INTEGER NOT NULL,
+                rows      INTEGER NOT NULL,
+                checksum  TEXT NOT NULL DEFAULT '',
+                loaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("table", version, source)
+            )
+        """)
+        self._dbconn.commit()
+
+    def record_source(self, datafile, rows, version=None, table=None, checksum=''):
+        """
+        Record that a table was loaded, whole, from a file.
+
+        Call this only where a load is known to have finished: the
+        presence of a row is the claim of completeness.
+
+        Parameters
+        ----------
+        datafile : str
+            Path of the file the rows came from. Recorded in full
+            and with symbolic links resolved, so that the same file
+            reached by two names is recorded as one file.
+        rows : int
+            Number of rows in the table afterwards.
+        version : str, optional
+            Version label. Defaults to :attr:`source_version`.
+        table : str, optional
+            Table loaded. Defaults to this cursor's :attr:`table`.
+        checksum : str, optional
+            Checksum of the file, when one was computed. Recorded for
+            verification; routine comparisons use the cheap identity
+            below, which costs a stat() rather than a full read.
+
+        Returns
+        -------
+        bool
+            Whether the record was written.
+        """
+        try:
+            info = os.stat(datafile)
+        except OSError:
+            logger.warning(f'Cannot stat {datafile}: load not recorded')
+            return False
+        if isinstance(version, types.NoneType):
+            version = self.source_version
+        self.create_sources()
+        self._dbconn.execute(
+            f'INSERT OR REPLACE INTO {self._sources_table} '
+            '("table", version, source, size, mtime, rows, checksum) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (str(table or self.table_name()), str(version), os.path.realpath(datafile),
+             int(info.st_size), int(info.st_mtime), int(rows), str(checksum)),
+        )
+        self._dbconn.commit()
+        return True
+
+    def forget_source(self, version=None, table=None):
+        """
+        Withdraw the record of a load.
+
+        A row in the registry is the claim that this table holds a
+        whole copy of a file. Whatever removes the rows has to remove
+        the claim too, or the table goes on being taken for a copy of
+        something it no longer has.
+
+        Parameters
+        ----------
+        version : str, optional
+            Version whose record to drop. Defaults to
+            :attr:`source_version`; pass an empty string to drop the
+            records of every version of this table.
+        table : str, optional
+            Table the record is about. Defaults to this cursor's.
+
+        Returns
+        -------
+        bool
+            Whether anything could be removed.
+        """
+        if isinstance(version, types.NoneType):
+            version = self.source_version
+        try:
+            if not self.has_table(self._sources_table):
+                return False
+            sql = f'DELETE FROM {self._sources_table} WHERE "table" = ?'
+            parameters = [str(table or self.table_name())]
+            if version:
+                sql += ' AND version = ?'
+                parameters.append(str(version))
+            self._dbconn.execute(sql, parameters)
+            self._dbconn.commit()
+        except Exception:
+            logger.debug('Could not remove the load record', exc_info=1)
+            return False
+        return True
+
+    def content_id(self):
+        """
+        Identify the data this database holds.
+
+        Answers only for a table loaded in full, and then with the
+        identity of the file it came from, so that a cursor reading
+        that file directly reports the same value and either can stand
+        in for the other. A table never recorded, because its load was
+        interrupted or predates this bookkeeping, yields None and
+        nothing is skipped on its account.
+
+        Returns
+        -------
+        str or None
+            ``<path>:<size>:<mtime>``, or None.
+
+        See Also
+        --------
+        rotifer.db.core.BaseCursor.content_id : what the value means
+        record_source : how the value gets written
+        """
+        identities = []
+        for role in sorted(self.tables):
+            one = self.recorded_source(self.tables[role])
+            if isinstance(one, types.NoneType):
+                # One table unaccounted for is enough: a cursor whose
+                # query needs all of them holds all of them or none.
+                return None
+            identities.append((role, one))
+        if not identities:
+            return None
+        if len(identities) == 1:
+            # A single table is named by its file alone, which is what
+            # a cursor reading that file directly reports too.
+            return identities[0][1]
+        return "|".join([ f'{role}={one}' for role, one in identities ])
+
+    def recorded_source(self, table):
+        """
+        Identity of the file one table was loaded from.
+
+        Parameters
+        ----------
+        table : str
+            Name of the table.
+
+        Returns
+        -------
+        str or None
+            ``<path>:<size>:<mtime>``, or None when the table has no
+            record, which is what an interrupted load leaves.
+        """
+        try:
+            if not self.has_table(self._sources_table):
+                return None
+            sql = f'SELECT source, size, mtime FROM {self._sources_table} WHERE "table" = ?'
+            parameters = [str(table)]
+            version = self.source_version
+            if version:
+                sql += ' AND version = ?'
+                parameters.append(str(version))
+            rows = self._dbconn.execute(sql + ' ORDER BY loaded_at DESC', parameters).fetchall()
+        except Exception:
+            logger.debug('Could not read the load registry', exc_info=1)
+            return None
+        if not rows:
+            return None
+        # Without a version filter the cursor reads every version at
+        # once, so it only matches a source that is the only one there.
+        if not self.source_version and len(set(rows)) > 1:
+            return None
+        source, size, mtime = rows[0]
+        return f'{source}:{int(size)}:{int(mtime)}'
+
     @property
     def schema(self):
         """
@@ -366,7 +612,9 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         # Find missing entries, if any
         missing = set(accession).difference(self.getids(df, ipgs=ipgs))
         if len(missing):
-            self.update_missing(missing, error=f'Entry not found in SQLite3 database {self.path}', retry=True)
+            # A local file does not change between attempts, but
+            # another backend may well hold the entry
+            self.update_missing(missing, error=f'Entry not found in SQLite3 database {self.path}', retry=False)
 
         return NeighborhoodDF(df)
 
@@ -397,8 +645,8 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         if not isinstance(proteins,typing.Iterable) or isinstance(proteins,str):
             proteins = [proteins]
         if self.progress:
-            logger.warn(f'Searching {len(proteins)} protein(s) in SQLite3 database at {self.path}')
-            p = tqdm(total=len(proteins), initial=0)
+            logger.warning(f'Searching {len(proteins)} protein(s) in SQLite3 database at {self.path}')
+            p = tqdm(total=len(proteins), initial=0, desc=self.progress_label)
         found = self.__getitem__(proteins, ipgs=ipgs)
         for bid, block in found.groupby('block_id'):
             done = self.getids(block, ipgs)

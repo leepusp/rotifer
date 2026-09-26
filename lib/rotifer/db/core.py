@@ -45,9 +45,37 @@ class BaseCursor:
     def __init__(self, progress=False, *args, **kwargs):
         self.progress = progress
         self.__name__ = str(type(self)).split("'")[1]
-        self._missing = dict() # Keys are accessions, values are lists of three elements
+        self._missing = dict() # Keys are accessions, values are lists of the fields in _missing_fields
         self.giveup = set() # List of errors that will prevent further attempts to use failed accessions
+        # Errors saying the entry will never be found, by this or any
+        # other cursor. Matching one implies giving up here too, so
+        # these need not be repeated in giveup. Reserve it for
+        # statements about the data rather than about one source: a
+        # cursor refusing a kind of accession, or rejecting a
+        # malformed request, is not speaking for the others.
+        self.final_errors = set()
         self.maxgetitem = 1 # Maximum number of arguments accepted by __getitem__()
+
+    @property
+    def progress_label(self):
+        """
+        Name this cursor answers to on a progress bar.
+
+        A delegator draws its own bar above the backend working under
+        it, and an unlabelled bar says nothing about which backend
+        that is -- which is the one thing worth knowing while several
+        are tried in turn. What distinguishes them is the module they
+        come from, so that is what the bar is named after, without the
+        ``rotifer.db.`` prefix every one of them shares.
+
+        Returns
+        -------
+        str
+            The module name, e.g. ``uniprot.clickhouse``.
+        """
+        name = type(self).__module__
+        prefix = 'rotifer.db.'
+        return name[len(prefix):] if name.startswith(prefix) else name
 
     def parse_ids(self, accessions, as_string=True):
         """
@@ -91,6 +119,34 @@ class BaseCursor:
         targets = set(targets)
         return targets
 
+    #: Fields kept for every entry of the registry of missing entries.
+    _missing_fields = ("error", "class", "retry", "final")
+
+    @staticmethod
+    def _missing_record(entry):
+        """
+        Pad a registry entry to the current number of fields.
+
+        Entries used to hold three fields, and code outside this class
+        still builds them that way. A record short of ``final`` is
+        read as not final, which is what it meant before the field
+        existed.
+
+        Parameters
+        ----------
+        entry : list
+          One entry of the registry.
+
+        Returns
+        -------
+        list
+          The same entry, extended to four fields when needed.
+        """
+        entry = list(entry)
+        while len(entry) < len(BaseCursor._missing_fields):
+            entry.append(False)
+        return entry
+
     @property
     def missing(self):
         """
@@ -106,9 +162,20 @@ class BaseCursor:
         """
         return pd.DataFrame(self._missing, index="error class retry".split(" ")).T
 
-    def missing_ids(self, retry=None):
+    def missing_ids(self, retry=None, final=None):
         """
         Retrieve accessions not found in the target database.
+
+        The two filters answer different questions. `retry` asks
+        whether this cursor might still recover an accession by trying
+        again, which is what its own retry loop consults. `final` asks
+        whether the answer is binding on every other cursor as well,
+        which is what a delegator consults before handing the
+        accession to the next backend.
+
+        An accession absent from one database is normally neither: not
+        worth retrying here, but well worth asking the next backend
+        for.
 
         Parameters
         ----------
@@ -123,12 +190,17 @@ class BaseCursor:
         set of str
             The missing accessions.
         """
-        if isinstance(retry, types.NoneType):
-            return set(sorted(list(self._missing.keys())))
-        else:
-            return set(sorted([ x for x in self._missing.keys() if self._missing[x][2] == retry ]))
+        selected = []
+        for accession, entry in self._missing.items():
+            entry = self._missing_record(entry)
+            if not isinstance(retry, types.NoneType) and entry[2] != retry:
+                continue
+            if not isinstance(final, types.NoneType) and bool(entry[3]) != final:
+                continue
+            selected.append(accession)
+        return set(sorted(selected))
 
-    def update_missing(self, accessions=[], error=None, retry=None, data=None, *args, **kwargs):
+    def update_missing(self, accessions=[], error=None, retry=None, final=False, data=None, *args, **kwargs):
         """
         Update or add entries to the registry of missing entries.
 
@@ -157,14 +229,14 @@ class BaseCursor:
             be recovered by another retrieval attempt.
         """
         if isinstance(data, types.NoneType):
+            definitive = False
+            gaveup = False
+            if not isinstance(error,types.NoneType):
+                definitive = any([ x in error for x in self.final_errors ])
+                gaveup = definitive or any([ x in error for x in self.giveup ])
             if isinstance(retry,types.NoneType):
-                retry = True
-                if not isinstance(error,types.NoneType):
-                    for x in self.giveup:
-                        if x in error:
-                            retry = False
-                            break
-            err = [error, rcf.who_is_calling(self), retry]
+                retry = not gaveup
+            err = [error, rcf.who_is_calling(self), retry, bool(final) or definitive]
             targets = self.parse_ids(accessions)
             for x in targets:
                 if error == None:
@@ -174,8 +246,16 @@ class BaseCursor:
                         err[0] = "Unknown error"
                 self._missing[x] = err
         else:
-            self._missing.update(data)
-            retry = any([ v[2] for k,v in data.items() ])
+            for k,v in data.items():
+                entry = self._missing_record(v)
+                # A final verdict is permanent by definition, so a
+                # later report about the same entry may replace the
+                # message but never downgrade it
+                previous = self._missing.get(k)
+                if previous and self._missing_record(previous)[3]:
+                    entry[3] = True
+                self._missing[k] = entry
+            retry = any([ self._missing_record(v)[2] for k,v in data.items() ])
         return retry
 
     def remove_missing(self, accessions=None):
@@ -201,6 +281,34 @@ class BaseCursor:
         else:
             for k in self.parse_ids(accessions):
                 self._missing.pop(k, None)
+
+    def content_id(self):
+        """
+        Identify the body of data this cursor reads.
+
+        Two cursors that return this same value are serving the same
+        data, so consulting both answers nothing the first did not.
+        A delegator uses that to skip a backend whose contents another
+        one has already offered, which is worth doing when the skipped
+        backend is the expensive one.
+
+        This is a statement about data, not about reachability or
+        freshness: it says two sources hold the same thing, never that
+        what they hold is complete. A backend that cannot cheaply
+        prove which data it holds returns None, and None is never
+        equal to anything, so it is always consulted.
+
+        Cursors that can answer should build the value from whatever
+        identifies the data itself rather than the copy of it: two
+        backends serving one release must agree, however differently
+        they store it.
+
+        Returns
+        -------
+        hashable or None
+            None by default, i.e. never skipped.
+        """
+        return None
 
     def getids(self, obj):
         """
