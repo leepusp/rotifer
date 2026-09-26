@@ -1,6 +1,18 @@
 __doc__ = """
-Rotifer connections to local databases
-======================================
+Access biological data stored on the local machine.
+
+This package groups the cursors that never touch the network:
+:mod:`rotifer.db.local.easel` fetches sequences from FASTA files
+indexed by Easel's ``esl-sfetch`` and :mod:`rotifer.db.local.ete3`
+queries the local copy of the NCBI Taxonomy database managed by the
+ETE toolkit.
+
+Configuration
+-------------
+The default sequence database path is read from the user
+configuration (key ``local_database_path``) and falls back to
+``fadb/nr/nr`` under the directory named by the ``ROTIFER_DATA``
+environment variable.
 """
 
 import re

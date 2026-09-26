@@ -1,0 +1,29 @@
+{#- The "On this page" panel, overriding the Shibuya template of the same
+    name so the heading can collapse the panel.
+
+    The heading is a button rather than plain text, so the whole row is the
+    control: clicking it hides the list and hands the width back to the
+    page. Below 1280px the panel is a drawer with its own close button, so
+    the stylesheet makes this one inert there.
+
+    State lives on <html> and is set by _static/sidebar-toggle.js. Which of
+    the two icons shows is decided in CSS, so no script has to swap them.
+
+    aria-controls names the panel, not the #rside aside: Shibuya rewrites
+    aria-expanded on every element that claims aria-controls="rside" when
+    its drawer opens, which would fight this button. -#}
+{%- if display_toc -%}
+<div class="localtoc" id="localtoc">
+  <h3>
+    <button type="button" class="localtoc-toggle js-rside-toggle"
+            aria-controls="localtoc" aria-expanded="true">
+      <span class="localtoc-toggle-label">{{ _('On this page') }}</span>
+      <iconify-icon class="localtoc-icon localtoc-icon-hide"
+                    icon="tabler:layout-sidebar-right-collapse"></iconify-icon>
+      <iconify-icon class="localtoc-icon localtoc-icon-show"
+                    icon="tabler:layout-sidebar-right-expand"></iconify-icon>
+    </button>
+  </h3>
+  {{ toc }}
+</div>
+{%- endif -%}
