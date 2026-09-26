@@ -26,6 +26,7 @@ Data access (rotifer.db)
    rotifer.db.ncbi.mirror
    rotifer.db.ncbi.utils
    rotifer.db.local
+   rotifer.db.local.core
    rotifer.db.local.easel
    rotifer.db.local.ete3
    rotifer.db.sql
