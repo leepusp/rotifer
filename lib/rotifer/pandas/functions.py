@@ -145,20 +145,28 @@ def print_everything(max_rows=10000000000, max_columns=1000000000, max_colwidth=
     DataFrames instead of truncating output to a few columns
     and rows.
 
-    Usage:
-      import rotifer.pandas.functions as rpf
-      rpf.print_everything()
+    Parameters
+    ----------
+    max_rows : int, default 10000000000
+        Maximum number of DataFrame rows to print.
+    max_columns : int, default 1000000000
+        Maximum number of DataFrame columns to show.
+    max_colwidth : int, default 1000000000
+        Maximum length of columns. All columns wider than
+        this will be truncated.
+    width : int, default 100000
+        Maximum length for rows.
+    verbose : bool, default False
+        Warn on STDERR when changing options.
 
-    Parameters:
-      max_rows     : maximum number of DataFrame rows to print
-      max_columns  : maximum number of DataFrame columns to show
-      max_colwidth : maximum length of columns
-                     All columns wider than this will be truncated
-      width        : maximum length for rows
-      verbose      : warn on STDERR when changing options
-    
-    WARNING:
-      Very large Pandas DataFrames could take too long to print!!!
+    Warnings
+    --------
+    Very large Pandas DataFrames could take too long to print!
+
+    Examples
+    --------
+    >>> import rotifer.pandas.functions as rpf
+    >>> rpf.print_everything()
     """
 
     pd.options.display.max_rows = max_rows
