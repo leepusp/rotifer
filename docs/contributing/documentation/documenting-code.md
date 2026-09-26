@@ -164,5 +164,6 @@ A line that reaches a live endpoint is marked instead of executed:
 Use a numbered reference in the `References` section and cite it
 from the text as `[1]_`. Give authors, title, journal or resource
 name, and a DOI or stable URL. Never invent a citation: if you do
-not have the reference at hand, leave the section out and note the
-gap in `docs/OPEN_QUESTIONS.md`.
+not have the reference at hand, leave the section out and open an
+issue on the [tracker](https://github.com/leepusp/rotifer/issues)
+recording the gap.

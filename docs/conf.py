@@ -18,6 +18,11 @@ PROJECT_NAME = "ROTIFER"
 PROJECT_AUTHOR = "Robson F. de Souza and contributors"
 GITHUB_URL = "https://github.com/leepusp/rotifer"
 
+# Where the built site is published. Used only for the canonical link tag, so
+# search engines treat one address as authoritative; every internal link Sphinx
+# writes stays relative, and the site works at any path without this.
+SITE_URL = "https://leepusp.github.io/rotifer/"
+
 # Shibuya accent family (radix color name). This only controls surfaces the
 # theme owns; the exact brand tokens live in _static/theme.css.
 ACCENT_COLOR = "teal"
@@ -101,8 +106,8 @@ AUTOSUMMARY_SKIP_MEMBERS = [
 # Legacy docstrings contain malformed reST that cannot be fixed without
 # editing code, which is outside the scope of a docs change. Suppressing the
 # docutils warning category keeps the strict build clean; the affected
-# docstrings are listed in docs/OPEN_QUESTIONS.md. Set to False while
-# writing new docstrings to lint them.
+# docstrings are tracked as issues. Set to False while writing new
+# docstrings to lint them.
 SUPPRESS_LEGACY_DOCSTRING_WARNINGS = True
 
 # Legacy docstrings also contain bare ">>>" example blocks that are not
@@ -126,8 +131,8 @@ NEST_API_SIDEBAR = True
 # --- END OF TUNABLES ---
 # ---------------------------------------------------------------------------
 
-# Make the package importable when it is not installed (local builds run
-# against the checkout; Read the Docs installs the package with pip).
+# Make the package importable when it is not installed (local builds may run
+# straight against the checkout; the GitHub Pages workflow pip-installs it).
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "lib"))
 )
@@ -173,7 +178,6 @@ exclude_patterns = [
     "_ext",  # local Sphinx extensions, not site content
     "Thumbs.db",
     ".DS_Store",
-    "OPEN_QUESTIONS.md",  # working notes, not part of the site
     "_intersphinx",
 ]
 
@@ -272,6 +276,7 @@ iconify_script_url = "vendor/iconify-icon.min.js"
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "shibuya"
+html_baseurl = SITE_URL
 html_static_path = ["_static"]
 html_css_files = ["theme.css"]
 html_title = f"{PROJECT_NAME} {release}"

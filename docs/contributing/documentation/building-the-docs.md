@@ -73,15 +73,27 @@ picked up on the next rebuild of the page that renders them; when
 in doubt, touch the corresponding file under `docs/api` or restart
 the server.
 
-## How the Read the Docs build works
+## How the hosted build works
 
-`.readthedocs.yaml` at the repository root drives the hosted
-build: Ubuntu 24.04, Python 3.12, `pip install -r
-docs/requirements.txt` plus `pip install .`, then Sphinx with
-`docs/conf.py`. `fail_on_warning: true` makes the hosted build as
-strict as `make strict`, and htmlzip and PDF downloads are built
-alongside the HTML. Nothing else is special: if `make strict`
-passes locally, Read the Docs will pass.
+The site is published to GitHub Pages at
+<https://leepusp.github.io/rotifer/> by
+`.github/workflows/docs.yml`. On every push to `docs/v1` that
+touches `docs/`, `lib/rotifer/` or `setup.py`, the workflow runs
+`sphinx-build` on Ubuntu with Python 3.12 and uploads
+`docs/_build/html` as the Pages artifact.
+
+It installs `docs/requirements.txt` and then `pip install -e .` —
+and only those. Never add the repository-root `requirements.txt` to
+the workflow: it lists conda and system tools (`blast`, `datamash`,
+`famsa`) that do not exist on PyPI, plus `pygraphviz`, which needs
+Graphviz headers. The editable install is what makes numpy and
+pandas available to autodoc, which imports them for real, and what
+lets `conf.py` read the version from the package metadata; without
+it the published title would read `0.0.0`.
+
+The hosted build does **not** pass `-W`, so unlike `make strict` a
+warning will not fail the deploy. Run `make strict` locally before
+opening a pull request; the hosted build is not a substitute for it.
 
 ## Troubleshooting
 
@@ -94,8 +106,9 @@ passes locally, Read the Docs will pass.
   - The source file cannot be compiled (mixed tabs and spaces, or
     a genuine syntax error). Do not edit the code as part of a
     docs change: remove the module from `docs/api/index.rst`,
-    record it in `docs/OPEN_QUESTIONS.md`, and let the code owner
-    fix the file.
+    open an issue on the
+    [tracker](https://github.com/leepusp/rotifer/issues), and let
+    the code owner fix the file.
 * - `ModuleNotFoundError` for a scientific dependency during the
     build
   - autodoc imported a module whose dependency is not installed.

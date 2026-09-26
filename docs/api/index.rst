@@ -6,7 +6,7 @@ This reference is generated from the docstrings of the installed
 curated entry point for the ``rotifer.db`` subpackage documented below.
 
 Modules that cannot currently be imported are not listed here; see the
-``docs/OPEN_QUESTIONS.md`` file in the repository for the details.
+`issue tracker <https://github.com/leepusp/rotifer/issues>`_ for the details.
 
 Data access (rotifer.db)
 ------------------------

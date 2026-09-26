@@ -28,7 +28,8 @@ is the usual reason a change does nothing.
     `docs/_templates/sidebars/localtoc.html` (right) and
     `docs/_static/sidebar-toggle.js` (both)
 * - Where the built HTML lands
-  - `docs/Makefile` locally, `.readthedocs.yaml` when hosted
+  - `docs/Makefile` locally, `.github/workflows/docs.yml` when
+    hosted
 ```
 
 ## How is the navigation built?
@@ -164,9 +165,9 @@ read, and a file no toctree references is an orphan. Under
 
 Three ways out: add it to a toctree, which is almost always what you
 want; add it to `exclude_patterns` in `docs/conf.py` if it is a
-working note that should not be published, which is how
-`OPEN_QUESTIONS.md` is handled; or put `:orphan:` at the top of the
-file if it is genuinely meant to be reachable only by direct link.
+working note that should not be published; or put `:orphan:` at the
+top of the file if it is genuinely meant to be reachable only by
+direct link.
 
 ## How do I add a module to the API reference?
 
@@ -191,11 +192,15 @@ part of a docs change. See the troubleshooting table in
 Locally, into `docs/_build/html`, set by `BUILDDIR` in
 `docs/Makefile`. The directory is build output and is not committed.
 
-On Read the Docs the build is driven by `.readthedocs.yaml` at the
-repository root, which points Sphinx at `docs/conf.py` and sets
-`fail_on_warning: true`. That makes the hosted build exactly as
-strict as `make strict`, so a clean local strict build means a clean
-hosted one.
+When hosted, the build is driven by `.github/workflows/docs.yml`,
+which runs `sphinx-build` on every push to `docs/v1` and publishes
+`docs/_build/html` to GitHub Pages at
+<https://leepusp.github.io/rotifer/>. Nothing is committed: the
+artifact is built fresh each time, which is why `docs/_build/` and
+`docs/api/generated/` are both gitignored.
+
+The hosted build does not pass `-W`, so a warning will not fail the
+deploy the way `make strict` does locally.
 
 ## Why are some pages Markdown and some reStructuredText?
 
@@ -226,5 +231,5 @@ documentation answers anything not covered above.
   for the docstring format.
 - [Shibuya](https://shibuya.lepture.com/), the theme, for the
   options accepted by `html_theme_options`.
-- [Read the Docs configuration](https://docs.readthedocs.io/en/stable/config-file/v2.html),
-  for `.readthedocs.yaml`.
+- [Publishing with GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow),
+  for how `.github/workflows/docs.yml` deploys the site.
