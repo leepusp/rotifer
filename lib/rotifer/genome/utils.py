@@ -39,22 +39,27 @@ def _parse_qualifiers(column, feature, seqrecord):
 
 def seqrecords_to_dataframe(seqrecs=None, exclude_type=[], autopid=False, assembly=None, codontable='Bacterial', parsers={}):
     '''
-    Extract BioPython's SeqRecord features data to a Pandas dataframe
-    Arguments:
-      seqrecs      : rotifer.genome.io.parse generator, Bio.SeqIO generator
-                     or (list of) Bio.SeqRecord object(s)
-      exclude_type : list of strings
-        Exclude features by type
-      autopid      : string
-        Auto-generate missing PIDs from locus_tag
+    Extract BioPython's SeqRecord features data to a Pandas dataframe.
 
-          You can set autopid to:
-          - 'auto', for transforming the locus_tag into unique PIDs, or
-          - 'copy', copy the locus_tag if there is no alternative splicing
+    Parameters
+    ----------
+    seqrecs : rotifer.genome.io.parse generator, Bio.SeqIO generator or (list of) Bio.SeqRecord object(s)
+        Sequence records whose features will be extracted.
+    exclude_type : list of strings
+        Exclude features by type.
+    autopid : string
+        Auto-generate missing PIDs from locus_tag.
 
-      codontable   : integer or string (see Bio.Seq)
-        Genetic code name for translating CDSs
-      parsers: dict of functions
+        You can set autopid to:
+
+        - 'auto', for transforming the locus_tag into unique PIDs, or
+        - 'copy', copy the locus_tag if there is no alternative splicing
+    assembly : string, optional
+        Assembly ID used when it cannot be inferred from the input
+        file name. If not set, the sequence ID is used instead.
+    codontable : integer or string (see Bio.Seq)
+        Genetic code name for translating CDSs.
+    parsers : dict of functions
         Data extractor routines for non-standard columns.
 
         This dictionary's keys will be used as column names.
@@ -65,6 +70,11 @@ def seqrecords_to_dataframe(seqrecs=None, exclude_type=[], autopid=False, assemb
         1. the column name
         2. the current feature being processed
         3. the current sequence object
+
+    Returns
+    -------
+    rotifer.genome.data.NeighborhoodDF
+        One row per feature, plus one column per key in ``parsers``.
     '''
     import re
     import os
