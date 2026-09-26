@@ -1,3 +1,15 @@
+"""
+Catalog collections of local data files.
+
+This module provides :class:`FileCollection`, a small helper that
+scans a directory tree for data files (sequence alignments, by
+default) and exposes the matching paths as a dataframe.
+
+Note: this module currently fails to import because it calls
+``loadConfig`` without importing it; see ``docs/OPEN_QUESTIONS.md``
+in the repository.
+"""
+
 import os
 import hashlib
 import pathlib
@@ -16,6 +28,55 @@ config = loadConfig(__name__, defaults = _defaults)
 # Classes
 # Loading our alignments
 class FileCollection():
+    """
+    Index the data files found under a directory tree.
+
+    Scans ``basedir`` for files matching one or more glob patterns
+    and collects the results in a dataframe, one row per file. Extra
+    keyword arguments describe companion files to look up for each
+    entry, each becoming an additional column.
+
+    Parameters
+    ----------
+    basedir : path-like, default '/databases/fadb'
+        Root of the directory tree to scan.
+    pattern : str or list of str, default '*.fa'
+        Glob pattern(s) identifying the data files. The matched
+        suffix is stripped from each file name to build the entry
+        name.
+    recursive : bool, default True
+        Whether to descend into subdirectories.
+    checksum : bool, default True
+        Whether to add a ``checksum`` column.
+    ignore : list of str, default []
+        Entry names to skip.
+    **kwargs : dict
+        Companion file groups, one per resulting column. Each value
+        is a dictionary with a ``pattern`` key and an optional
+        ``basedir`` key, searched relative to the entry name. A
+        group that matches nothing yields None, a single match
+        yields the path itself and several matches yield a list.
+
+    Attributes
+    ----------
+    df : pandas.DataFrame
+        One row per data file, with the ``name`` and ``path``
+        columns plus any companion columns named by ``kwargs``.
+
+    Notes
+    -----
+    Passing ``checksum=True`` (the default) appends a ``checksum``
+    column name without producing a matching value, so building the
+    dataframe raises a length mismatch; ``hashlib`` is imported but
+    never used. See ``docs/OPEN_QUESTIONS.md``.
+
+    Examples
+    --------
+    >>> from rotifer.db.local.core import FileCollection
+    >>> fc = FileCollection(basedir="/databases/fadb", checksum=False)  # doctest: +SKIP
+    >>> fc.df.head()  # doctest: +SKIP
+    """
+
     def __init__(
             self,
             basedir   = config["basedir"],
@@ -81,12 +142,43 @@ class FileCollection():
         self.df = db
 
     def __setitem__(self,key,value):
+        """
+        Replace a row of the underlying dataframe.
+
+        Parameters
+        ----------
+        key : label
+            Row label, as accepted by :meth:`pandas.DataFrame.loc`.
+        value : object
+            Replacement row.
+        """
         self.df.loc[key] = value
 
     def __getitem__(self,key):
+        """
+        Fetch a row of the underlying dataframe.
+
+        Parameters
+        ----------
+        key : label
+            Row label, as accepted by :meth:`pandas.DataFrame.loc`.
+
+        Returns
+        -------
+        pandas.Series
+            The row describing one indexed file.
+        """
         return self.df.loc[key]
 
     def keys(self):
+        """
+        List the row labels of the underlying dataframe.
+
+        Returns
+        -------
+        list
+            The dataframe index, as a list.
+        """
         return self.df.index.tolist()
 
 # Is this library being used as a script?
