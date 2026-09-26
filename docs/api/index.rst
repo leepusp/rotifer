@@ -20,6 +20,7 @@ Data access (rotifer.db)
    rotifer.db.delegator
    rotifer.db.parallel
    rotifer.db.cli
+   rotifer.db.neighbors
    rotifer.db.ncbi
    rotifer.db.ncbi.entrez
    rotifer.db.ncbi.ftp
