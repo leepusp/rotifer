@@ -1,35 +1,9 @@
 """
-Read UniProt through its REST API.
+Query UniProt's REST web services.
 
-This subpackage is the online backend of :mod:`rotifer.db.uniprot`. It
-covers the resources UniProt publishes -- UniProtKB, UniParc, UniRef,
-proteomes and taxonomy -- behind cursors that follow the same
-interface as the NCBI ones, so that switching source is mostly a
-matter of switching import.
-
-Masking the resources
----------------------
-Every cursor here takes ``database='auto'`` by default, which decides
-from each identifier which resource should answer for it. One call may
-therefore mix identifiers of different kinds:
-
->>> from rotifer.db.uniprot import webapi                       # doctest: +SKIP
->>> sc = webapi.SequenceCursor()                                # doctest: +SKIP
->>> records = sc.fetchall(['P00750','UPI0000000001','UP000000625'])  # doctest: +SKIP
-
-Detection is by identifier syntax first and by asking the API second,
-so the common cases cost no extra request. Naming a resource, e.g.
-``database='uniref'``, skips detection entirely.
-
-Extra API parameters
---------------------
-UniProt's API accepts many options these classes know nothing about.
-Any keyword a cursor does not recognise is passed straight through as a
-query parameter, so they all remain available:
-
->>> fc = webapi.FastaCursor(includeIsoform=True)                # doctest: +SKIP
->>> sc = webapi.SearchCursor(database='uniprotkb',              # doctest: +SKIP
-...                          fields='accession,id,length')
+:mod:`rotifer.db.uniprot.webapi.idmapping` implements the identifier
+mapping workflow: submit a batch of accessions, poll until the job
+finishes and download the results.
 
 Cursors
 -------
@@ -46,6 +20,16 @@ Cursors
 :class:`MappingCursor`
     Identifier translation, in either direction, read off the
     cross-references an entry carries.
+
+Extra API parameters
+--------------------
+UniProt's API accepts many options these classes know nothing about.
+Any keyword a cursor does not recognise is passed straight through as a
+query parameter, so they all remain available:
+
+>>> fc = webapi.FastaCursor(includeIsoform=True)                # doctest: +SKIP
+>>> sc = webapi.SearchCursor(database='uniprotkb',              # doctest: +SKIP
+...                          fields='accession,id,length')
 
 See Also
 --------
