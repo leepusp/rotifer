@@ -72,6 +72,7 @@ Sequence and interval utilities
    :toctree: generated
 
    rotifer.interval.utils
+   rotifer.io.base
    rotifer.io.dali
    rotifer.io.fileinput
    rotifer.io.hhsuite
