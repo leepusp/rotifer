@@ -1,3 +1,18 @@
+"""
+Access genome data from a local mirror of the NCBI FTP site.
+
+Cursors in this module behave like their
+:mod:`rotifer.db.ncbi.ftp` counterparts but read GenBank flat files
+from a local directory tree that mirrors the ``genomes`` section of
+the NCBI FTP site. No network connection is used.
+
+Configuration
+-------------
+The mirror location defaults to the ``mirror`` entry of the
+:mod:`rotifer.db.ncbi` configuration, which falls back to the
+``genomes`` directory under ``ROTIFER_DATA``.
+"""
+
 import os
 import sys
 import types
@@ -31,31 +46,38 @@ config = loadConfig(__name__, defaults = _defaults)
 
 class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimpleParallelProcessCursor):
     """
-    Fetch genome sequences from a local mirror of the 
-    NCBI genomes repository.
+    Fetch genome sequences from a local mirror of the NCBI genomes
+    repository.
 
-    Usage
-    -----
-    Load a random sample of genomes, except eukaryotes
-    >>> from rotifer.db.ncbi import mirror
-    >>> gc = mirror.GenomeCursor()
-    >>> genomes = gc.fetchall(accessions)
+    Genomes are located by their assembly accession and parsed from
+    the mirror's GenBank flat files into Bio.SeqRecord objects.
 
     Parameters
     ----------
-    path: string
-      Path to a mirror of the genomes section of the 
-      NCBI FTP site. Contents are expected to be the
-      same or a subset of the genomes directory.
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
+    progress : bool, default False
+        Whether to print a progress bar.
+    tries : int, default 1
+        Accepted for interface compatibility; local reads are
+        attempted only once.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel reads. Defaults to
+        half of the CPU count.
+    path : str, optional
+        Path to a mirror of the genomes section of the NCBI FTP
+        site. Contents are expected to be the same as, or a subset
+        of, the ``genomes`` directory.
 
+    See Also
+    --------
+    rotifer.db.ncbi.ftp.GenomeCursor : the same interface over FTP
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import mirror
+    >>> gc = mirror.GenomeCursor()  # doctest: +SKIP
+    >>> genomes = gc.fetchall(['GCA_900547725.1'])  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -71,36 +93,37 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
     def open_genome(self, accession, assembly_reports=None):
         """
-        Open the GBFF file of a genome from a NCBI local mirror.
+        Open the GBFF file of a genome from the local mirror.
 
-        Usage:
-          # Just open
-          
-          from rotifer.db.ncbi import mirror
-          gc = mirror.GenomeCursor()
-          fh = gc.open_genome("GCA_900547725.1")
+        Compressed files are uncompressed on the fly.
 
-          # Open and parse to a list of Bio.SeqRecord
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
+        assembly_reports : pandas.DataFrame, optional
+            NCBI assembly summary table, as loaded by
+            :func:`rotifer.db.ncbi.assemblies`. When given, the
+            genome path is derived from its ``ftp_path`` column
+            instead of being searched in the mirror tree.
 
-          from rotifer.db.ncbi import mirror
-          from Bio import SeqIO
-          gc = mirror.GenomeCursor()
-          fh = gc.open_genome("GCA_900547725.1")
-          s = [ x for x in SeqIO.parse(fh, "genbank") ]
-          fh.close()
+        Returns
+        -------
+        file-like or None
+            The open data stream, with the assembly accession in an
+            ``assembly`` attribute, or None when the genome is not
+            found.
 
-        Parameters:
-          accession : string
-            Genome accession
-          assembly_reports: pandas DataFrame
-            (Optional) NCBI's ASSEMBLY_REPORTS tables
-            This dataframe can be loaded using:
+        Examples
+        --------
+        Open and parse a genome:
 
-              from rotifer.db.ncbi as ncbi
-              ar = ncbi.assemblies()
-
-        Returns:
-          Open data stream (file handle-like) object
+        >>> from rotifer.db.ncbi import mirror
+        >>> from Bio import SeqIO
+        >>> gc = mirror.GenomeCursor()  # doctest: +SKIP
+        >>> fh = gc.open_genome("GCA_900547725.1")  # doctest: +SKIP
+        >>> s = [x for x in SeqIO.parse(fh, "genbank")]  # doctest: +SKIP
+        >>> fh.close()  # doctest: +SKIP
         """
         import rotifer.core.functions as rcf
 
@@ -119,26 +142,41 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
     def genome_path(self, accession, assembly_reports=None):
         """
-        Fetch the path of a genome in the local NCBI mirror.
+        Find the path of a genome in the local NCBI mirror.
 
-        Usage:
-          from rotifer.db.ncbi import mirror
-          gc = mirror.GenomeCursor()
-          path = gc.genome_path("GCA_900547725.1")
-          print("/".join(path))
+        When the accession matches several versions, the newest one
+        is chosen.
 
-        Parameters:
-          accession : string
-            Genome accession
-          assembly_reports: pandas DataFrame
-            (Optional) NCBI's ASSEMBLY_REPORTS tables
-            This dataframe can be loade using:
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
+        assembly_reports : pandas.DataFrame, optional
+            NCBI assembly summary table, as loaded by
+            :func:`rotifer.db.ncbi.assemblies`. When given, the path
+            is derived from its ``ftp_path`` column instead of being
+            searched in the mirror tree.
 
-              from rotifer.db.ncbi as ncbi
-              ar = ncbi.assemblies()
-        
-        Returns:
-          A tuple of two strings, empty when the genome is not found
+        Returns
+        -------
+        tuple
+            The directory and file name of the genome's GBFF file.
+            The file name is None when no GBFF file exists in the
+            genome's directory.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the mirror has no directory for the accession.
+        IOError
+            If the genome's directory cannot be read.
+
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import mirror
+        >>> gc = mirror.GenomeCursor()  # doctest: +SKIP
+        >>> path = gc.genome_path("GCA_900547725.1")  # doctest: +SKIP
+        >>> print("/".join(path))  # doctest: +SKIP
         """
         from rotifer.db.ncbi import NcbiConfig
         path = ()
@@ -183,25 +221,29 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
     def genome_report(self, accession):
         """
-        Fetch genome assembly reports.
+        Fetch and parse a genome's assembly report from the mirror.
 
-        Usage:
-          from rotifer.db.ncbi import mirror
-          gc = mirror.GenomeCursor()
-          contigs, assembly = gc.genome_report("GCA_900547725.1")
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
 
-        Parameters:
-          accession : string
-            Genome accession
-        
-        Returns:
-          A tuple containing a Pandas DataFrame and a Pandas Series
-          
-          The Pandas DataFrame lists the assembly's contigs
+        Returns
+        -------
+        tuple
+            A pair ``(contigs, properties)``. ``contigs`` is a
+            pandas.DataFrame listing the assembly's sequences.
+            ``properties`` is a pandas.DataFrame, indexed by
+            property name, holding the assembly metadata, similar
+            to a row of :func:`rotifer.db.ncbi.assemblies`. When
+            the genome or its report is not found, ``contigs`` is
+            an empty list.
 
-          The Series contains the assembly properties and is 
-          similar to the table from rotifer.db.ncbi.assemblies()
-
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import mirror
+        >>> gc = mirror.GenomeCursor()  # doctest: +SKIP
+        >>> contigs, assembly = gc.genome_report("GCA_900547725.1")  # doctest: +SKIP
         """
 
         # Column names
@@ -267,38 +309,40 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
 class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, GenomeCursor):
     """
-    Fetch genome annotation as dataframes.
+    Fetch genome annotation from a local mirror as dataframes.
 
-    Usage
-    -----
-    Load a random sample of genomes
-
-    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
-    >>> from rotifer.db.ncbi import mirror
-    >>> gfc = mirror.GenomeFeaturesCursor(g)
-    >>> df = gfc.fetchall()
+    Genomes are read like :class:`GenomeCursor` does, then converted
+    to feature tables with one row per annotated feature.
 
     Parameters
     ----------
-    path: string
-      Path to a mirror of the genomes section of the 
-      NCBI FTP site. Contents are expected to be the
-      same or a subset of the genomes directory.
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
+    path : str, optional
+        Path to a mirror of the genomes section of the NCBI FTP
+        site.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default False
+        Whether to print a progress bar.
+    tries : int, default 1
+        Accepted for interface compatibility; local reads are
+        attempted only once.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel reads.
 
+    Examples
+    --------
+    Load the feature tables of two genomes:
+
+    >>> from rotifer.db.ncbi import mirror
+    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
+    >>> gfc = mirror.GenomeFeaturesCursor()  # doctest: +SKIP
+    >>> df = gfc.fetchall(g)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -320,62 +364,69 @@ class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, GenomeCursor
 
 class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.db.parallel.GeneNeighborhoodCursor, GenomeFeaturesCursor):
     """
-    Fetch genome annotation as dataframes.
+    Fetch gene neighborhoods from genomes in a local mirror.
 
-    Usage
-    -----
-    Load a random sample of genomes, except eukaryotes
-    >>> from rotifer.db.ncbi import mirror
-    >>> gfc = mirror.GeneNeighborhoodCursor(progress=True)
-    >>> df = gfc.fetchall(["EEE9598493.1"])
+    Target proteins are resolved to genome assemblies through
+    identical protein group (IPG) reports, the genomes are read from
+    the mirror and the annotated regions around each target gene are
+    returned as dataframes.
 
     Parameters
     ----------
-    column : string
-      Name of the column to scan for matches to the accessions
-      See rotifer.genome.data.NeighborhoodDF
-    before : int
-      Keep at most this number of features, of the same type as the
-      target, before each target
-    after  : nt
-      Keep at most this number of features, of the same type as the
-      target, after each target
-    min_block_distance : int
-      Minimum distance between two consecutive blocks
-    strand : string
-      How to evaluate rows concerning the value of the strand column
-      Possible values for this option are:
-      - None : ignore strand
-      - same : same strand as the targets
-      -    + : positive strand features and targets only
-      -    - : negative strand features and targets only
-    fttype : string
-      How to process feature types of neighbors
-      Supported values:
-      - same : consider only features of the same type as the target
-      - any  : ignore feature type and count all features when
-               setting neighborhood boundaries
-    eukaryotes : boolean, default False
-      If set to True, neighborhood data for eukaryotic genomes
-    path: string
-      Path to a mirror of the genomes section of the 
-      NCBI FTP site. Contents are expected to be the
-      same or a subset of the genomes directory.
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
+    column : str, default 'pid'
+        Name of the column to scan for matches to the accessions.
+        See :class:`rotifer.genome.data.NeighborhoodDF`.
+    before : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, before each target.
+    after : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, after each target.
+    min_block_distance : int, default 0
+        Minimum distance between two consecutive blocks.
+    strand : str, optional
+        How to evaluate rows concerning the value of the strand
+        column. Supported values:
 
+        * ``None`` : ignore strand
+        * ``same`` : same strand as the targets
+        * ``+`` : positive strand features and targets only
+        * ``-`` : negative strand features and targets only
+    fttype : {'same', 'any'}, default 'same'
+        How to process feature types of neighbors. With ``same``,
+        only features of the same type as the target are considered.
+        With ``any``, all features count when setting neighborhood
+        boundaries.
+    eukaryotes : bool, default False
+        Whether to process eukaryotic genomes.
+    path : str, optional
+        Path to a mirror of the genomes section of the NCBI FTP
+        site.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default False
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to process each batch.
+    batch_size : int, optional
+        Number of accessions per batch.
+    threads : int, optional
+        Number of processes used for parallel reads.
+
+    See Also
+    --------
+    rotifer.db.ncbi.GeneNeighborhoodCursor : delegator that combines
+        this backend with the FTP and Entrez backends
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import mirror
+    >>> gnc = mirror.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+    >>> df = gnc.fetchall(["EEE9598493.1"])  # doctest: +SKIP
     """
     def __init__(
             self,
