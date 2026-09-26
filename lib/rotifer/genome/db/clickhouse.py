@@ -151,9 +151,6 @@ class clickhouse:
         except:
             pass
 
-    def fetch_one(self):
-        # Get first hit
-        pass
 
     def configuration(self):
         # Show database configuration
@@ -506,4 +503,3 @@ class clickhouse:
 # rgd = s.fetch_all()
 # for rgd in s.fetch_next("genome"): # fetch next rotifer.genome.data (i.e. collection of dataframes)
 # for block in rgd.blocks():
-

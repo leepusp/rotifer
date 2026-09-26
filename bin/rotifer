@@ -28,12 +28,6 @@ def parse_cli():
 
     return args
 
-def blockPrint():
-    sys.stderr = open(os.devnull, 'w')
-    sys.stdout = open(os.devnull, 'w')
-
-def enablePrint():
-    sys.stdout = sys.__stdout__
 
 def search(sub_folder, res):
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
@@ -111,5 +105,3 @@ if __name__ == '__main__':
     args = parse_cli()
 
     show()
-
-

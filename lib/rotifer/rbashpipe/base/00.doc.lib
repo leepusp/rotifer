@@ -3,16 +3,3 @@
 #========================================================================
 # Find executables
 #========================================================================
-function describe_modules() {
-    local configdir=$1
-    for script in $configdir/*
-    do
-	local module=`basename $script .sh`
-	declare -a funcname=(`grep function $script | sed 's/\(\)//' | awk '{print $2}' | xargs`)
-	typeset -i i=0
-	while [ $i -le ${#funcname[@]} ]
-	do
-	    echo "$module\t${funcname[$i]}"
-	done
-    done
-}

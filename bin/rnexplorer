@@ -198,19 +198,6 @@ def custom_row_filter(df, ipt_parameter, verbose = False,
 
     return (new_info_ls, df)
 
-def exec_function(df, s, verbose = False):
-    '''
-    Execute a complex function.
-    Class, functions object attributions can be done using this.
-    '''
-    try:
-        func = open(s).read()
-    except:
-        func = s
-
-    exec(s)
-    return df
-
 
 def strlist2dict(ls_of_str, output = 'str'):
     '''
