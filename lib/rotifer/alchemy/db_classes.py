@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from sqlalchemy import Column, String, Integer, Date, Float
+from sqlalchemy import Column, String, Integer, Date, Float, MetaData
 
 from sqlalchemy.dialects import registry
 registry.register('clickhouse', 'base', 'dialect')

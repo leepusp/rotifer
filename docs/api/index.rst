@@ -72,6 +72,7 @@ Sequence and interval utilities
    :toctree: generated
 
    rotifer.interval.utils
+   rotifer.io.base
    rotifer.io.dali
    rotifer.io.fileinput
    rotifer.io.hhsuite
@@ -95,6 +96,7 @@ Other subpackages
 
    rotifer.alchemy
    rotifer.alchemy.connect
+   rotifer.alchemy.db_classes
    rotifer.cluster
    rotifer.cluster.cluster
    rotifer.pipeline
