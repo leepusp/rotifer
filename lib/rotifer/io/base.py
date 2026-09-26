@@ -3,7 +3,7 @@ from io import TextIOWrapper
 
 class TextIO(TextIOWrapper):
     def __init__(self, fileName, mode='r', encoding='utf-8', delete=False):
-        super().__init__(
+        super().__init__()
         self.__delete = delete
 
     def __enter__(self):
@@ -16,7 +16,7 @@ class TextIO(TextIOWrapper):
         if self.__delete:
             os.remove(self.name)
 
-    def close():
+    def close(self):
         self.fh.close()
         self.__delete__()
 
