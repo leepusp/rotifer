@@ -215,16 +215,17 @@ def add_arch_to_df(df, column='pid', file=None, name='archtecture', evalue_filte
     '''
     Add a column pfam with the domain architecture for the input accessions.
     '''
-
+    from copy import deepcopy
     if inplace == False:
         df = df.copy()
 
     h = hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
-    h = h[h['evalue'] <= evalue_filter] 
+    h = h[h['evalue'] <= evalue_filter]
     h = h[h['score'] >= score_filter]
 
-    arch = riu.architecture(h, **riu.config['hmmer'])
+    arch = riu.architecture(h, **{ **riu.config['hmmer'], 'maximum_overlap':overlap_filter })
     arch = arch.set_index('sequence').architecture.to_dict()
+
     df[name] = df[column].map(arch)
     return None if inplace else df
 
