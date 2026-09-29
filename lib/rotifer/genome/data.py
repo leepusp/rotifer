@@ -337,9 +337,29 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
     def series_to_compact_frequency(self, concat_string=": ", normalize=False):
         """
-         *Series method*
-        Aggregate the value count of a series in a single string with
-        the count inside a parentheses
+        Summarize the value counts of a series in a single string.
+
+        Each distinct value is written followed by its count inside
+        parentheses, e.g. ``AAA(3): ABC_tran(1)``.
+
+        Parameters
+        ----------
+        concat_string : str, default ": "
+            Separator placed between each ``value(count)`` item.
+        normalize : bool, default False
+            If True, report relative frequencies, formatted with two
+            decimal places, instead of absolute counts.
+
+        Returns
+        -------
+        str
+            The ``value(count)`` items, sorted by decreasing count and
+            joined by ``concat_string``.
+
+        Notes
+        -----
+        This is meant to be called on a :class:`pandas.Series`, since it
+        relies on :meth:`pandas.Series.value_counts`.
         """
         if normalize:
             count_dict = dict(
@@ -593,29 +613,43 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
         Parameters
         ----------
-        targets: string, (list of) booleans or pd.Series
-          Rules used to identify target rows.
+        targets : str, pandas.Series or list of these, default ['query == 1']
+            Rules used to identify target rows.
 
-          Rules are based on Pandas's eval method or its results.
+            Strings are evaluated with :meth:`pandas.DataFrame.eval` and
+            boolean :class:`pandas.Series` are used as given.
 
-          If all rules return True for a given row, the row is a
-          target and its neighbors will be identified.
-        before: int
-          Keep at most this number of features *before* each target
-        after: int
-          Keep at most this number of features *after* each target
-        min_block_distance: int
-          Minimum distance between two blocks.
+            If all rules return True for a given row, the row is a
+            target and its neighbors will be identified.
+        before : int, default 3
+            Keep at most this number of features *before* each target.
+        after : int, default 3
+            Keep at most this number of features *after* each target.
+        min_block_distance : int, default 0
+            Minimum distance between two blocks.
 
-          Blocks that are separated by smaller number of features
-          will be merged into a single block,
-        fttype: str
-          How to count neighbors by feature type.
-          Supported values:
-          ```same```
-            Consider only features of the same type as the target
-          ```any```
-            Ignore feature type and count all neighboring features
+            Blocks that are separated by a smaller number of features
+            will be merged into a single block.
+        fttype : {'same', 'any'}, default 'same'
+            How to count neighbors by feature type.
+
+            - ``'same'``: consider only features of the same type as the
+              target.
+            - ``'any'``: ignore feature type and count all neighboring
+              features (not yet supported).
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per region, with its location (``assembly``,
+            ``nucleotide``, ``type``, ``block_id``), the targets it
+            contains (``targets``, ``tiids``), its feature order limits
+            (``foup``, ``fodown``) and its first and last internal IDs
+            (``up``, ``down``). The ``origin`` column is non-zero for
+            regions that cross the origin of circular replicons.
+
+            An empty DataFrame is returned when no target is found or
+            ``fttype`` is not supported.
         """
         import sys
         import numpy as np
