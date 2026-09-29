@@ -4,10 +4,6 @@ Catalog collections of local data files.
 This module provides :class:`FileCollection`, a small helper that
 scans a directory tree for data files (sequence alignments, by
 default) and exposes the matching paths as a dataframe.
-
-Note: this module currently fails to import because it calls
-``loadConfig`` without importing it; see ``docs/OPEN_QUESTIONS.md``
-in the repository.
 """
 
 import os
@@ -15,6 +11,8 @@ import hashlib
 import pathlib
 import pandas as pd
 import rotifer
+from rotifer.core.functions import loadConfig
+
 logger = rotifer.logging.getLogger(__name__)
 _defaults = {
     "basedir": "/databases/fadb",
@@ -148,7 +146,7 @@ class FileCollection():
         Parameters
         ----------
         key : label
-            Row label, as accepted by :meth:`pandas.DataFrame.loc`.
+            Row label, as accepted by :attr:`pandas.DataFrame.loc`.
         value : object
             Replacement row.
         """
@@ -161,7 +159,7 @@ class FileCollection():
         Parameters
         ----------
         key : label
-            Row label, as accepted by :meth:`pandas.DataFrame.loc`.
+            Row label, as accepted by :attr:`pandas.DataFrame.loc`.
 
         Returns
         -------

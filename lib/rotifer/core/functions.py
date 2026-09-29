@@ -105,35 +105,37 @@ def open_compressed(filename, mode='r', encoding='utf8'):
 
 def vmsg(message = ''):
     """
-    Output a message to stderr.
+    Output a timestamped message to stderr.
 
-    Three options available:
-    1-) Input a string
-    2-) Input a list with one element
-    3-) Input a list with n elements
+    Parameters
+    ----------
+    message : str or list of str, default ''
+        The message to print. A string, or a list with a single element,
+        is printed on one line. If a list has more than one element, the
+        first element is printed on the timestamped line and each
+        remaining element on its own line.
 
-    If a list with more than one element is passed,
-    the first element will be printed with timelog the other lines will be printed in a new line.
-    -----------
-    INPUT:
-    message: A message in the format, str or list.
-    -----------
-    OUTPUT:
-    A message in the format for option (1) and (2)
-    ## [DAY/MONTH Hour:Minute:Second] <message>
-    or
+    Notes
+    -----
+    A string, or a list with one element, is written as::
 
-    A message in the format for option (3)
-    ## [DAY/MONTH Hour:Minute:Second] <message>
-    ### <message>
-    ### ...
-    -----------
-    Example:
-    import rotifer.core.functions as cf
+        ## [MM/DD/YY HH:MM:SS] <message>
 
-    if verbose:
-        cd.msg('Small test')
-    >> ## [12/03/18 09:50:54] Small test
+    A list with more than one element is written as::
+
+        ## [MM/DD/YY HH:MM:SS] <first element>
+        ### <second element>
+        ### ...
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import rotifer.core.functions as cf
+
+        if verbose:
+            cf.vmsg('Small test')
+        # stderr: ## [12/03/18 09:50:54] Small test
     """
 
     now = dt.now().strftime('[%D %H:%M:%S]')
