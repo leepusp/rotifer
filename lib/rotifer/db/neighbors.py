@@ -7,9 +7,7 @@ program. It builds temporary tables of query accessions, joins them
 against the ``ftable`` feature table and prints neighborhoods in
 either the ``gi2operons`` or the tabular format.
 
-.. admonition:: Deprecated
-   :class: warning
-
+.. deprecated::
    This module is superseded by
    :class:`rotifer.db.methods.GeneNeighborhoodCursor` and its
    backends (:mod:`rotifer.db.ncbi`, :mod:`rotifer.db.sql.sqlite3`),
@@ -18,10 +16,9 @@ either the ``gi2operons`` or the tabular format.
 
 Warnings
 --------
-Several methods still contain known defects, each recorded as a
-Note on the method itself. The module is documented for reference;
-new code should use
-:class:`rotifer.db.methods.GeneNeighborhoodCursor`.
+This module does not currently import: it has a syntax error at
+line 131, and several methods contain further errors. It is
+excluded from the API reference. See ``docs/OPEN_QUESTIONS.md``.
 """
 
 import argparse # Not our command line parser of choice but better than none
@@ -241,7 +238,8 @@ class rneighbors:
         -----
         The filter is chosen by two consecutive ``if`` statements
         rather than ``if``/``elif``, so an assembly filter is
-        discarded whenever ``self.gacc`` is empty.
+        discarded whenever ``self.gacc`` is empty. See
+        ``docs/OPEN_QUESTIONS.md``.
         """
         if self.asm:
             lsql = self.baseSql() + self.lsqlAsm()
@@ -275,7 +273,7 @@ class rneighbors:
         The ``missing`` and ``query`` output formats are selected by
         two consecutive ``if`` statements and the ``else`` branch
         binds only to the second, so ``missing`` also runs the
-        neighborhood branch.
+        neighborhood branch. See ``docs/OPEN_QUESTIONS.md``.
         """
         self.connect() # connect to DB
         self.post_ids() # post to DB
@@ -348,7 +346,8 @@ class rneighbors:
         -----
         This method raises before logging: it calls
         ``str(x[0], lost)`` and ``join(lost)`` where
-        ``str(x[0])`` and ``'\\n'.join(lost)`` are meant.
+        ``str(x[0])`` and ``'\\n'.join(lost)`` are meant. See
+        ``docs/OPEN_QUESTIONS.md``.
         """
         lost = self.fetch_queries(cursor)
         lost = list(map(lambda x: str(x[0], lost)))
