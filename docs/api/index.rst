@@ -96,6 +96,7 @@ Other subpackages
 
    rotifer.alchemy
    rotifer.alchemy.connect
+   rotifer.alchemy.db_classes
    rotifer.cluster
    rotifer.cluster.cluster
    rotifer.pipeline

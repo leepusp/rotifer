@@ -177,7 +177,7 @@ def filter_nonoverlapping_regions(df,
     clean.reset_index(drop=True, inplace=True)
 
     # Remove non-optimal layers
-    keep = pd.Series([ np.nan ] * len(clean), index=clean.index.copy())
+    keep = pd.Series([ pd.NA ] * len(clean), index=clean.index.copy(), dtype="boolean")
     while keep.isna().any():
         logger.info(f'Running next layer with {keep.notna().sum()} processed rows out of {len(clean)} rows')
         best = clean.loc[keep.isna()].drop_duplicates(reference)
