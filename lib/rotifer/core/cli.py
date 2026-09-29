@@ -89,33 +89,50 @@ class parser:
             metavar = None, action = 'store', rconfig = '',
             version = '',
             **kw):
-        '''
-        Add an argument to parser
-        ------------
-        PARAMETERS:
-        long_arg:  long alias
-        short_arg: short alias
-        dest:      value destination
-        nargs:     Number of args
-        const:     see argparse const
-        default:   Default value
-        arg_type:  argument type (no quotes)
-        choices:   offer a list of choices
-        helper:    Help message
-        metavar:   Metavar
-        action:    An action
-        rconfig:   Load pre-defined configurations
-        ------------
-        USAGE:
-        Add your own argument:
-        parser.add(long_arg = '--long',
-                   short_arg = '-short',
-                   dest = 'myvar'
-                   )
+        """
+        Add an argument to the parser.
 
-        parser.add(':cli.core') # load predefined configuration
-        parser.parse_args()
-        '''
+        Parameters
+        ----------
+        long_arg : str, optional
+            Long alias, such as ``--input``. A value containing ``:`` is
+            taken as an ``rconfig`` name instead.
+        short_arg : str, optional
+            Short alias, such as ``-i``.
+        dest : str, optional
+            Value destination.
+        nargs : int or str, optional
+            Number of arguments consumed by the option.
+        const : object, optional
+            See the ``const`` argument of :mod:`argparse`.
+        default : object, optional
+            Default value.
+        arg_type : callable, optional
+            Argument type (no quotes).
+        choices : list, optional
+            List of acceptable values.
+        helper : str, optional
+            Help message.
+        metavar : str, optional
+            Name for the argument in the usage message.
+        action : str or argparse.Action, optional
+            An action.
+        rconfig : str, optional
+            Name of a pre-defined configuration to load.
+
+        Examples
+        --------
+        Add your own argument:
+
+        >>> parser.add(long_arg='--long',
+        ...            short_arg='-short',
+        ...            dest='myvar')
+
+        Load a pre-defined configuration:
+
+        >>> parser.add(':cli.core')
+        >>> parser.parse_args()
+        """
 
         # Parse rconfig
         if long_arg is not None:
@@ -692,14 +709,19 @@ class action:
         return mylist
 
     class autoload(argparse.Action):
-        '''
-        An action to decide file type, open, and load the file into memory, close after
-        So far it decide if string, file, stdin
-        Optional parameters:
-            duplicates = Boolean [True/False]
-            duplicates = True, remove duplicate lines
-            duplicates = False, keep duplicate lines
-        '''
+        """
+        An action that decides the file type, opens the file, loads it into
+        memory and closes it afterwards. So far it tells apart strings,
+        files and standard input.
+
+        Parameters
+        ----------
+        file_type : str, default 'list'
+            Type of the value loaded into the namespace.
+        kw : dict, default ``{'duplicates': True}``
+            Loader options. The ``duplicates`` key removes duplicate lines
+            when ``True`` and keeps them when ``False``.
+        """
         def __init__(self, option_strings, file_type = 'list', kw = {'duplicates':True},
                       *args, **kwargs):
             duplicates = kw['duplicates']
@@ -814,43 +836,72 @@ def version(program = '',
             authors_attrs = {'color': 'cyan',
                              'attrs': []
             }):
-    '''
-    Pre-formatted version style
-    ------
-    Parameters:
-    program:     PROGRAM NAME       [String]
-    version:     VERSION NUMBER     [String]
-    authors:     AUTHORS NAME       [String]
-    description: SHORT DESCRITPTION [String]
+    """
+    Build a pre-formatted version string.
 
-    Format Parameters:
-    program_attrs:     FORMAT STYLE [Dictionary]
-    description_attrs: FORMAT STYLE [Dictionary]
-    version_attrs:     FORMAT STYLE [Dictionary]
-    authors_attrs:     FORMAT STYLE [Dictionary]
+    Parameters
+    ----------
+    program : str
+        Program name.
+    description : str
+        Short description.
+    version : str
+        Version number.
+    tags : str
+        Extra tags, such as a release or build identifier.
+    authors : str
+        Author names.
+    program_attrs : dict
+        Format style of the program name.
+    description_attrs : dict
+        Format style of the description.
+    version_attrs : dict
+        Format style of the version number.
+    tag_attrs : dict
+        Format style of the tags.
+    authors_attrs : dict
+        Format style of the author names.
 
-    Format Syle:
-    color: ['grey', 'red', 'green', yellow', 'blue', 'magenta', 'cyan', 'white']
-    attrs: ['bold', 'dark', 'underline', 'blink', 'reverse', 'concealed']
-    ------
-    Usage:
-    > parser.add_argument(--version,
-                          action = 'version',
-                          version = corecli.version(program = 'my program',
-                                                    version = '0.002'
-                                                    authors = 'Me',
-                                                    program_attrs = {color: 'cyan'}) # Change color to red
-                         )
+    Returns
+    -------
+    str
+        The formatted version message.
 
-    > parser.add_argument(--version,
-                          action = 'version',
-                          version = corecli.version(program = 'my program',
-                                                    version = '0.002'
-                                                    authors = 'Me',
-                                                    program_attrs = {color: 'cyan',
-                                                                    attrs: ['bold', 'underline']}) # Change color to red, bold and underline
-                         )
-    '''
+    Notes
+    -----
+    Every format style is a dictionary with two keys:
+
+    ``color``
+        One of ``grey``, ``red``, ``green``, ``yellow``, ``blue``,
+        ``magenta``, ``cyan`` or ``white``.
+    ``attrs``
+        Any of ``bold``, ``dark``, ``underline``, ``blink``, ``reverse``
+        or ``concealed``.
+
+    Examples
+    --------
+    Print the program name in cyan:
+
+    >>> parser.add_argument(
+    ...     '--version',
+    ...     action='version',
+    ...     version=corecli.version(program='my program',
+    ...                             version='0.002',
+    ...                             authors='Me',
+    ...                             program_attrs={'color': 'cyan'}))
+
+    Print it in cyan, bold and underlined:
+
+    >>> parser.add_argument(
+    ...     '--version',
+    ...     action='version',
+    ...     version=corecli.version(
+    ...         program='my program',
+    ...         version='0.002',
+    ...         authors='Me',
+    ...         program_attrs={'color': 'cyan',
+    ...                        'attrs': ['bold', 'underline']}))
+    """
     dcs = [program_attrs, description_attrs, version_attrs, authors_attrs]
     ls_keys = ['color', 'attrs']
     for dc in dcs:
