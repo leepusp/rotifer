@@ -28,6 +28,8 @@ from rotifer.genome import io as rgio
 from rotifer.devel.alpha import igem as rdai
 from rotifer.devel.alpha import malu as rdam
 
+logger = rotifer.logging.getLogger(__name__)
+
 def get_matrix(df, filter_list, rows, columns, n=10, filter_by='pid'):
         filtered_df = df[df[filter_by].isin(filter_list)]
         frequent_rows = filtered_df[rows].value_counts(rows).nlargest(n).index.tolist()
@@ -314,6 +316,16 @@ def hmmbuild(seqobj, hmm_name='alignment', save='alignment.hmm'):
         
     return hmm
     
+# Numeric columns of a HMMER result table, under both the raw pyhmmer names and
+# the names pyhmmer_to_df() renames them to. Used to type empty results.
+_HMMER_DTYPES = {
+    'i_evalue': float, 'evalue': float, 'c_evalue': float, 'pvalue': float,
+    'score': float, 'env_score': float, 'bias': float, 'correction': float,
+    'env_from': int, 'estart': int, 'env_to': int, 'eend': int,
+    'aln_domain': int, 'aln_hmm_from': int, 'aln_hmm_to': int, 'aln_hmm_length': int,
+    'aln_target_from': int, 'aln_target_to': int, 'aln_target_length': int,
+}
+
 def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
 
     # Creation of the list to store the results
@@ -353,17 +365,23 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
                     'aln_target_length':     domain.alignment.target_length
                     })
 
-    df = pd.DataFrame(r)
+    # Empty and non-empty results must go down the same path: a search with no
+    # hits still has to return the columns every caller expects, under the same
+    # names. Selecting the columns while building the dataframe does that -- for
+    # a list of dicts, pandas filters and orders by 'columns' exactly as df[columns]
+    # would -- and the rename below then applies to both cases.
+    df = pd.DataFrame(r, columns=columns if columns else None)
 
     if df.empty:
-        print("No results found in HMMER output.")
-        return pd.DataFrame(columns=columns)
-
-    if columns:
-        df = df[columns]
+        logger.warning("No results found in HMMER output.")
 
     if rename:
         df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
+
+    if df.empty:
+        # Columns of an empty dataframe are typed as object, which makes
+        # comparisons and sorting behave differently from a populated result.
+        df = df.astype({k: v for k, v in _HMMER_DTYPES.items() if k in df.columns})
 
     return df
 
@@ -485,6 +503,24 @@ def filter_models_overlaps(df, overlap_filter=0.1):
 
     return df[keep]
 
+def _filter_overlaps_by_sequence(h, overlap_filter=0.1, seq_col='sequence'):
+    '''
+    Apply filter_models_overlaps() to each sequence of a HMMER result table.
+
+    The groups are iterated instead of going through groupby().apply() because
+    the latter drops seq_col from its result -- always in pandas 3, and for an
+    empty table in earlier versions -- which breaks every operation on that
+    column downstream. An empty table is returned untouched: it has no overlaps
+    to resolve, and concatenating nothing would lose its columns.
+    '''
+    if h.empty:
+        return h
+
+    return pd.concat(
+        [filter_models_overlaps(group, overlap_filter=overlap_filter) for _, group in h.groupby(seq_col, sort=False)],
+        ignore_index=True,
+    )
+
 def _arch_with_coordinates(h, seq_col='sequence', model_col='model', start_col='estart', end_col='eend'):
     '''
     Map each sequence to its domain architecture annotated with the
@@ -493,6 +529,9 @@ def _arch_with_coordinates(h, seq_col='sequence', model_col='model', start_col='
     Domains are ordered by start coordinate. Returns a ``{sequence: str}``
     dict, ready to feed ``df[column].map(...)``.
     '''
+    if h.empty:
+        return {}
+
     h = h.sort_values([seq_col, start_col])
 
     def _fmt(g):
@@ -536,15 +575,19 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
     h.rename({'aln_target_name':'sequence','aln_hmm_name':'model','i_evalue':'evalue','env_from':'estart', 'env_to':'eend'}, axis=1, inplace=True)
     h = h.loc[:, ~h.columns.duplicated()]
     h = h.drop_duplicates().reset_index(drop=True)
-    h = h[h['evalue'] <= evalue_filter]    
+    h = h[h['evalue'] <= evalue_filter]
     h = h[h['score'] >= score_filter]
-    
+
+    if h.empty:
+        logger.warning(f'No domains left after filtering (evalue <= {evalue_filter}, score >= {score_filter}): '
+                       f'column {column_arch_name} will be empty')
+
     if build_arch_by_source == True:
         sources = h.source.drop_duplicates().str.split('/').str[-1].tolist()
         for x in sources:
             h_source = h[h.source.str.contains(x)]
             h_source = riu.filter_nonoverlapping_regions(h_source, **riu.config['hmmer'])
-            h_source = h_source.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
+            h_source = _filter_overlaps_by_sequence(h_source, overlap_filter)
             h_source = h_source.sort_values(['sequence', 'estart'])
             arch = h_source.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
             arch.rename({'sequence':column}, axis = 1, inplace = True)
@@ -554,9 +597,9 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
                 df[f'{column_coord_name}_{x}'] = df[column].map(_arch_with_coordinates(h_source))
         return None if inplace else df
 
-    else:            
+    else:
         h = riu.filter_nonoverlapping_regions(h, **riu.config['hmmer'])
-        h = h.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
+        h = _filter_overlaps_by_sequence(h, overlap_filter)
         h = h.sort_values(['sequence', 'estart'])
         arch = h.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
         arch.rename({'sequence':column}, axis = 1, inplace = True)
@@ -583,10 +626,16 @@ def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hm
         db = ph.easel.SequenceFile(query_db, digital=True, alphabet=ph.easel.Alphabet.amino())
         out = list(ph.hmmer.hmmsearch(hmms, db, cpus=cpus))
         df = pyhmmer_to_df(out, columns=columns, rename=rename)
-        df['source'] = model 
+        df['source'] = model
+        if df.empty:
+            logger.warning(f'hmmsearch: no hits for any model of {model} in {query_db}')
         results.append(df)
-        
-    dfs = pd.concat(results)
+
+    if not results:
+        logger.error(f'hmmsearch: no HMM files given, nothing searched in {query_db}')
+        return pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
+
+    dfs = pd.concat(results, ignore_index=True)
 
     return dfs
 
@@ -885,7 +934,16 @@ def hmmscan(
     # MERGE RESULTS
     # --------------------------------------------------------------
 
+    if not results:
+        # No sequences and/or no models: return the expected, empty table
+        # instead of letting pd.concat() raise on an empty list.
+        logger.error(f'hmmscan: nothing to search ({len(seqs)} sequences, {len(models_path)} model file(s))')
+        return pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
+
     dfs = pd.concat(results, ignore_index=True)
+
+    if dfs.empty:
+        logger.warning(f'hmmscan: no domains found for {len(seqs)} sequence(s) in {models_path}')
 
     return dfs
 
@@ -1873,7 +1931,33 @@ def fimo_pipeline(meme_file, genomes=None, annotation=None, informat=None,
     df = get_next_protein(df, annotation, max_distance=max_distance, informat=informat)
     df = get_distances_repeats(df, filter=filter, length=length)
 
+    if df.empty:
+        logger.warning(f'FIMO: no match of {meme_file} survived in {genomes}')
+
     return df
+
+def _empty_neighborhood_df(gen, add_sequences=True, filter_columns=None, organism=None):
+    '''
+    Build the empty neighborhood table igem_pipeline() returns when no query
+    protein is found, carrying the same columns as a successful run so that
+    callers iterating over many genomes can concatenate and query the result
+    without special-casing the empty genome.
+    '''
+    ndf = gen.head(0).copy()
+
+    for column in ['repeat_start', 'repeat_end', 'repeat_strand', 'pfam_coord', 'query_source']:
+        ndf[column] = pd.Series(dtype=object)
+
+    if add_sequences:
+        ndf['sequence'] = pd.Series(dtype=object)
+
+    if filter_columns:
+        ndf = ndf.drop(columns=[c for c in filter_columns if c in ndf.columns])
+
+    if organism:
+        ndf['organism'] = pd.Series(dtype=object)
+
+    return ndf
 
 def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=None, genome_nucleotide_fasta=None, models_path=['/databases/pfam/Pfam-A.hmm', '/home/leep/epsoares/projects/igem/2026/data/all_models.hmm'],
     search_models='/home/leep/epsoares/projects/igem/2026/data/search_models.hmm', hmmsearch_score_filter=30, hmmsearch_evalue_filter=1e-4, return_hmmscan=False, after=10, before=10, run_fimo=True,
@@ -1920,19 +2004,63 @@ def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=No
         derived.append(genome_protein_fasta)
 
     try:
+        # Every search below may legitimately come up empty -- a genome without
+        # heptarepeats, without any of the search models, or without a single
+        # known domain. Each empty stage is reported as it happens and recorded
+        # here, and the run goes on with whatever evidence is left.
+        empty_stages = []
+
+        def _report_empty(stage, message):
+            empty_stages.append(stage)
+            logger.error(message)
+
         # filter=False: filter_repeat_arrays() needs every hit, including the first
         # copy of each array (whose distance is NaN), to count array sizes.
         fimo = fimo_pipeline(meme_file, genome_nucleotide_fasta, gen, max_distance=repeat_max_distance, filter=False)
         fimo = filter_repeat_arrays(fimo, min_distance=repeat_min_spacing, max_distance=repeat_max_spacing, min_repeats=min_repeats)
 
         fimo = rdam.filter_fimo(fimo, gen).query('intragenic == False')
+        if fimo.empty:
+            _report_empty('FIMO', f'FIMO: no intergenic repeat array found in {genome_nucleotide_fasta} '
+                                  f'(motifs: {meme_file}, spacing {repeat_min_spacing}-{repeat_max_spacing} bp, '
+                                  f'at least {min_repeats} copies, gene within {repeat_max_distance} bp)')
+
         hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
+        if hscan.empty:
+            _report_empty('hmmscan', f'hmmscan: no domain found in {genome_protein_fasta} using {models_path}: '
+                                     'every architecture will be empty')
+
         hsearch = hmmsearch(search_models, genome_protein_fasta)
         hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query(f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}')
+        if hsearch_hits.empty:
+            rejected = '' if hsearch.empty else f' ({len(hsearch)} raw hit(s) rejected by these cutoffs)'
+            _report_empty('hmmsearch', f'hmmsearch: no hit of {search_models} in {genome_protein_fasta} passed '
+                                       f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}{rejected}')
+
         l = hsearch_hits.sequence.tolist()
         pids_list = fimo.pid.dropna().tolist() + l
         add_arch_to_df(hscan, run_hmmscan=False, inplace=True, column='sequence')
         gen['pfam'] = gen.pid.map(hscan.set_index('sequence').pfam.to_dict())
+
+        def _pipeline_result(ndf):
+            if empty_stages:
+                print(f'Stages with no result: {", ".join(empty_stages)}')
+            if return_fimo and return_hmmscan:
+                return ndf, fimo, hscan
+            elif return_fimo:
+                return ndf, fimo
+            elif return_hmmscan:
+                return ndf, hscan
+            return ndf
+
+        # Neither search recovered a single query: there is no neighborhood to
+        # build and nothing to draw, so finish the run with an empty table of
+        # the usual shape instead of feeding nothing to the report builder.
+        if not pids_list:
+            logger.error(f'No query protein found in {genome_annotation}: skipping neighborhood analysis and report')
+            return _pipeline_result(_empty_neighborhood_df(gen, add_sequences=add_sequences,
+                                                           filter_columns=filter_columns, organism=organism))
+
         # ndf = gen.neighbors(gen.pid.isin(pids), after=after, before=before)
         ndf = rdam.filter_neighbors_plus(gen, pids=pids_list, mode='strict', annotate=False, after=after, before=before, max_distance=max_distance,
                                      max_extend=max_extend, seed=seed, patience=patience, reqdom=domains_filter)
@@ -1987,14 +2115,7 @@ def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=No
                                    normalize_orientation=normalize_orientation)
             print(f'figure saved in {output_report}')
 
-        if return_fimo and return_hmmscan:
-            return ndf, fimo, hscan
-        elif return_fimo:
-            return ndf, fimo
-        elif return_hmmscan:
-            return ndf, hscan
-
-        return ndf
+        return _pipeline_result(ndf)
     finally:
         # Remove only the FASTA files this call extracted from the annotation.
         for path in derived:

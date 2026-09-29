@@ -51,6 +51,7 @@ once -- the patch happens at import time, not before.
 """
 
 import os
+import io
 import json
 import tempfile
 from subprocess import Popen, PIPE, STDOUT
@@ -2673,7 +2674,7 @@ def apply_manual_cutoffs(overrides, matrix_dir, ssn_dir, out_dir=None,
                 try:
                     old_G = nx.read_graphml(old_gml)
                     if "closeness_scan" in old_G.graph:
-                        G.graph["closeness_scan"] = old_G.graph["closeness_scan"]
+                        G.graph["closeness_scan"] = pd.read_json(io.StringIO(old_G.graph["closeness_scan"]))
                 except Exception:
                     pass
 
