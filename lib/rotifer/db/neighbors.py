@@ -251,7 +251,7 @@ class rneighbors:
         for sql in lsql:
             cursor.execute(sql)
         cursor.execute("SELECT count(*) from upid")
-        logger.debug(f'## Number of protein accession numbers in input: {cursor.fetchone()[0]')
+        logger.debug(f'## Number of protein accession numbers in input: {cursor.fetchone()[0]}')
         cursor.execute('''SELECT count(distinct product_accession) as proteins from uquery''')
         logger.debug(f'## Number of proteins found in the SQL database: {cursor.fetchone()[0]}')
 
