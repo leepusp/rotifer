@@ -105,7 +105,7 @@ whatis("Directory: " .. mydir)
 whatis("Data directory: " .. datadir)
 whatis("Category: data analysis ")
 whatis("Description: Rotifer's shell setup.")
-whatis("URL: https://github.com/leepbioinfo/rotifer ")
+whatis("URL: https://github.com/leepusp/rotifer ")
 
 -- Help message
 local helpMsg = [[

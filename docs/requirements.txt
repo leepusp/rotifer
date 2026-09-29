@@ -1,0 +1,11 @@
+# Documentation build dependencies.
+# Lower bounds match the versions the site was last verified against.
+sphinx>=9.1
+shibuya>=2026.7.12
+sphinx-design>=0.7.0
+sphinx-copybutton>=0.5.2
+sphinx-iconify>=0.3.0
+sphinx-datatables>=1.0.0
+numpydoc>=1.10.0
+myst-parser>=5.1.0
+sphinx-autobuild>=2025.8.25

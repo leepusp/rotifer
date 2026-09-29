@@ -1,0 +1,27 @@
+{#- The top of the left sidebar, overriding the Shibuya partial of the same
+    name so the navigation gets a collapse control.
+
+    The theme renders the left sidebar inline in its layout, with no sidebar
+    template to override, and this partial is the hook it does provide: it
+    sits inside the scroll container, directly above the toctree. The
+    discussion link below is the theme's own content, kept so enabling
+    discussion_url still works.
+
+    Three lines rather than a panel glyph, and no label: the navigation has
+    no heading of its own to collapse into, and a hamburger already means
+    this everywhere. Below 768px the sidebar is a drawer opened from the
+    header, so the stylesheet makes this button inert there. -#}
+<div class="sidebar-toggle-row">
+  <button type="button" class="sidebar-toggle js-lside-toggle"
+          aria-controls="lside" aria-expanded="true"
+          aria-label="{{ _('Navigation') }}" title="{{ _('Navigation') }}">
+    <iconify-icon class="sidebar-toggle-icon" icon="tabler:menu-2"></iconify-icon>
+  </button>
+</div>
+{%- if theme_discussion_url -%}
+<div class="sidebar-links">
+  <ul>
+    <li>{%- include "components/discussion-link.html" -%}</li>
+  </ul>
+</div>
+{%- endif -%}

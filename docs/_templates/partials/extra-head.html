@@ -1,0 +1,5 @@
+{#- Shibuya renders html_js_files at the end of <body>, which would paint
+    both sidebars expanded for one frame before a remembered collapse
+    applied. Loading it here, in <head>, is the same trick the theme uses
+    for the color mode a few lines above. -#}
+<script src="{{ pathto('_static/sidebar-toggle.js', 1) }}"></script>

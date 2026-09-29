@@ -1,0 +1,82 @@
+# Builds the Sphinx documentation and publishes it to GitHub Pages at
+# https://leepusp.github.io/rotifer/
+#
+# The docs tree currently lives only on docs/v1, so that is the branch this
+# workflow triggers on. If docs/v1 is ever merged into master, move the branch
+# name below and drop the github-pages environment branch allowance.
+name: Docs
+
+on:
+  push:
+    branches: [docs/v1]
+    paths:
+      - 'docs/**'
+      - 'lib/rotifer/**'
+      - 'setup.py'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two Pages deployments race; queue instead of cancelling so a
+# finished build is not discarded half-deployed.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 matches the interpreter the site was developed against.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      # Deliberately NOT the repository-root requirements.txt: it lists conda
+      # and system tools (blast, datamash, famsa) that do not exist on PyPI,
+      # plus pygraphviz, which needs Graphviz headers.
+      #
+      # `pip install -e .` is required, not cosmetic. setup.py's
+      # install_requires is only numpy + pandas, and those two are the
+      # dependencies conf.py deliberately does NOT mock, so autodoc imports
+      # them for real. The editable install also registers the distribution
+      # metadata that conf.py reads via importlib.metadata.version("rotifer");
+      # without it the site would publish as 0.0.0 instead of 0.1.0.
+      - name: Install documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+          pip install -e .
+
+      # Doctrees go outside the published tree so the Pages artifact does not
+      # carry ~12 MB of pickles that are never served.
+      - name: Build HTML
+        run: sphinx-build -b html -d docs/_build/doctrees docs docs/_build/html
+
+      # deploy-pages does not run Jekyll, so this is belt-and-braces: it keeps
+      # _static/, _sources/ and _modules/ intact if the Pages source is ever
+      # switched back to branch-based publishing.
+      - name: Disable Jekyll
+        run: touch docs/_build/html/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

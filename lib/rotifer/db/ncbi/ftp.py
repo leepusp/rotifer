@@ -1,3 +1,21 @@
+"""
+Access genome data from the NCBI FTP site.
+
+Cursors in this module locate genome assemblies under the ``genomes``
+directory of the NCBI FTP server (``ftp.ncbi.nlm.nih.gov`` by
+default), download their GenBank flat files and parse them into
+sequence records, feature tables or gene neighborhoods.
+
+Network and caching
+-------------------
+Connections are anonymous; no account or API key is needed. Every
+downloaded file is verified against the ``md5checksums.txt`` published
+next to it and stored in the rotifer cache directory
+(``rotifer.config['cache']``), from which it is removed once parsed.
+The FTP server address can be changed through the ``ftpserver`` entry
+of the :mod:`rotifer.db.ncbi` configuration.
+"""
+
 import os
 import sys
 import types
@@ -28,22 +46,29 @@ config = loadConfig(__name__, defaults = _defaults)
 
 class connection():
     """
-    This class represents a live connection to the NCBI FTP server.
+    A live connection to the NCBI FTP server.
+
+    Parameters
+    ----------
+    url : str, optional
+        NCBI FTP server address. Defaults to the ``ftpserver``
+        configuration entry.
+    tries : int, default 3
+        Maximum number of attempts to download a file.
+    timeout : int, default 50
+        Maximum time, in seconds, to wait for a server connection.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer
+        cache directory.
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import ftp as ncbiftp
+    >>> conn = ncbiftp.connection(tries=3)  # doctest: +SKIP
+    >>> localpath = conn.ftp_get('genomes/README.txt')  # doctest: +SKIP
     """
+
     def __init__(self, url=NcbiConfig['ftpserver'], tries=3, timeout=50, cache=rotifer.config['cache']):
-        """
-        Parameters
-        ----------
-        url: string
-          NCBI FTP server URL
-        tries: integer
-          Maximum number of attempts to download a file
-        timeout: integer
-          Maximum amount of time, in seconds, to wait 
-          for a connection to the server
-        cache: directory path
-          Folder to store temporary files
-        """
         self.url = url
         self.tries = tries
         self.timeout = timeout
@@ -52,7 +77,11 @@ class connection():
 
     def connect(self):
         """
-        Connect or reconnect to server.
+        Connect or reconnect to the server.
+
+        An existing connection is probed with a ``NOOP`` command and
+        replaced when stale. Connection attempts are repeated up to
+        ``tries`` times, sleeping one second after each timeout.
         """
         import time
         attempt = 0
@@ -78,23 +107,35 @@ class connection():
     # Download files
     def ftp_get(self, target, avoid_collision=False, outdir=None):
         '''
-        Download a file from the NCBI's FTP site.
+        Download a file from the NCBI FTP site.
 
-        Usage:
-          from rotifer.db.ncbi import ftp as ncbiftp
-          ftp = ncbiftp.connection(tries=3)
-          localpath = ftp.ftp_get('genomes/README.txt')
+        Parameters
+        ----------
+        target : str
+            URL or path of the file, relative to the server root.
+        avoid_collision : bool, default False
+            Avoid name collisions by adding a random suffix to the
+            local file name.
+        outdir : str, optional
+            Output directory. Defaults to the connection's cache
+            directory, which is created when missing.
 
-        Parameters:
-          target : string
-            URL or relative path of the file
-          avoid_collision : boolean, default False
-            Avoid name collision by adding random suffixes
-          outdir : string, default is the object's cache
-            Output directory
+        Returns
+        -------
+        str
+            Path to the downloaded file.
 
-        Returns:
-          Path to the downloaded file
+        Raises
+        ------
+        IOError
+            If the output directory cannot be created or the
+            download fails.
+
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import ftp as ncbiftp
+        >>> conn = ncbiftp.connection(tries=3)  # doctest: +SKIP
+        >>> localpath = conn.ftp_get('genomes/README.txt')  # doctest: +SKIP
         '''
         from tempfile import NamedTemporaryFile
 
@@ -142,19 +183,30 @@ class connection():
     # List files in ftp directory
     def ftp_ls(self, targets):
         '''
-        List contents of an FTP directory.
+        List the contents of one or more FTP directories.
 
-        Usage:
-          from rotifer.db.ncbi import ftp as ncbiftp
-          ftp = ncbiftp.connection()
-          contents = ftp.ftp_ls('genomes')
+        Parameters
+        ----------
+        targets : str or list of str
+            Path of one or more directories.
 
-        Parameters:
-          target : (list of) string(s)
-            Path of one or more diretory(ies)
+        Returns
+        -------
+        pandas.DataFrame
+            One row per directory entry, with the server's file
+            facts plus ``target`` (the listed directory) and
+            ``name`` (the entry name).
 
-        Returns:
-          Pandas DataFrame
+        Raises
+        ------
+        FileNotFoundError
+            If a directory listing cannot be retrieved.
+
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import ftp as ncbiftp
+        >>> conn = ncbiftp.connection()  # doctest: +SKIP
+        >>> contents = conn.ftp_ls('genomes')  # doctest: +SKIP
         '''
         import pandas as pd
 
@@ -181,30 +233,38 @@ class connection():
         '''
         Open a file stored at the NCBI FTP site.
 
-        Note:
-          Compressed files will be uncompressed on the fly.
+        The file is first downloaded to the cache directory and then
+        opened. Compressed files are uncompressed on the fly.
 
-        Usage:
-          # Open a genome's GBF file
-          from rotifer.db.ncbi import ftp as ncbiftp
-          ftp = ncbiftp.connection()
-          path = "genomes/all/GCA/900/547/725/GCA_900547725.1_UMGS1014/"
-          path += "GCA_900547725.1_UMGS1014_genomic.gbff.gz"
-          fh = ftp.ftp_open(path, mode="rt")
+        Parameters
+        ----------
+        target : str
+            Path of the file, relative to the server root.
+        mode : str, default 'rt'
+            Read mode used to open the file, such as ``r``, ``rt``
+            or ``rb``.
+        avoid_collision : bool, default True
+            Avoid name collisions by adding a random suffix to the
+            local file name.
+        delete : bool, default True
+            Whether the local copy is removed when the returned
+            stream is closed. When False, the file remains in the
+            cache directory.
 
-        Parameters:
-          target : string
-            Relative path of the target file
-          mode : string
-            Set read mode ('r', 'rt', 'rb', etc) to open the file
-          avoid_collision : boolean, boolean default True
-            Avoid name collision with random suffixes
-          delete : boolean, default True
-            Whether files should be automatically removed when closed
-            If set to False, the file will remain in the cache directory
+        Returns
+        -------
+        file-like
+            The open data stream.
 
-        Returns:
-          Open data stream (file handle-like) object
+        Examples
+        --------
+        Open a genome GBFF file:
+
+        >>> from rotifer.db.ncbi import ftp as ncbiftp
+        >>> conn = ncbiftp.connection()  # doctest: +SKIP
+        >>> path = "genomes/all/GCA/900/547/725/GCA_900547725.1_UMGS1014/"
+        >>> path += "GCA_900547725.1_UMGS1014_genomic.gbff.gz"
+        >>> fh = conn.ftp_open(path, mode="rt")  # doctest: +SKIP
         '''
         from tempfile import _TemporaryFileWrapper
         import rotifer.core.functions as rcf
@@ -216,26 +276,40 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
     """
     Fetch genome sequences from the NCBI FTP site.
 
-    Usage
-    -----
-    Load a random sample of genomes, except eukaryotes
-    >>> from rotifer.db.ncbi import ftp
-    >>> gc = ftp.GenomeCursor(g)
-    >>> genomes = gc.fetchall()
+    Genomes are located by their assembly accession, downloaded as
+    GenBank flat files, verified against the published MD5 checksums
+    and parsed into Bio.SeqRecord objects.
 
     Parameters
     ----------
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    cache: path-like string
-      Where to place temporary files
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    batch_size : int, default 4
+        Number of accessions per batch. The default may be changed
+        by the module configuration.
+    threads : int, default 15
+        Number of processes used for parallel downloads.
+    timeout : int, default 10
+        Maximum time, in seconds, to wait for a server connection.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer
+        cache directory.
 
+    See Also
+    --------
+    rotifer.db.ncbi.GenomeCursor : delegator that also checks local
+        mirrors
+
+    Examples
+    --------
+    Load a sample of genomes:
+
+    >>> from rotifer.db.ncbi import ftp
+    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
+    >>> gc = ftp.GenomeCursor()  # doctest: +SKIP
+    >>> genomes = gc.fetchall(g)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -256,34 +330,43 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
         """
         Open the GBFF file of a genome from the NCBI FTP site.
 
-        Usage:
-          # Just open
-          
-          from rotifer.db.ncbi import ftp
-          gc = ftp.GenomeCursor()
-          fh = gc.open_genome("GCA_900547725.1")
+        The file's MD5 checksum is downloaded first and the genome
+        download is repeated until the checksum matches, at most
+        ``tries`` times.
 
-          # Open and parse to a list of Bio.SeqRecord
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
+        assembly_reports : pandas.DataFrame, optional
+            NCBI assembly summary table, as loaded by
+            :func:`rotifer.db.ncbi.assemblies`. When given, the
+            genome path is read from its ``ftp_path`` column instead
+            of being searched on the server.
 
-          from rotifer.db.ncbi import ftp
-          from Bio import SeqIO
-          gc = ftp.GenomeCursor()
-          fh = gc.open_genome("GCA_900547725.1")
-          s = [ x for x in SeqIO.parse(fh, "genbank") ]
-          fh.close()
+        Returns
+        -------
+        file-like or None
+            The open data stream, with the assembly accession in an
+            ``assembly`` attribute, or None when the genome is not
+            found.
 
-        Parameters:
-          accession : string
-            Genome accession
-          assembly_reports: pandas DataFrame
-            (Optional) NCBI's ASSEMBLY_REPORTS tables
-            This dataframe can be loaded using:
+        Raises
+        ------
+        IOError
+            If the checksum file cannot be parsed or the GBFF file
+            cannot be opened.
 
-              from rotifer.db.ncbi as ncbi
-              ar = ncbi.assemblies()
+        Examples
+        --------
+        Open and parse a genome:
 
-        Returns:
-          Open data stream (file handle-like) object
+        >>> from rotifer.db.ncbi import ftp
+        >>> from Bio import SeqIO
+        >>> gc = ftp.GenomeCursor()  # doctest: +SKIP
+        >>> fh = gc.open_genome("GCA_900547725.1")  # doctest: +SKIP
+        >>> s = [x for x in SeqIO.parse(fh, "genbank")]  # doctest: +SKIP
+        >>> fh.close()  # doctest: +SKIP
         """
         import rotifer.core.functions as rcf
         from rotifer.db.ncbi import ftp as ncbiftp
@@ -328,26 +411,33 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
     def genome_path(self, accession, assembly_reports=None):
         """
-        Fetch the path of a genome at the NCBI FTP site.
+        Find the path of a genome at the NCBI FTP site.
 
-        Usage:
-          from rotifer.db.ncbi import ftp
-          gc = ftp.GenomeCursor()
-          path = gc.genome_path("GCA_900547725.1")
-          print("/".join(path))
+        When the accession matches several versions, the newest one
+        is chosen.
 
-        Parameters:
-          accession : string
-            Genome accession
-          assembly_reports: pandas DataFrame
-            (Optional) NCBI's ASSEMBLY_REPORTS tables
-            This dataframe can be loade using:
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
+        assembly_reports : pandas.DataFrame, optional
+            NCBI assembly summary table, as loaded by
+            :func:`rotifer.db.ncbi.assemblies`. When given, the path
+            is read from its ``ftp_path`` column instead of being
+            searched on the server.
 
-              from rotifer.db.ncbi as ncbi
-              ar = ncbi.assemblies()
-        
-        Returns:
-          A tuple of two strings, empty when the genome is not found
+        Returns
+        -------
+        tuple of str
+            The directory and file name of the genome's GBFF file.
+            Empty when the genome is not found.
+
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import ftp
+        >>> gc = ftp.GenomeCursor()  # doctest: +SKIP
+        >>> path = gc.genome_path("GCA_900547725.1")  # doctest: +SKIP
+        >>> print("/".join(path))  # doctest: +SKIP
         """
         from rotifer.db.ncbi import NcbiConfig
         from rotifer.db.ncbi import ftp as ncbiftp
@@ -389,25 +479,28 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
     def genome_report(self, accession):
         """
-        Fetch genome assembly reports.
+        Fetch and parse a genome's assembly report.
 
-        Usage:
-          from rotifer.db.ncbi import ftp
-          gc = ftp.GenomeCursor()
-          contigs, assembly = gc.genome_report("GCA_900547725.1")
+        Parameters
+        ----------
+        accession : str
+            Genome assembly accession.
 
-        Parameters:
-          accession : string
-            Genome accession
-        
-        Returns:
-          A tuple containing a Pandas DataFrame and a Pandas Series
-          
-          The Pandas DataFrame lists the assembly's contigs
+        Returns
+        -------
+        tuple
+            A pair ``(contigs, properties)``. ``contigs`` is a
+            pandas.DataFrame listing the assembly's sequences.
+            ``properties`` is a pandas.DataFrame, indexed by
+            property name, holding the assembly metadata, similar
+            to a row of :func:`rotifer.db.ncbi.assemblies`. When
+            the genome is not found, ``contigs`` is an empty list.
 
-          The Series contains the assembly properties and is 
-          similar to the table from rotifer.db.ncbi.assemblies()
-
+        Examples
+        --------
+        >>> from rotifer.db.ncbi import ftp
+        >>> gc = ftp.GenomeCursor()  # doctest: +SKIP
+        >>> contigs, assembly = gc.genome_report("GCA_900547725.1")  # doctest: +SKIP
         """
         from rotifer.db.ncbi import ftp as ncbiftp
         ftp = ncbiftp.connection(tries=self.tries, timeout=self.timeout, cache=self.cache)
@@ -471,36 +564,41 @@ class GenomeCursor(rotifer.db.methods.GenomeCursor, rotifer.db.parallel.SimplePa
 
 class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, GenomeCursor):
     """
-    Fetch genome annotation as dataframes.
+    Fetch genome annotation from the NCBI FTP site as dataframes.
 
-    Usage
-    -----
-    Load a random sample of genomes
-
-    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
-    >>> from rotifer.db.ncbi import ftp
-    >>> gfc = ftp.GenomeFeaturesCursor(g)
-    >>> df = gfc.fetchall()
+    Genomes are downloaded like :class:`GenomeCursor` does, then
+    converted to feature tables with one row per annotated feature.
 
     Parameters
     ----------
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    cache: path-like string
-      Where to place temporary files
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    batch_size : int, default 4
+        Number of accessions per batch.
+    threads : int, default 15
+        Number of processes used for parallel downloads.
+    timeout : int, default 10
+        Maximum time, in seconds, to wait for a server connection.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer
+        cache directory.
 
+    Examples
+    --------
+    Load the feature tables of two genomes:
+
+    >>> from rotifer.db.ncbi import ftp
+    >>> g = ['GCA_018744545.1', 'GCA_901308185.1']
+    >>> gfc = ftp.GenomeFeaturesCursor()  # doctest: +SKIP
+    >>> df = gfc.fetchall(g)  # doctest: +SKIP
     """
     def __init__(
             self,
@@ -523,63 +621,71 @@ class GenomeFeaturesCursor(rotifer.db.methods.GenomeFeaturesCursor, GenomeCursor
 
 class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, rotifer.db.parallel.GeneNeighborhoodCursor, GenomeFeaturesCursor):
     """
-    Fetch genome annotation as dataframes.
+    Fetch gene neighborhoods from genomes at the NCBI FTP site.
 
-    Usage
-    -----
-    Load a random sample of genomes, except eukaryotes
-    >>> from rotifer.db.ncbi import ftp
-    >>> gfc = ftp.GeneNeighborhoodCursor(progress=True)
-    >>> df = gfc.fetchall(["EEE9598493.1"])
+    Target proteins are resolved to genome assemblies through
+    identical protein group (IPG) reports, the genomes are
+    downloaded from the FTP site and the annotated regions around
+    each target gene are returned as dataframes.
 
     Parameters
     ----------
-    column : string
-      Name of the column to scan for matches to the accessions
-      See rotifer.genome.data.NeighborhoodDF
-    before : int
-      Keep at most this number of features, of the same type as the
-      target, before each target
-    after  : nt
-      Keep at most this number of features, of the same type as the
-      target, after each target
-    min_block_distance : int
-      Minimum distance between two consecutive blocks
-    strand : string
-      How to evaluate rows concerning the value of the strand column
-      Possible values for this option are:
-      - None : ignore strand
-      - same : same strand as the targets
-      -    + : positive strand features and targets only
-      -    - : negative strand features and targets only
-    fttype : string
-      How to process feature types of neighbors
-      Supported values:
-      - same : consider only features of the same type as the target
-      - any  : ignore feature type and count all features when
-               setting neighborhood boundaries
-    eukaryotes : boolean, default False
-      If set to True, neighborhood data for eukaryotic genomes
-    exclude_type: list of strings
-      List of names for the features that must be ignored
-    autopid: boolean
-      Automatically set protein identifiers
-    codontable: string por int, default 'Bacterial'
-      Default codon table, if not set within the data
-    progress: boolean, deafult False
-      Whether to print a progress bar
-    tries: int, default 3
-      Number of attempts to download data
-    threads: integer, default 15
-      Number of processes to run parallel downloads
-    batch_size: int, default 1
-      Number of accessions per batch
-    timeout: integer
-      Maximum amount of time, in seconds, to wait 
-      for a connection to the server
-    cache: path-like string
-      Where to place temporary files
+    column : str, default 'pid'
+        Name of the column to scan for matches to the accessions.
+        See :class:`rotifer.genome.data.NeighborhoodDF`.
+    before : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, before each target.
+    after : int, default 7
+        Keep at most this number of features, of the same type as
+        the target, after each target.
+    min_block_distance : int, default 0
+        Minimum distance between two consecutive blocks.
+    strand : str, optional
+        How to evaluate rows concerning the value of the strand
+        column. Supported values:
 
+        * ``None`` : ignore strand
+        * ``same`` : same strand as the targets
+        * ``+`` : positive strand features and targets only
+        * ``-`` : negative strand features and targets only
+    fttype : {'same', 'any'}, default 'same'
+        How to process feature types of neighbors. With ``same``,
+        only features of the same type as the target are considered.
+        With ``any``, all features count when setting neighborhood
+        boundaries.
+    eukaryotes : bool, default False
+        Whether to process eukaryotic genomes.
+    exclude_type : list of str, default ``['source', 'gene', 'mRNA']``
+        Feature types to ignore.
+    autopid : bool, default False
+        Automatically set protein identifiers.
+    codontable : str or int, default 'Bacterial'
+        Codon table used when the data does not define one.
+    progress : bool, default True
+        Whether to print a progress bar.
+    tries : int, default 3
+        Number of attempts to download data.
+    batch_size : int, default 4
+        Number of accessions per batch.
+    threads : int, default 15
+        Number of processes used for parallel downloads.
+    timeout : int, default 10
+        Maximum time, in seconds, to wait for a server connection.
+    cache : str, optional
+        Directory for temporary files. Defaults to the rotifer
+        cache directory.
+
+    See Also
+    --------
+    rotifer.db.ncbi.GeneNeighborhoodCursor : delegator that combines
+        this backend with mirrors and Entrez
+
+    Examples
+    --------
+    >>> from rotifer.db.ncbi import ftp
+    >>> gnc = ftp.GeneNeighborhoodCursor(progress=True)  # doctest: +SKIP
+    >>> df = gnc.fetchall(["EEE9598493.1"])  # doctest: +SKIP
     """
     def __init__(
             self,

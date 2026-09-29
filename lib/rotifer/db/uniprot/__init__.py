@@ -1,129 +1,13 @@
 """
-Access data published by UniProt.
+Access data hosted by UniProt.
 
-This package is the main entry point for UniProt identifier mappings.
-The cursors defined here are delegators: each one combines several
-backends and tries them in order until every requested identifier is
-resolved, so that a query is answered by the fastest source that
-knows the answer.
+This package groups the tools that query UniProt's web services.
+Currently :mod:`rotifer.db.uniprot.webapi` wraps UniProt's REST API
+for mapping identifiers between databases.
 
-Three backends are available, and the default order tries them
-cheapest first:
 
-:mod:`rotifer.db.uniprot.clickhouse`
-    An indexed copy of ``idmapping.dat``. Point lookups are answered
-    in milliseconds, so it is asked first.
-:mod:`rotifer.db.uniprot.webapi`
-    UniProt's REST service. Always current and needs no local copy,
-    and answers in seconds. It comes second because it is the only
-    source for what the local table does not carry, and because a
-    round trip is still far cheaper than the alternative.
-:mod:`rotifer.db.uniprot.mirror`
-    The flat files of a local UniProt mirror. Every query scans about
-    90 GB, which costs a minute and a half whatever is asked, so it is
-    asked last: it is the source that has everything, kept for what
-    the other two could not answer and for when they are unreachable
-    or out of date.
-
-The three do not hold the same vocabulary. The table and the mapping
-service each carry databases the other does not, and some, Pfam and GO
-among them, are cross-references of an entry rather than identifier
-mappings and are in neither. A backend is therefore asked only for the
-databases it says it can map, and a database none of them supports is
-reported in ``missing`` under its own name rather than silently
-returning nothing.
-
-That leaves a question answerable at both ends without being
-answerable at both ends by any one backend: only the table maps
-UniRef, only the service maps AlphaFoldDB, and a query between the two
-finds every backend able to serve one end and none able to serve both.
-
-Every row here is joined through a UniProtKB accession, and that
-accession is the one name every backend understands, so any target
-database can be reached from any source database: the identifiers are
-resolved to accessions and the backends that could not be asked with
-them are asked with those instead. The rows come back under the
-identifiers that were given, with the accession that joined the two
-halves in the ``accession`` column.
-
-Reaching further is not the same as doing more work, and the second
-pass is the exception rather than the rule. It runs only for backends
-that could not answer as asked, only for databases nothing has covered
-yet, and only for identifiers that are not already their own
-accession. The accession itself is usually free, since every row the
-first pass returned carries one. A query the table can answer by
-itself is therefore still one query to the table, whatever else is
-configured behind it.
-
-Cursors
--------
-:class:`MappingCursor`
-    Identifier translation, in either direction, across every backend.
-:class:`FastaCursor`
-    Sequences alone, from a local FASTA database first and the web
-    service for the rest.
-:class:`SequenceCursor`
-    UniProt entries with their annotation, mixing UniProtKB, UniParc,
-    UniRef and proteome identifiers in one call.
-:class:`TaxonomyCursor`
-    Taxonomy records, carrying UniProt's own fields and the columns
-    :class:`rotifer.db.ncbi.TaxonomyCursor` produces.
-
-The two sequence cursors are a pair, and which to use is decided by
-whether the annotation is wanted. :class:`FastaCursor` returns the
-residues and reads a local ``esl-sfetch`` database before going near
-the network. :class:`SequenceCursor` returns the features and
-cross-references a UniProtKB flat file carries, which no FASTA file
-has, and for that reason never reads a local FASTA database: it would
-answer from one with bare sequences and lose the very thing it was
-called for.
-
-Taxonomy is served by the web service alone, and so are annotated
-entries: the local mirror holds ``idmapping.dat`` rather than the flat
-files, and the SQL backends hold mappings. They are delegators all the
-same, so a backend can be added later without changing any calling
-code. :mod:`rotifer.db.uniprot.webapi` covers proteomes and UniProt's
-own search as well, through the cursors documented there.
-
-Configuration
--------------
-The module level ``config`` dictionary is loaded from
-``~/.rotifer/etc/db/uniprot.yml`` when that file exists. Its keys
-include the path of the local UniProt mirror and the mapping of
-backend names to reader and writer modules.
-
-Examples
---------
-Fetch every cross-reference of two UniProtKB accessions, from
-ClickHouse if it has them and from the flat file otherwise:
-
->>> from rotifer.db import uniprot
->>> ic = uniprot.MappingCursor()  # doctest: +SKIP
->>> df = ic.fetchall(["Q6GZX4","Q6GZX3"], source=ic.UNIPROTKB)  # doctest: +SKIP
-
-Ask which backend answered, and what is still missing:
-
->>> ic.missing  # doctest: +SKIP
-
-Starting from a mirror and an empty ClickHouse database, fill the
-table once and query it from then on:
-
->>> ic = uniprot.MappingCursor(  # doctest: +SKIP
-...     local_database_path="/scratch/global/databases/uniprot",
-...     dbname="rotifer", release="2026_01", initialize='load')
-
-The same thing on demand, instead of in one sitting: every query
-answered by the mirror is stored, so the second time it is answered by
-the table.
-
->>> ic = uniprot.MappingCursor(  # doctest: +SKIP
-...     local_database_path="/scratch/global/databases/uniprot",
-...     dbname="rotifer", release="2026_01", cache=True)
->>> ic.fetchall(["Q6GZX4"], source=ic.UNIPROTKB)   # scans the file, then stores what it found
->>> ic.fetchall(["Q6GZX4"], source=ic.UNIPROTKB)   # answered by ClickHouse
 """
 
-# Import external modules
 import os
 import types
 import pandas as pd
