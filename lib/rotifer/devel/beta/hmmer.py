@@ -18,7 +18,6 @@ import math
 from multiprocessing import Pool, pool
 
 def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
-
     """
     Convert sequences from a sequence object into digital format for use with pyhmmer.
 
@@ -47,24 +46,22 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
         # Create a DigitalMSA for HMM building
         msa = digitalize_seqobj(seqobj, alignment=True, msa_name='my_alignment')
     """
-
     abc = ph.easel.Alphabet.amino()
     digital_sequences = []
-    
+
     for _, row in seqobj.df.iterrows():
         name = str(row["id"]).encode()
         seq = str(row["sequence"])
         text_seq = ph.easel.TextSequence(name=name, sequence=seq)
         digital_sequences.append(text_seq.digitize(abc))
-           
+
     if alignment:
         for dseq in digital_sequences:
             msa = ph.easel.DigitalMSA(abc, sequences=digital_sequences, name = (msa_name.encode()))    
         return msa
-    
     else:
         return digital_sequences
-        
+
 def hmmbuild(seqobj, hmm_name='alignment', save='alignment.hmm'):
       
     '''
@@ -90,22 +87,20 @@ def hmmbuild(seqobj, hmm_name='alignment', save='alignment.hmm'):
         # Build an HMM without saving to disk
         hmm = make_hmm(seqobj, save=None)
     '''
-    
     abc = ph.easel.Alphabet.amino()
     msa = digitalize_seqobj(seqobj, alignment=True, msa_name=hmm_name)
     builder = ph.plan7.Builder(abc)
     background = ph.plan7.Background(abc)
     hmm = builder.build_msa(msa, background)
-     
+
     if save:
         with open (save, 'wb') as x:
             hmm[0].write(x)
         print(f'HMM saved in {save}')
-        
-    return hmm
-    
-def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
 
+    return hmm
+
+def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to','aln_target_length','aln_hmm_length','env_from','env_to']):
     # Creation of the list to store the results
     r = []
 
@@ -152,9 +147,6 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
     if columns:
         df = df[columns]
 
-    if rename:
-        df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
-
     return df
 
 def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
@@ -182,7 +174,7 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     #Progress bar callback
     def callback(hmm, hits):
         pbar.update(1)
-    
+
     if isinstance(models_path, str):
         models_path = [models_path]
 
@@ -194,156 +186,70 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
-	    
+
         #Sequences load
         abc = ph.easel.Alphabet.amino()
         if file:
            seqs = ph.easel.SequenceFile(file, digital = True, alphabet=abc)
-        
         else:
            if type(sequences) == list:
                seqobj = rdbs.sequence(sequences)
                seqs = digitalize_seqobj(seqobj)
-
            elif type(sequences) == rotifer.devel.beta.sequence.sequence:
                seqs = digitalize_seqobj(sequences)
-           
-        pbar = tqdm(total=len(seqs), desc='hmmscan')
-        
+
         #Hmmscan run and file processment
+        pbar = tqdm(total=len(seqs), desc='hmmscan')
         h = list(ph.hmmer.hmmscan(seqs, hmms, cpus=cpus, callback=callback))
-        df = pyhmmer_to_df(h, columns=columns, rename=rename)
+        df = pyhmmer_to_df(h, columns=columns)
         df['source'] = model 
         results.append(df)
-        
-    dfs = pd.concat(results)
-    
-    return dfs
 
-def filter_models_overlaps(df, overlap_filter=0.1):
-    """
-    Resolve overlapping domains across models using a vectorized greedy approach.
+    df = pd.concat(results)
+    if rename:
+        df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
+    return df
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Must contain: ['estart', 'eend', 'score']
-    overlap_threshold : float
-        Max allowed overlap fraction (default=0.1 → 10%)
-
-    Returns
-    -------
-    pd.DataFrame
-        Filtered non-overlapping domains
-    """
-
-    if df.empty:
-        return df
-
-    # Sort by score (descending)
-    df = df.sort_values('score', ascending=False).reset_index(drop=True)
-
-    starts = df['estart'].to_numpy()
-    ends   = df['eend'].to_numpy()
-    lengths = ends - starts
-
-    n = len(df)
-    keep = np.ones(n, dtype=bool)
-
-    for i in range(n):
-        if not keep[i]:
-            continue
-
-        # Compute overlap with ALL remaining intervals
-        overlap_start = np.maximum(starts[i], starts)
-        overlap_end   = np.minimum(ends[i], ends)
-        overlap_len   = np.maximum(0, overlap_end - overlap_start)
-
-        # Normalize by the smaller interval (robust choice)
-        min_len = np.minimum(lengths[i], lengths)
-        frac_overlap = np.zeros_like(overlap_len, dtype=float)
-        valid = min_len > 0
-        frac_overlap[valid] = overlap_len[valid] / min_len[valid]
-
-        # Suppress overlapping domains BELOW in ranking
-        mask = (frac_overlap > overlap_filter)
-
-        # Only remove those with lower priority (j > i)
-        mask[:i+1] = False
-
-        keep[mask] = False
-
-    return df[keep]
-
-def add_arch_to_df(df, column='pid', file=None, column_arch_name='arch', evalue_filter=0.1, score_filter=0, overlap_filter = 0.1, 
-                   models_path=['/databases/pfam/Pfam-A.hmm'], inplace=False, run_hmmscan=True, workers=4, cpus_per_worker=8,
-                   build_arch_by_source=False):
-
+def add_arch_to_df(df, column='pid', file=None, name='archtecture', evalue_filter=0.1, score_filter=0, overlap_filter = 0.1, 
+                   models_path=['/databases/pfam/Pfam-A.hmm'], inplace=False, workers=4, cpus_per_worker=8):
     '''
     Add a column pfam with the domain architecture for the input accessions.
     '''
-
+    from copy import deepcopy
     if inplace == False:
         df = df.copy()
 
-    if run_hmmscan:
-        h = hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
-
-    else:
-        h = df
-
-    h.rename({'aln_target_name':'sequence','aln_hmm_name':'model','i_evalue':'evalue','env_from':'estart', 'env_to':'eend'}, axis=1, inplace=True)
-    h = h.loc[:, ~h.columns.duplicated()]
-    h = h.drop_duplicates().reset_index(drop=True)
-    h = h[h['evalue'] <= evalue_filter]    
+    h = hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
+    h = h[h['evalue'] <= evalue_filter]
     h = h[h['score'] >= score_filter]
-    
-    if build_arch_by_source == True:
-        sources = h.source.drop_duplicates().str.split('/').str[-1].tolist()
-        for x in sources:
-            h_source = h[h.source.str.contains(x)]
-            h_source = riu.filter_nonoverlapping_regions(h_source, **riu.config['hmmer'])
-            h_source = h_source.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
-            h_source = h_source.sort_values(['sequence', 'estart'])
-            arch = h_source.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
-            arch.rename({'sequence':column}, axis = 1, inplace = True)
-            arch = arch.set_index(column).pfam.to_dict()
-            df[f'{column_arch_name}_{x}'] = df[column].map(arch)
-        return None if inplace else df
 
-    else:            
-        h = riu.filter_nonoverlapping_regions(h, **riu.config['hmmer'])
-        h = h.groupby('sequence', group_keys=False).apply(filter_models_overlaps, overlap_filter=overlap_filter)
-        h = h.sort_values(['sequence', 'estart'])
-        arch = h.groupby('sequence').agg(pfam = ('model',lambda x: '+'.join(x.astype(str)))).reset_index()
-        arch.rename({'sequence':column}, axis = 1, inplace = True)
-        arch = arch.set_index(column).pfam.to_dict()
-        df[column_arch_name] = df[column].map(arch)
-        return None if inplace else df
-    
+    arch = riu.architecture(h, **{ **riu.config['hmmer'], 'maximum_overlap':overlap_filter })
+    arch = arch.set_index('sequence').architecture.to_dict()
+
+    df[name] = df[column].map(arch)
+    return None if inplace else df
+
 def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
-    
     if isinstance(models_path, str):
         models_path = [models_path]
 
     results = []
-    
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
            if hmm_file.is_pressed:
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
-
         db = ph.easel.SequenceFile(query_db, digital=True, alphabet=ph.easel.Alphabet.amino())
         out = list(ph.hmmer.hmmsearch(hmms, db, cpus=cpus))
-        df = pyhmmer_to_df(out, columns=columns, rename=rename)
+        df = pyhmmer_to_df(out, columns=columns)
         df['source'] = model 
         results.append(df)
-        
-    dfs = pd.concat(results)
 
-    return dfs
+    df = pd.concat(results)
+    if rename:
+        df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
+    return df
 
 def _compute_chunk_size(total_sequences, workers, task_factor=4):
     """
@@ -366,11 +272,8 @@ def _compute_chunk_size(total_sequences, workers, task_factor=4):
     int
         Recommended chunk size.
     """
-
     total_tasks = workers * task_factor
-
     chunk_size = math.ceil(total_sequences / total_tasks)
-
     return max(chunk_size, 1)
 
 def _load_models(models_path):
@@ -391,20 +294,14 @@ def _load_models(models_path):
     None
         Models are stored in the global variable `HMM_MODELS`.
     """
-
     global HMM_MODELS
-
     HMM_MODELS = {}
-
     for model in models_path:
-
         with ph.plan7.HMMFile(model) as hmm_file:
-
             if hmm_file.is_pressed:
                 hmms = list(hmm_file.optimized_profiles())
             else:
                 hmms = list(hmm_file)
-
         HMM_MODELS[model] = hmms
 
 def _load_sequences(sequences, file):
@@ -423,9 +320,7 @@ def _load_sequences(sequences, file):
     list
         List of digital pyhmmer sequences.
     """
-
     abc = ph.easel.Alphabet.amino()
-
     if file:
         seqs = list(
             ph.easel.SequenceFile(
@@ -434,19 +329,14 @@ def _load_sequences(sequences, file):
                 alphabet=abc
             )
         )
-
     else:
-
         if type(sequences) == list:
             seqobj = rdbs.sequence(sequences)
             seqs = list(digitalize_seqobj(seqobj))
-
         elif type(sequences) == rotifer.devel.beta.sequence.sequence:
             seqs = list(digitalize_seqobj(sequences))
-
         else:
             raise ValueError("Unsupported sequence input type")
-
     return seqs
 
 def _chunk_sequences(seqs, chunk_size):
@@ -465,18 +355,14 @@ def _chunk_sequences(seqs, chunk_size):
     list
         List of sequence chunks.
     """
-
     return [
         seqs[i:i + chunk_size]
         for i in range(0, len(seqs), chunk_size)
     ]
 
 def _hmmscan_worker(args):
-
     model, seq_chunk, cpus_per_worker, columns, rename = args
-
     hmms = HMM_MODELS[model]
-
     hits = list(
         ph.hmmer.hmmscan(
             seq_chunk,
@@ -484,15 +370,8 @@ def _hmmscan_worker(args):
             cpus=cpus_per_worker
         )
     )
-
-    df = pyhmmer_to_df(
-        hits,
-        columns=columns,
-        rename=rename
-    )
-
+    df = pyhmmer_to_df(hits, columns=columns)
     df["source"] = model
-
     # return both dataframe and number of sequences processed
     return df, len(seq_chunk)
 
@@ -576,20 +455,17 @@ def hmmscan(
     # --------------------------------------------------------------
     # MODEL PATH NORMALIZATION
     # --------------------------------------------------------------
-
     if isinstance(models_path, str):
         models_path = [models_path]
 
     # --------------------------------------------------------------
     # LOAD HMM DATABASES
     # --------------------------------------------------------------
-
     _load_models(models_path)
 
     # --------------------------------------------------------------
     # LOAD SEQUENCES
     # --------------------------------------------------------------
-
     seqs = _load_sequences(sequences, file)
 
     # --------------------------------------------------------------
@@ -605,7 +481,6 @@ def hmmscan(
     # BUILD TASK LIST
     # --------------------------------------------------------------
     tasks = []
-
     for model in models_path:
         for chunk in seq_chunks:
             tasks.append(
@@ -615,31 +490,21 @@ def hmmscan(
     # --------------------------------------------------------------
     # PARALLEL EXECUTION
     # --------------------------------------------------------------
-
     pool = Pool(workers)
-
     results = []
     total_sequences = len(seqs) * len(models_path)
-
-    pbar = tqdm(
-        total=total_sequences,
-        desc="hmmscan",
-        unit="seq")
-
+    pbar = tqdm(total=total_sequences, desc="hmmscan", unit="seq")
     for df, processed in pool.imap_unordered(_hmmscan_worker, tasks):
         results.append(df)
-
-    # update by number of sequences processed in that task
-        pbar.update(processed)
+        pbar.update(processed) # update by number of sequences processed in that task
     pbar.close()
-    
     pool.close()
     pool.join()
 
     # --------------------------------------------------------------
     # MERGE RESULTS
     # --------------------------------------------------------------
-
-    dfs = pd.concat(results, ignore_index=True)
-
-    return dfs
+    df = pd.concat(results, ignore_index=True)
+    if rename:
+        df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
+    return df
