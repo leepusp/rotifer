@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+
+from rotifer.devel.alpha import mvroliveira as rdao
+from rotifer.devel.beta import sequence as rdbs
+import pandas as pd
+import tempfile
+import shutil
+import sys
+import os
+
+# Save the current working directory
+previous_dir = os.getcwd()
+
+# Command line parsing
+informat = "fasta"
+if len(sys.argv) < 3:
+    print(f"Usage: {sys.argv[0]} <input> <output> [format]\nWhere:\n  <input> : input file path\n  <output> : prefix for output files\n  [format] : (optional) input format name.either fasta or tsv")
+    exit(1)
+else:
+    output=sys.argv[2]
+if len(sys.argv) == 4:
+    informat = sys.argv[3]
+
+# First command line argument: sequence file
+if informat == "fasta":
+    seqs = rdbs.sequence(sys.argv[1])
+elif informat == "tsv":
+    from rotifer.db import ncbi
+    intsv = pd.read_table(sys.argv[1])
+    fc = ncbi.FastaCursor()
+    seqs = rdbs.sequence(fc.fetchall(intsv.iloc[:,0].dropna().drop_duplicates().tolist()))
+
+# Create a temporary directory
+with tempfile.TemporaryDirectory() as temp_dir:
+    try:
+        # Enter/access the temporary directory
+        os.chdir(temp_dir)
+        print(f"Current directory: {os.getcwd()}")
+
+        # Build SSN
+        gml = f"{output}.graphml"
+        tsv = f"{output}_hits.tsv"
+        G, hits = rdao.sequence_ssn(
+            seqs, tool='diamond', cpu=16,
+            auto_cutoff=True, cutoff_steps=50, criteria='bitscore > 30', add_community=True,
+        )
+        rdao.export_ssn(G, gml)
+        hits.to_csv(tsv, sep="\t", index=False)
+
+        # Generate HTML viewer
+        html = f"output.html"
+        out = rdao.ssn_dashboard(
+            ssn_dir='.',
+            out=html,
+            matrix_dir='.',
+            max_nodes=None,
+            layout_iter=50,
+        )
+
+        # Save output files
+        for target in (html, tsv, gml):
+            shutil.move(target, os.path.join(previous_dir,target))
+
+    finally:
+        # Always return to the previous directory
+        os.chdir(previous_dir)
+
+exit(0)
