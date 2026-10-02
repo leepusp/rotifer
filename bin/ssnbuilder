@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
         hits.to_csv(tsv, sep="\t", index=False)
 
         # Generate HTML viewer
-        html = f"output.html"
+        html = f"{output}.html"
         out = rdao.ssn_dashboard(
             ssn_dir='.',
             out=html,
