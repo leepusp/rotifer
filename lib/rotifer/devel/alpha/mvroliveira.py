@@ -28,6 +28,15 @@ mvroliveira.py - Sequence similarity networks (SSNs) from all-vs-all BLAST.
                                   objective way to pick a subfamily cutoff
     plot_closeness_scan(scan) -> PNG of the curve above, peaks marked
 
+    SSNExplorer(hits, sequences, query)
+                              -> interactive exploration of one SSN at every
+                                  cutoff: inside/outside the query component,
+                                  communities + stability, RadicalSAM-style
+                                  hierarchy, score profile / negative control,
+                                  and a live browser panel (ex.serve()) whose
+                                  selections come straight back to Python as
+                                  rotifer sequence objects. See ssn_explorer.py.
+
 Split BLAST from ssn-building in two steps so BLAST (the expensive
 part) only runs once, while you try different edge criteria freely on
 the same hit table.
@@ -50,8 +59,8 @@ NOTE: these only exist AFTER this module has been imported at least
 once -- the patch happens at import time, not before.
 """
 
-import os
 import io
+import os
 import json
 import tempfile
 from subprocess import Popen, PIPE, STDOUT
@@ -302,8 +311,13 @@ def build_ssn(hits, criteria='bitscore > 70', keep_best='bitscore',
                                min_component_size=min_component_size,
                                max_singleton_fraction=max_singleton_fraction,
                                auto_start=auto_start, progress=progress)
-        # Callers treat this ValueError as "no real peak, fall back to a
-        # single community", so every failure mode routes through it.
+        # Degrade para o MESMO ValueError do caso "N pequeno demais" sempre
+        # que o scan sair malformado, seja qual for o motivo -- em vez de
+        # deixar um KeyError cru escapar quando 'avg_closeness' nem existe
+        # (por exemplo, se o scan retornou vazio por um caminho inesperado).
+        # Quem chama ja trata esse ValueError como "sem pico real, cai no
+        # fallback de comunidade unica" -- aqui so garante que TODO jeito
+        # de dar errado passa pelo mesmo tratamento, nao so o esperado.
         if 'avg_closeness' not in scan.columns:
             raise ValueError(
                 "auto_cutoff: closeness_scan returned no 'avg_closeness' column -- "
@@ -707,10 +721,18 @@ def closeness_scan(hits, column='bitscore', cutoffs=None, n_steps=50,
         nodes_in_big_components = sum(len(comp) for comp in components if len(comp) >= min_component_size)
         n_unclustered = total_nodes - nodes_in_big_components
 
-        # Flag over-fragmented cutoffs instead of stopping the scan there:
-        # a dense conserved core ringed by weak divergent sequences
-        # fragments early at the edges while still holding a genuine peak
-        # much higher up. Excluded from automatic choice, still reported.
+        # Marca (nao interrompe) cortes onde a rede fragmentou demais.
+        #
+        # A versao anterior PARAVA a varredura aqui -- mas isso confunde
+        # "nao escolher automaticamente este cutoff como resposta" (o que
+        # o artigo de fato recomenda) com "nunca terminar de testar o
+        # intervalo real da matriz" (o que o artigo nao pede, e que
+        # escondia picos genuinos). Um dominio com um nucleo denso e
+        # conservado cercado por sequencias perifericas fracas e
+        # divergentes -- caso comum em familia de proteinas real -- tem
+        # exatamente esse padrao: a periferia vira singleton cedo, mas o
+        # NUCLEO pode ter um pico solido bem mais acima, numa faixa de
+        # bitscore que a parada antecipada nunca chegava a testar.
         over_frag = bool(total_nodes and (n_unclustered / total_nodes) > max_singleton_fraction)
 
         scored_nodes = [n for comp in components if len(comp) >= min_component_size for n in comp]
@@ -969,41 +991,44 @@ def _dash_scan_msa_files(msa_dir):
         except Exception as e:
             logger.warning(f"_dash_scan_msa_files: could not read {fp}: {e}")
             continue
-        if len(records) >= 2:  # a 1-sequence "alignment" is of no use here
+        if len(records) >= 2:  # um alinhamento com 1 sequencia so nao serve pra nada
             out.append((fp, records))
     return out
 
 
-def _dash_find_reference_nodes(G, unit, aliases=None):
+def _dash_find_reference_node(G, unit, aliases=None):
     """
-    Locate the reference ("query") node(s) of one network.
+    Locate the reference ("query") node of one network.
 
-    Returns a list, not a single id -- a unit can have more than one known
-    reference sequence landing in the same network (e.g. several named
-    seeds from an HMM-based search, where there's no single literal query
-    sequence the way there is for a sequence-seeded search). Every
-    alias/unit-name that actually exists as a node in G is kept, not just
-    the first match.
-
-    `aliases` is an optional {unit: [id, ...]} map. When a unit has exactly
-    one reference (the common case), this returns a single-item list, so
-    nothing downstream needs to special-case "one vs many".
+    Generic on purpose: `aliases` is an optional {unit: [id, ...]} map, so a
+    caller whose reference sequence is stored under a different accession
+    (a UniProt id for a locus tag, say) can supply that without this module
+    needing to know anything about the naming scheme in use. Falls back to
+    the unit name itself, then to a unique substring match.
     """
     candidates = list((aliases or {}).get(unit, [])) + [unit]
-    found = [c for c in candidates if c in G]
-    # nothing matched by name: accept a unique substring match
-    if not found:
+    node = next((c for c in candidates if c in G), None)
+    if node is None:
         hits = [n for n in G.nodes if unit in str(n)]
         if len(hits) == 1:
-            found = hits
-    # de-duplicate, preserving order
-    seen = set()
-    out = []
-    for f in found:
-        if f not in seen:
-            seen.add(f)
-            out.append(f)
-    return out
+            node = hits[0]
+    return node
+
+
+def _dash_find_reference_nodes(G, unit, aliases=None):
+    """All reference ("query") nodes of one network: every alias present in
+    the graph, plus the unit name itself. Falls back to a unique substring
+    match when none is found."""
+    candidates = list((aliases or {}).get(unit, [])) + [unit]
+    nodes = []
+    for c in candidates:
+        if c in G and c not in nodes:
+            nodes.append(c)
+    if not nodes:
+        n = _dash_find_reference_node(G, unit, aliases)
+        if n is not None:
+            nodes = [n]
+    return nodes
 
 
 def _dash_community_attr(G):
@@ -1030,15 +1055,12 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
 
     attr = _dash_community_attr(G)
     query_nodes = _dash_find_reference_nodes(G, name, aliases)
-    # Every reference is marked as a query node, but the highlighted GROUP
-    # follows the first one only: if a reference diverges into another
-    # community that stays visible instead of being absorbed into a union.
-    primary_query = query_nodes[0] if query_nodes else None
-    query_comms = ({G.nodes[primary_query].get(attr)}
-                   if (primary_query and attr) else set())
+    query_node = query_nodes[0] if query_nodes else None
+    query_comm = G.nodes[query_node].get(attr) if (query_node and attr) else None
+    query_comms = {G.nodes[q].get(attr) for q in query_nodes} if attr else set()
     query_comms.discard(None)
 
-    # numeric value of the chosen cutoff (e.g. "bitscore > 56.2")
+    # valor numerico do corte escolhido pelo auto_cutoff (ex: "bitscore > 56.2")
     auto_cutoff_raw = G.graph.get("auto_cutoff")
     auto_cutoff_val = None
     if auto_cutoff_raw:
@@ -1047,9 +1069,11 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
         except (ValueError, IndexError):
             pass
 
-    # Curve still rising at the right edge means the real peak lies beyond
-    # the tested range (Hornung & Terrapon 2023: a good cutoff reaches
-    # ~0.9-1.0; low values with a rising edge mean the scan was too short).
+    # A curva do closeness_scan ainda esta subindo na borda direita? Se sim,
+    # o pico real esta ALEM do intervalo testado -- o corte escolhido e o
+    # melhor "dentro do que foi amostrado", nao o otimo de verdade.
+    # (Hornung & Terrapon 2023: corte bom da closeness ~0.9-1.0; valores
+    # baixos com curva ascendente na borda = varredura curta demais.)
     scan_truncated = None
     scan_max = None
     scan_json_raw = G.graph.get("closeness_scan")
@@ -1061,16 +1085,18 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
             if _col is not None and len(_scan) >= 4:
                 _v = _scan[_col].dropna().tolist()
                 scan_max = float(max(_v))
-                # rising over the last steps AND the global max sits at the end
+                # sobe nos ultimos passos E o maximo global esta no fim
                 tail_rising = _v[-1] > _v[-2] > _v[-3]
                 max_at_edge = _v.index(max(_v)) >= len(_v) - 2
                 scan_truncated = bool(tail_rising and max_at_edge)
         except Exception:
             pass
 
-    # closeness_scan PNG, written next to the .graphml by the 'ssn' stage
+    # PNG do closeness_scan, gerado pelo estagio 'ssn' ao lado do .graphml
     scan_png_b64 = None
-    # famflow writes "{name}_closeness_scan.png"; accept "{name}.png" too
+    # o famflow grava como "{nome}_closeness_scan.png"; versoes antigas do
+    # dashboard buscavam "{nome}.png" e nunca encontravam nada -- aceita
+    # os dois, nessa ordem de preferencia.
     base = os.path.splitext(gml_path)[0]
     png_path = base + "_closeness_scan.png"
     if not os.path.exists(png_path):
@@ -1082,14 +1108,15 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
         except Exception:
             pass
 
-    # optional subsampling; the query's own community is always kept whole
+    # subamostragem OPCIONAL (max_nodes=None mantem a rede inteira, que e o
+    # default). Quando usada, preserva SEMPRE a comunidade da query inteira.
     subsampled = False
     if max_nodes and n_total > max_nodes:
         subsampled = True
         keep = set()
         if query_comms:
             keep |= {n for n, d in G.nodes(data=True) if d.get(attr) in query_comms}
-        # fill up with the most connected nodes from other communities
+        # completa com nos de outras comunidades, mais conectados primeiro
         resto = sorted((n for n in G.nodes if n not in keep),
                        key=lambda n: -G.degree(n))
         for n in resto:
@@ -1098,24 +1125,27 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
             keep.add(n)
         G = G.subgraph(keep).copy()
 
-    # deterministic layout (fixed seed -> same figure every time)
+    # layout deterministico (seed fixo -> mesma figura toda vez)
     try:
-        # Dense networks collapse into a flat blob under plain
-        # spring_layout: a larger 'k' pushes nodes apart and more
-        # iterations let the layout actually converge.
+        # Em redes densas (muitas arestas por no), o spring_layout puro
+        # colapsa tudo num blob achatado -- as forcas de atracao dominam e
+        # as comunidades ficam sobrepostas, sem separacao visivel. Duas
+        # coisas ajudam: (1) 'k' maior afasta os nos entre si; (2) mais
+        # iteracoes deixam o layout convergir de verdade.
         n_nodes = G.number_of_nodes()
         n_edges = G.number_of_edges()
         densidade = (2 * n_edges / (n_nodes * (n_nodes - 1))) if n_nodes > 1 else 0
 
         import math
-        # networkx default k is 1/sqrt(n); denser graphs need more spread
+        # k padrao do networkx e 1/sqrt(n); aumentar afasta os nos.
+        # Quanto mais denso o grafo, mais precisa afastar pra nao virar blob.
         k = (1.0 / math.sqrt(n_nodes)) * (1.0 + 2.0 * min(densidade, 1.0))
 
         pos = nx.spring_layout(G, seed=42, iterations=max(layout_iter, 100), k=k)
     except Exception:
         pos = nx.random_layout(G, seed=42)
 
-    # normalise coordinates to [0,1]
+    # normaliza coordenadas para [0,1]
     xs = [p[0] for p in pos.values()]
     ys = [p[1] for p in pos.values()]
     minx, maxx = min(xs), max(xs)
@@ -1123,16 +1153,17 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
     rangex = (maxx - minx) or 1
     rangey = (maxy - miny) or 1
 
-    # Connected component per node. In Hornung & Terrapon (2023) a
-    # "subfamily" IS the connected component -- the closeness criterion
-    # looks for the cutoff at which groups come apart. Louvain partitions
-    # by modularity even inside a still-connected graph.
+    # componente conectado de cada no. No artigo de referencia (Hornung &
+    # Terrapon 2023) a "subfamilia" e o COMPONENTE CONECTADO -- o criterio
+    # de closeness centrality e desenhado justamente pra achar o corte onde
+    # os grupos se desconectam. Louvain e outra coisa: particiona por
+    # modularidade mesmo dentro de um grafo ainda conectado, o que produz
+    # grupos sem separacao fisica quando a rede continua um novelo so.
     comp_of = {}
     for ci, comp in enumerate(nx.connected_components(G)):
         for n in comp:
             comp_of[n] = ci
-    query_components = ({comp_of[primary_query]} if primary_query in comp_of else set())
-    query_nodes_set = set(query_nodes)
+    query_components = {comp_of.get(q) for q in query_nodes if q in comp_of}
 
     node_list, node_index = [], {}
     for i, n in enumerate(G.nodes):
@@ -1145,16 +1176,24 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
             "y": round((pos[n][1] - miny) / rangey, 4),
             "c": str(comm) if comm is not None else "-",
             "cp": comp_of.get(n, -1),
-            "q": bool(n in query_nodes_set),
-            "qc": bool(comm in query_comms),
-            "qcp": bool(comp_of.get(n, -1) in query_components),
+            "q": n in query_nodes,
+            "qc": bool(comm is not None and comm in query_comms),
+            "qcp": comp_of.get(n) in query_components,
             "deg": G.degree(n),
         })
 
-    # Slider edges come from the RAW MATRIX, not the graph: the .graphml is
-    # written with the cutoff already applied, so it holds nothing below it
-    # for the slider to bring back. The graph still supplies per-node
-    # attributes (Louvain community), which the browser cannot recompute.
+    # Arestas para o slider: vêm da MATRIZ BRUTA, não do grafo.
+    #
+    # O .graphml é gravado já com o corte aplicado -- só sobrevivem nele os
+    # pares acima do auto_cutoff. Montar o painel a partir dele deixava o
+    # slider capaz de subir o corte (removendo arestas) mas nunca de baixá-lo
+    # de forma útil: não havia nada abaixo do corte para trazer de volta, e
+    # arrastar o controle para baixo simplesmente não mudava nada. Lendo os
+    # pares da matriz, o corte passa a percorrer a faixa inteira nos dois
+    # sentidos, que é o que torna a exploração honesta.
+    #
+    # O grafo continua servindo para os atributos por nó (comunidade Louvain,
+    # que não dá para recalcular no navegador).
     edge_list, edge_w = [], []
     has_weights = False
     matrix_pairs = None
@@ -1188,8 +1227,8 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
         has_weights = bool(edge_w)
 
     if not edge_list:
-        # no usable matrix: fall back to the graph's own edges (slider is
-        # then limited to what survived the cutoff; the panel says so)
+        # sem matriz utilizável: cai para as arestas do próprio grafo. O
+        # slider fica limitado ao que sobreviveu ao corte, e o painel avisa.
         _wkey = None
         for u, v, d in G.edges(data=True):
             if _wkey is None:
@@ -1202,7 +1241,7 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
     else:
         edges_from_matrix = True
 
-    # community counts on the FULL graph, not the subsampled one
+    # contagem de comunidades (no grafo COMPLETO, nao no subamostrado)
     if attr:
         G_full = nx.read_graphml(gml_path)
         from collections import Counter
@@ -1211,7 +1250,7 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
     else:
         comm_sizes = []
 
-    # raw matrix statistics
+    # estatisticas da matriz bruta
     matrix_stats = None
     if matrix_path and os.path.exists(matrix_path):
         try:
@@ -1221,7 +1260,7 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
                             if "bitscore" in c.lower() or c.lower() == "bits"), None)
             if col_bit:
                 vals = df[col_bit].dropna()
-                # 30-bin histogram
+                # histograma em 30 bins
                 import numpy as np
                 counts, edges = np.histogram(vals, bins=30)
                 matrix_stats = {
@@ -1240,10 +1279,9 @@ def _dash_build_unit(gml_path, matrix_path, aliases, max_nodes, layout_iter):
         "n_nodes_shown": len(node_list),
         "n_edges_shown": len(edge_list),
         "subsampled": subsampled,
+        "query_node": str(query_node) if query_node else None,
         "query_nodes": [str(q) for q in query_nodes],
-        # preformatted for the header, so the browser needn't join it
-        "query_node": ", ".join(str(q) for q in query_nodes) if query_nodes else None,
-        "query_comm": ",".join(str(c) for c in sorted(query_comms, key=str)) if query_comms else None,
+        "query_comm": str(query_comm) if query_comm is not None else None,
         "query_comm_size": sum(1 for n in node_list if n["qc"]),
         "n_communities": len(comm_sizes),
         "comm_sizes": comm_sizes,
@@ -1521,17 +1559,28 @@ _DASH_TEMPLATE = """<!DOCTYPE html>
           <div id="tooltip"></div>
           <div class="legend">
             <div class="item"><span class="dot" style="background:#f4fffc;box-shadow:0 0 6px #4fe8d6"></span> query</div>
-            <div class="item"><span class="dot" style="background:#33d9c4"></span> grupo da query</div>
-            <div class="item"><span class="dot" style="background:#56688c"></span> outras comunidades</div>
+            <div class="item" id="legend-dynamic" style="display:flex;gap:14px;flex-wrap:wrap"></div>
             <div class="item" id="legend-counts"></div>
             <div class="item" style="margin-left:auto">
               <span id="louvain-status" style="color:var(--faint);font-size:11px;font-family:var(--mono)"></span>
               <button id="group-mode-btn" class="mode-btn" title="equivalente ao Shift+arraste, para telas de toque">modo: nó único</button>
               <button id="mode-btn" class="mode-btn">agrupar por: componente conectado</button>
+              <select id="aspect-sel" class="mode-btn" title="proporção do quadro (figura)">
+                <option value="1.5">3:2</option><option value="1.3333">4:3</option>
+                <option value="1.7778">16:9</option><option value="1">1:1</option>
+                <option value="0">livre</option>
+              </select>
+              <button id="repack-btn" class="mode-btn" title="reposiciona os componentes, separados, dentro do quadro">reorganizar</button>
+              <button id="physics-btn" class="mode-btn" title="liga/desliga a simulação física (desligada = posições fixas)">física: desligada</button>
+              <select id="png-res" class="mode-btn" title="resolução do PNG (múltiplo do tamanho na tela)">
+                <option value="2">PNG 2x</option><option value="4" selected>PNG 4x</option>
+                <option value="6">PNG 6x</option><option value="8">PNG 8x</option>
+              </select>
+              <button id="net-download-btn" class="mode-btn" onclick="downloadNetPNG()">baixar PNG</button>
             </div>
           </div>
         </div>
-        <p class="hint">Arraste um nó para movê-lo · <b>Shift + arrastar</b> (ou o botão "modo: grupo inteiro") move a comunidade inteira · arraste o fundo para deslocar · rolagem ou pinça para zoom</p>
+        <p class="hint">Layout fixo: componentes separados dentro do quadro; o que você arrastar fica onde soltar · "reorganizar" refaz a separação · "física" liga a simulação · Arraste um nó para movê-lo · <b>Shift + arrastar</b> (ou o botão "modo: grupo inteiro") move a comunidade inteira · arraste o fundo para deslocar · rolagem ou pinça para zoom</p>
         <div id="scan-section"></div>
       </div>
       <div class="pane" id="pane-matrix"></div>
@@ -1592,6 +1641,7 @@ let cur = null;
 let view = {scale: 1, ox: 0, oy: 0};
 const canvas = document.getElementById('net');
 const ctx = canvas.getContext('2d');
+const mainCtx = ctx;   // draw() pode receber outro contexto (exportacao em alta resolucao)
 const tooltip = document.getElementById('tooltip');
 
 function select(i) {
@@ -1606,7 +1656,7 @@ function select(i) {
     cur.n_nodes_total.toLocaleString('pt-BR') + ' nós · ' +
     cur.n_edges_shown.toLocaleString('pt-BR') + ' arestas exibidas · ' +
     cur.n_communities + ' comunidades' +
-    (cur.query_node ? ' · query: ' + cur.query_node : ' · query ausente do grafo');
+    (cur.query_node ? ' · query: ' + (cur.query_nodes || [cur.query_node]).join(', ') : ' · query ausente do grafo');
 
   document.getElementById('subsample-warn').innerHTML = cur.subsampled
     ? '<div class="warn">Rede grande (' + cur.n_nodes_total.toLocaleString('pt-BR') +
@@ -1649,6 +1699,19 @@ let sim = null;
 // (Hornung & Terrapon 2023)
 let groupMode = 'component';
 
+// uma cor por componente conectado (ranqueados por tamanho, maior
+// primeiro); o resto (singletons / alem do 12o maior) fica cinza --
+// mesma convencao usada na figura estatica (plot_components do
+// SSNExplorer): componente = definicao de subfamilia (Hornung & Terrapon
+// 2023), nao Louvain.
+// 10 matizes bem separados (sem dois tons da mesma familia). As queries sao
+// o no branco com anel na cor do seu componente.
+const COMPONENT_PALETTE = [
+  '#3b82f6', '#ffd400', '#22c55e', '#ff8a00', '#a855f7',
+  '#00e5ff', '#ff3b3b', '#b5e61d', '#c08457', '#e5e7eb'
+];
+const COMPONENT_OTHER = '#56688c';
+
 // cortes escolhidos a mao, por dominio: {nome: valor}. Guardado tambem no
 // localStorage do navegador, entao sobrevive a fechar e reabrir o painel
 // (mas NAO viaja com o arquivo -- e por isso que existe o botao de
@@ -1686,10 +1749,14 @@ function exportManualCutoffs() {
   URL.revokeObjectURL(url);
 }
 
+let physics = false;      // fisica desligada por padrao: layout fixo e separado
+let aspect = 1.5;         // proporcao do quadro (0 = livre)
+
 function resize() {
   const wrap = document.getElementById('net-wrap');
   const w = wrap.clientWidth;
-  const h = Math.max(480, Math.min(720, window.innerHeight - 300));
+  const h = aspect > 0 ? Math.round(w / aspect)
+                       : Math.max(480, Math.min(720, window.innerHeight - 300));
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.height = h + 'px';
@@ -1778,7 +1845,8 @@ function startSim() {
   sim = {N, E, Eidx, activeEdges: E, alpha: 1, w, h,
          repulsion, linkDist, damping, decay, maxStep, running: true};
   setupCutoffBar();
-  tick();
+  if (physics) { tick(); }
+  else { sim.running = false; packLayout(); draw(); }
 }
 
 function tick() {
@@ -1798,6 +1866,31 @@ function tick() {
     const fx = dx * f, fy = dy * f;
     a.vx += fx; a.vy += fy;
     b.vx -= fx; b.vy -= fy;
+  }
+
+  // repulsao ENTRE componentes: empurra os centroides para longe quando os
+  // componentes (maiores + query) ficam mais perto que a soma dos raios + folga
+  const G_ = sim.compGroups || [];
+  if (G_.length > 1) {
+    const info = G_.map(g => {
+      let mx = 0, my = 0;
+      for (const n of g) { mx += n.x; my += n.y; }
+      mx /= g.length; my /= g.length;
+      let s2 = 0;
+      for (const n of g) s2 += (n.x-mx)*(n.x-mx) + (n.y-my)*(n.y-my);
+      return {g, mx, my, r: Math.sqrt(s2 / g.length) * 1.7 + 12, dx: 0, dy: 0};
+    });
+    for (let i = 0; i < info.length; i++) for (let j = i + 1; j < info.length; j++) {
+      const A = info[i], B = info[j];
+      let dx = B.mx - A.mx, dy = B.my - A.my;
+      let d = Math.hypot(dx, dy) || 0.01;
+      const minD = (A.r + B.r) * 1.2 + 30;
+      if (d < minD) {
+        const f = (minD - d) / d * 0.02 * alpha;
+        A.dx -= dx * f; A.dy -= dy * f; B.dx += dx * f; B.dy += dy * f;
+      }
+    }
+    for (const c of info) for (const n of c.g) { n.vx += c.dx; n.vy += c.dy; }
   }
 
   // centralizacao suave
@@ -1832,16 +1925,98 @@ function tick() {
   }
 }
 
-function reheat(a) {
+// Layout fixo: cada componente conectado vira um bloco proprio dentro do
+// retangulo (area ~ n^0.65, o maior a esquerda), com as posicoes do layout
+// pre-calculado reescalonadas para o bloco. Isolados vao num bloco de grade.
+function packLayout() {
   if (!sim) return;
+  const {N, w, h} = sim;
+  const rootOf = n => (n.cpLive !== undefined ? n.cpLive : n.cp);
+  const groups = new Map();
+  for (const n of N) {
+    const r = rootOf(n);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(n);
+  }
+  const comps = [], singles = [];
+  for (const g of groups.values()) (g.length >= 2 ? comps : singles).push(g);
+  comps.sort((a, b) => b.length - a.length);
+  const items = comps.map(g => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of g) {
+      if (n.x < x0) x0 = n.x; if (n.x > x1) x1 = n.x;
+      if (n.y < y0) y0 = n.y; if (n.y > y1) y1 = n.y;
+    }
+    const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0);
+    return {g, x0, y0, bw, bh, a: Math.max(1.5, Math.pow(g.length, 0.65)),
+            r: Math.max(0.6, Math.min(1.8, bw / bh)), single: false};
+  });
+  if (singles.length) {
+    items.push({g: singles.flat(), single: true,
+                a: Math.max(3, Math.pow(singles.length, 0.65) * 0.8), r: 1.6});
+  }
+  if (!items.length) return;
+
+  const pad = 28, gap = 22, W = w - 2 * pad, H = h - 2 * pad;
+  const dims = (it, s) => ({iw: Math.sqrt(it.a * s * it.r), ih: Math.sqrt(it.a * s / it.r)});
+  function layout(s) {
+    const first = dims(items[0], s);
+    const pos = [{x: 0, y: 0, iw: first.iw, ih: first.ih}];
+    let x = first.iw + gap, y = 0, rowH = 0, maxX = first.iw, restBottom = 0;
+    const x0r = x;
+    for (let i = 1; i < items.length; i++) {
+      const d = dims(items[i], s);
+      if (x > x0r && x + d.iw > W) { y += rowH + gap; x = x0r; rowH = 0; }
+      pos.push({x, y, iw: d.iw, ih: d.ih});
+      x += d.iw + gap; rowH = Math.max(rowH, d.ih);
+      maxX = Math.max(maxX, x - gap); restBottom = y + rowH;
+    }
+    return {pos, width: maxX, height: Math.max(first.ih, restBottom)};
+  }
+  let lo = 1, hi = W * H * 4;
+  for (let k = 0; k < 40; k++) {
+    const mid = (lo + hi) / 2, L = layout(mid);
+    if (L.height <= H && L.width <= W) lo = mid; else hi = mid;
+  }
+  const L = layout(lo);
+  const offX = pad + (W - L.width) / 2, offY = pad + (H - L.height) / 2;
+
+  items.forEach((it, i) => {
+    const p = L.pos[i], px = 6;
+    const cx = offX + p.x, cy = offY + p.y;
+    if (it.single) {
+      const cnt = it.g.length;
+      const cols = Math.max(1, Math.round(Math.sqrt(cnt * p.iw / p.ih)));
+      const rows = Math.ceil(cnt / cols);
+      const sx = (p.iw - 2 * px) / Math.max(1, cols - 1);
+      const sy = (p.ih - 2 * px) / Math.max(1, rows - 1);
+      it.g.forEach((n, j) => {
+        n.x = cx + px + (j % cols) * sx; n.y = cy + px + Math.floor(j / cols) * sy;
+        n.vx = 0; n.vy = 0;
+      });
+    } else {
+      for (const n of it.g) {
+        n.x = cx + px + (n.x - it.x0) / it.bw * (p.iw - 2 * px);
+        n.y = cy + px + (n.y - it.y0) / it.bh * (p.ih - 2 * px);
+        n.vx = 0; n.vy = 0;
+      }
+    }
+  });
+  view.ox = 0; view.oy = 0; view.scale = 1;
+}
+
+function reheat(a) {
+  if (!sim || !physics) return;
   sim.alpha = Math.max(sim.alpha, a || 0.35);
   if (!sim.running) { sim.running = true; tick(); }
 }
 
-function draw() {
+function draw(opts) {
+  const ctx = (opts && opts.ctx) || mainCtx;
   if (!sim) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
   const {N, E, w, h} = sim;
-  ctx.clearRect(0, 0, w, h);
+  if (opts && opts.bg) { ctx.fillStyle = opts.bg; ctx.fillRect(0, 0, w, h); }
+  else ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.translate(view.ox, view.oy);
   ctx.scale(view.scale, view.scale);
@@ -1850,7 +2025,9 @@ function draw() {
   // virar uma mancha solida, mas rede esparsa mostrar bem as conexoes
   const nActive = (sim.activeEdges || E).length;
   const edgeAlpha = Math.max(0.10, Math.min(0.55, 900 / Math.max(1, nActive)));
-  ctx.strokeStyle = 'rgba(120,220,255,' + edgeAlpha + ')';
+  ctx.strokeStyle = (opts && opts.edgeRGB)
+    ? 'rgba(' + opts.edgeRGB + ',' + Math.max(0.3, Math.min(0.9, edgeAlpha * 2)) + ')'
+    : 'rgba(120,220,255,' + edgeAlpha + ')';
   ctx.lineWidth = 0.9 / view.scale;
   ctx.beginPath();
   const drawEdges = sim.activeEdges || E;
@@ -1862,6 +2039,12 @@ function draw() {
   // (rMin) evita que fique pequeno demais para clicar/tocar em redes
   // enormes.
   const rScale = Math.max(0.28, Math.min(1, 26 / Math.sqrt(N.length)));
+  const compColor = n => {
+    const root = n.cpLive !== undefined ? n.cpLive : n.cp;
+    const rank = sim.compRank ? sim.compRank.get(root) : undefined;
+    return (rank !== undefined && rank < COMPONENT_PALETTE.length)
+      ? COMPONENT_PALETTE[rank] : COMPONENT_OTHER;
+  };
   const inGroup = n => groupMode === 'component'
     ? (n.qcpLive !== undefined ? n.qcpLive : n.qcp)
     : (n.qcLive !== undefined ? n.qcLive : n.qc);
@@ -1870,15 +2053,24 @@ function draw() {
   for (const i of order) {
     const n = N[i];
     let r, fill, stroke = null;
-    if (n.q)          { r = 7 * rScale; fill = '#f4fffc'; stroke = '#4fe8d6'; }
-    else if (inGroup(n)) { r = 4.2 * rScale; fill = '#33d9c4'; }
-    else              { r = 3 * rScale; fill = '#56688c'; }
+    if (n.q) {
+      r = 7 * rScale; fill = '#f4fffc';
+      stroke = groupMode === 'component' ? compColor(n) : '#4fe8d6';
+    } else if (groupMode === 'component') {
+      r = inGroup(n) ? 4.2 * rScale : 3 * rScale;
+      fill = compColor(n);
+    } else if (inGroup(n)) {
+      r = 4.2 * rScale; fill = '#33d9c4';
+    } else {
+      r = 3 * rScale; fill = '#56688c';
+    }
     ctx.beginPath();
-    if (n.q) { ctx.shadowColor = '#4fe8d6'; ctx.shadowBlur = 14 / view.scale; }
+    if (n.q) { ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 14 / view.scale; }
     ctx.arc(n.x, n.y, r / Math.sqrt(view.scale), 0, 6.2832);
     ctx.fillStyle = fill; ctx.fill();
     ctx.shadowBlur = 0;
     if (stroke) { ctx.lineWidth = 2/view.scale; ctx.strokeStyle = stroke; ctx.stroke(); }
+    else if (opts && opts.outline) { ctx.lineWidth = 0.4/view.scale; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke(); }
   }
   ctx.restore();
 }
@@ -1950,6 +2142,57 @@ function louvainCompute(N, activeEdges, edgeWeights) {
   return out;
 }
 
+function renderComponentLegend() {
+  const el = document.getElementById('legend-dynamic');
+  if (!el || !sim) return;
+  if (groupMode !== 'component' || !sim.compRank) {
+    el.innerHTML =
+      '<span class="item"><span class="dot" style="background:#33d9c4"></span> grupo da query</span>' +
+      '<span class="item"><span class="dot" style="background:#56688c"></span> outras comunidades</span>';
+    return;
+  }
+  const entries = [...sim.compRank.entries()].sort((a, b) => a[1] - b[1])
+    .slice(0, COMPONENT_PALETTE.length);
+  let html = '';
+  html += entries.map(([root, rank]) => {
+    const size = sim.compSizeOf.get(root);
+    const color = COMPONENT_PALETTE[rank];
+    const label = (sim.qRoots && sim.qRoots.has(root)) ? ' (query)' : '';
+    return '<span class="item"><span class="dot" style="background:' + color + '"></span> C' +
+      (rank + 1) + label + ' (n=' + size + ')</span>';
+  }).join('');
+  html += '<span class="item"><span class="dot" style="background:' + COMPONENT_OTHER +
+    '"></span> outros/isolados</span>';
+  el.innerHTML = html;
+}
+
+// Exporta a rede em alta resolucao: redesenha num canvas fora da tela, com
+// escala `k` (2x a 8x), fundo branco e arestas pretas. Usa a vista atual
+// (zoom/deslocamento) e as posicoes atuais dos nos.
+function downloadNetPNG(bg) {
+  if (!sim) return;
+  bg = (typeof bg === 'string') ? bg : '#ffffff';
+  const sel = document.getElementById('png-res');
+  let k = sel ? parseFloat(sel.value) : 4;
+  // limites do navegador: lado <= 16000 px e area <= ~150 MP
+  const {w, h} = sim;
+  while (k > 1 && (w * k > 16000 || h * k > 16000 || w * k * h * k > 150e6)) k -= 1;
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.round(w * k); tmp.height = Math.round(h * k);
+  const tctx = tmp.getContext('2d');
+  tctx.setTransform(k, 0, 0, k, 0, 0);
+  draw({ctx: tctx, bg: bg, edgeRGB: '0,0,0', outline: true});
+  tmp.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (cur ? cur.name.replace(/[^\w.-]+/g, '_') : 'ssn') +
+      '_snapshot_' + tmp.width + 'x' + tmp.height + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, 'image/png');
+}
+
 function recomputeComponents(cutoff) {
   if (!sim) return;
   const {N, E} = sim;
@@ -1972,15 +2215,35 @@ function recomputeComponents(cutoff) {
   }
   for (let i = 0; i < N.length; i++) N[i].cpLive = find(i);
 
-  // com varias referencias, o brilho de "query" fica em todas, mas o
-  // GRUPO destacado ao vivo segue so a primeira (mesma logica do backend)
-  const firstQ = N.find(n => n.q);
-  const qRoot = firstQ ? find(N.indexOf(firstQ)) : null;
-  for (const n of N) n.qcpLive = (qRoot !== null && n.cpLive === qRoot);
+  const qRoots = new Set();
+  N.forEach((n, i) => { if (n.q) qRoots.add(find(i)); });
+  for (const n of N) n.qcpLive = qRoots.has(n.cpLive);
 
   const roots = new Set(N.map(n => n.cpLive));
   sim.nComponents = roots.size;
   sim.qCompSize = N.filter(n => n.qcpLive).length;
+
+  // ranking por tamanho -> cor. Singleton (tamanho 1) sempre cinza.
+  const sizeOf = new Map();
+  for (const n of N) sizeOf.set(n.cpLive, (sizeOf.get(n.cpLive) || 0) + 1);
+  const ranked = [...sizeOf.entries()]
+    .filter(([root, size]) => size >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .map(([root]) => root);
+  sim.compRank = new Map(ranked.map((root, i) => [root, i]));
+  // grupos (query + maiores componentes) para a repulsao entre componentes
+  const sepRoots = new Set(ranked.slice(0, 30));
+  for (const r of qRoots) if (sizeOf.get(r) >= 2) sepRoots.add(r);
+  const grp = new Map();
+  for (const n of N) if (sepRoots.has(n.cpLive)) {
+    if (!grp.has(n.cpLive)) grp.set(n.cpLive, []);
+    grp.get(n.cpLive).push(n);
+  }
+  sim.compGroups = [...grp.values()];
+  sim.compSizeOf = sizeOf;
+  sim.qRoots = qRoots;
+  sim.qRootLive = qRoots.size ? [...qRoots][0] : null;
+  renderComponentLegend();
 }
 
 function setupCutoffBar() {
@@ -2078,7 +2341,7 @@ function applyCutoff(v) {
     cur.edge_w.length.toLocaleString('pt-BR') + ' arestas · <b>' +
     sim.nComponents.toLocaleString('pt-BR') + '</b> componentes · grupo da query: <b>' +
     sim.qCompSize.toLocaleString('pt-BR') + '</b> nós' + diff;
-  reheat(0.25);
+  if (physics) reheat(0.25);
   draw();
   updateMsaDimming();
 
@@ -2090,11 +2353,11 @@ function applyCutoff(v) {
     const t0 = performance.now();
     const louvainResult = louvainCompute(sim.N, sim.activeEdgeIdx, sim.activeEdgeW);
     for (let i = 0; i < sim.N.length; i++) sim.N[i].louvainLive = louvainResult[i];
-    const firstQIdx = sim.N.findIndex(n => n.q);
-    if (firstQIdx >= 0) {
-      const qComm = louvainResult[firstQIdx];
+    const qComms = new Set();
+    sim.N.forEach((n, i) => { if (n.q) qComms.add(louvainResult[i]); });
+    if (qComms.size) {
       for (let i = 0; i < sim.N.length; i++)
-        sim.N[i].qcLive = (louvainResult[i] === qComm);
+        sim.N[i].qcLive = qComms.has(sim.N[i].louvainLive);
     }
     const dt = (performance.now() - t0).toFixed(0);
     const badge = document.getElementById('louvain-status');
@@ -2303,7 +2566,7 @@ function renderMsa() {
         ? '<span style="background:' + bg + '22;color:' + bg + '">' + c + '</span>'
         : '<span style="color:var(--faint)">' + c + '</span>';
     }
-    const isQuery = cur.query_nodes && cur.query_nodes.includes(h);
+    const isQuery = (cur.query_nodes || [cur.query_node]).includes(h);
     rows += '<div class="msa-row' + (isQuery ? ' msa-query' : '') + '" data-id="' +
       h.replace(/"/g, '&quot;') + '">' +
       '<div class="msa-label">' + h + (isQuery ? ' (query)' : '') + '</div>' +
@@ -2573,11 +2836,27 @@ document.getElementById('group-mode-btn').onclick = () => {
     moveGroupMode ? 'var(--magenta)' : 'var(--cyan)';
 };
 
+document.getElementById('aspect-sel').onchange = e => {
+  aspect = parseFloat(e.target.value);
+  if (!sim) return;
+  const {w, h} = resize();
+  sim.w = w; sim.h = h;
+  packLayout(); draw();
+};
+document.getElementById('repack-btn').onclick = () => { if (sim) { packLayout(); draw(); } };
+document.getElementById('physics-btn').onclick = () => {
+  physics = !physics;
+  document.getElementById('physics-btn').textContent = 'física: ' + (physics ? 'ligada' : 'desligada');
+  if (physics && sim) reheat(0.4);
+  else if (sim) sim.running = false;
+};
+
 document.getElementById('mode-btn').onclick = () => {
   groupMode = groupMode === 'louvain' ? 'component' : 'louvain';
   document.getElementById('mode-btn').textContent =
     'agrupar por: ' + (groupMode === 'component' ? 'componente conectado' : 'Louvain (ao vivo)');
   updateLegendCounts();
+  renderComponentLegend();
   draw();
 };
 
@@ -2618,15 +2897,18 @@ def apply_manual_cutoffs(overrides, matrix_dir, ssn_dir, out_dir=None,
     Apply cutoffs chosen by hand in the dashboard slider back onto the
     pipeline's SSN outputs.
 
-    The panel is a static file and cannot write to disk, so it exports the
-    chosen cutoffs as JSON; this rebuilds each named network at that
-    threshold instead of the one auto_cutoff picked.
+    This is the other half of the dashboard's "usar este corte" button.
+    The browser has no write access to files on disk -- that isolation is
+    the browser's, not this module's -- so the panel can only export the
+    choice as JSON. This function is what turns that JSON back into
+    updated `.graphml`/`.png` files, by rebuilding each named network at
+    the chosen bitscore threshold instead of whatever auto_cutoff picked.
 
     Parameters
     ----------
     overrides : dict or str
-        {unit: cutoff_value}, or a path to the JSON exported by the
-        dashboard.
+        {unit: cutoff_value}, or a path to the JSON file the dashboard's
+        "baixar cortes manuais" button downloaded.
     matrix_dir : str
         Directory of `<unit>_hits.tsv` all-vs-all tables (same one the
         `ssn` stage read from).
@@ -2667,14 +2949,19 @@ def apply_manual_cutoffs(overrides, matrix_dir, ssn_dir, out_dir=None,
             G.graph["auto_cutoff"] = f"{cutoff_column} > {cutoff}"
             G.graph["cutoff_source"] = "manual"  # distingue de escolha automatica
 
-            # keep the scan curve: it shows where a manual cutoff sits
-            # relative to the peaks
+            # a curva de closeness continua util mesmo com corte manual --
+            # mostra onde a escolha manual fica em relacao aos picos
             old_gml = os.path.join(ssn_dir, f"{unit}.graphml")
             if os.path.exists(old_gml):
                 try:
                     old_G = nx.read_graphml(old_gml)
                     if "closeness_scan" in old_G.graph:
-                        G.graph["closeness_scan"] = pd.read_json(io.StringIO(old_G.graph["closeness_scan"]))
+                        # read_graphml gives back the JSON string export_ssn wrote
+                        # (not the original DataFrame) -- deserialize it so it's a
+                        # DataFrame again, matching what export_ssn expects to find
+                        # in G.graph['closeness_scan'] before it re-serializes it.
+                        G.graph["closeness_scan"] = pd.read_json(
+                            io.StringIO(old_G.graph["closeness_scan"]))
                 except Exception:
                     pass
 
@@ -2699,21 +2986,29 @@ def ssn_dashboard(ssn_dir, out, matrix_dir=None, aliases=None,
     """
     Build one self-contained HTML panel from a directory of SSN graphs.
 
-    Data, layout and code all travel inside the file, so it opens by
-    double-click with no server and no network access.
+    Everything travels inside the file -- data, layout and code -- so it
+    opens by double-click, with no server and no network access. That
+    matters more than it sounds: a panel you can email to a collaborator,
+    or open on a projector in a room with bad wifi, is a different object
+    from one that needs a live kernel behind it.
 
-    Per network: the graph under a live force simulation (drag a node, or
-    Shift-drag its whole group), a cutoff slider that recomputes connected
-    components on the fly, the bitscore distribution with the cutoff
-    marked, and the community table. The closeness scan plot is embedded
-    when a PNG of the same basename sits next to the .graphml; `msa_dir`
-    adds an alignment tab.
+    What you get per network: the graph itself under a live force
+    simulation (drag a node, or Shift-drag to move its whole group), a
+    cutoff slider that recomputes connected components on the fly, the
+    bitscore distribution with the chosen cutoff marked, and the community
+    table. The closeness scan plot is embedded too when a PNG of the same
+    basename sits next to the .graphml. When `msa_dir` finds an alignment
+    containing a unit's reference sequence, a fourth tab shows it.
 
-    Grouping defaults to CONNECTED COMPONENT rather than Louvain: that is
-    what the closeness-centrality criterion optimises (Hornung & Terrapon
-    2023), since the scan looks for the cutoff at which pieces come apart.
-    Modularity partitions a still-connected graph anyway. Both views are
-    available; the button switches live.
+    Two deliberate choices worth knowing about:
+
+    Grouping defaults to CONNECTED COMPONENT, not Louvain. That is the
+    definition the closeness-centrality criterion actually optimises
+    (Hornung & Terrapon 2023): the scan looks for the cutoff at which
+    pieces come apart. Modularity communities answer a different question
+    and, on a network that is still one connected blob, they partition it
+    anyway -- which looks like noise when you colour by them. Both views
+    are available; the button switches live.
 
     The layout is computed in the browser rather than baked in, which is
     what makes nodes draggable. Repulsion uses a Barnes-Hut quadtree, so
@@ -2787,11 +3082,10 @@ def ssn_dashboard(ssn_dir, out, matrix_dir=None, aliases=None,
             d["auto_cutoff"] = float(cutoff_overrides[name])
             d["cutoff_is_manual"] = True
 
-        if msa_files and not d.get("error") and d.get("query_nodes"):
-            qset = set(d["query_nodes"])
+        if msa_files and not d.get("error") and d.get("query_node"):
             for fp, records in msa_files:
                 headers = {h for h, _ in records}
-                if qset & headers:
+                if any(q in headers for q in d.get("query_nodes", [d["query_node"]])):
                     d["msa"] = {"file": os.path.basename(fp), "records": records}
                     break
 
@@ -3212,3 +3506,13 @@ def build_ssn_and_tree_method(self, **kwargs):
 rdbs.sequence.to_ssn = to_ssn
 rdbs.sequence.to_tree = to_tree
 rdbs.sequence.build_ssn_and_tree = build_ssn_and_tree_method
+
+
+# Interactive exploration (live panel <-> Python) lives in its own module so
+# this one stays importable without it; re-exported here for convenience:
+#     ex = rdao.SSNExplorer(hits, sequences=seqs, query="...")
+#     ex = rdao.SSNExplorer.from_famflow("unit")      # famflow folders
+try:
+    from rotifer.devel.alpha.ssn_explorer import SSNExplorer, explore  # noqa: F401
+except ImportError as _e:  # pragma: no cover
+    logger.debug(f"ssn_explorer not available: {_e}")
