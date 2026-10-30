@@ -991,9 +991,13 @@ def get_relations(domdf,
     to_net.columns = ['block_id','source','target','edge_type']
     # Count each relation once per block, however many times it occurs there
     to_net = to_net.drop_duplicates()
+    if not self_relation:
+        to_net = to_net[to_net.source != to_net.target]
     if to_yaml:
         to_net['edge_count'] = to_net.groupby(['source', 'target']).block_id.transform('nunique')
         to_net = to_net.query('edge_count >= @ min_connections').drop(['edge_count'], axis=1)
+        if to_net.empty:
+            return {}
         yamldf = pd.pivot_table(to_net,
                             index='source',
                             columns='edge_type',
@@ -1001,7 +1005,9 @@ def get_relations(domdf,
                             aggfunc={
                                 'target':lambda x : gf.count_series(x, as_list=True)}
                             )
-        yamldf = to_net.groupby('source').block_id.nunique().rename('total').to_frame().join(yamldf.loc[:,'target']).sort_values('total')
+        # Edge types absent from the filtered relations get no pivot column
+        yamldf = yamldf.loc[:,'target'].reindex(columns=['Cterminal', 'Downstream', 'Nterminal', 'Upstream'], fill_value='')
+        yamldf = to_net.groupby('source').block_id.nunique().rename('total').to_frame().join(yamldf).sort_values('total')
         yamldf.fillna('', inplace=True)
         yamldf.Nterminal = yamldf.Nterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
         yamldf.Cterminal = yamldf.Cterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
@@ -1023,8 +1029,4 @@ def get_relations(domdf,
                  'edge_total' : 'first'}).reset_index().sort_values('block_id')
         to_net = to_net.rename({'block_id':'edge_count'},axis=1)        
         to_net = to_net.query('edge_total >= @min_connections').drop(['edge_total'], axis=1)
-        if self_relation:
-            pass
-        else:
-            to_net = to_net[to_net.source != to_net.target]
         return(to_net)
