@@ -1,0 +1,33 @@
+Query         sp|P00001|TEST_HUMAN Test protein
+Match_columns 50
+No_of_seqs    1 out of 1
+Neff          1.0
+Searched_HMMs 2
+Date          Thu Oct 30 17:00:00 2026
+Command       hhsearch -i query.a3m -d pfam -o query.hhr
+
+ No Hit                             Prob E-value P-value  Score    SS Cols Query HMM  Template HMM
+  1 PF00001.1 7tm_1; 7 transmembra  99.9 1.1E-20 2.2E-24   120.5   0.0   45    3-47      1-45  (60)
+  2 PF00002.2 7tm_2; secretin fami  50.0     0.5  0.0001    20.1   0.0   20   10-29      5-24  (30)
+
+No 1
+>PF00001.1 7tm_1; 7 transmembrane receptor
+Probab=99.90  E-value=1.1e-20  Score=120.50  Aligned_cols=45  Identities=40%  Similarity=0.600  Sum_probs=40.5  Template_Neff=2.000
+
+Q P00001             3 ACDEFGHIKLMNPQRSTVWYACDEFGHIKLMNPQRSTVWYACDEF   47 (50)
+Q Consensus          3 acdefghiklmnpqrstvwyacdefghiklmnpqrstvwyacdef   47 (50)
+                       |||||||||||||||||||||||||||||||||||||||||||||
+T Consensus          1 acdefghiklmnpqrstvwyacdefghiklmnpqrstvwyacdef   45 (60)
+T PF00001.1          1 ACDEFGHIKLMNPQRSTVWYACDEFGHIKLMNPQRSTVWYACDEF   45 (60)
+
+No 2
+>PF00002.2 7tm_2; secretin family receptor
+Probab=50.00  E-value=0.5  Score=20.10  Aligned_cols=20  Identities=25%  Similarity=0.300  Sum_probs=18.0  Template_Neff=2.000
+
+Q P00001            10 ACDEFGHIKLMNPQRSTVWY   29 (50)
+Q Consensus         10 acdefghiklmnpqrstvwy   29 (50)
+                       ||||||||||||||||||||
+T Consensus          5 acdefghiklmnpqrstvwy   24 (30)
+T PF00002.2          5 ACDEFGHIKLMNPQRSTVWY   24 (30)
+
+Done!

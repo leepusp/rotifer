@@ -47,7 +47,6 @@ Core infrastructure
    rotifer.core.cli
    rotifer.core.functions
    rotifer.core.io.ftp
-   rotifer.core.loadpath
    rotifer.core.log
    rotifer.core.logger
    rotifer.core.methods
