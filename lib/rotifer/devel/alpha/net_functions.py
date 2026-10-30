@@ -926,15 +926,24 @@ def get_relations(domdf,
                   self_relation = False,
                   to_yaml=False,
                   iteration=1,
-                  filter_rename_yaml  = False):
-    from rotifer.devel.alpha import gian_func as gf
-    """ 
+                  filter_rename_yaml  = False,
+                  *,
+                  gene_pos,
+                  feature_pos):
+    """
     domdf to network, it can create dictionary to create a YAML file or a dataframe.
     dom: list of domains to be used as query in the network, if full all domdf will be used
     min_connections: Minimum number of relationship (Operon or fusion) anode should have to be presente in the network.
     yaml: If decided to transform the network in dictionary to latter be exported as YAML file.
     Iteration: If a list of domains was supplied, the number of iteration in the network to collect other nodes.
+    gene_pos: column ordering genes along the genome (smaller = upstream), e.g. start coordinate.
+    feature_pos: column ordering domains along the protein, N->C (smaller = N-terminal),
+                 e.g. domain start in amino acid coordinates.
+    Row order does not matter. For gian_func.split_domain output, whose domp
+    follows genome order (C->N on - strand), use gene_pos='blockp' and:
+        domdf['dom_aa_order'] = np.where(domdf.strand == -1, -domdf.domp, domdf.domp)
     """
+    from rotifer.devel.alpha import gian_func as gf
     domdf.dom = domdf.dom.str.strip()
     if filter_rename_yaml:
         import yaml
@@ -955,20 +964,20 @@ def get_relations(domdf,
         for x in range(iteration):
             block_id = domdf.query('dom in @dom').block_id.tolist()
             dom = domdf.query('block_id in @block_id').dom.unique().tolist()
-    to_net = domdf.query('block_id in @block_id')[['pid', 'block_id', 'dom', 'strand']]
-    to_net['block_pos'] = 1
-    to_net['block_pos'] = to_net.groupby(['block_id'])['block_pos'].cumsum()
+    to_net = domdf.query('block_id in @block_id')[['pid', 'block_id', 'dom', gene_pos, feature_pos]]
+    to_net.columns = ['pid', 'block_id', 'dom', 'gpos', 'fpos']
     to_net = to_net.merge(to_net, on ='block_id')
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Downstream'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Upstream'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Nterminal'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Cterminal'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Downstream'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Upstream'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Cterminal'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Nterminal'
+    # Edge type from positions, not row order: genes by gene_pos, domains of the same protein by feature_pos
+    same_pid = to_net.pid_x == to_net.pid_y
+    to_net['edge_type'] = np.select(
+            [~same_pid & (to_net.gpos_x < to_net.gpos_y),
+             ~same_pid & (to_net.gpos_x > to_net.gpos_y),
+             same_pid & (to_net.fpos_x < to_net.fpos_y),
+             same_pid & (to_net.fpos_x > to_net.fpos_y)],
+            ['Downstream', 'Upstream', 'Cterminal', 'Nterminal'],
+            default='')
 
-    to_net= to_net.query('edge_type.notna()')
+    to_net= to_net.query('edge_type != ""')
     to_net = to_net[['block_id','dom_x','dom_y','edge_type']]
     to_net.columns = ['block_id','source','target','edge_type']
     if to_yaml:
