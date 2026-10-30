@@ -4,6 +4,7 @@ import dash_cytoscape as cyto
 import networkx as nx
 import numpy as np
 import pandas as pd
+import warnings
 from rotifer.devel.alpha import gian_func as gf
 
 # Enable SVG export
@@ -936,6 +937,8 @@ def get_relations(domdf,
     min_connections: Minimum number of relationship (Operon or fusion) anode should have to be presente in the network.
     yaml: If decided to transform the network in dictionary to latter be exported as YAML file.
     Iteration: If a list of domains was supplied, the number of iteration in the network to collect other nodes.
+               Must be >= 1. For a network of the seed domains only, filter the result:
+               edges[edges.source.isin(dom) & edges.target.isin(dom)]
     gene_pos: column ordering genes along the genome (smaller = upstream), e.g. start coordinate.
     feature_pos: column ordering domains along the protein, N->C (smaller = N-terminal),
                  e.g. domain start in amino acid coordinates.
@@ -944,6 +947,7 @@ def get_relations(domdf,
         domdf['dom_aa_order'] = np.where(domdf.strand == -1, -domdf.domp, domdf.domp)
     """
     from rotifer.devel.alpha import gian_func as gf
+    domdf = domdf.copy()
     domdf.dom = domdf.dom.str.strip()
     if filter_rename_yaml:
         import yaml
@@ -961,6 +965,11 @@ def get_relations(domdf,
     if dom[0] =='full':
         block_id = domdf.block_id.tolist()
     else:
+        if iteration < 1:
+            raise ValueError(f"iteration must be >= 1, got {iteration}")
+        missing = set(dom) - set(domdf.dom)
+        if missing:
+            warnings.warn(f"seed domains not found in domdf: {sorted(missing)}")
         for x in range(iteration):
             block_id = domdf.query('dom in @dom').block_id.tolist()
             dom = domdf.query('block_id in @block_id').dom.unique().tolist()
