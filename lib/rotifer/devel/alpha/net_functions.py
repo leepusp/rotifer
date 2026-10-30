@@ -378,6 +378,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         html.Button("SVG", id="btn-get-svg"),
         #### Store  to do the double clik
         dcc.Store(id="edge-color-cycle", data=[]),
+        dcc.Store(id="edge-style-overrides", data={}),
         dcc.Store(id="last-edge-click", data={"id": None, "time": 0}),
         dcc.Store(id="last-node-click", data={"id": None, "time": 0}),
         dcc.Store(id="node-color-cycle", data=[]),
@@ -496,14 +497,11 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         return dash.no_update, dash.no_update
 
 
-    # Dicionários para armazenar estilos personalizados
-    edge_style_overrides = {}
-    node_style_overrides = {}
-
     @app.callback(
         Output("cytoscape", "elements"),
         Output("last-edge-click", "data"),
         Output("edge-color-cycle", "data"),
+        Output("edge-style-overrides", "data"),
         Output("last-node-click", "data"),
         Output("node-color-cycle", "data"),
         Output("function-store", "data"),
@@ -521,6 +519,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         State("cytoscape", "elements"),
         State("last-edge-click", "data"),
         State("edge-color-cycle", "data"),
+        State("edge-style-overrides", "data"),
         State("last-node-click", "data"),
         State("node-color-cycle", "data"),
         State('xx-store', 'data'),
@@ -531,7 +530,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     def update_elements_or_cycle(
         edge_data, node_data,
         selected_option, groups, min_connections, node_scale, x_scale, y_scale, scale_value,pos_dict_input,dummy_call,
-        elements, last_click, color_cycle, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
+        elements, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
     ):
 
         from dash import Input, Output, State, ctx, no_update
@@ -539,17 +538,24 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         import numpy as np
         triggered_id = ctx.triggered_id
 
+        # Edge style overrides are kept per session, tagged with the colour scheme they were made under:
+        # a scheme change discards them, together with the style cycle built under that scheme
+        style_overrides = style_overrides or {}
+        if any(func_color_dict.get(g) != c for g, c in style_overrides.get("xx", {}).items()):
+            style_overrides, color_cycle = {}, []
+        style_overrides = {"xx": dict(func_color_dict), "overrides": style_overrides.get("overrides", {})}
+
         # Duplo clique em aresta
         if triggered_id == "cytoscape" and ctx.triggered[0]["prop_id"] == "cytoscape.tapEdgeData":
             if not edge_data or "id" not in edge_data:
-                return no_update, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             edge_id = f"{edge_data['source']}|{edge_data['target']}"
             now = time.time()
             double_click = (last_click["id"] == edge_id and (now - last_click["time"]) < 0.3)
 
             if not double_click:
-                return no_update, {"id": edge_id, "time": now}, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, {"id": edge_id, "time": now}, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             # Captura estilos únicos de arestas visíveis
             if not color_cycle:
@@ -584,23 +590,23 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
                         "opacity": next_style[2],
                     })
 
-                    edge_style_overrides[edge_id] = next_style
+                    style_overrides["overrides"][edge_id] = list(next_style)
 
                 new_elements.append(el)
 
-            return new_elements, {"id": edge_id, "time": now}, color_cycle, last_node_click, node_color_cycle, function_data
+            return new_elements, {"id": edge_id, "time": now}, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
         # Duplo clique em nó
         if triggered_id == "cytoscape" and ctx.triggered[0]["prop_id"] == "cytoscape.tapNodeData":
             if not node_data or "id" not in node_data:
-                return no_update, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             node_id = node_data["id"]
             now = time.time()
             double_click = (last_node_click["id"] == node_id and (now - last_node_click["time"]) < 0.3)
 
             if not double_click:
-                return no_update, last_click, color_cycle, {"id": node_id, "time": now}, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, {"id": node_id, "time": now}, node_color_cycle, function_data
             """
             if not node_color_cycle:
                 node_color_cycle = list(func_color_dict.values())
@@ -620,7 +626,6 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
                     data["node_color"] = next_color
                     el["style"] = el.get("style", {})
                     el["style"]["background-color"] = next_color
-                    node_style_overrides[node_id] = next_color
                     """
                     for func_name, color in func_color_dict.items():
                         if color == next_color:
@@ -641,7 +646,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
 
                 new_elements.append(el)
 
-            return new_elements, last_click, color_cycle, {"id": node_id, "time": now}, node_color_cycle, function_data
+            return new_elements, last_click, color_cycle, style_overrides, {"id": node_id, "time": now}, node_color_cycle, function_data
 
         # Atualização normal do grafo
         scale_value = int(scale_value)
@@ -649,17 +654,17 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         stored_G = json_graph.node_link_graph(serial_graph)
         G_filtered = stored_G.subgraph(filter_nodes)
 
-        # Multigraph edges need their key
+        # Multigraph edges need their key; manually added edges are always kept
         edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
         filter_edges = [e[:-1] for e in edges
-                        if e[-1].get('edge_total', 0) >= min_connections]
+                        if e[-1].get('edge_total', 0) >= min_connections or e[-1].get('edge_type') == 'manual']
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
 
         for edge in subgraph.edges(data=True):
             uid = f"{edge[0]}|{edge[1]}"
-            if uid in edge_style_overrides:
-                color, style, opacity = edge_style_overrides[uid]
+            if uid in style_overrides["overrides"]:
+                color, style, opacity = style_overrides["overrides"][uid]
                 edge[2]['line_style'] = style
                 edge[2]['opacity'] = opacity
                 edge[2]['edge_color'] = color
@@ -672,18 +677,16 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
                 edge[2]['opacity'] = 0.3
                 edge[2]['edge_color'] = 'gray'
 
+        # Size from the degree in the displayed subgraph; colour always from the stored group
         for node, attrs in subgraph.nodes(data=True):
-            attrs['size'] = np.sqrt(attrs['degree']) * node_scale
-            if node in node_style_overrides:
-                attrs['node_color'] = node_style_overrides[node]
-            else:
-                attrs['node_color'] = func_color_dict[function_data[node]]
+            attrs['size'] = np.sqrt(subgraph.degree(node)) * node_scale
+            attrs['node_color'] = func_color_dict[function_data[node]]
 
         new_elements = convert_to_cytoscape(
             subgraph, pos_dict_data, selected_option,
             x_scale=x_scale, y_scale=y_scale, scaling_factor=scale_value
         )
-        return new_elements, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+        return new_elements, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
     @app.callback(
         [Output("saved-pos-store", "data"),
@@ -794,16 +797,17 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         State('connections-input', 'value'),
         State("pos-dict-store", "data"),
         State("graph-store", "data"),
+        State("function-store", "data"),
         prevent_initial_call=True,  # Prevent execution on page load
     )
-    def update_layouts(n_clicks, groups,Spring_lay_iteractions, min_connections, pos_dict, serial_graph):
+    def update_layouts(n_clicks, groups,Spring_lay_iteractions, min_connections, pos_dict, serial_graph, function_data):
         stored_G = json_graph.node_link_graph(serial_graph)
-        filter_nodes = list({key: value for key, value in function.items() if value in groups}.keys())
+        filter_nodes = list({key: value for key, value in function_data.items() if value in groups}.keys())
         G_filtered = stored_G.subgraph(filter_nodes)
-        ### Edge filtered based in total Edge count
+        ### Edge filtered based in total Edge count (same filter as the graph render)
         edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
         filter_edges = [e[:-1] for e in edges
-                        if e[-1].get('edge_total', 0) >= min_connections]
+                        if e[-1].get('edge_total', 0) >= min_connections or e[-1].get('edge_type') == 'manual']
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
         newp = net_functions.calculate_positions(subgraph, Spring_lay_iteractions)
