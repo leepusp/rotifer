@@ -899,16 +899,35 @@ def get_network_community(G,
     import numpy as np
     import networkx as nx
 
+    #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1 (as Louvain does)
+    leiden_weight = weight
+    if weight is not None:
+        n_missing = sum(1 for u, v, d in G.edges(data=True) if weight not in d)
+        if n_missing and n_missing == G.number_of_edges():
+            warnings.warn(f"No edge has the '{weight}' attribute; running community detection unweighted.")
+            weight = leiden_weight = None
+        elif n_missing:
+            warnings.warn(f"{n_missing} of {G.number_of_edges()} edges lack the '{weight}' attribute; using 1 for them.")
+            leiden_weight = [1 if w is None else w for w in ig.Graph.from_networkx(G).es[weight]]
+    #Louvain needs a string key: run it on an attribute-free copy when unweighted
+    if weight is None:
+        louvain_G = nx.create_empty_copy(G)
+        louvain_G.add_edges_from(G.edges())
+        louvain_weight = 'weight'
+    else:
+        louvain_G = G
+        louvain_weight = weight
+
     #Community detection by Louvain
-    partition = community.best_partition(G,weight=weight)
+    partition = community.best_partition(louvain_G,weight=louvain_weight)
     #Df to easily map community to node:
     c = pd.DataFrame.from_dict(partition,orient='index').reset_index().rename(
        {'index': 'cluster', 0: 'Louvain'}, axis=1)
     #Leiden partition:
-    part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=weight)
+    part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=leiden_weight)
     c['leidein'] = pd.Series(part.membership)
     #Leiden partition playing with resolution parameter:
-    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=weight, resolution_parameter = resolution_parameter)
+    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=leiden_weight, resolution_parameter = resolution_parameter)
     c['leidein_2'] = pd.Series(part2.membership)
 
 
@@ -926,7 +945,6 @@ def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
                              resolution_parameter=0.5,
                              min_clique_size=10):
-    import net_functions
     cliques = list(nx.find_cliques(G))
     cliques = pd.Series(cliques).rename('cliques').to_frame()
     cliques['clique_size'] = cliques.cliques.apply(lambda x: len(x))
@@ -941,7 +959,7 @@ def clique_jaccard_community(G,
     cm.rename({"clique_n_x" :'source', 'clique_n_y' :'target'}, axis=1, inplace=True)
     cm = cm[cm.Jaccard_index >= min_jaccard_index]
     G = nx.from_pandas_edgelist(cm, edge_attr='Jaccard_index')
-    z = net_functions.get_network_community(G, weight='Jaccard_index', resolution_parameter=resolution_parameter)
+    z = get_network_community(G, weight='Jaccard_index', resolution_parameter=resolution_parameter)
     cm['source_leidein_resolution'] = cm.source.replace(z['Leidein_2'][0])
     cm['target_leidein_resolution'] = cm.target.replace(z['Leidein_2'][0])
     cm['source_leidein'] = cm.source.replace(z['Leidein'][0])
