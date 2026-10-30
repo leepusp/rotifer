@@ -980,18 +980,19 @@ def get_relations(domdf,
     to_net= to_net.query('edge_type != ""')
     to_net = to_net[['block_id','dom_x','dom_y','edge_type']]
     to_net.columns = ['block_id','source','target','edge_type']
+    # Count each relation once per block, however many times it occurs there
+    to_net = to_net.drop_duplicates()
     if to_yaml:
-        to_net['edge_count'] = to_net.groupby(['source', 'target']).edge_type.transform('count')
+        to_net['edge_count'] = to_net.groupby(['source', 'target']).block_id.transform('nunique')
         to_net = to_net.query('edge_count >= @ min_connections').drop(['edge_count'], axis=1)
         yamldf = pd.pivot_table(to_net,
                             index='source',
                             columns='edge_type',
-                            values = ['target', 'block_id'],
+                            values = ['target'],
                             aggfunc={
-                                'target':lambda x : gf.count_series(x, as_list=True),
-                                'block_id': 'nunique'}
+                                'target':lambda x : gf.count_series(x, as_list=True)}
                             )
-        yamldf = yamldf.loc[:,'block_id'].sum(axis=1).rename('total').to_frame().join(yamldf.loc[:,'target']).sort_values('total')
+        yamldf = to_net.groupby('source').block_id.nunique().rename('total').to_frame().join(yamldf.loc[:,'target']).sort_values('total')
         yamldf.fillna('', inplace=True)
         yamldf.Nterminal = yamldf.Nterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
         yamldf.Cterminal = yamldf.Cterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
@@ -1007,7 +1008,7 @@ def get_relations(domdf,
 
         return(yamldf.to_dict(orient='index'))
     else:
-        to_net['edge_total'] = to_net.groupby(['source', 'target']).edge_type.transform('count')
+        to_net['edge_total'] = to_net.groupby(['source', 'target']).block_id.transform('nunique')
         to_net = to_net.groupby(['source', 'target', 'edge_type']).agg(
                 {'block_id' :'count',
                  'edge_total' : 'first'}).reset_index().sort_values('block_id')
