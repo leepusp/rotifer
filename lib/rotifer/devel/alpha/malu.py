@@ -122,7 +122,6 @@ def extract_by_hmm(seqobj1, seqobj2, suffixes=('','_YyYyYy')):
     import sys
     import pandas as pd
     import rotifer
-    #from rotifer.core import loadpath
     
     hmmer2table = f'{rotifer.config["base"]}/bin/hmmer2table'
     domain2architecture = f'{rotifer.config["base"]}/bin/domain2architecture'

@@ -885,10 +885,10 @@ def split_by_model(seqobj, model, evalue=1e-6):
     from rotifer.devel.beta.sequence import sequence as sequence
     import os
     import pandas as pd
+    import shutil
     import rotifer
-    from rotifer.core import loadpath
     
-    hmmer2table_from_rotifer = f'{loadpath.path().globalpath}rotifer/bin/hmmer2table'
+    hmmer2table_from_rotifer = shutil.which('hmmer2table') or f'{rotifer.config["base"]}/bin/hmmer2table'
 
     nseqobj =seqobj.copy()
     with tempfile.TemporaryDirectory() as tmpdirname:
