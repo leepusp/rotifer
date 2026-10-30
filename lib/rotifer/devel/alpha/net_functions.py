@@ -13,17 +13,23 @@ cyto.load_extra_layouts()
 def network_annotation(networkdf,
                      node_color=None,
                      node_shape='ellipse',
-                     second_shape={},  
-                     second_shape_list = [],
+                     second_shape=None,
+                     second_shape_list=None,
                      node_outline=None,
-                     node_outline_color={},
-                     node_outline_list=[],
+                     node_outline_color=None,
+                     node_outline_list=None,
                      edge_color=True,
                      unidirected_graph=True):
 
     import networkx as nx
     import pandas as pd
 
+    second_shape = {} if second_shape is None else second_shape
+    second_shape_list = [] if second_shape_list is None else second_shape_list
+    node_outline_color = {} if node_outline_color is None else node_outline_color
+    node_outline_list = [] if node_outline_list is None else node_outline_list
+
+    networkdf = networkdf.copy()
     networkdf['edge_total'] = networkdf.groupby(['source', 'target'])['edge_count'].transform('sum')
 
     if unidirected_graph:
@@ -32,11 +38,15 @@ def network_annotation(networkdf,
         G = nx.from_pandas_edgelist(networkdf, edge_attr=['edge_type', 'edge_count', 'edge_total'], create_using=nx.MultiDiGraph())
 
 
+    default_color = {item: "#D3D3D3" for item in G.nodes()}
     if node_color:
-        nx.set_node_attributes(G, node_color, name="node_color") 
+        missing = [node for node in G.nodes() if node not in node_color]
+        if missing:
+            warnings.warn(f"nodes missing from node_color, drawn grey: {sorted(missing)}")
+        node_color = {**default_color, **node_color}
     else:
-        node_color={item: "#D3D3D3" for item in G.nodes()}
-        nx.set_node_attributes(G, node_color, name="node_color") 
+        node_color = default_color
+    nx.set_node_attributes(G, node_color, name="node_color") 
 
     #Getting the size of nodes
     # In the future we can add more ways of getting the node size
@@ -53,7 +63,10 @@ def network_annotation(networkdf,
     else:
         pass
 
-    node_shape_dict  = {node: second_shape[node] if node in second_shape_list else node_shape for node in G.nodes()}
+    missing = [node for node in G.nodes() if node in second_shape_list and node not in second_shape]
+    if missing:
+        warnings.warn(f"nodes missing from second_shape, drawn as {node_shape}: {sorted(missing)}")
+    node_shape_dict  = {node: second_shape.get(node, node_shape) if node in second_shape_list else node_shape for node in G.nodes()}
     nx.set_node_attributes(G, node_shape_dict, name="node_shape")
 
 
@@ -65,8 +78,14 @@ def network_annotation(networkdf,
     else:
         pass
     if node_outline:
-        node_outline_dict = {node: node_outline_color[node] if node in node_outline_list else node_color[node] for node in G.nodes()}
-        nx.set_node_attributes(G, node_outline_dict, name="node_outline") 
+        missing = [node for node in G.nodes() if node in node_outline_list and node not in node_outline_color]
+        if missing:
+            warnings.warn(f"nodes missing from node_outline_color, outlined in their node colour: {sorted(missing)}")
+        node_outline_dict = {node: node_outline_color.get(node, node_color[node]) if node in node_outline_list else node_color[node] for node in G.nodes()}
+    else:
+        # The viewer always draws a border from node_outline: blend it into the node
+        node_outline_dict = node_color
+    nx.set_node_attributes(G, node_outline_dict, name="node_outline") 
     
     if edge_color:
         edge_colors=[]
