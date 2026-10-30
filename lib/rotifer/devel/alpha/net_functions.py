@@ -1,5 +1,5 @@
 from operator import pos
-from dash import Dash, dcc, html, Input, Output, ctx, callback, State
+from dash import Dash, dcc, html, Input, Output, ctx, State
 import dash_cytoscape as cyto
 import networkx as nx
 import numpy as np
@@ -154,8 +154,12 @@ def convert_to_cytoscape(G, positions, layout_key, scaling_factor=900, x_scale=1
     return cy["elements"]["nodes"] + cy["elements"]["edges"]
 
 
-def network_dash(G,pos_dict, xx, function, color_schemes):
-    from dash import Dash, dcc, html, Input, Output, ctx, callback, State
+def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
+    """
+    Extra keyword arguments (e.g. host, port, debug, jupyter_mode) are passed to app.run;
+    defaults: jupyter_mode="external", debug=True.
+    """
+    from dash import Dash, dcc, html, Input, Output, ctx, State
     import dash
     import dash_cytoscape as cyto
     import networkx as nx
@@ -476,7 +480,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         return element
     """ 
 
-    @callback(
+    @app.callback(
         Output("select_source", "value"),
         Output("select_target", "value"),
         Input("cytoscape", "tapNodeData"),
@@ -496,7 +500,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
     edge_style_overrides = {}
     node_style_overrides = {}
 
-    @callback(
+    @app.callback(
         Output("cytoscape", "elements"),
         Output("last-edge-click", "data"),
         Output("edge-color-cycle", "data"),
@@ -530,7 +534,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         elements, last_click, color_cycle, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
     ):
 
-        from dash import callback, Input, Output, State, ctx, no_update
+        from dash import Input, Output, State, ctx, no_update
         import time
         import numpy as np
         triggered_id = ctx.triggered_id
@@ -645,8 +649,10 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         stored_G = json_graph.node_link_graph(serial_graph)
         G_filtered = stored_G.subgraph(filter_nodes)
 
-        filter_edges = [(u, v) for u, v, attrs in G_filtered.edges(data=True)
-                        if attrs.get('edge_total', 0) >= min_connections]
+        # Multigraph edges need their key
+        edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
+        filter_edges = [e[:-1] for e in edges
+                        if e[-1].get('edge_total', 0) >= min_connections]
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
 
@@ -699,6 +705,8 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
             node["data"]["id"]: node.get("position", {})
             for node in n_elements if "position" in node
         }
+        # A type='range' dcc.Input sends its value as a string once the slider is moved
+        scale = int(scale)
         positions = {key: np.array([value['y']/scale/y_scale, value['x']/scale/x_scale]) for key, value in positions.items()}
         #global p
         current_pos_dict[text] = positions
@@ -739,7 +747,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         return {'type': ftype, 'action': action}
   
     ##### Adding dinamically groups to dropdown menu:
-    @callback(
+    @app.callback(
         Output("group_selection", "options"),
         Output("group_selection", "value"),
         Output("function-store", "data", allow_duplicate=True),  # <-- adicionado
@@ -750,7 +758,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
     )
     def update_group_selection(selected_scheme, color_schemes_data):
         if not selected_scheme or selected_scheme not in color_schemes_data:
-            return [], [], dash.no_update
+            return [], [], dash.no_update, dash.no_update
 
         function_dict, color_dict = color_schemes_data[selected_scheme]
 
@@ -793,7 +801,9 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         filter_nodes = list({key: value for key, value in function.items() if value in groups}.keys())
         G_filtered = stored_G.subgraph(filter_nodes)
         ### Edge filtered based in total Edge count
-        filter_edges = [(u, v) for u, v, attrs in G_filtered.edges(data=True) if attrs.get('edge_total', 0) >= min_connections]
+        edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
+        filter_edges = [e[:-1] for e in edges
+                        if e[-1].get('edge_total', 0) >= min_connections]
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
         newp = net_functions.calculate_positions(subgraph, Spring_lay_iteractions)
@@ -833,7 +843,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
 
         return json_graph.node_link_data(G), trigger_count + 1
 
-    @callback(
+    @app.callback(
         Output("colorscheme", "options"),
         Output("colorscheme", "value"),
         Input("color-schemes-store", "data")
@@ -848,9 +858,9 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
 
 
 
-    app.run_server(jupyter_mode="external",debug=True)        
-    if __name__ == '__main__':
-        app.run_server(jupyter_mode="external",debug=True)        
+    run_options = {"jupyter_mode": "external", "debug": True}
+    run_options.update(run_kwargs)
+    app.run(**run_options)
  
 
 def get_network_community(G,
