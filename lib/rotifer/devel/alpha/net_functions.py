@@ -283,7 +283,9 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
                 html.Button("Add Edge", id="add-edge-button", n_clicks=0, style={"margin-right": "5px"}),
                 html.Button("Remove Edge", id="remove-edge-button", n_clicks=0),
                 html.Button("Update Communities", id="update-communities-btn", n_clicks=0)
-                ], style={"display": "inline-block"})
+                ], style={"display": "inline-block"}),
+            ### Feedback from Add/Remove Edge
+            html.Div(id="edge-edit-status", style={"display": "inline-block", "margin-left": "10px"})
         ])
     ]),
 
@@ -822,6 +824,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     @app.callback(
         Output("graph-store", "data", allow_duplicate=True),
         Output("edge-modification-trigger", "data", allow_duplicate=True),
+        Output("edge-edit-status", "children"),
         Input("add-edge-button", "n_clicks"),
         Input("remove-edge-button", "n_clicks"),
         State("select_source", "value"),
@@ -837,15 +840,33 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
 
         G = json_graph.node_link_graph(graph_data)
 
-        if triggered_id == "add-edge-button":
-            G.add_edge(source, target, edge_type="manual", edge_count=1, edge_total=1)
-        elif triggered_id == "remove-edge-button":
-            try:
-                G.remove_edge(source, target)
-            except:
-                pass
+        # The node boxes are free text: reject names that are not in the graph
+        missing = [n for n in (source, target) if n not in G]
+        if missing:
+            return dash.no_update, dash.no_update, f"Unknown node(s): {', '.join(missing)}"
 
-        return json_graph.node_link_data(G), trigger_count + 1
+        if triggered_id == "add-edge-button":
+            # Do not overwrite the attributes (edge_total etc.) of an existing edge
+            if G.has_edge(source, target):
+                return dash.no_update, dash.no_update, f"Edge {source} - {target} already exists"
+            G.add_edge(source, target, edge_type="manual", edge_count=1, edge_total=1)
+            message = f"Added edge {source} - {target}"
+        elif triggered_id == "remove-edge-button":
+            if not G.has_edge(source, target):
+                return dash.no_update, dash.no_update, f"No edge {source} - {target} to remove"
+            try:
+                if G.is_multigraph():
+                    # Only source/target are chosen, so remove all parallel edges between them
+                    G.remove_edges_from([(source, target, k) for k in list(G[source][target])])
+                else:
+                    G.remove_edge(source, target)
+            except nx.NetworkXError as err:
+                return dash.no_update, dash.no_update, f"Could not remove edge {source} - {target}: {err}"
+            message = f"Removed edge {source} - {target}"
+        else:
+            raise PreventUpdate
+
+        return json_graph.node_link_data(G), trigger_count + 1, message
 
     @app.callback(
         Output("colorscheme", "options"),
