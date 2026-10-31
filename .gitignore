@@ -55,6 +55,8 @@ docs/api/generated/
 
 # Distribution / packaging
 lib/rotifer.egg-info/
+build/
+dist/
 
 # R sessions
 .RData

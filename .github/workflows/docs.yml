@@ -12,7 +12,7 @@ on:
     paths:
       - 'docs/**'
       - 'lib/rotifer/**'
-      - 'setup.py'
+      - 'pyproject.toml'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -40,16 +40,16 @@ jobs:
           cache: pip
           cache-dependency-path: docs/requirements.txt
 
-      # Deliberately NOT the repository-root requirements.txt: it lists conda
-      # and system tools (blast, datamash, famsa) that do not exist on PyPI,
-      # plus pygraphviz, which needs Graphviz headers.
+      # Only the core install: the extras (pyproject.toml) pull in heavy
+      # packages that conf.py mocks anyway, and the conda/Perl tools in
+      # environment.yml do not exist on PyPI.
       #
-      # `pip install -e .` is required, not cosmetic. setup.py's
-      # install_requires is only numpy + pandas, and those two are the
-      # dependencies conf.py deliberately does NOT mock, so autodoc imports
-      # them for real. The editable install also registers the distribution
-      # metadata that conf.py reads via importlib.metadata.version("rotifer");
-      # without it the site would publish as 0.0.0 instead of 0.1.0.
+      # `pip install -e .` is required, not cosmetic. The core dependencies
+      # include numpy and pandas, which conf.py deliberately does NOT mock,
+      # so autodoc imports them for real. The editable install also
+      # registers the distribution metadata that conf.py reads via
+      # importlib.metadata.version("rotifer"); without it the site would
+      # publish as 0.0.0 instead of 0.1.0.
       - name: Install documentation dependencies
         run: |
           python -m pip install --upgrade pip

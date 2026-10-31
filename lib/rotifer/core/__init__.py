@@ -34,7 +34,7 @@ def _get_base_dirs():
     '''Return the installation root and the system config and data directories.'''
     from os.path import expanduser, dirname, realpath, join, isdir
 
-    # Configuration and data files shipped with the package (see setup.py)
+    # Configuration and data files shipped with the package (see MANIFEST.in)
     packageDir = dirname(dirname(realpath(__file__)))
     packageData = join(packageDir, "_data")
 
