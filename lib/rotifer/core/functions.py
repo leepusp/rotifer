@@ -503,7 +503,7 @@ def findDataFiles(load, all=False):
         files = files[0]
     return files
 
-def loadConfig(filepath, user_path=CoreConfig['userConfig'], system_path=CoreConfig['baseConfig'], defaults={}):
+def loadConfig(filepath, user_path=None, system_path=None, defaults={}):
     '''
     This routine loads configuration parameters from YAML file(s).
 
@@ -539,6 +539,12 @@ def loadConfig(filepath, user_path=CoreConfig['userConfig'], system_path=CoreCon
         from yaml import CLoader as Loader
     except ImportError:
         from yaml import Loader
+
+    # Resolve standard locations when called, not when imported
+    if user_path is None:
+        user_path = CoreConfig['userConfig']
+    if system_path is None:
+        system_path = CoreConfig['baseConfig']
 
     # Load defaults
     from copy import deepcopy
@@ -639,12 +645,18 @@ def yaml_search(string, path):
     else:
         return {}
 
-def loadClasses(load, user_path=os.path.join(CoreConfig['user'],'lib'), system_path=os.path.join(CoreConfig['base'],'lib','rotifer')):
+def loadClasses(load, user_path=None, system_path=None):
     '''
     This function list all classes and methods
     The main problem is the import
     '''
     import inspect
+
+    # Resolve standard locations when called, not when imported
+    if user_path is None:
+        user_path = os.path.join(CoreConfig['user'],'lib')
+    if system_path is None:
+        system_path = CoreConfig['package']
 
     classes = {}
 

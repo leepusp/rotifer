@@ -111,8 +111,9 @@ body:
     attributes:
       label: How did you install ROTIFER?
       options:
-        - conda (standard install)
-        - conda-develop / editable development install
+        - conda environment (environment.yml)
+        - pip install
+        - Editable development install (pip install -e)
         - From source (other)
     validations:
       required: true

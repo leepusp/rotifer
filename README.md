@@ -10,49 +10,47 @@ It also provides a collection of easy to use command line tools based on this fr
 
 Documentation: https://leepusp.github.io/rotifer/
 
-Installing ROTIFER package with conda enviroments:
+## Installation
 
-1. Clone this git reposytory.
-2. Create a rotifer's conda enviroment:
+ROTIFER needs Python 3.10 or newer.
+
+### Python library only
 
 ```Bash
-conda create --name rotifer biopython pandas numpy termcolor PyYAML tqdm \
-  ipython ascii_graph matplotlib ete3 prettytable seaborn pygraphviz \
-  bcbio-gff dash-bio gspread leidenalg igraph networkx oauth2client sqlalchemy \
-  argcomplete perl-bioperl perl-moose perl-ipc-system-simple \
-  perl-config-any perl-appconfig perl-carp-clan \
-  perl-file-which perl-module-list perl-statistics-descriptive perl-yaml \
-  hhsuite hmmer mmseqs2 foldseek mafft famsa blast parallel datamash
+pip install "rotifer[all] @ git+https://github.com/leepusp/rotifer"
+```
+
+`rotifer[all]` installs every optional dependency. To keep the install small,
+pick only the groups you need instead (e.g. `rotifer[seq,db]`):
+
+| extra | for |
+|-------|-----|
+| `seq` | `rotifer.seq`, `rotifer.genome` |
+| `db` | `rotifer.db`, `rotifer.alchemy`, `rotifer.tools` |
+| `viz` | `rotifer.cluster` and plots |
+| `network` | neighborhood graphs in `rotifer.genome` |
+| `cli` | the Python tools in `bin/` |
+
+### Full toolset (library, command line tools and their programs)
+
+The tools in `bin/` call external programs (BLAST, HMMER, MMseqs2, ...) and
+Perl modules that pip cannot install. `environment.yml` installs them all with
+conda, plus the library in editable mode:
+
+```Bash
+git clone https://github.com/leepusp/rotifer.git
+cd rotifer
+conda env create -f environment.yml
 conda activate rotifer
-pip install dash-cytoscape
-cpan i Module::Find
+cpanm Module::Find
 ```
 
-3. Activating the rotifer enviroment:
+Then put the tools on your `PATH`, e.g. in
+`$CONDA_PREFIX/etc/conda/activate.d/rotifer.sh`:
 
 ```Bash
-conda activate rotifer
+export PATH="/path/to/rotifer/bin:$PATH"
 ```
-
-4. Setting up the rotifer tools at the conda rotifer enviroment:
-
-```Bash
-mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-mkdir -p $CONDA_PREFIX/etc/conda/deactivate.d
-touch ./etc/conda/activate.d/env_vars.sh
-touch ./etc/conda/deactivate.d/env_vars.sh
-conda-develop /path_to_git/rotifer/lib
-
-```
-
-5. Write the following path to eh activate.d file:
-
-```Bash
-  export PATH="path_to_git/rotifer/bin:$PATH"
-  export PYTHONPATH="$PYTHONPATH:/path_to_git/rotifer/lib"
-```
-
-`
 
 ## Examples of use
 

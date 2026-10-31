@@ -1,0 +1,65 @@
+# Full ROTIFER toolset: the Python library with all extras, the command line
+# programs that bin/ wraps, and the Perl modules used by bin/ and perl/lib.
+#
+#   conda env create -f environment.yml
+#   conda activate rotifer
+#   cpanm Module::Find
+#
+# Module::Find (needed by Rotifer::Utils, so most Perl tools) has no conda
+# package; neither have DBIx::Class, MooseX::AbstractFactory and
+# MooseX::MarkAsMethods, which only perl/lib/Rotifer/DBIC uses.
+#
+# Python dependencies are declared in pyproject.toml, not here.
+name: rotifer
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.10
+  - pip
+
+  # Programs called by bin/ and lib/rotifer
+  - blast
+  - datamash
+  - famsa
+  - foldseek
+  - hhsuite
+  - hmmer
+  - mafft
+  - mmseqs2
+  - parallel
+
+  # Perl modules (bin/ and perl/lib)
+  - perl-app-cpanminus
+  - perl-appconfig
+  - perl-bio-eutilities
+  - perl-bioperl
+  - perl-bioperl-run
+  - perl-carp-clan
+  - perl-config-any
+  - perl-data-dump
+  - perl-data-uuid
+  - perl-datetime
+  - perl-dbi
+  - perl-file-listing
+  - perl-file-which
+  - perl-io-string
+  - perl-ipc-run
+  - perl-ipc-system-simple
+  - perl-libwww-perl
+  - perl-list-moreutils
+  - perl-module-find
+  - perl-module-list
+  - perl-moo
+  - perl-moose
+  - perl-moosex-abstractfactory
+  - perl-moosex-markasmethods
+  - perl-moosex-nonmoose
+  - perl-statistics-descriptive
+  - perl-sub-exporter
+  - perl-uri
+  - perl-xml-simple
+  - perl-yaml
+
+  - pip:
+      - -e .[all]
