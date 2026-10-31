@@ -19,7 +19,20 @@ def network_annotation(networkdf,
                      node_outline_color=None,
                      node_outline_list=None,
                      edge_color=True,
-                     unidirected_graph=True):
+                     unidirected_graph=True,
+                     split_types=False):
+    """
+    networkdf: get_relations output (source, target, edge_type, edge_count, edge_total).
+               Without edge_total, it is estimated by summing edge_count over the pair's
+               edge types, which counts a block once per type it occurs in.
+    unidirected_graph: if False, a MultiDiGraph with one edge per (source, target, edge_type).
+    split_types: undirected only. If True, a MultiGraph with one edge per edge type
+                 (keyed by edge_type); if False, a Graph with one edge per pair carrying
+                 its most frequent type. In both, mirrored relations (A->B Cterminal and
+                 B->A Nterminal) are merged, and edge_type is read from the node in the
+                 edge's type_from attribute (the alphabetically first of the pair) to the
+                 other. edge_total is the pair's block count either way.
+    """
 
     import networkx as nx
     import pandas as pd
@@ -30,12 +43,32 @@ def network_annotation(networkdf,
     node_outline_list = [] if node_outline_list is None else node_outline_list
 
     networkdf = networkdf.copy()
-    networkdf['edge_total'] = networkdf.groupby(['source', 'target'])['edge_count'].transform('sum')
+    if 'edge_total' not in networkdf.columns:
+        warnings.warn("networkdf has no edge_total column; summing edge_count over edge types, "
+                      "which counts a block once per type it occurs in")
+        networkdf['edge_total'] = networkdf.groupby(['source', 'target'])['edge_count'].transform('sum')
 
+    edge_attr = ['edge_type', 'edge_count', 'edge_total']
     if unidirected_graph:
-        G = nx.from_pandas_edgelist(networkdf, edge_attr=['edge_type', 'edge_count', 'edge_total'])
+        # One row per undirected relation: orient every row source <= target, flipping its type
+        flip = {'Cterminal': 'Nterminal', 'Nterminal': 'Cterminal', 'Downstream': 'Upstream', 'Upstream': 'Downstream'}
+        swap = networkdf.source > networkdf.target
+        networkdf.loc[swap, ['source', 'target']] = networkdf.loc[swap, ['target', 'source']].values
+        networkdf.loc[swap, 'edge_type'] = networkdf.loc[swap, 'edge_type'].replace(flip)
+        # A self relation is its own mirror
+        self_rel = networkdf.source == networkdf.target
+        networkdf.loc[self_rel, 'edge_type'] = networkdf.loc[self_rel, 'edge_type'].replace({'Nterminal': 'Cterminal', 'Upstream': 'Downstream'})
+        networkdf = networkdf.groupby(['source', 'target', 'edge_type'], as_index=False)[['edge_count', 'edge_total']].max()
+        # An undirected edge does not keep its source: record which end edge_type refers to
+        networkdf['type_from'] = networkdf.source
+        edge_attr = edge_attr + ['type_from']
+        if split_types:
+            G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr, edge_key='edge_type', create_using=nx.MultiGraph())
+        else:
+            networkdf = networkdf.sort_values(['edge_count', 'edge_type'], ascending=[False, True]).drop_duplicates(['source', 'target'])
+            G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr)
     else:
-        G = nx.from_pandas_edgelist(networkdf, edge_attr=['edge_type', 'edge_count', 'edge_total'], create_using=nx.MultiDiGraph())
+        G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr, create_using=nx.MultiDiGraph())
 
 
     default_color = {item: "#D3D3D3" for item in G.nodes()}
@@ -50,7 +83,7 @@ def network_annotation(networkdf,
 
     #Getting the size of nodes
     # In the future we can add more ways of getting the node size
-    node_degree = dict(G.degree())
+    node_degree = dict(_simple_graph(G).degree())
     nx.set_node_attributes(G, node_degree, name="degree") 
     
 
@@ -92,8 +125,8 @@ def network_annotation(networkdf,
         edge_alpha=[]
         edge_styles=[]
     #Getting the color of edges():
-        if isinstance(G, nx.MultiDiGraph):
-            edges_obj = G.edges(keys=True) 
+        if G.is_multigraph():
+            edges_obj = G.edges(keys=True)
             for source,target, key in edges_obj:
                 if node_color[source] == node_color[target]:
                     edge_colors.append(node_color[source])
@@ -129,8 +162,14 @@ def network_annotation(networkdf,
 
     return G
 
+def _simple_graph(G):
+    # Parallel edges of an undirected MultiGraph (split_types) share one pair: collapse them
+    # so degree, layouts and communities match the one-edge-per-pair graph
+    return nx.Graph(G) if G.is_multigraph() and not G.is_directed() else G
+
 def calculate_positions(G, iterations):
     # Recalculate positions as needed
+    G = _simple_graph(G)
     pos1 = nx.spring_layout(G, iterations=iterations, seed=1)
     pos2 = nx.kamada_kawai_layout(G, pos=pos1)
     pos3 = nx.kamada_kawai_layout(G)
@@ -196,7 +235,8 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
             'style': {
                 'line-color': 'data(edge_color)',
                 'line-style': 'data(line_style)',
-                'opacity': 'data(opacity)'
+                'opacity': 'data(opacity)',
+                'curve-style': 'bezier'  # draw parallel edges apart
             }
         }
     ]
@@ -437,6 +477,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
                     'line-color': 'data(edge_color)',
                     'line-style': 'data(line_style)',
                     'opacity': 'data(opacity)',
+                    'curve-style': 'bezier',
                     'width': f'{edge_size}px'  # Dynamic edge width
                 }
             }
@@ -681,7 +722,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
 
         # Size from the degree in the displayed subgraph; colour always from the stored group
         for node, attrs in subgraph.nodes(data=True):
-            attrs['size'] = np.sqrt(subgraph.degree(node)) * node_scale
+            attrs['size'] = np.sqrt(net_functions._simple_graph(subgraph).degree(node)) * node_scale
             attrs['node_color'] = func_color_dict[function_data[node]]
 
         new_elements = convert_to_cytoscape(
@@ -899,6 +940,7 @@ def get_network_community(G,
     import numpy as np
     import networkx as nx
 
+    G = _simple_graph(G)
     #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1 (as Louvain does)
     leiden_weight = weight
     if weight is not None:
@@ -1014,6 +1056,8 @@ def get_relations(domdf,
     gene_pos: column ordering genes along the genome (smaller = upstream), e.g. start coordinate.
     feature_pos: column ordering domains along the protein, N->C (smaller = N-terminal),
                  e.g. domain start in amino acid coordinates.
+    Dataframe output: one row per (source, target, edge_type); edge_count is the number of
+    blocks with that relation, edge_total the number of blocks with the pair in any type.
     Row order does not matter. For gian_func.split_domain output, whose domp
     follows genome order (C->N on - strand), use gene_pos='blockp' and:
         domdf['dom_aa_order'] = np.where(domdf.strand == -1, -domdf.domp, domdf.domp)
@@ -1099,6 +1143,6 @@ def get_relations(domdf,
         to_net = to_net.groupby(['source', 'target', 'edge_type']).agg(
                 {'block_id' :'count',
                  'edge_total' : 'first'}).reset_index().sort_values('block_id')
-        to_net = to_net.rename({'block_id':'edge_count'},axis=1)        
-        to_net = to_net.query('edge_total >= @min_connections').drop(['edge_total'], axis=1)
+        to_net = to_net.rename({'block_id':'edge_count'},axis=1)
+        to_net = to_net.query('edge_total >= @min_connections')
         return(to_net)
