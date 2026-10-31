@@ -558,7 +558,7 @@ def loadConfig(filepath, user_path=None, system_path=None, defaults={}):
                 config.update(loaded)
                 return config
             except:
-                logger.error(f'Error while parsing file {load}: {sys.exc_info[1]}')
+                logger.error(f'Error while parsing file {filepath}: {sys.exc_info()[1]}')
                 return config
         elif filepath[0:8] == "rotifer.":
             expand_load = filepath[8:]
@@ -573,14 +573,14 @@ def loadConfig(filepath, user_path=None, system_path=None, defaults={}):
         try:
             config.update(yaml_search(expand_load, system_path))
         except:
-            logger.error(f'Error while parsing file {os.path.join(system_path,expand_load)}: {sys.exc_info}', file=sys.stderr)
+            logger.error(f'Error while parsing file {os.path.join(system_path,expand_load)}: {sys.exc_info()[1]}')
 
     # User path
     if os.path.exists(user_path):
         try:
             config.update(yaml_search(expand_load, user_path))
         except:
-            logger.error(f'Error while parsing file {os.path.join(user_path,expand_load)}: {sys.exc_info}', file=sys.stderr)
+            logger.error(f'Error while parsing file {os.path.join(user_path,expand_load)}: {sys.exc_info()[1]}')
 
     # Return
     return config
