@@ -929,8 +929,26 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     app.run(**run_options)
  
 
+def _cpm_resolution(cpm_resolution, resolution_parameter):
+    # resolution_parameter is the old name of cpm_resolution; it wins when given
+    if resolution_parameter is None:
+        return cpm_resolution
+    warnings.warn("resolution_parameter is deprecated, use cpm_resolution "
+                  "(it only sets the CPM resolution of the Leidein_2 partition)",
+                  DeprecationWarning, stacklevel=3)
+    return resolution_parameter
+
 def get_network_community(G,
-                 community_to_color='leidein', weight='edge_total', resolution_parameter=0.05):
+                 community_to_color='leidein', weight='edge_total', cpm_resolution=0.05,
+                 *, resolution_parameter=None):
+    """
+    Community partitions of G as network_dash colour schemes: {name: [node -> community, community -> colour]}.
+    Louvain and Leidein (Leiden) maximise standard modularity (resolution 1).
+    Leidein_2 is Leiden with the Constant Potts Model, with resolution cpm_resolution:
+    edges must weigh more than it on average for nodes to group, so higher values give more, smaller communities.
+    weight: edge attribute used as weight, or None for unweighted.
+    resolution_parameter: deprecated name of cpm_resolution.
+    """
     import community
     import seaborn as sns
     import leidenalg as la
@@ -940,6 +958,7 @@ def get_network_community(G,
     import numpy as np
     import networkx as nx
 
+    cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
     G = _simple_graph(G)
     #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1 (as Louvain does)
     leiden_weight = weight
@@ -968,8 +987,8 @@ def get_network_community(G,
     #Leiden partition:
     part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=leiden_weight)
     c['leidein'] = pd.Series(part.membership)
-    #Leiden partition playing with resolution parameter:
-    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=leiden_weight, resolution_parameter = resolution_parameter)
+    #Leiden partition with CPM, the only one using the resolution:
+    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=leiden_weight, resolution_parameter = cpm_resolution)
     c['leidein_2'] = pd.Series(part2.membership)
 
 
@@ -985,8 +1004,14 @@ def get_network_community(G,
 
 def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
-                             resolution_parameter=0.5,
-                             min_clique_size=10):
+                             cpm_resolution=0.5,
+                             min_clique_size=10,
+                             *, resolution_parameter=None):
+    """
+    cpm_resolution: CPM resolution of the Leidein_2 partition (the *_leidein_resolution columns),
+                    passed to get_network_community. resolution_parameter: deprecated name of it.
+    """
+    cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
     cliques = list(nx.find_cliques(G))
     cliques = pd.Series(cliques).rename('cliques').to_frame()
     cliques['clique_size'] = cliques.cliques.apply(lambda x: len(x))
@@ -1001,7 +1026,7 @@ def clique_jaccard_community(G,
     cm.rename({"clique_n_x" :'source', 'clique_n_y' :'target'}, axis=1, inplace=True)
     cm = cm[cm.Jaccard_index >= min_jaccard_index]
     G = nx.from_pandas_edgelist(cm, edge_attr='Jaccard_index')
-    z = get_network_community(G, weight='Jaccard_index', resolution_parameter=resolution_parameter)
+    z = get_network_community(G, weight='Jaccard_index', cpm_resolution=cpm_resolution)
     cm['source_leidein_resolution'] = cm.source.replace(z['Leidein_2'][0])
     cm['target_leidein_resolution'] = cm.target.replace(z['Leidein_2'][0])
     cm['source_leidein'] = cm.source.replace(z['Leidein'][0])
