@@ -1,9 +1,10 @@
 from operator import pos
-from dash import Dash, dcc, html, Input, Output, ctx, callback, State
+from dash import Dash, dcc, html, Input, Output, ctx, State
 import dash_cytoscape as cyto
 import networkx as nx
 import numpy as np
 import pandas as pd
+import warnings
 from rotifer.devel.alpha import gian_func as gf
 
 # Enable SVG export
@@ -12,34 +13,77 @@ cyto.load_extra_layouts()
 def network_annotation(networkdf,
                      node_color=None,
                      node_shape='ellipse',
-                     second_shape={},  
-                     second_shape_list = [],
+                     second_shape=None,
+                     second_shape_list=None,
                      node_outline=None,
-                     node_outline_color={},
-                     node_outline_list=[],
+                     node_outline_color=None,
+                     node_outline_list=None,
                      edge_color=True,
-                     unidirected_graph=True):
+                     unidirected_graph=True,
+                     split_types=False):
+    """
+    networkdf: get_relations output (source, target, edge_type, edge_count, edge_total).
+               Without edge_total, it is estimated by summing edge_count over the pair's
+               edge types, which counts a block once per type it occurs in.
+    unidirected_graph: if False, a MultiDiGraph with one edge per (source, target, edge_type).
+    split_types: undirected only. If True, a MultiGraph with one edge per edge type
+                 (keyed by edge_type); if False, a Graph with one edge per pair carrying
+                 its most frequent type. In both, mirrored relations (A->B Cterminal and
+                 B->A Nterminal) are merged, and edge_type is read from the node in the
+                 edge's type_from attribute (the alphabetically first of the pair) to the
+                 other. edge_total is the pair's block count either way.
+    """
 
     import networkx as nx
     import pandas as pd
 
-    networkdf['edge_total'] = networkdf.groupby(['source', 'target'])['edge_count'].transform('sum')
+    second_shape = {} if second_shape is None else second_shape
+    second_shape_list = [] if second_shape_list is None else second_shape_list
+    node_outline_color = {} if node_outline_color is None else node_outline_color
+    node_outline_list = [] if node_outline_list is None else node_outline_list
 
+    networkdf = networkdf.copy()
+    if 'edge_total' not in networkdf.columns:
+        warnings.warn("networkdf has no edge_total column; summing edge_count over edge types, "
+                      "which counts a block once per type it occurs in")
+        networkdf['edge_total'] = networkdf.groupby(['source', 'target'])['edge_count'].transform('sum')
+
+    edge_attr = ['edge_type', 'edge_count', 'edge_total']
     if unidirected_graph:
-        G = nx.from_pandas_edgelist(networkdf, edge_attr=['edge_type', 'edge_count', 'edge_total'])
+        # One row per undirected relation: orient every row source <= target, flipping its type
+        flip = {'Cterminal': 'Nterminal', 'Nterminal': 'Cterminal', 'Downstream': 'Upstream', 'Upstream': 'Downstream'}
+        swap = networkdf.source > networkdf.target
+        networkdf.loc[swap, ['source', 'target']] = networkdf.loc[swap, ['target', 'source']].values
+        networkdf.loc[swap, 'edge_type'] = networkdf.loc[swap, 'edge_type'].replace(flip)
+        # A self relation is its own mirror
+        self_rel = networkdf.source == networkdf.target
+        networkdf.loc[self_rel, 'edge_type'] = networkdf.loc[self_rel, 'edge_type'].replace({'Nterminal': 'Cterminal', 'Upstream': 'Downstream'})
+        networkdf = networkdf.groupby(['source', 'target', 'edge_type'], as_index=False)[['edge_count', 'edge_total']].max()
+        # An undirected edge does not keep its source: record which end edge_type refers to
+        networkdf['type_from'] = networkdf.source
+        edge_attr = edge_attr + ['type_from']
+        if split_types:
+            G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr, edge_key='edge_type', create_using=nx.MultiGraph())
+        else:
+            networkdf = networkdf.sort_values(['edge_count', 'edge_type'], ascending=[False, True]).drop_duplicates(['source', 'target'])
+            G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr)
     else:
-        G = nx.from_pandas_edgelist(networkdf, edge_attr=['edge_type', 'edge_count', 'edge_total'], create_using=nx.MultiDiGraph())
+        G = nx.from_pandas_edgelist(networkdf, edge_attr=edge_attr, create_using=nx.MultiDiGraph())
 
 
+    default_color = {item: "#D3D3D3" for item in G.nodes()}
     if node_color:
-        nx.set_node_attributes(G, node_color, name="node_color") 
+        missing = [node for node in G.nodes() if node not in node_color]
+        if missing:
+            warnings.warn(f"nodes missing from node_color, drawn grey: {sorted(missing)}")
+        node_color = {**default_color, **node_color}
     else:
-        node_color={item: "#D3D3D3" for item in G.nodes()}
-        nx.set_node_attributes(G, node_color, name="node_color") 
+        node_color = default_color
+    nx.set_node_attributes(G, node_color, name="node_color") 
 
     #Getting the size of nodes
     # In the future we can add more ways of getting the node size
-    node_degree = dict(G.degree())
+    node_degree = dict(_simple_graph(G).degree())
     nx.set_node_attributes(G, node_degree, name="degree") 
     
 
@@ -52,7 +96,10 @@ def network_annotation(networkdf,
     else:
         pass
 
-    node_shape_dict  = {node: second_shape[node] if node in second_shape_list else node_shape for node in G.nodes()}
+    missing = [node for node in G.nodes() if node in second_shape_list and node not in second_shape]
+    if missing:
+        warnings.warn(f"nodes missing from second_shape, drawn as {node_shape}: {sorted(missing)}")
+    node_shape_dict  = {node: second_shape.get(node, node_shape) if node in second_shape_list else node_shape for node in G.nodes()}
     nx.set_node_attributes(G, node_shape_dict, name="node_shape")
 
 
@@ -64,16 +111,22 @@ def network_annotation(networkdf,
     else:
         pass
     if node_outline:
-        node_outline_dict = {node: node_outline_color[node] if node in node_outline_list else node_color[node] for node in G.nodes()}
-        nx.set_node_attributes(G, node_outline_dict, name="node_outline") 
+        missing = [node for node in G.nodes() if node in node_outline_list and node not in node_outline_color]
+        if missing:
+            warnings.warn(f"nodes missing from node_outline_color, outlined in their node colour: {sorted(missing)}")
+        node_outline_dict = {node: node_outline_color.get(node, node_color[node]) if node in node_outline_list else node_color[node] for node in G.nodes()}
+    else:
+        # The viewer always draws a border from node_outline: blend it into the node
+        node_outline_dict = node_color
+    nx.set_node_attributes(G, node_outline_dict, name="node_outline") 
     
     if edge_color:
         edge_colors=[]
         edge_alpha=[]
         edge_styles=[]
     #Getting the color of edges():
-        if isinstance(G, nx.MultiDiGraph):
-            edges_obj = G.edges(keys=True) 
+        if G.is_multigraph():
+            edges_obj = G.edges(keys=True)
             for source,target, key in edges_obj:
                 if node_color[source] == node_color[target]:
                     edge_colors.append(node_color[source])
@@ -109,8 +162,14 @@ def network_annotation(networkdf,
 
     return G
 
+def _simple_graph(G):
+    # Parallel edges of an undirected MultiGraph (split_types) share one pair: collapse them
+    # so degree, layouts and communities match the one-edge-per-pair graph
+    return nx.Graph(G) if G.is_multigraph() and not G.is_directed() else G
+
 def calculate_positions(G, iterations):
     # Recalculate positions as needed
+    G = _simple_graph(G)
     pos1 = nx.spring_layout(G, iterations=iterations, seed=1)
     pos2 = nx.kamada_kawai_layout(G, pos=pos1)
     pos3 = nx.kamada_kawai_layout(G)
@@ -134,8 +193,12 @@ def convert_to_cytoscape(G, positions, layout_key, scaling_factor=900, x_scale=1
     return cy["elements"]["nodes"] + cy["elements"]["edges"]
 
 
-def network_dash(G,pos_dict, xx, function, color_schemes):
-    from dash import Dash, dcc, html, Input, Output, ctx, callback, State
+def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
+    """
+    Extra keyword arguments (e.g. host, port, debug, jupyter_mode) are passed to app.run;
+    defaults: jupyter_mode="external", debug=True.
+    """
+    from dash import Dash, dcc, html, Input, Output, ctx, State
     import dash
     import dash_cytoscape as cyto
     import networkx as nx
@@ -172,7 +235,8 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
             'style': {
                 'line-color': 'data(edge_color)',
                 'line-style': 'data(line_style)',
-                'opacity': 'data(opacity)'
+                'opacity': 'data(opacity)',
+                'curve-style': 'bezier'  # draw parallel edges apart
             }
         }
     ]
@@ -259,7 +323,9 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
                 html.Button("Add Edge", id="add-edge-button", n_clicks=0, style={"margin-right": "5px"}),
                 html.Button("Remove Edge", id="remove-edge-button", n_clicks=0),
                 html.Button("Update Communities", id="update-communities-btn", n_clicks=0)
-                ], style={"display": "inline-block"})
+                ], style={"display": "inline-block"}),
+            ### Feedback from Add/Remove Edge
+            html.Div(id="edge-edit-status", style={"display": "inline-block", "margin-left": "10px"})
         ])
     ]),
 
@@ -354,6 +420,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         html.Button("SVG", id="btn-get-svg"),
         #### Store  to do the double clik
         dcc.Store(id="edge-color-cycle", data=[]),
+        dcc.Store(id="edge-style-overrides", data={}),
         dcc.Store(id="last-edge-click", data={"id": None, "time": 0}),
         dcc.Store(id="last-node-click", data={"id": None, "time": 0}),
         dcc.Store(id="node-color-cycle", data=[]),
@@ -410,6 +477,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
                     'line-color': 'data(edge_color)',
                     'line-style': 'data(line_style)',
                     'opacity': 'data(opacity)',
+                    'curve-style': 'bezier',
                     'width': f'{edge_size}px'  # Dynamic edge width
                 }
             }
@@ -456,7 +524,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         return element
     """ 
 
-    @callback(
+    @app.callback(
         Output("select_source", "value"),
         Output("select_target", "value"),
         Input("cytoscape", "tapNodeData"),
@@ -472,14 +540,11 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         return dash.no_update, dash.no_update
 
 
-    # Dicionários para armazenar estilos personalizados
-    edge_style_overrides = {}
-    node_style_overrides = {}
-
-    @callback(
+    @app.callback(
         Output("cytoscape", "elements"),
         Output("last-edge-click", "data"),
         Output("edge-color-cycle", "data"),
+        Output("edge-style-overrides", "data"),
         Output("last-node-click", "data"),
         Output("node-color-cycle", "data"),
         Output("function-store", "data"),
@@ -497,6 +562,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         State("cytoscape", "elements"),
         State("last-edge-click", "data"),
         State("edge-color-cycle", "data"),
+        State("edge-style-overrides", "data"),
         State("last-node-click", "data"),
         State("node-color-cycle", "data"),
         State('xx-store', 'data'),
@@ -507,25 +573,32 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
     def update_elements_or_cycle(
         edge_data, node_data,
         selected_option, groups, min_connections, node_scale, x_scale, y_scale, scale_value,pos_dict_input,dummy_call,
-        elements, last_click, color_cycle, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
+        elements, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
     ):
 
-        from dash import callback, Input, Output, State, ctx, no_update
+        from dash import Input, Output, State, ctx, no_update
         import time
         import numpy as np
         triggered_id = ctx.triggered_id
 
+        # Edge style overrides are kept per session, tagged with the colour scheme they were made under:
+        # a scheme change discards them, together with the style cycle built under that scheme
+        style_overrides = style_overrides or {}
+        if any(func_color_dict.get(g) != c for g, c in style_overrides.get("xx", {}).items()):
+            style_overrides, color_cycle = {}, []
+        style_overrides = {"xx": dict(func_color_dict), "overrides": style_overrides.get("overrides", {})}
+
         # Duplo clique em aresta
         if triggered_id == "cytoscape" and ctx.triggered[0]["prop_id"] == "cytoscape.tapEdgeData":
             if not edge_data or "id" not in edge_data:
-                return no_update, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             edge_id = f"{edge_data['source']}|{edge_data['target']}"
             now = time.time()
             double_click = (last_click["id"] == edge_id and (now - last_click["time"]) < 0.3)
 
             if not double_click:
-                return no_update, {"id": edge_id, "time": now}, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, {"id": edge_id, "time": now}, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             # Captura estilos únicos de arestas visíveis
             if not color_cycle:
@@ -560,23 +633,23 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
                         "opacity": next_style[2],
                     })
 
-                    edge_style_overrides[edge_id] = next_style
+                    style_overrides["overrides"][edge_id] = list(next_style)
 
                 new_elements.append(el)
 
-            return new_elements, {"id": edge_id, "time": now}, color_cycle, last_node_click, node_color_cycle, function_data
+            return new_elements, {"id": edge_id, "time": now}, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
         # Duplo clique em nó
         if triggered_id == "cytoscape" and ctx.triggered[0]["prop_id"] == "cytoscape.tapNodeData":
             if not node_data or "id" not in node_data:
-                return no_update, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
             node_id = node_data["id"]
             now = time.time()
             double_click = (last_node_click["id"] == node_id and (now - last_node_click["time"]) < 0.3)
 
             if not double_click:
-                return no_update, last_click, color_cycle, {"id": node_id, "time": now}, node_color_cycle, function_data
+                return no_update, last_click, color_cycle, style_overrides, {"id": node_id, "time": now}, node_color_cycle, function_data
             """
             if not node_color_cycle:
                 node_color_cycle = list(func_color_dict.values())
@@ -596,7 +669,6 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
                     data["node_color"] = next_color
                     el["style"] = el.get("style", {})
                     el["style"]["background-color"] = next_color
-                    node_style_overrides[node_id] = next_color
                     """
                     for func_name, color in func_color_dict.items():
                         if color == next_color:
@@ -617,7 +689,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
 
                 new_elements.append(el)
 
-            return new_elements, last_click, color_cycle, {"id": node_id, "time": now}, node_color_cycle, function_data
+            return new_elements, last_click, color_cycle, style_overrides, {"id": node_id, "time": now}, node_color_cycle, function_data
 
         # Atualização normal do grafo
         scale_value = int(scale_value)
@@ -625,15 +697,17 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         stored_G = json_graph.node_link_graph(serial_graph)
         G_filtered = stored_G.subgraph(filter_nodes)
 
-        filter_edges = [(u, v) for u, v, attrs in G_filtered.edges(data=True)
-                        if attrs.get('edge_total', 0) >= min_connections]
+        # Multigraph edges need their key; manually added edges are always kept
+        edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
+        filter_edges = [e[:-1] for e in edges
+                        if e[-1].get('edge_total', 0) >= min_connections or e[-1].get('edge_type') == 'manual']
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
 
         for edge in subgraph.edges(data=True):
             uid = f"{edge[0]}|{edge[1]}"
-            if uid in edge_style_overrides:
-                color, style, opacity = edge_style_overrides[uid]
+            if uid in style_overrides["overrides"]:
+                color, style, opacity = style_overrides["overrides"][uid]
                 edge[2]['line_style'] = style
                 edge[2]['opacity'] = opacity
                 edge[2]['edge_color'] = color
@@ -646,18 +720,16 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
                 edge[2]['opacity'] = 0.3
                 edge[2]['edge_color'] = 'gray'
 
+        # Size from the degree in the displayed subgraph; colour always from the stored group
         for node, attrs in subgraph.nodes(data=True):
-            attrs['size'] = np.sqrt(attrs['degree']) * node_scale
-            if node in node_style_overrides:
-                attrs['node_color'] = node_style_overrides[node]
-            else:
-                attrs['node_color'] = func_color_dict[function_data[node]]
+            attrs['size'] = np.sqrt(net_functions._simple_graph(subgraph).degree(node)) * node_scale
+            attrs['node_color'] = func_color_dict[function_data[node]]
 
         new_elements = convert_to_cytoscape(
             subgraph, pos_dict_data, selected_option,
             x_scale=x_scale, y_scale=y_scale, scaling_factor=scale_value
         )
-        return new_elements, last_click, color_cycle, last_node_click, node_color_cycle, function_data
+        return new_elements, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, function_data
 
     @app.callback(
         [Output("saved-pos-store", "data"),
@@ -679,6 +751,8 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
             node["data"]["id"]: node.get("position", {})
             for node in n_elements if "position" in node
         }
+        # A type='range' dcc.Input sends its value as a string once the slider is moved
+        scale = int(scale)
         positions = {key: np.array([value['y']/scale/y_scale, value['x']/scale/x_scale]) for key, value in positions.items()}
         #global p
         current_pos_dict[text] = positions
@@ -719,7 +793,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         return {'type': ftype, 'action': action}
   
     ##### Adding dinamically groups to dropdown menu:
-    @callback(
+    @app.callback(
         Output("group_selection", "options"),
         Output("group_selection", "value"),
         Output("function-store", "data", allow_duplicate=True),  # <-- adicionado
@@ -730,7 +804,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
     )
     def update_group_selection(selected_scheme, color_schemes_data):
         if not selected_scheme or selected_scheme not in color_schemes_data:
-            return [], [], dash.no_update
+            return [], [], dash.no_update, dash.no_update
 
         function_dict, color_dict = color_schemes_data[selected_scheme]
 
@@ -766,14 +840,17 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
         State('connections-input', 'value'),
         State("pos-dict-store", "data"),
         State("graph-store", "data"),
+        State("function-store", "data"),
         prevent_initial_call=True,  # Prevent execution on page load
     )
-    def update_layouts(n_clicks, groups,Spring_lay_iteractions, min_connections, pos_dict, serial_graph):
+    def update_layouts(n_clicks, groups,Spring_lay_iteractions, min_connections, pos_dict, serial_graph, function_data):
         stored_G = json_graph.node_link_graph(serial_graph)
-        filter_nodes = list({key: value for key, value in function.items() if value in groups}.keys())
+        filter_nodes = list({key: value for key, value in function_data.items() if value in groups}.keys())
         G_filtered = stored_G.subgraph(filter_nodes)
-        ### Edge filtered based in total Edge count
-        filter_edges = [(u, v) for u, v, attrs in G_filtered.edges(data=True) if attrs.get('edge_total', 0) >= min_connections]
+        ### Edge filtered based in total Edge count (same filter as the graph render)
+        edges = G_filtered.edges(keys=True, data=True) if G_filtered.is_multigraph() else G_filtered.edges(data=True)
+        filter_edges = [e[:-1] for e in edges
+                        if e[-1].get('edge_total', 0) >= min_connections or e[-1].get('edge_type') == 'manual']
         subgraph = G_filtered.edge_subgraph(filter_edges).copy()
         subgraph.remove_nodes_from(list(nx.isolates(subgraph)))
         newp = net_functions.calculate_positions(subgraph, Spring_lay_iteractions)
@@ -788,6 +865,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
     @app.callback(
         Output("graph-store", "data", allow_duplicate=True),
         Output("edge-modification-trigger", "data", allow_duplicate=True),
+        Output("edge-edit-status", "children"),
         Input("add-edge-button", "n_clicks"),
         Input("remove-edge-button", "n_clicks"),
         State("select_source", "value"),
@@ -803,17 +881,35 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
 
         G = json_graph.node_link_graph(graph_data)
 
+        # The node boxes are free text: reject names that are not in the graph
+        missing = [n for n in (source, target) if n not in G]
+        if missing:
+            return dash.no_update, dash.no_update, f"Unknown node(s): {', '.join(missing)}"
+
         if triggered_id == "add-edge-button":
+            # Do not overwrite the attributes (edge_total etc.) of an existing edge
+            if G.has_edge(source, target):
+                return dash.no_update, dash.no_update, f"Edge {source} - {target} already exists"
             G.add_edge(source, target, edge_type="manual", edge_count=1, edge_total=1)
+            message = f"Added edge {source} - {target}"
         elif triggered_id == "remove-edge-button":
+            if not G.has_edge(source, target):
+                return dash.no_update, dash.no_update, f"No edge {source} - {target} to remove"
             try:
-                G.remove_edge(source, target)
-            except:
-                pass
+                if G.is_multigraph():
+                    # Only source/target are chosen, so remove all parallel edges between them
+                    G.remove_edges_from([(source, target, k) for k in list(G[source][target])])
+                else:
+                    G.remove_edge(source, target)
+            except nx.NetworkXError as err:
+                return dash.no_update, dash.no_update, f"Could not remove edge {source} - {target}: {err}"
+            message = f"Removed edge {source} - {target}"
+        else:
+            raise PreventUpdate
 
-        return json_graph.node_link_data(G), trigger_count + 1
+        return json_graph.node_link_data(G), trigger_count + 1, message
 
-    @callback(
+    @app.callback(
         Output("colorscheme", "options"),
         Output("colorscheme", "value"),
         Input("color-schemes-store", "data")
@@ -828,13 +924,31 @@ def network_dash(G,pos_dict, xx, function, color_schemes):
 
 
 
-    app.run_server(jupyter_mode="external",debug=True)        
-    if __name__ == '__main__':
-        app.run_server(jupyter_mode="external",debug=True)        
+    run_options = {"jupyter_mode": "external", "debug": True}
+    run_options.update(run_kwargs)
+    app.run(**run_options)
  
 
+def _cpm_resolution(cpm_resolution, resolution_parameter):
+    # resolution_parameter is the old name of cpm_resolution; it wins when given
+    if resolution_parameter is None:
+        return cpm_resolution
+    warnings.warn("resolution_parameter is deprecated, use cpm_resolution "
+                  "(it only sets the CPM resolution of the Leidein_2 partition)",
+                  DeprecationWarning, stacklevel=3)
+    return resolution_parameter
+
 def get_network_community(G,
-                 community_to_color='leidein', weight='edge_total', resolution_parameter=0.05):
+                 community_to_color='leidein', weight='edge_total', cpm_resolution=0.05,
+                 *, resolution_parameter=None):
+    """
+    Community partitions of G as network_dash colour schemes: {name: [node -> community, community -> colour]}.
+    Louvain and Leidein (Leiden) maximise standard modularity (resolution 1).
+    Leidein_2 is Leiden with the Constant Potts Model, with resolution cpm_resolution:
+    edges must weigh more than it on average for nodes to group, so higher values give more, smaller communities.
+    weight: edge attribute used as weight, or None for unweighted.
+    resolution_parameter: deprecated name of cpm_resolution.
+    """
     import community
     import seaborn as sns
     import leidenalg as la
@@ -844,16 +958,37 @@ def get_network_community(G,
     import numpy as np
     import networkx as nx
 
+    cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
+    G = _simple_graph(G)
+    #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1 (as Louvain does)
+    leiden_weight = weight
+    if weight is not None:
+        n_missing = sum(1 for u, v, d in G.edges(data=True) if weight not in d)
+        if n_missing and n_missing == G.number_of_edges():
+            warnings.warn(f"No edge has the '{weight}' attribute; running community detection unweighted.")
+            weight = leiden_weight = None
+        elif n_missing:
+            warnings.warn(f"{n_missing} of {G.number_of_edges()} edges lack the '{weight}' attribute; using 1 for them.")
+            leiden_weight = [1 if w is None else w for w in ig.Graph.from_networkx(G).es[weight]]
+    #Louvain needs a string key: run it on an attribute-free copy when unweighted
+    if weight is None:
+        louvain_G = nx.create_empty_copy(G)
+        louvain_G.add_edges_from(G.edges())
+        louvain_weight = 'weight'
+    else:
+        louvain_G = G
+        louvain_weight = weight
+
     #Community detection by Louvain
-    partition = community.best_partition(G,weight=weight)
+    partition = community.best_partition(louvain_G,weight=louvain_weight)
     #Df to easily map community to node:
     c = pd.DataFrame.from_dict(partition,orient='index').reset_index().rename(
        {'index': 'cluster', 0: 'Louvain'}, axis=1)
     #Leiden partition:
-    part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=weight)
+    part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=leiden_weight)
     c['leidein'] = pd.Series(part.membership)
-    #Leiden partition playing with resolution parameter:
-    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=weight, resolution_parameter = resolution_parameter)
+    #Leiden partition with CPM, the only one using the resolution:
+    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=leiden_weight, resolution_parameter = cpm_resolution)
     c['leidein_2'] = pd.Series(part2.membership)
 
 
@@ -869,9 +1004,14 @@ def get_network_community(G,
 
 def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
-                             resolution_parameter=0.5,
-                             min_clique_size=10):
-    import net_functions
+                             cpm_resolution=0.5,
+                             min_clique_size=10,
+                             *, resolution_parameter=None):
+    """
+    cpm_resolution: CPM resolution of the Leidein_2 partition (the *_leidein_resolution columns),
+                    passed to get_network_community. resolution_parameter: deprecated name of it.
+    """
+    cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
     cliques = list(nx.find_cliques(G))
     cliques = pd.Series(cliques).rename('cliques').to_frame()
     cliques['clique_size'] = cliques.cliques.apply(lambda x: len(x))
@@ -886,7 +1026,7 @@ def clique_jaccard_community(G,
     cm.rename({"clique_n_x" :'source', 'clique_n_y' :'target'}, axis=1, inplace=True)
     cm = cm[cm.Jaccard_index >= min_jaccard_index]
     G = nx.from_pandas_edgelist(cm, edge_attr='Jaccard_index')
-    z = net_functions.get_network_community(G, weight='Jaccard_index', resolution_parameter=resolution_parameter)
+    z = get_network_community(G, weight='Jaccard_index', cpm_resolution=cpm_resolution)
     cm['source_leidein_resolution'] = cm.source.replace(z['Leidein_2'][0])
     cm['target_leidein_resolution'] = cm.target.replace(z['Leidein_2'][0])
     cm['source_leidein'] = cm.source.replace(z['Leidein'][0])
@@ -926,15 +1066,29 @@ def get_relations(domdf,
                   self_relation = False,
                   to_yaml=False,
                   iteration=1,
-                  filter_rename_yaml  = False):
-    from rotifer.devel.alpha import gian_func as gf
-    """ 
+                  filter_rename_yaml  = False,
+                  *,
+                  gene_pos,
+                  feature_pos):
+    """
     domdf to network, it can create dictionary to create a YAML file or a dataframe.
     dom: list of domains to be used as query in the network, if full all domdf will be used
     min_connections: Minimum number of relationship (Operon or fusion) anode should have to be presente in the network.
     yaml: If decided to transform the network in dictionary to latter be exported as YAML file.
     Iteration: If a list of domains was supplied, the number of iteration in the network to collect other nodes.
+               Must be >= 1. For a network of the seed domains only, filter the result:
+               edges[edges.source.isin(dom) & edges.target.isin(dom)]
+    gene_pos: column ordering genes along the genome (smaller = upstream), e.g. start coordinate.
+    feature_pos: column ordering domains along the protein, N->C (smaller = N-terminal),
+                 e.g. domain start in amino acid coordinates.
+    Dataframe output: one row per (source, target, edge_type); edge_count is the number of
+    blocks with that relation, edge_total the number of blocks with the pair in any type.
+    Row order does not matter. For gian_func.split_domain output, whose domp
+    follows genome order (C->N on - strand), use gene_pos='blockp' and:
+        domdf['dom_aa_order'] = np.where(domdf.strand == -1, -domdf.domp, domdf.domp)
     """
+    from rotifer.devel.alpha import gian_func as gf
+    domdf = domdf.copy()
     domdf.dom = domdf.dom.str.strip()
     if filter_rename_yaml:
         import yaml
@@ -952,37 +1106,49 @@ def get_relations(domdf,
     if dom[0] =='full':
         block_id = domdf.block_id.tolist()
     else:
+        if iteration < 1:
+            raise ValueError(f"iteration must be >= 1, got {iteration}")
+        missing = set(dom) - set(domdf.dom)
+        if missing:
+            warnings.warn(f"seed domains not found in domdf: {sorted(missing)}")
         for x in range(iteration):
             block_id = domdf.query('dom in @dom').block_id.tolist()
             dom = domdf.query('block_id in @block_id').dom.unique().tolist()
-    to_net = domdf.query('block_id in @block_id')[['pid', 'block_id', 'dom', 'strand']]
-    to_net['block_pos'] = 1
-    to_net['block_pos'] = to_net.groupby(['block_id'])['block_pos'].cumsum()
+    to_net = domdf.query('block_id in @block_id')[['pid', 'block_id', 'dom', gene_pos, feature_pos]]
+    to_net.columns = ['pid', 'block_id', 'dom', 'gpos', 'fpos']
     to_net = to_net.merge(to_net, on ='block_id')
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Downstream'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Upstream'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Nterminal'
-    to_net.loc[((to_net.strand_x == 1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Cterminal'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Downstream'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x != to_net.pid_y)), 'edge_type'] = 'Upstream'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x > to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Cterminal'
-    to_net.loc[((to_net.strand_x == -1 ) & (to_net.block_pos_x < to_net.block_pos_y) & (to_net.pid_x == to_net.pid_y)), 'edge_type'] = 'Nterminal'
+    # Edge type from positions, not row order: genes by gene_pos, domains of the same protein by feature_pos
+    same_pid = to_net.pid_x == to_net.pid_y
+    to_net['edge_type'] = np.select(
+            [~same_pid & (to_net.gpos_x < to_net.gpos_y),
+             ~same_pid & (to_net.gpos_x > to_net.gpos_y),
+             same_pid & (to_net.fpos_x < to_net.fpos_y),
+             same_pid & (to_net.fpos_x > to_net.fpos_y)],
+            ['Downstream', 'Upstream', 'Cterminal', 'Nterminal'],
+            default='')
 
-    to_net= to_net.query('edge_type.notna()')
+    to_net= to_net.query('edge_type != ""')
     to_net = to_net[['block_id','dom_x','dom_y','edge_type']]
     to_net.columns = ['block_id','source','target','edge_type']
+    # Count each relation once per block, however many times it occurs there
+    to_net = to_net.drop_duplicates()
+    if not self_relation:
+        to_net = to_net[to_net.source != to_net.target]
     if to_yaml:
-        to_net['edge_count'] = to_net.groupby(['source', 'target']).edge_type.transform('count')
+        to_net['edge_count'] = to_net.groupby(['source', 'target']).block_id.transform('nunique')
         to_net = to_net.query('edge_count >= @ min_connections').drop(['edge_count'], axis=1)
+        if to_net.empty:
+            return {}
         yamldf = pd.pivot_table(to_net,
                             index='source',
                             columns='edge_type',
-                            values = ['target', 'block_id'],
+                            values = ['target'],
                             aggfunc={
-                                'target':lambda x : gf.count_series(x, as_list=True),
-                                'block_id': 'nunique'}
+                                'target':lambda x : gf.count_series(x, as_list=True)}
                             )
-        yamldf = yamldf.loc[:,'block_id'].sum(axis=1).rename('total').to_frame().join(yamldf.loc[:,'target']).sort_values('total')
+        # Edge types absent from the filtered relations get no pivot column
+        yamldf = yamldf.loc[:,'target'].reindex(columns=['Cterminal', 'Downstream', 'Nterminal', 'Upstream'], fill_value='')
+        yamldf = to_net.groupby('source').block_id.nunique().rename('total').to_frame().join(yamldf).sort_values('total')
         yamldf.fillna('', inplace=True)
         yamldf.Nterminal = yamldf.Nterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
         yamldf.Cterminal = yamldf.Cterminal.apply(lambda x: x.split(' ') if isinstance(x, str) else x)
@@ -998,14 +1164,10 @@ def get_relations(domdf,
 
         return(yamldf.to_dict(orient='index'))
     else:
-        to_net['edge_total'] = to_net.groupby(['source', 'target']).edge_type.transform('count')
+        to_net['edge_total'] = to_net.groupby(['source', 'target']).block_id.transform('nunique')
         to_net = to_net.groupby(['source', 'target', 'edge_type']).agg(
                 {'block_id' :'count',
                  'edge_total' : 'first'}).reset_index().sort_values('block_id')
-        to_net = to_net.rename({'block_id':'edge_count'},axis=1)        
-        to_net = to_net.query('edge_total >= @min_connections').drop(['edge_total'], axis=1)
-        if self_relation:
-            pass
-        else:
-            to_net = to_net[to_net.source != to_net.target]
+        to_net = to_net.rename({'block_id':'edge_count'},axis=1)
+        to_net = to_net.query('edge_total >= @min_connections')
         return(to_net)
