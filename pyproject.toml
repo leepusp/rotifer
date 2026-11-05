@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rotifer"
+version = "0.1.0"
+description = "High-level libraries and command line tools for comparative genomics and computational analysis of biological sequences"
+readme = "README.md"
+authors = [{ name = "Robson F. de Souza and contributors" }]
+license = "BSD-3-Clause"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+# What `import rotifer` and rotifer.core need. Everything else is an extra,
+# grouped by the subpackages that import it. rotifer.devel is not covered.
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyyaml",     # rotifer.core.functions.loadConfig, at import
+    "tqdm",       # rotifer.core.logger, at import
+    "termcolor",  # rotifer.core.cli
+]
+
+[project.optional-dependencies]
+# rotifer.seq, rotifer.genome
+seq = [
+    "biopython",
+    "bcbio-gff",   # rotifer.genome.io (GFF)
+    "matplotlib",  # rotifer.seq.alignment, at import
+    "seaborn",     # rotifer.seq.alignment, at import
+]
+# rotifer.db, rotifer.alchemy, rotifer.tools
+db = [
+    "biopython",           # rotifer.db.ncbi, rotifer.db.local, rotifer.db.uniprot.webapi
+    "requests",            # rotifer.db.uniprot.webapi
+    "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas.yaml_blocks
+    "clickhouse-connect",  # rotifer.db.sql.clickhouse
+    "clickhouse-driver",   # rotifer.tools.search
+    "ete3",                # rotifer.db.local.ete3 (NCBI taxonomy)
+    "sqlalchemy<2",        # rotifer.alchemy (1.x declarative API)
+    "psycopg2-binary",     # rotifer.db.neighbors
+]
+# Plots: rotifer.cluster, rotifer.seq.alignment
+viz = [
+    "matplotlib",
+    "seaborn",
+    "scipy",  # rotifer.cluster.cluster
+]
+# Neighborhood graphs: rotifer.genome.data (NeighborhoodDF.jaccard)
+network = [
+    "networkx",
+    "python-louvain",
+]
+# Command line tools in bin/
+cli = [
+    "argcomplete",
+    "prettytable",
+]
+all = ["rotifer[seq,db,viz,network,cli]"]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/leepusp/rotifer"
+Documentation = "https://leepusp.github.io/rotifer/"
+Source = "https://github.com/leepusp/rotifer"
+Issues = "https://github.com/leepusp/rotifer/issues"
+
+[tool.setuptools.packages.find]
+where = ["lib"]
+
+# rotifer/_data is added by MANIFEST.in (include-package-data defaults to true)
