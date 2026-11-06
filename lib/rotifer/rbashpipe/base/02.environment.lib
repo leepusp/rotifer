@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# Print pipeline variables
-function rbashpipe_print_environment() {
-  for f in `compgen -A variable | grep -i -E "rbashpipe|${RBASHPIPE_PIPELINE_NAME}" | grep -v -w -F RBASHPIPE_HELP_PAGE` "$@"
-  do
-      echo -e "${f}\t`get_value_by_name $f`"
-  done
-}

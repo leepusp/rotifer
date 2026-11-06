@@ -1,0 +1,1 @@
+domain2architecture inputs/hmmscan.tsv

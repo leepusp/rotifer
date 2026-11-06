@@ -4,7 +4,7 @@
 #  - http://www.yaml.org/
 #  - http://en.wikipedia.org/wiki/YAML
 #
-# Supported values: strings and Perl regular expressions 
+# Supported values: strings and (Python) regular expressions
 #
 # 
 ---

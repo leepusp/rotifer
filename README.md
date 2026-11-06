@@ -19,13 +19,9 @@ Installing ROTIFER package with conda enviroments:
 conda create --name rotifer biopython pandas numpy termcolor PyYAML tqdm \
   ipython ascii_graph matplotlib ete3 prettytable seaborn pygraphviz \
   bcbio-gff dash-bio gspread leidenalg igraph networkx oauth2client sqlalchemy \
-  argcomplete perl-bioperl perl-moose perl-ipc-system-simple \
-  perl-config-any perl-appconfig perl-carp-clan \
-  perl-file-which perl-module-list perl-statistics-descriptive perl-yaml \
-  hhsuite hmmer mmseqs2 foldseek mafft famsa blast parallel datamash
+  argcomplete hhsuite hmmer mmseqs2 foldseek mafft famsa blast parallel datamash
 conda activate rotifer
 pip install dash-cytoscape
-cpan i Module::Find
 ```
 
 3. Activating the rotifer enviroment:

@@ -1,1 +1,0 @@
-dom_count.sh

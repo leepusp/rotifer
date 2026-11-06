@@ -634,7 +634,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 try:
                     select &= blks.eval(code)
                 except:
-                    logger.error(f'Rule {code} failed', file=sys.stderr)
+                    logger.error(f'Rule {code} failed')
             elif isinstance(code,pd.Series):
                 select &= code
 
@@ -759,12 +759,12 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
         # If type is to be ignored, all analysis should focus on internal_ids
         elif (fttype == 'any'):
-            logger.error(f'Unsuported fttype {fttype}', file=sys.stderr)
+            logger.error(f'Unsuported fttype {fttype}')
             return pd.DataFrame()
 
         # Unkown fttype
         else:
-            logger.error(f'Unknown fttype {fttype}', file=sys.stderr)
+            logger.error(f'Unknown fttype {fttype}')
             return pd.DataFrame()
 
         # Return a summary of all regions
@@ -828,7 +828,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 try:
                     select &= df.eval(code)
                 except:
-                    logger.error(f'Rule {code} failed', file=sys.stderr)
+                    logger.error(f'Rule {code} failed')
             elif isinstance(code,pd.Series):
                 select &= code
 

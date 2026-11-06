@@ -5,7 +5,7 @@
 #  - http://en.wikipedia.org/wiki/YAML
 #
 # Supported keys: include and exclude
-# Supported values: strings and Perl regular expressions 
+# Supported values: strings and (Python) regular expressions
 #
 # Exclude is processed before include therefore 
 # excluded patterns take precedence over included ones
@@ -14,6 +14,6 @@
 
 # Things I don't want
 exclude:
- - !!perl/regexp .*\/all\..*|^all\..*
+ - '.*/all\..*|^all\..*'
  - align
  - trees

@@ -1,9 +1,0 @@
-#!/bin/bash
-
-#========================================================================
-# Print environment
-#========================================================================
-if [ -z ${RBASHPIPE_GI2CONTEXT_NAME} ]; then gi2context_set_environment "$1"; fi
-export COMMAND_LINE_ARGV="$*"
-rbashpipe_print_environment ANNOTATION RUNITERATIVE NEIGHBORS PROFILE_PATH QSUB RUNPROFILES PATH OPTIND COMMAND_LINE_ARGV | padtable
-unset COMMAND_LINE_ARGV

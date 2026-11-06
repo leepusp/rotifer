@@ -1,0 +1,1 @@
+architecture2table inputs/cdd_nested.arch
