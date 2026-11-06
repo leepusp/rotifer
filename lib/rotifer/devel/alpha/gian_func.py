@@ -712,10 +712,9 @@ def psiblast(acc,
                       stdout=PIPE,
                       shell=True
                       ).communicate()
-            Popen(f'/netmnt/vast01/cbb01/proteinworld/tools/bin/blast2table {tmpdirname}/out > {tmpdirname}/out.tsv',
-                  stdout=PIPE,
-                  shell=True).communicate()
-            t = pd.read_csv(f'{tmpdirname}/out.tsv', sep="\t", names=cols)
+            from rotifer.io.blast import read_blast
+            t = read_blast(f'{tmpdirname}/out')
+            t.columns = cols
             with open(f'{tmpdirname}/out') as f:
                     blast_r = f.read()
         
@@ -885,10 +884,9 @@ def split_by_model(seqobj, model, evalue=1e-6):
     from rotifer.devel.beta.sequence import sequence as sequence
     import os
     import pandas as pd
-    import shutil
     import rotifer
-    
-    hmmer2table_from_rotifer = shutil.which('hmmer2table') or f'{rotifer.config["base"]}/bin/hmmer2table'
+    from rotifer.io.hmmer import read_hmmer
+    from rotifer.interval.architecture import architecture2table, domain2architecture
 
     nseqobj =seqobj.copy()
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -905,10 +903,7 @@ def split_by_model(seqobj, model, evalue=1e-6):
         Popen(f'hmmsearch -E {evalue} {model} {tmpdirname}/seqfile > {tmpdirname}/hhsearch_r',
               stdout=PIPE,
               shell=True).communicate()
-        Popen(f'{hmmer2table_from_rotifer} {tmpdirname}/hhsearch_r |domain2architecture |architecture2table > {tmpdirname}/hhsearch_table',
-              stdout=PIPE,
-              shell=True).communicate()
-        t = pd.read_csv(f'{tmpdirname}/hhsearch_table', sep="\t")
+        t = architecture2table(domain2architecture(read_hmmer(f'{tmpdirname}/hhsearch_r')))
 
     nseqobj.df = nseqobj.df.merge(t.rename({'ID':'id'},axis=1), how='left')
     nseqobj.df.end = nseqobj.df.end.fillna(nseqobj.df.length)
@@ -3765,11 +3760,10 @@ def hmm_models_vs_sequence_db(models_dic_db, seqdb):
     import os
     import subprocess
     import rotifer
-    hmmer2table_from_rotifer  = f"{rotifer.config['base']}/bin/hmmer2table"
+    from rotifer.io.hmmer import read_hmmer
     with tempfile.TemporaryDirectory() as temp_dir:
         sequence_db = os.path.join(temp_dir, 'sequenceDB.fa')
         output_raw = os.path.join(temp_dir, 'output.txt')
-        tbl_output = os.path.join(temp_dir, 'tbl.tsv')
 
         seqdb.to_file(sequence_db)
         for x in models_dic_db.keys():
@@ -3778,13 +3772,9 @@ def hmm_models_vs_sequence_db(models_dic_db, seqdb):
             result = subprocess.run(['hmmsearch', hmm_file,  sequence_db], capture_output=True, text=True)
             with open(output_raw, 'a') as file:
                 file.write(result.stdout)
-        tbl_result = subprocess.run([hmmer2table_from_rotifer, '-y', output_raw], capture_output=True, text=True)        
-        with open(tbl_output, 'a') as file:
-            file.write(tbl_result.stdout)
-            
         with open(output_raw, 'r') as file:
             output = file.read()
-        tbl_o = pd.read_csv(tbl_output, sep="\t")    
+        tbl_o = read_hmmer(output_raw)
             
     return [output, tbl_o]            
 

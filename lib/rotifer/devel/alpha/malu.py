@@ -122,10 +122,8 @@ def extract_by_hmm(seqobj1, seqobj2, suffixes=('','_YyYyYy')):
     import sys
     import pandas as pd
     import rotifer
-    
-    hmmer2table = f'{rotifer.config["base"]}/bin/hmmer2table'
-    domain2architecture = f'{rotifer.config["base"]}/bin/domain2architecture'
-    architecture2table = f'{rotifer.config["base"]}/bin/architecture2table'
+    from rotifer.io.hmmer import read_hmmer
+    from rotifer.interval.architecture import architecture2table, domain2architecture
 
     sharedColumns = set()
     nseqobj = seqobj1.copy()
@@ -143,10 +141,7 @@ def extract_by_hmm(seqobj1, seqobj2, suffixes=('','_YyYyYy')):
         Popen(f'hmmsearch {model} {tmpdirname}/seqfile > {tmpdirname}/hhsearch_r',
               stdout=PIPE,
               shell=True).communicate()
-        exe  = f'{hmmer2table} {tmpdirname}/hhsearch_r'
-        exe += f' | {domain2architecture} | {architecture2table} > {tmpdirname}/hhsearch_table'
-        Popen(exe, stdout=PIPE, shell=True).communicate()
-        t = pd.read_csv(f'{tmpdirname}/hhsearch_table', sep="\t")
+        t = architecture2table(domain2architecture(read_hmmer(f'{tmpdirname}/hhsearch_r')))
         t.rename({'ID':'id'}, axis=1, inplace=True)
         sharedColumns = set(t.columns).intersection(set(seqobj1.df.columns))
 
