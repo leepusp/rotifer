@@ -1,0 +1,21 @@
+#!/bin/sh
+# Placeholder for a ROTIFER command that was removed with the Perl code.
+#
+# The removed commands in bin/ are symbolic links to this script, so
+# scripts and users calling them get an explanation instead of
+# "command not found". These links can be deleted in a later release.
+
+name=$(basename "$0")
+case "$name" in
+    tjoin)                hint="use pandas.merge, or join(1)" ;;
+    tgroup|tungroup|tpivot|ttranspose|tupdate)
+                          hint="use pandas (DataFrame.groupby, pivot, transpose)" ;;
+    tfilter)              hint="use pandas (DataFrame.query), or awk" ;;
+    padtable|unpadtable)  hint="use column -t" ;;
+    accession2gi|gi2accession|taxid2taxonomy|taxutil|seq2taxonomy|genbank2table)
+                          hint="use rotifer.db.ncbi, rotifer.taxonomy or rotifer.genome.io" ;;
+    runprofiles)          hint="use bin/scanseqs, or HMMER/BLAST directly" ;;
+    *)                    hint="it has no replacement" ;;
+esac
+echo "$name was removed from ROTIFER together with its Perl code: $hint." >&2
+exit 1
