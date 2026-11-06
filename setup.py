@@ -18,6 +18,7 @@ setup(
     },
     packages=find_packages("lib"),  # Finds packages in the "lib" folder
     package_dir={"": "lib"},  # Root directory for the packages
+    include_package_data=True,  # rotifer/_data: see MANIFEST.in
     python_requires=">=3.6",  # Specify minimum Python version
     install_requires=[
         "numpy",
@@ -25,6 +26,7 @@ setup(
         "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
         "tqdm",                # progress bars in rotifer.db
         "clickhouse-connect",  # rotifer.db.clickhouse
+        "pyyaml",              # rotifer.core.functions.loadConfig
     ],
     license="BSD-3-Clause",
     classifiers=[
