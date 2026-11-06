@@ -14,7 +14,7 @@
 #   name, method, server, path at source, post-processor
 #
 #   <name>    is the identifier of a target and the basename for its configuration file(s)
-#   <method>  is the name of a Rotifer::Tools::Rrsw module that implements one or more download methods
+#   <method>  is the download method: ftp or rsync (see rotifer.tools.rrsw)
 #   <server>  is the rsync server name, i.e. rsync://<server>
 #   <path>    is the path in the server, i.e. rsync://<server>/<path>
 #   <process> plugin to run after syncing
@@ -67,10 +67,6 @@
 # PDB
 # [ NAME , METHOD , SERVER                , PATH                            , PROCESS ]
 - [ pdb  , rsync  , "ftp.wwpdb.org:33444" , ftp/data/structures/divided/pdb ,         ]
-
-# KEGG
-# [ NAME , METHOD , SERVER                , PATH , PROCESS      ]
-- [ kegg , ftp    , ftp.bioinformatics.jp , kegg , unpack_kegg  ]
 
 # EggNOG
 # [ NAME , METHOD , SERVER                , PATH       , PROCESS ]
