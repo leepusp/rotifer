@@ -17,7 +17,7 @@ body:
     attributes:
       label: Steps / command to reproduce
       description: |
-        The exact command line or Python/Perl snippet that triggers the bug, plus any steps to get there.
+        The exact command line or Python snippet that triggers the bug, plus any steps to get there.
         If possible, attach a **minimal input data file** (a few sequences/records is enough) that reproduces the problem — you can drag-and-drop it into this field.
         Please paste code and commands between triple backticks (```) so they stay formatted.
       placeholder: |
@@ -101,7 +101,7 @@ body:
     id: python-version
     attributes:
       label: Python version
-      description: Output of `python --version`. (If the bug is in the Perl code, give your `perl --version` here instead and note that below.)
+      description: Output of `python --version`.
       placeholder: "e.g. Python 3.11.8"
     validations:
       required: true
@@ -125,7 +125,6 @@ body:
       description: If you're not sure, choose "Not sure" and describe what you were doing below.
       options:
         - Python library (lib/rotifer)
-        - Perl library (perl/lib)
         - Command-line tool (bin/ or sbin/)
         - Installation / conda environment
         - Documentation

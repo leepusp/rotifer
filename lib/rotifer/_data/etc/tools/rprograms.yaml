@@ -3,113 +3,43 @@ tags:
     - neighborhood
     - fetch
     - search
-  accession2gi:
-    - search
-    - fetch
   aln2logo:
     - consensus
     - image
-  aln2seqrows:
-    - sequence
-    - alignment
-
   aln_clean:
     - sequence
     - alignemnt
-  alntool:
-    - alignment
-  architecture2svg:
-    - domain
-    - image
   architecture2table:
     - miscellaneous
   blast2table:
     - miscellaneous
-  blastclust2table:
-    - miscellaneous
-  blocks2table:
-    - miscellaneous
-  boundtable2table:
-    - miscellaneous
-  cleanblastclust2table:
-    - miscellaneous
   conseq:
-    - miscellaneous
-  context2network:
-    - miscellaneous
-  dali:
-    - miscellaneous
-  dali2seqrows:
     - miscellaneous
   domain2architecture:
     - miscellaneous
-  fasta2description:
-    - miscellaneous
-  fasta2id:
-    - miscellaneous
   fasta2slice:
     - miscellaneous
-  ft2seq:
-    - miscellaneous
-  genbank2table:
-    - miscellaneous
-  getipgs:
-    - miscellaneous
-  gi2accession:
-    - miscellaneous
-  gi2pp:
-    - miscellaneous
   gunionfind:
-    - miscellaneous
-  histogram:
     - miscellaneous
   hmmer2table:
     - miscellaneous
   locus2fasta:
     - miscellaneous
-  mblastclust:
-    - miscellaneous
-  neighborhood_explorer:
-    - miscellaneous
-  nt2aa:
-    - miscellaneous
-  ontology2hierarchy:
-    - miscellaneous
-  operon2arch:
-    - miscellaneous
-  operon2table:
-    - miscellaneous
-  operon_uniquize:
-    - miscellaneous
-  padtable:
-    - miscellaneous
   paperblast:
     - miscellaneous
-  pdb2seq:
-    - miscellaneous
   pfetch:
-    - miscellaneous
-  phmmscan:
     - miscellaneous
   phobius2table:
     - miscellaneous
   prepare_data_to_ccmpred:
     - miscellaneous
-  protein2dna:
-    - miscellaneous
   pymol_rmsd_comparer:
     - miscellaneous
   raln2color:
     - miscellaneous
-  rbashpipe:
-    - miscellaneous
-  rcomplement:
-    - miscellaneous
   rconfig:
     - miscellaneous
   rconsensus:
-    - miscellaneous
-  rconvertseq:
     - miscellaneous
   rdocmodel:
     - miscellaneous
@@ -129,47 +59,9 @@ tags:
     - miscellaneous
   rrsw:
     - miscellaneous
-  rsearch:
-    - miscellaneous
-  runionFind:
-    - miscellaneous
-  runprofiles:
-    - miscellaneous
-  seq2taxonomy:
-    - miscellaneous
-  seqsplit:
-    - miscellaneous
-  seqstats:
-    - miscellaneous
   sequence_parser:
-    - miscellaneous
-  table2blocks:
-    - miscellaneous
-  taxid2taxonomy:
-    - miscellaneous
-  taxutil:
-    - miscellaneous
-  tfilter:
-    - miscellaneous
-  tgroup:
-    - miscellaneous
-  tjoin:
-    - miscellaneous
-  tpivot:
-    - miscellaneous
-  tree2distance:
-    - miscellaneous
-  treeutil:
     - miscellaneous
   trimal2msa:
     - miscellaneous
-  ttranspose:
-    - miscellaneous
-  tungroup:
-    - miscellaneous
-  tupdate:
-    - miscellaneous
   uniprot2gi:
-    - miscellaneous
-  unpadtable:
     - miscellaneous
