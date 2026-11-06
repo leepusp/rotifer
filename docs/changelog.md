@@ -19,7 +19,7 @@ version to fold or unfold its notes; the newest is unfolded.
   were rewritten in Python, under the same names and options and with
   the same output; the rest were removed. Every rewritten tool is
   both a library function and a shell command, described in
-  {doc}`/cli/index`.
+  {doc}`/cli/index` ({pr}`138`).
 - **ROTIFER works outside a git checkout.** Installed copies (pip,
   conda, containers, shared servers) now find their configuration and
   data files ({pr}`130`).
@@ -32,23 +32,24 @@ version to fold or unfold its notes; the newest is unfolded.
 
 - The Perl library (`perl/`, the `Rotifer::` modules) and the
   `PERL5LIB` setting of the Lmod module are gone. Perl scripts outside
-  this repository that use `Rotifer::` modules stop working.
+  this repository that use `Rotifer::` modules stop working ({pr}`138`).
 - 51 command line tools were removed (listed under **Removed**).
-  Calling one prints what to use instead and exits with status 1.
+  Calling one prints what to use instead and exits with status 1
+  ({pr}`138`).
 - `gi2context`, `runprofiles` and `rbashpipe` were removed without a
   replacement. They expected GI numbers and an SGE cluster; use
-  `bin/scanseqs`, or HMMER and BLAST directly.
+  `bin/scanseqs`, or HMMER and BLAST directly ({pr}`138`).
 - `acc2pfam`, `acc2profiledb`, `dom_count`, `dom_per_prot`,
   `distinct_dom_per_prot`, `tdesc` and `aln_order_by_tree` are now
   commands instead of shell functions defined by the Lmod module.
   Shell startup files that sourced the copies in `etc/profile.d` must
-  stop doing so.
+  stop doing so ({pr}`138`).
 - `dom_count`, `dom_per_prot` and `distinct_dom_per_prot` print a
   real header line. Scripts that skipped the old, malformed first line
-  should check it.
+  should check it ({pr}`138`).
 - `rrsw` messages are timestamped log lines on standard error.
   Scripts that parse the output of `rrsw` (such as `update_uniprot`
-  logs) should be checked.
+  logs) should be checked ({pr}`138`).
 - `rotifer.core.loadpath` was removed: use `shutil.which` to find
   executables, or `rotifer.config['base']` for the installation
   directory ({pr}`131`).
@@ -65,24 +66,26 @@ version to fold or unfold its notes; the newest is unfolded.
   {py:mod}`rotifer.io.hmmer`, {py:mod}`rotifer.io.blast`,
   {py:mod}`rotifer.io.phobius`, {py:mod}`rotifer.io.dalidat`,
   {py:mod}`rotifer.interval.architecture` and
-  {py:mod}`rotifer.tools.rrsw`.
+  {py:mod}`rotifer.tools.rrsw` ({pr}`138`).
 - {py:mod}`rotifer.tools.domains`, {py:mod}`rotifer.tools.tables` and
   {py:mod}`rotifer.tools.alignments`: the former Lmod shell functions
-  as library functions, with commands of the same names in `bin/`.
+  as library functions, with commands of the same names in `bin/`
+  ({pr}`138`).
 - {py:mod}`rotifer.cli`, the command layer: every command in `bin/`
   is a link to `bin/_rotifer_cli`, which runs
   `rotifer.cli.<command>`. Commands also run as
-  `python -m rotifer.cli.<command>`.
+  `python -m rotifer.cli.<command>` ({pr}`138`).
 - `domain2architecture()` accepts DataFrames, so
   `read_hmmer()`, `read_phobius()` and `read_blast()` chain into it
   without files or subprocesses;
   {py:func}`rotifer.interval.architecture.select_regions` returns the
-  selected regions with their coordinates.
+  selected regions with their coordinates ({pr}`138`).
 - {py:func}`rotifer.io.open_input` and
   {py:func}`rotifer.io.each_source`: read files, standard input, gzip
-  and bzip2 the same way in every parser.
+  and bzip2 the same way in every parser ({pr}`138`).
 - Recorded output of the Perl tools on fixed inputs
-  (`test/data/golden`), run as tests against the Python commands.
+  (`test/data/golden`), run as tests against the Python commands
+  ({pr}`138`).
 - `ROTIFER_BASE`, `ROTIFER_USER` and `ROTIFER_CACHE` environment
   variables to choose the installation, user and cache directories
   ({pr}`130`).
@@ -90,28 +93,29 @@ version to fold or unfold its notes; the newest is unfolded.
   (`hhsuite2pandas`, `parse_result`, `read_result`,
   `HHRFormatError`) lives in {py:mod}`rotifer.io.hhsuite`
   ({pr}`131`).
-- This changelog and the {doc}`/cli/index` page.
+- This changelog and the {doc}`/cli/index` page ({pr}`138`).
 
 ```{rubric} Changed
 ```
 
 - `hmmer2table` and `blast2table` are faster: about 0.1 s per call,
   against 0.2 s and 0.5 s for the Perl versions; a 2 MB RPS-BLAST
-  report takes 0.17 s instead of 2.9 s.
+  report takes 0.17 s instead of 2.9 s ({pr}`138`).
 - `acc2pfam` and `acc2profiledb` fetch sequences with
   `rotifer.db.proteins` (the local sequence database first, then
-  NCBI) instead of EDirect's `efetch`; `--fasta` skips fetching.
+  NCBI) instead of EDirect's `efetch`; `--fasta` skips fetching
+  ({pr}`138`).
 - `hmmer2table` reads standard input only when no file is given (the
-  Perl version also read it whenever it was not a terminal).
+  Perl version also read it whenever it was not a terminal) ({pr}`138`).
 - The Lmod module (`rotifer/0.3`) no longer defines shell functions or
-  sets `PERL5LIB`, and prints a short notice when loaded.
+  sets `PERL5LIB`, and prints a short notice when loaded ({pr}`138`).
 - The `rrsw` configuration patterns are Python regular expressions,
-  and `eggNOG.yml` no longer uses a Perl-only YAML tag.
+  and `eggNOG.yml` no longer uses a Perl-only YAML tag ({pr}`138`).
 - Functions in `rotifer.devel` that ran the Perl tools in a
   subprocess call the library instead (`gian_func.split_by_model`,
   `gian_func.hmm_models_vs_sequence_db`, `gian_func.psiblast`,
   `malu.extract_by_hmm`, and `psiblast` in `beta.blast` and
-  `alpha.rodolfo`).
+  `alpha.rodolfo`) ({pr}`138`).
 - Configuration and data files ship as package data under
   `lib/rotifer/_data`; `etc/rotifer` and `share/rotifer` are links to
   it ({pr}`130`).
@@ -125,13 +129,15 @@ version to fold or unfold its notes; the newest is unfolded.
 ```
 
 - The names of the removed tools in `bin/` (links to
-  `bin/_rotifer_removed`) will be deleted in a later release.
+  `bin/_rotifer_removed`) will be deleted in a later release
+  ({pr}`138`).
 
 ```{rubric} Removed
 ```
 
 - The Perl library (`perl/`, linked as `lib/rotifer/site_perl`) and
-  the Perl dependencies in `README.md` and `requirements.txt`.
+  the Perl dependencies in `README.md` and `requirements.txt`
+  ({pr}`138`).
 - Tools without a remaining use, now links to `bin/_rotifer_removed`:
   `accession2gi`, `aln2seqrows`, `alntool`, `architecture2svg`,
   `blastclust2table`, `blocks2table`, `boundtable2table`,
@@ -145,21 +151,22 @@ version to fold or unfold its notes; the newest is unfolded.
   `runprofiles`, `seq2taxonomy`, `seqsplit`, `seqstats`,
   `table2blocks`, `taxid2taxonomy`, `taxutil`, `tfilter`, `tgroup`,
   `tjoin`, `tpivot`, `tree2distance`, `treeutil`, `ttranspose`,
-  `tungroup`, `tupdate`, `txt2tsv` and `unpadtable`.
+  `tungroup`, `tupdate`, `txt2tsv` and `unpadtable` ({pr}`138`).
 - The `gi2context` pipeline, `bin/rbashpipe` and `runprofiles`, with
-  their configuration files.
+  their configuration files ({pr}`138`).
 - Scripts that only wrapped Perl tools: `bin/rsearch`,
   `bin/rsearch2`, `bin/rsearch_old`, `bin/phmmscan`, `bin/rgcontext`
   (superseded by `bin/scanseqs`), `rotifer.tools.search`, and an old
-  copy of `scanseqs` in `share/scripts`.
-- The shell function copies in `etc/profile.d`.
+  copy of `scanseqs` in `share/scripts` ({pr}`138`).
+- The shell function copies in `etc/profile.d` ({pr}`138`).
 - `rrsw`: the `kegg` target (KEGG closed its FTP site) and the
   `unpack_kegg`, `unpack_blast`, `dump_blast` and `index_fasta`
-  processors, which no target used; callbacks written in Perl.
+  processors, which no target used; callbacks written in Perl
+  ({pr}`138`).
 - Options that nothing used: Perl code in `hmmer2table -c` and in
   `blast2table -c` and `-r`; `blast2table --mode m8` and
   `--mode orthomcl`, input formats other than BLAST+ text, `-i`,
-  `--type` and `-sq`.
+  `--type` and `-sq` ({pr}`138`).
 - `rotifer.core.loadpath` ({pr}`131`).
 
 ```{rubric} Fixed
@@ -167,9 +174,9 @@ version to fold or unfold its notes; the newest is unfolded.
 
 - `process_blast_dbs.sh` replaces dashes in `db/FASTA` sequences by
   `X`: its Perl one-liner never ran, because it lost its quotes when
-  evaluated.
+  evaluated ({pr}`138`).
 - `gian_func.psiblast` ran `blast2table` from a hard-coded path that
-  does not exist on the cluster.
+  does not exist on the cluster ({pr}`138`).
 - Configuration and data lookups came back empty in installed copies,
   containers and shared servers ({issue}`99`, {issue}`101`,
   {issue}`119`, {issue}`120`, {pr}`130`).
