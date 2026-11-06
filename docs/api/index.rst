@@ -72,11 +72,32 @@ Sequence and interval utilities
 .. autosummary::
    :toctree: generated
 
+   rotifer.interval.architecture
    rotifer.interval.utils
+   rotifer.io
    rotifer.io.base
+   rotifer.io.blast
    rotifer.io.dali
+   rotifer.io.dalidat
    rotifer.io.fileinput
    rotifer.io.hhsuite
+   rotifer.io.hmmer
+   rotifer.io.phobius
+
+Command line tools
+------------------
+
+Each command in ``bin/`` is a thin wrapper (``rotifer.cli.<command>``)
+around a library function documented here or above.
+
+.. autosummary::
+   :toctree: generated
+
+   rotifer.cli
+   rotifer.tools.alignments
+   rotifer.tools.domains
+   rotifer.tools.rrsw
+   rotifer.tools.tables
 
 Data manipulation and taxonomy
 ------------------------------
