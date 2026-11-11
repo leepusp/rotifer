@@ -56,7 +56,7 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
         print(f'Empty input')
         seqobj = rdbs.sequence()
 
-    if seqobj == None:
+    if seqobj is None:
         seqobj = rdbs.sequence(df.sequence.drop_duplicates().to_list(), local_database_path=local_database_path)
 
     seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
