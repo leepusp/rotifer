@@ -172,8 +172,10 @@ def operon_fig(df, domain_dict=False):
             domdf.dom = np.where(domdf.pid.isin(only_tm_sig), fill, domdf.dom)
             domdf = domdf.query('dom no in ["TM", "SIG"]')
 
-        domdf = domdf.groupby('pid').apply(
-                reverse_domains
+        # Iterate instead of groupby().apply(): pandas 3 drops the 'pid'
+        # grouping column from the frames apply() returns.
+        domdf = pd.concat(
+                [reverse_domains(g) for _, g in domdf.groupby('pid')]
                 ).reset_index(
                         drop=True
                         ).sort_values([
