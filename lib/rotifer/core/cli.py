@@ -8,8 +8,6 @@ from collections import defaultdict
 import os
 import tempfile
 
-# from rotifer.core.loadpath import path as rpath
-
 from . import functions as rcf
 from termcolor import colored
 from collections import defaultdict

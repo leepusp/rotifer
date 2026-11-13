@@ -16,7 +16,8 @@ import logging as logging
 from rotifer.core import logger as rcl
 
 def _setup_config(logger):
-    from rotifer.core import config as CoreConfig 
+    from rotifer.core import config as CoreConfig
+    from rotifer.core import _writable
     from rotifer.core.functions import loadConfig
 
     # Reset configuration using environment variables
@@ -24,15 +25,19 @@ def _setup_config(logger):
         'data': os.environ['ROTIFER_DATA'] if 'ROTIFER_DATA' in os.environ else "/databases",
         **CoreConfig
     })
+    if os.environ.get('ROTIFER_CACHE'):
+        config['cache'] = os.path.expanduser(os.environ['ROTIFER_CACHE'])
     if 'cache' not in config:
         config['cache'] = '/tmp'
     if not os.path.exists(config['cache']):
         config['cache'] = os.path.join(os.path.expanduser("~"),".cache","rotifer")
+    if not _writable(config['cache']):
+        config['cache'] = os.path.join(config['user'],"cache")
 
     # Create directiories, if needed
     auto = [ 'cache', 'user', 'userConfig' ]
     for target in sorted([ config[x] for x in auto ]):
-        if not os.path.exists(target):
+        if not os.path.exists(target) and _writable(target):
             logger.warning(f'Creating directory {target} ...')
             try:
                 os.makedirs(target)

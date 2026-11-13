@@ -1,4 +1,4 @@
-#!/usr/bin/env /netmnt/vast01/cbb01/proteinworld/tools/conda/envs/rotifer2/bin/python
+#!/usr/bin/env python3
 from rotifer.devel.alpha import aln2pdf
 import tempfile
 import rotifer.core.cli as corecli
