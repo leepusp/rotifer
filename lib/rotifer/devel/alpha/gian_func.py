@@ -953,7 +953,9 @@ def trim_unk_neigh(df, ann='profiledb'):
         imin = idf.query(f'{ann} != "?"').index[0]
         imax = idf.query(f'{ann} != "?"').index[-1]
         return idf.loc[imin:imax]
-    int_df = df.groupby(['block_id']).apply(xxx).reset_index(drop=True)
+    # Iterate instead of groupby().apply(): pandas 3 drops the 'block_id'
+    # grouping column from the frames apply() returns.
+    int_df = pd.concat([xxx(g) for _, g in df.groupby(['block_id'])]).reset_index(drop=True)
 
 
     return int_df

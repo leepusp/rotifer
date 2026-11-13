@@ -18,10 +18,10 @@ setup(
     },
     packages=find_packages("lib"),  # Finds packages in the "lib" folder
     package_dir={"": "lib"},  # Root directory for the packages
-    python_requires=">=3.6",  # Specify minimum Python version
+    python_requires=">=3.11",  # pandas 3 needs Python >= 3.11
     install_requires=[
         "numpy",
-        "pandas",
+        "pandas>=3",
         "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
         "tqdm",                # progress bars in rotifer.db
         "clickhouse-connect",  # rotifer.db.clickhouse
