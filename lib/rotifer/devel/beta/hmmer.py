@@ -213,9 +213,9 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     This function accepts an sequence object or a FASTA file path, and 
     returns a pandas DataFrame summarizing domain hits and alignment attributes.
 
-    Gaps are removed from a sequence object before the search, so an
-    alignment gives the same results as the unaligned sequences, and
-    coordinates refer to the ungapped sequences.
+    Gaps are removed from the input before the search, so an alignment (a
+    sequence object or an aligned FASTA file) gives the same results as the
+    unaligned sequences, and coordinates refer to the ungapped sequences.
     ----------
     Parameters
     ----------
@@ -359,18 +359,17 @@ def _load_models(models_path):
 
 def _load_sequences(sequences, file):
     """
-    Load and digitalize protein sequences.
+    Load and digitalize protein sequences, without gaps.
 
-    Gaps are removed from the sequences of a sequence object, so an
-    alignment is searched like the unaligned sequences. A warning is logged
-    when any were found.
+    Gaps are removed from every sequence, so an alignment is searched like
+    the unaligned sequences. A warning is logged when any were found.
 
     Parameters
     ----------
     sequences : sequence object or list
         Sequence container used in the rotifer ecosystem.
     file : str or None
-        Path to a FASTA file.
+        Path to a FASTA file, aligned or not.
 
     Returns
     -------
@@ -378,17 +377,21 @@ def _load_sequences(sequences, file):
         List of digital pyhmmer sequences.
     """
     if file:
-        abc = ph.easel.Alphabet.amino()
-        return list(ph.easel.SequenceFile(file, digital=True, alphabet=abc))
-
-    if isinstance(sequences, list):
-        seqobj = rdbs.sequence(sequences)
-    elif isinstance(sequences, rdbs.sequence):
-        seqobj = sequences
+        # Easel's FASTA parser rejects gap characters, digital or not, so
+        # read the file with Biopython and remove the gaps here.
+        from Bio import SeqIO
+        records = ((r.id, str(r.seq)) for r in SeqIO.parse(file, 'fasta'))
     else:
-        raise ValueError("Unsupported sequence input type")
-    rows = _sequence_rows(seqobj)
-    seqs, ungapped = _digitize(zip(rows.id, rows.sequence), ungap=True)
+        if isinstance(sequences, list):
+            seqobj = rdbs.sequence(sequences)
+        elif isinstance(sequences, rdbs.sequence):
+            seqobj = sequences
+        else:
+            raise ValueError("Unsupported sequence input type")
+        rows = _sequence_rows(seqobj)
+        records = zip(rows.id, rows.sequence)
+
+    seqs, ungapped = _digitize(records, ungap=True)
     if ungapped:
         logger.warning(
             f'{ungapped} of {len(seqs)} input sequences contained gaps: gaps were '
@@ -471,10 +474,10 @@ def hmmscan(
     • Efficient scaling on multi-core systems
     • Aligned input is searched without its gaps
 
-    Gaps are removed from a sequence object before the search, so an
-    alignment gives the same results as the unaligned sequences, and
-    coordinates refer to the ungapped sequences. A warning is logged when
-    gaps were removed.
+    Gaps are removed from the input before the search, so an alignment (a
+    sequence object or an aligned FASTA file) gives the same results as the
+    unaligned sequences, and coordinates refer to the ungapped sequences. A
+    warning is logged when gaps were removed.
 
     Parameters
     ----------
@@ -483,7 +486,7 @@ def hmmscan(
         Only rows of type "sequence" are scanned (consensus rows are not).
 
     file : str, optional
-        Path to FASTA file containing protein sequences.
+        Path to FASTA file containing protein sequences, aligned or not.
 
     models_path : str or list[str], optional
         Path(s) to HMM database files.

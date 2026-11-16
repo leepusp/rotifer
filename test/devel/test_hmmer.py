@@ -18,6 +18,8 @@ What has to hold, and why:
     used to crash the digitizer with "invalid chars in sequence")
   * digitalize_seqobj(..., alignment=True) keeps the gaps: hmmbuild needs
     the columns
+  * an aligned FASTA file given as file= works too (Easel's parser rejects
+    gap characters outright)
   * unpressed HMM files work: HMMFile.is_pressed is a method in recent
     pyhmmer and a property in older releases, and testing the method without
     calling it was always true
@@ -177,6 +179,12 @@ def test_digitalize_removes_gaps_for_searching(data):
     digital = rdbh.digitalize_seqobj(data['aln'])
     lengths = _ungapped(data['aln']).df.sequence.str.len().tolist()
     assert [len(d) for d in digital] == lengths
+
+
+def test_aligned_fasta_file(data, scan):
+    from_file = scan(file=data['aligned_fasta'], models_path=data['pressed'])
+    from_seqobj = scan(data['aln'], models_path=data['pressed'])
+    assert _normalized(from_file).equals(_normalized(from_seqobj))
 
 
 @pytest.mark.parametrize('database', ['unpressed', 'pressed'])
