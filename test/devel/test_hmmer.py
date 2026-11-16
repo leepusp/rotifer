@@ -23,6 +23,8 @@ What has to hold, and why:
   * unpressed HMM files work: HMMFile.is_pressed is a method in recent
     pyhmmer and a property in older releases, and testing the method without
     calling it was always true
+  * alignment_coordinates=True maps each envelope to alignment columns, so
+    the alignment slice holds exactly the domain's residues
   * hmmscan_linear behaves like hmmscan in all of the above
 
 The fixture is synthetic: a random protein, mutated copies aligned with
@@ -210,3 +212,43 @@ class _Property:
 def test_is_pressed_supports_method_and_property(value):
     assert rdbh._is_pressed(_Method(value)) is value
     assert rdbh._is_pressed(_Property(value)) is value
+
+
+def test_alignment_coordinates_slice_the_domains(data, scan):
+    result = scan(data['aln'], models_path=data['pressed'], alignment_coordinates=True)
+    assert len(result) >= 8
+    gapped = data['aln'].df.set_index('id').sequence
+    residues = _ungapped(data['aln']).df.set_index('id').sequence
+    for row in result.itertuples():
+        columns = gapped[row.sequence][row.col_start - 1:row.col_end]
+        assert columns.translate(UNGAP) == residues[row.sequence][row.estart - 1:row.eend]
+        assert gapped[row.sequence][row.col_start - 1] not in GAPS
+        assert gapped[row.sequence][row.col_end - 1] not in GAPS
+
+
+def test_alignment_coordinates_without_rename(data, scan):
+    result = scan(data['aln'], models_path=data['pressed'], alignment_coordinates=True, rename=False)
+    assert {'col_start', 'col_end', 'env_from', 'env_to'} <= set(result.columns)
+
+
+def test_alignment_coordinates_are_opt_in(data, scan):
+    result = scan(data['aln'], models_path=data['pressed'])
+    assert not {'col_start', 'col_end'} & set(result.columns)
+
+
+def test_alignment_coordinates_need_a_sequence_object(data, scan):
+    with pytest.raises(ValueError, match='sequence object'):
+        scan(file=data['aligned_fasta'], models_path=data['pressed'], alignment_coordinates=True)
+
+
+def test_alignment_coordinates_need_the_envelope_columns(data, scan):
+    with pytest.raises(ValueError, match='env_from'):
+        scan(data['aln'], models_path=data['pressed'], alignment_coordinates=True,
+             columns=['aln_target_name', 'aln_hmm_name', 'i_evalue', 'env_to'], rename=False)
+
+
+def test_alignment_coordinates_need_unique_ids(data, scan):
+    duplicated = data['aln'].copy()
+    duplicated.df.loc[1, 'id'] = duplicated.df.loc[0, 'id']
+    with pytest.raises(ValueError, match='unique'):
+        scan(duplicated, models_path=data['pressed'], alignment_coordinates=True)

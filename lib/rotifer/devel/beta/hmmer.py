@@ -206,7 +206,7 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
 
     return df
 
-def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
+def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True, alignment_coordinates=False):
     
     '''
     Perform an hmmscan of protein sequences against a Pfam HMM database.
@@ -231,16 +231,25 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     columns: list of str, optional
         Subset of result column names to include in the output DataFrame.
         Default columns include basic domain and alignment metrics.
+    alignment_coordinates: bool, optional
+        If True, add the columns `col_start` and `col_end`: the alignment
+        columns where each domain envelope (estart/eend) starts and ends.
+        Requires a sequence object (not `file`) with unique ids, and the
+        columns aln_target_name, env_from and env_to. Default: False.
     '''
     #Progress bar callback
     def callback(hmm, hits):
         pbar.update(1)
 
+    if alignment_coordinates:
+        _check_alignment_coordinates(file, columns)
+
     if isinstance(models_path, str):
         models_path = [models_path]
 
     #Sequences load, once for all models
-    seqs = _load_sequences(sequences, file)
+    seqs, seqobj = _load_sequences(sequences, file)
+    residue_columns = _residue_columns(seqobj) if alignment_coordinates else None
 
     results = []
     #HMM load
@@ -259,6 +268,8 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
         results.append(df)
 
     df = pd.concat(results)
+    if alignment_coordinates:
+        df = _add_alignment_columns(df, residue_columns)
     if rename:
         df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
     return df
@@ -373,13 +384,15 @@ def _load_sequences(sequences, file):
 
     Returns
     -------
-    list
-        List of digital pyhmmer sequences.
+    tuple
+        The list of digital pyhmmer sequences and the sequence object they
+        came from (None when reading from `file`).
     """
     if file:
         # Easel's FASTA parser rejects gap characters, digital or not, so
         # read the file with Biopython and remove the gaps here.
         from Bio import SeqIO
+        seqobj = None
         records = ((r.id, str(r.seq)) for r in SeqIO.parse(file, 'fasta'))
     else:
         if isinstance(sequences, list):
@@ -397,7 +410,56 @@ def _load_sequences(sequences, file):
             f'{ungapped} of {len(seqs)} input sequences contained gaps: gaps were '
             'removed before scanning and coordinates refer to the ungapped sequences.'
         )
-    return seqs
+    return seqs, seqobj
+
+def _check_alignment_coordinates(file, columns):
+    """
+    Fail before searching when alignment coordinates cannot be computed.
+    """
+    if file:
+        raise ValueError(
+            'alignment_coordinates requires a sequence object: '
+            'a FASTA file given as file= has no alignment columns to map to.'
+        )
+    required = ['aln_target_name', 'env_from', 'env_to']
+    missing = [ c for c in required if columns and c not in columns ]
+    if missing:
+        raise ValueError(
+            f'alignment_coordinates requires the columns {", ".join(missing)}.'
+        )
+
+def _residue_columns(seqobj):
+    """
+    Map each sequence id to the alignment columns (1-based) of its residues.
+
+    Entry i-1 of an id's array is the column of residue i, so residue
+    coordinates convert to alignment columns by indexing.
+    """
+    rows = _sequence_rows(seqobj)
+    ids = rows.id.astype(str)
+    if ids.duplicated().any():
+        duplicated = sorted(ids[ids.duplicated()].unique())
+        raise ValueError(
+            'alignment_coordinates requires unique sequence ids, found duplicates: '
+            + ', '.join(duplicated[:5]) + (' ...' if len(duplicated) > 5 else '')
+        )
+    gaps = np.frombuffer(GAP_CHARACTERS.encode(), dtype='S1')
+    columns = {}
+    for name, seq in zip(ids, rows.sequence):
+        chars = np.frombuffer(str(seq).encode(), dtype='S1')
+        columns[name] = np.flatnonzero(~np.isin(chars, gaps)) + 1
+    return columns
+
+def _add_alignment_columns(df, residue_columns):
+    """
+    Add `col_start` and `col_end`: the alignment columns of each domain's
+    envelope start (env_from) and end (env_to).
+    """
+    df = df.copy()
+    names = df.aln_target_name.map(lambda x: x.decode() if isinstance(x, bytes) else str(x))
+    df['col_start'] = [ int(residue_columns[n][s - 1]) for n, s in zip(names, df.env_from) ]
+    df['col_end'] = [ int(residue_columns[n][e - 1]) for n, e in zip(names, df.env_to) ]
+    return df
 
 def _chunk_sequences(seqs, chunk_size):
     """
@@ -456,7 +518,8 @@ def hmmscan(
         'env_from',
         'env_to'
     ],
-    rename=True
+    rename=True,
+    alignment_coordinates=False
 ):
     """
     Perform hmmscan searches against one or more HMM databases.
@@ -513,11 +576,21 @@ def hmmscan(
     rename : bool, optional
         Whether to apply column renaming in the parser.
 
+    alignment_coordinates : bool, optional
+        If True, add the columns `col_start` and `col_end`: the alignment
+        columns where each domain envelope (estart/eend) starts and ends,
+        e.g. to cut an alignment at a domain. Requires a sequence object
+        (not `file`) with unique ids, and the columns aln_target_name,
+        env_from and env_to. Default: False.
+
     Returns
     -------
     pandas.DataFrame
         Combined hmmscan results for all sequences and models.
     """
+
+    if alignment_coordinates:
+        _check_alignment_coordinates(file, columns)
 
     # --------------------------------------------------------------
     # MODEL PATH NORMALIZATION
@@ -533,7 +606,8 @@ def hmmscan(
     # --------------------------------------------------------------
     # LOAD SEQUENCES
     # --------------------------------------------------------------
-    seqs = _load_sequences(sequences, file)
+    seqs, seqobj = _load_sequences(sequences, file)
+    residue_columns = _residue_columns(seqobj) if alignment_coordinates else None
 
     # --------------------------------------------------------------
     # CHUNK SEQUENCES
@@ -572,6 +646,8 @@ def hmmscan(
     # MERGE RESULTS
     # --------------------------------------------------------------
     df = pd.concat(results, ignore_index=True)
+    if alignment_coordinates:
+        df = _add_alignment_columns(df, residue_columns)
     if rename:
         df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
     return df
