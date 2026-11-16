@@ -17,6 +17,20 @@ from tqdm import tqdm
 import math
 from multiprocessing import Pool, pool
 
+def _is_pressed(hmm_file):
+    """
+    Tell whether an HMM database was pressed with hmmpress.
+
+    `HMMFile.is_pressed` is a method in recent pyhmmer releases (0.12.3, at
+    least) and a property in older ones. Testing the method without calling it
+    is always true, which sends unpressed files to `optimized_profiles()` and
+    makes it fail, so support both forms.
+    """
+    pressed = hmm_file.is_pressed
+    if callable(pressed):
+        pressed = pressed()
+    return bool(pressed)
+
 def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
     """
     Convert sequences from a sequence object into digital format for use with pyhmmer.
@@ -182,7 +196,7 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     #HMM load
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-           if hmm_file.is_pressed:
+           if _is_pressed(hmm_file):
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
@@ -236,7 +250,7 @@ def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hm
     results = []
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-           if hmm_file.is_pressed:
+           if _is_pressed(hmm_file):
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
@@ -298,7 +312,7 @@ def _load_models(models_path):
     HMM_MODELS = {}
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-            if hmm_file.is_pressed:
+            if _is_pressed(hmm_file):
                 hmms = list(hmm_file.optimized_profiles())
             else:
                 hmms = list(hmm_file)
