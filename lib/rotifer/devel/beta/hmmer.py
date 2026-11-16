@@ -17,6 +17,14 @@ from tqdm import tqdm
 import math
 from multiprocessing import Pool, pool
 
+logger = rotifer.logging.getLogger(__name__)
+
+# Characters Easel reads as gaps ('-', '.', '_') or missing data ('~'). Left in a
+# sequence to be searched, HMMER scores them as residues: hits are lost and the
+# coordinates count alignment columns instead of residues (issue #137).
+GAP_CHARACTERS = '-._~'
+_UNGAP = str.maketrans('', '', GAP_CHARACTERS)
+
 def _is_pressed(hmm_file):
     """
     Tell whether an HMM database was pressed with hmmpress.
@@ -31,6 +39,40 @@ def _is_pressed(hmm_file):
         pressed = pressed()
     return bool(pressed)
 
+def _sequence_rows(seqobj):
+    """
+    Rows of a sequence object that hold sequences, leaving out rows such as
+    consensus lines added by `add_consensus`.
+    """
+    df = seqobj.df
+    if 'type' in df.columns:
+        df = df[df.type == 'sequence']
+    return df
+
+def _digitize(records, ungap):
+    """
+    Digitize (name, sequence) pairs with the amino acid alphabet.
+
+    Returns
+    -------
+    tuple
+        The list of digital sequences and the number of sequences that had
+        gaps removed (always 0 when `ungap` is false).
+    """
+    abc = ph.easel.Alphabet.amino()
+    digital_sequences = []
+    ungapped = 0
+    for name, seq in records:
+        seq = str(seq)
+        if ungap:
+            residues = seq.translate(_UNGAP)
+            if len(residues) != len(seq):
+                ungapped += 1
+            seq = residues
+        text_seq = ph.easel.TextSequence(name=str(name).encode(), sequence=seq)
+        digital_sequences.append(text_seq.digitize(abc))
+    return digital_sequences, ungapped
+
 def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
     """
     Convert sequences from a sequence object into digital format for use with pyhmmer.
@@ -38,6 +80,13 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
     This function takes a sequence object (expected to have a `.df` attribute with
     columns "id" and "sequence"), digitizes the sequences using a aminoacid alphabet,
     and optionally returns a pyhmmer DigitalMSA object.
+
+    Only rows of type "sequence" are digitized: rows such as the consensus
+    lines added by `add_consensus` are left out.
+
+    Gaps ('-', '.', '_', '~') are removed unless `alignment` is true, so that
+    an aligned sequence object can be searched like unaligned sequences. With
+    `alignment=True` the gaps are kept, as building an HMM needs them.
 
     Args:
         seqobj: Object
@@ -51,7 +100,8 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
         pyhmmer.easel.DigitalMSA or list
             - If `alignment=True`: returns a `DigitalMSA` object containing all
               digitized sequences, suitable for building an HMM.
-            - Otherwise: returns a list of `DigitalSequence` objects, one per sequence.
+            - Otherwise: returns a list of `DigitalSequence` objects, one per
+              sequence, without gaps.
 
     Example:
         # Digitize sequences without creating a DigitalMSA
@@ -60,19 +110,12 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
         # Create a DigitalMSA for HMM building
         msa = digitalize_seqobj(seqobj, alignment=True, msa_name='my_alignment')
     """
-    abc = ph.easel.Alphabet.amino()
-    digital_sequences = []
-
-    for _, row in seqobj.df.iterrows():
-        name = str(row["id"]).encode()
-        seq = str(row["sequence"])
-        text_seq = ph.easel.TextSequence(name=name, sequence=seq)
-        digital_sequences.append(text_seq.digitize(abc))
+    rows = _sequence_rows(seqobj)
+    digital_sequences, _ = _digitize(zip(rows.id, rows.sequence), ungap=not alignment)
 
     if alignment:
-        for dseq in digital_sequences:
-            msa = ph.easel.DigitalMSA(abc, sequences=digital_sequences, name = (msa_name.encode()))    
-        return msa
+        abc = ph.easel.Alphabet.amino()
+        return ph.easel.DigitalMSA(abc, sequences=digital_sequences, name=msa_name.encode())
     else:
         return digital_sequences
 
@@ -169,6 +212,10 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     Perform an hmmscan of protein sequences against a Pfam HMM database.
     This function accepts an sequence object or a FASTA file path, and 
     returns a pandas DataFrame summarizing domain hits and alignment attributes.
+
+    Gaps are removed from a sequence object before the search, so an
+    alignment gives the same results as the unaligned sequences, and
+    coordinates refer to the ungapped sequences.
     ----------
     Parameters
     ----------
@@ -192,6 +239,9 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     if isinstance(models_path, str):
         models_path = [models_path]
 
+    #Sequences load, once for all models
+    seqs = _load_sequences(sequences, file)
+
     results = []
     #HMM load
     for model in models_path:
@@ -200,17 +250,6 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
-
-        #Sequences load
-        abc = ph.easel.Alphabet.amino()
-        if file:
-           seqs = ph.easel.SequenceFile(file, digital = True, alphabet=abc)
-        else:
-           if type(sequences) == list:
-               seqobj = rdbs.sequence(sequences)
-               seqs = digitalize_seqobj(seqobj)
-           elif type(sequences) == rotifer.devel.beta.sequence.sequence:
-               seqs = digitalize_seqobj(sequences)
 
         #Hmmscan run and file processment
         pbar = tqdm(total=len(seqs), desc='hmmscan')
@@ -322,6 +361,10 @@ def _load_sequences(sequences, file):
     """
     Load and digitalize protein sequences.
 
+    Gaps are removed from the sequences of a sequence object, so an
+    alignment is searched like the unaligned sequences. A warning is logged
+    when any were found.
+
     Parameters
     ----------
     sequences : sequence object or list
@@ -334,23 +377,23 @@ def _load_sequences(sequences, file):
     list
         List of digital pyhmmer sequences.
     """
-    abc = ph.easel.Alphabet.amino()
     if file:
-        seqs = list(
-            ph.easel.SequenceFile(
-                file,
-                digital=True,
-                alphabet=abc
-            )
-        )
+        abc = ph.easel.Alphabet.amino()
+        return list(ph.easel.SequenceFile(file, digital=True, alphabet=abc))
+
+    if isinstance(sequences, list):
+        seqobj = rdbs.sequence(sequences)
+    elif isinstance(sequences, rdbs.sequence):
+        seqobj = sequences
     else:
-        if type(sequences) == list:
-            seqobj = rdbs.sequence(sequences)
-            seqs = list(digitalize_seqobj(seqobj))
-        elif type(sequences) == rotifer.devel.beta.sequence.sequence:
-            seqs = list(digitalize_seqobj(sequences))
-        else:
-            raise ValueError("Unsupported sequence input type")
+        raise ValueError("Unsupported sequence input type")
+    rows = _sequence_rows(seqobj)
+    seqs, ungapped = _digitize(zip(rows.id, rows.sequence), ungap=True)
+    if ungapped:
+        logger.warning(
+            f'{ungapped} of {len(seqs)} input sequences contained gaps: gaps were '
+            'removed before scanning and coordinates refer to the ungapped sequences.'
+        )
     return seqs
 
 def _chunk_sequences(seqs, chunk_size):
@@ -426,11 +469,18 @@ def hmmscan(
     • Configurable CPU usage per worker
     • Compatible with both sequence objects and FASTA input
     • Efficient scaling on multi-core systems
+    • Aligned input is searched without its gaps
+
+    Gaps are removed from a sequence object before the search, so an
+    alignment gives the same results as the unaligned sequences, and
+    coordinates refer to the ungapped sequences. A warning is logged when
+    gaps were removed.
 
     Parameters
     ----------
     sequences : sequence object or list, optional
         Sequence container to scan. Ignored if `file` is provided.
+        Only rows of type "sequence" are scanned (consensus rows are not).
 
     file : str, optional
         Path to FASTA file containing protein sequences.

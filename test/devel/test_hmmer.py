@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
-"""Tests for rotifer.devel.beta.hmmer's hmmscan and hmmscan_linear.
+"""Tests for rotifer.devel.beta.hmmer's hmmscan on aligned input (issue #137).
+
+Easel reads '-', '.' and '_' as gaps and '~' as missing data. Left in a
+sequence to be searched, HMMER scores them as residues: on a real alignment
+of 41 TraG proteins scanned against Pfam, P-loop_TraG went from 41 hits to
+none, and every hit reported the alignment width as the target length.
 
 What has to hold, and why:
 
+  * an aligned sequence object is scanned exactly like the same sequences
+    without gaps: same hits, coordinates, E-values and scores. Removing gaps
+    changes nothing for unaligned input, so it is always done
+  * a warning says when gaps were removed, since coordinates then refer to
+    the ungapped sequences rather than to alignment columns; unaligned input
+    stays silent
+  * rows that are not sequences, like add_consensus's, are not scanned (they
+    used to crash the digitizer with "invalid chars in sequence")
+  * digitalize_seqobj(..., alignment=True) keeps the gaps: hmmbuild needs
+    the columns
   * unpressed HMM files work: HMMFile.is_pressed is a method in recent
     pyhmmer and a property in older releases, and testing the method without
     calling it was always true
@@ -15,6 +30,7 @@ Pfam or the network.
 Run under pytest (needs pyhmmer): PYTHONPATH=lib pytest test/devel/test_hmmer.py
 """
 
+import logging
 import shutil
 
 import numpy as np
@@ -28,6 +44,8 @@ import rotifer.devel.beta.hmmer as rdbh
 AMINO = 'ACDEFGHIKLMNPQRSTVWY'
 GAPS = '-._~'
 UNGAP = str.maketrans('', '', GAPS)
+KEY = ['sequence', 'model', 'estart', 'eend', 'aln_target_from', 'aln_target_to',
+       'aln_target_length', 'evalue', 'score']
 SCAN = dict(workers=1, cpus_per_worker=1)
 
 
@@ -67,6 +85,10 @@ def _ungapped(seqobj):
     return result
 
 
+def _normalized(df):
+    return df[KEY].sort_values(KEY[:4]).reset_index(drop=True)
+
+
 @pytest.fixture(scope='module')
 def data(tmp_path_factory):
     tmp = tmp_path_factory.mktemp('hmmer')
@@ -85,6 +107,22 @@ def data(tmp_path_factory):
                 aligned_fasta=str(aligned_fasta))
 
 
+@pytest.fixture
+def warnings_logged():
+    '''Collect warnings from the hmmer module's logger.'''
+    records = []
+
+    class Collect(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = Collect(level=logging.WARNING)
+    log = logging.getLogger(rdbh.__name__)
+    log.addHandler(handler)
+    yield records
+    log.removeHandler(handler)
+
+
 def _scans():
     '''Both entry points, called the same way.'''
     return {
@@ -96,6 +134,49 @@ def _scans():
 @pytest.fixture(params=['hmmscan', 'hmmscan_linear'])
 def scan(request):
     return _scans()[request.param]
+
+
+def test_aligned_input_scans_like_ungapped_input(data, scan):
+    aligned = scan(data['aln'], models_path=data['pressed'])
+    ungapped = scan(_ungapped(data['aln']), models_path=data['pressed'])
+    assert len(ungapped) >= 8, 'every sequence should hit its own model'
+    assert _normalized(aligned).equals(_normalized(ungapped))
+    lengths = _ungapped(data['aln']).df.set_index('id').sequence.str.len()
+    assert (aligned.aln_target_length.values == lengths[aligned.sequence].values).all()
+
+
+def test_removing_gaps_is_reported_once(data, scan, warnings_logged):
+    scan(data['aln'], models_path=data['pressed'])
+    assert len(warnings_logged) == 1
+    assert 'gaps were removed' in warnings_logged[0].getMessage()
+
+
+def test_unaligned_input_is_not_reported(data, scan, warnings_logged):
+    scan(_ungapped(data['aln']), models_path=data['pressed'])
+    assert warnings_logged == []
+
+
+def test_consensus_rows_are_not_scanned(data, scan):
+    with_consensus = data['aln'].add_consensus()
+    assert len(with_consensus.df) > len(with_consensus)
+    result = scan(with_consensus, models_path=data['pressed'])
+    assert set(result.sequence) <= set(data['aln'].df.id)
+    expected = scan(data['aln'], models_path=data['pressed'])
+    assert _normalized(result).equals(_normalized(expected))
+
+
+def test_building_an_hmm_keeps_the_gaps(data):
+    msa = rdbh.digitalize_seqobj(data['aln'], alignment=True)
+    width = data['aln'].get_alignment_length()
+    assert all(len(row) == width for row in msa.textize().alignment)
+    hmm = rdbh.hmmbuild(data['aln'], save=None)[0]
+    assert hmm.M > 0
+
+
+def test_digitalize_removes_gaps_for_searching(data):
+    digital = rdbh.digitalize_seqobj(data['aln'])
+    lengths = _ungapped(data['aln']).df.sequence.str.len().tolist()
+    assert [len(d) for d in digital] == lengths
 
 
 @pytest.mark.parametrize('database', ['unpressed', 'pressed'])
