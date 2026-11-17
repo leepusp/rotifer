@@ -16,6 +16,8 @@ What has to hold, and why:
     in the full-length sequence (the trailing number was one past the end)
   * add_cordinates_to_aln's start is 1-based like its end (it was find()'s
     0-based offset), so extend_aln adds exactly n_terminal residues
+  * extend_aln's length column is the extended sequence's length, not the
+    full-length protein's
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -169,3 +171,8 @@ class TestExtendAln:
         aln, full = aligned
         e = ungapped(rdag.extend_aln(aln, n_terminal=3, c_terminal=0, n_term_list=['p1'], full_length_seqobj=full))
         assert e['p2'] == FULL[1:10]                # still starts at residue 2 (B)
+
+    def test_length_is_the_extended_length(self, aligned):
+        aln, full = aligned
+        e = rdag.extend_aln(aln, n_terminal=3, c_terminal=3, full_length_seqobj=full).df.set_index('id')
+        assert e.length.to_dict() == {'p1': 16, 'p2': 13}
