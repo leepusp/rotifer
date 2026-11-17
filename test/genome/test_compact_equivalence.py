@@ -6,7 +6,9 @@ seeded random neighborhood tables and must return identical frames (dtypes
 and return type included) or raise the same exception type.
 
 The tables only use inputs on which the intended behaviour did not change:
-query values 0 and 1, and blocks whose rows are contiguous.
+query values 0 and 1, and blocks whose rows are contiguous. Where the
+reference raises TypeError because a missing value reached the join, compact
+must instead return a frame without missing values.
 
 Run under pytest, or standalone: python test/genome/test_compact_equivalence.py
 """
@@ -72,6 +74,12 @@ def difference(table, **kwargs):
     """None if both implementations agree, otherwise a description."""
     expected, expected_error = run(lambda: compact_reference(table, annotation=ANNOTATION, **kwargs))
     actual, actual_error = run(lambda: table.compact(annotation=ANNOTATION, **kwargs))
+    if isinstance(expected_error, TypeError) and actual_error is None:
+        # The reference fails with TypeError when a missing type or fill_unk
+        # value reaches the join; compact now shows '?' there instead.
+        if actual[['compact', 'pid_compact']].isna().any().any():
+            return 'compact output has missing values'
+        return None
     if expected_error or actual_error:
         if type(expected_error) is type(actual_error):
             return None

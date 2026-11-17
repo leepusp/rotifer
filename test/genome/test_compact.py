@@ -127,6 +127,19 @@ def test_split_block_gives_the_same_lines():
     assert compact(split, strand=True).compact.to_dict() == {1: '*A->B->', 2: '*D->'}
 
 
+def test_missing_values_show_as_question_mark():
+    df = neighborhood([
+        dict(block_id=1, pid='p1', cluster='A',  strand=1, query=1),
+        dict(block_id=1, pid=None, cluster=None, strand=1, query=0),
+        dict(block_id=1, pid='p3', cluster='C',  strand=1, query=0),
+    ])
+    df.loc[df.pid == 'p3', 'type'] = None
+    # No type: '?' in both strings. Empty fill_unk value: '?'.
+    assert compact(df).compact.to_dict() == {1: '*A->?->?->'}
+    assert compact(df).pid_compact.to_dict() == {1: '*p1->?->?->'}
+    assert compact(df, fill_unk='pid').compact.to_dict() == {1: '*A->?->?->'}
+
+
 if __name__ == '__main__':
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith('test_') and callable(f)]
     failed = 0

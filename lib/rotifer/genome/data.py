@@ -505,9 +505,10 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                        previous_run.notna() & (run != previous_run))
 
         # Text for each gene: '?' when unannotated, the feature type for
-        # non-CDS rows, and optionally the fill_unk column for '?'. The
-        # annotation pass runs first and the pid pass sees its result, as
-        # fill_unk may name either column.
+        # non-CDS rows, and optionally the fill_unk column for '?'. A value
+        # still missing after that (no type, or an empty fill_unk value) is
+        # shown as '?' too. The annotation pass runs first and the pid pass
+        # sees its result, as fill_unk may name either column.
         work = df[list(dict.fromkeys(
             [annotation, 'pid', 'type'] + ([fill_unk] if fill_unk else [])
         ))].copy()
@@ -517,7 +518,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             work[column] = np.where(work['type'] != 'CDS', work['type'], work[column])
             if fill_unk:
                 work[column] = np.where(work[column] == '?', work[fill_unk], work[column])
-            work[column] = work[column].astype(str)
+            work[column] = work[column].fillna('?').astype(str)
             return work[column]
 
         # Strands are flipped for backward groups, so the query always points
