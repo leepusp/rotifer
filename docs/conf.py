@@ -302,6 +302,7 @@ html_theme_options = {
     "light_logo": "_static/brand/rotifer-lockup-horizontal-color.svg",
     "dark_logo": "_static/brand/rotifer-lockup-horizontal-reverse.svg",
     "nav_links": [
+        {"title": "Install", "url": "install"},
         {"title": "Data access", "url": "db/index"},
         {"title": "API", "url": "api/index"},
         {"title": "Contributing", "url": "contributing/index"},

@@ -12,7 +12,8 @@ This site documents the Python package that lives under `lib/rotifer` in the
 :gutter: 3
 
 :::{grid-item-card} {iconify}`tabler:database` Data access
-:link: db/index
+:link: install
+db/index
 :link-type: doc
 
 Cursors for biological databases: NCBI, UniProt and local mirrors.
