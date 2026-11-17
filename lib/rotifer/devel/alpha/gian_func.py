@@ -1001,6 +1001,7 @@ def extend_aln(seqobj, n_terminal=50, c_terminal=50,c_term_list=[],n_term_list=[
         tm2.df.end = tm2.df.end.astype(int)
         tm2.df = tm2.df.drop_duplicates('id')
     tm2.df.sequence = tm2.df.apply(lambda x : x.sequence[x.start -1: x.end], axis=1)
+    tm2._reset()
     return tm2.align()
 
 def get_correspondent_position(seqobj_source,seqobj_target, pid, position):
