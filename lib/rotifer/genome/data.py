@@ -449,20 +449,33 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                    'classification', 'pid_compact']
         carried = columns[1:-1]
 
-        # One output row per group: a block, or with strand=True a run of
-        # same-strand genes that contains a query. A row is a query when
-        # query == 1.
-        group = 'block_id'
-        df = self.group_strand()
-        if strand:
-            group = 'strand_group'
-            df = df[df['strand_group'].isin(df.loc[df[query] == 1, 'strand_group'])]
-        df = df[df[group].notna()]
+        df = self[self['block_id'].notna()]
         if df.empty:
             return pd.DataFrame(columns=columns).set_index('block_id')
-        # Renamed so that grouping does not clash with the block_id column.
-        key = df[group].rename('_group')
-        run = df['strand_group']
+
+        # Strand runs: a new run starts where a gene's strand differs from
+        # the previous gene of the same block. Comparing within the block,
+        # not with the row above, keeps a block's runs intact when its rows
+        # are not contiguous. Runs are numbered in order of appearance.
+        previous_strand = df['strand'].groupby(df['block_id']).shift(1)
+        new_run = (df['strand'] != previous_strand) | previous_strand.isna()
+        run_in_block = new_run.groupby(df['block_id']).cumsum()
+        run = pd.Series(
+            pd.factorize(pd.MultiIndex.from_arrays([df['block_id'], run_in_block]))[0],
+            index=df.index)
+
+        # One output row per group: a block, or with strand=True a run of
+        # same-strand genes that contains a query. A row is a query when
+        # query == 1. The key is named so that grouping does not clash with
+        # the block_id column.
+        if strand:
+            keep = run.isin(run[df[query] == 1])
+            df, run = df[keep], run[keep]
+            if df.empty:
+                return pd.DataFrame(columns=columns).set_index('block_id')
+            key = run.rename('_group')
+        else:
+            key = df['block_id'].rename('_group')
 
         # Each group is read in the direction of its first query row (in
         # table order): forward if that row is on the plus strand, backward
