@@ -20,6 +20,8 @@ What has to hold, and why:
     full-length protein's
   * extend_aln only warns about missing coordinates for aligned proteins,
     not for every other protein in full_length_seqobj
+  * split_by_model keeps each domain's first residue (HMMER coordinates are
+    1-based and were sliced as 0-based)
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -30,6 +32,8 @@ Run under pytest: PYTHONPATH=lib pytest test/devel/test_coordinates.py
 """
 
 import logging
+import re
+import subprocess
 
 import pandas as pd
 import pytest
@@ -200,3 +204,36 @@ class TestExtendAln:
         aln = seqobj(['p1', 'p1'], ['KLMNOPQRST', 'efghijklmn'])
         e = rdag.extend_aln(aln, n_terminal=0, c_terminal=0, full_length_seqobj=full)
         assert sorted(e.df.sequence.str.replace('-', '')) == ['KLMNOPQRST', 'efghijklmn']
+
+
+# --- split_by_model (#6) -----------------------------------------------------
+
+class FakeHmmer:
+    """Stand-in for the HMMER commands split_by_model runs through Popen.
+
+    hmmsearch and the hmmer2table pipeline aren't needed to test the slicing:
+    the pipeline's output file gets a fixed domain table instead. Any other
+    command (the alignment that follows) runs for real.
+    """
+    table = 'ID\tdomain\tstart\tend\tevalue\np1\tmodel\t11\t20\t1e-10\n'
+    real_popen = subprocess.Popen
+
+    def __new__(cls, command, *args, **kwargs):
+        if not (isinstance(command, str) and re.match(r'(hmmsearch|hmmbuild|\S*hmmer2table) ', command)):
+            return cls.real_popen(command, *args, **kwargs)
+        return super().__new__(cls)
+
+    def __init__(self, command, *args, **kwargs):
+        target = re.search(r'> (\S*hhsearch_table)', command)
+        if target:
+            with open(target.group(1), 'w') as out:
+                out.write(self.table)
+
+    def communicate(self, *args, **kwargs):
+        return (b'', b'')
+
+
+def test_split_by_model_keeps_the_first_residue(monkeypatch):
+    monkeypatch.setattr(subprocess, 'Popen', FakeHmmer)
+    domains = rdag.split_by_model(seqobj(['p1'], [FULL]), 'model.hmm')
+    assert domains.df.sequence.str.replace('-', '').tolist() == [FULL[10:20]]  # residues 11-20

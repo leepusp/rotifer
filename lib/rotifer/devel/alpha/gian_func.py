@@ -910,7 +910,8 @@ def split_by_model(seqobj, model, evalue=1e-6):
     nseqobj.df = nseqobj.df.merge(t.rename({'ID':'id'},axis=1), how='left')
     nseqobj.df.end = nseqobj.df.end.fillna(nseqobj.df.length)
     nseqobj.df.start = nseqobj.df.start.fillna(1)
-    nseqobj.df.sequence = nseqobj.df.apply(lambda x: x.sequence[int(x.start):int(x.end)], axis=1)
+    # HMMER coordinates are 1-based and inclusive
+    nseqobj.df.sequence = nseqobj.df.apply(lambda x: x.sequence[int(x.start) - 1:int(x.end)], axis=1)
     nseqobj = nseqobj.filter('domain =="model"').align()
     return (nseqobj)
 
