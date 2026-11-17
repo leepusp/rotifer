@@ -17,7 +17,7 @@ ROTIFER needs Python 3.11 or newer.
 ### Python library only
 
 ```Bash
-pip install "rotifer[all] @ git+https://github.com/leepusp/rotifer"
+pip install "rotifer[all]"
 ```
 
 `rotifer[all]` installs every optional dependency. To keep the install small,
@@ -30,6 +30,10 @@ pick only the groups you need instead (e.g. `rotifer[seq,db]`):
 | `viz` | `rotifer.cluster` and plots |
 | `network` | neighborhood graphs in `rotifer.genome` |
 | `cli` | the Python tools in `bin/` |
+
+pip also installs the commands ported from Perl (`hmmer2table`,
+`blast2table`, `rrsw`, `domain2architecture`, ...). Some of them run
+external programs, such as HMMER or Phobius, that you install separately.
 
 ### Full toolset (library, command line tools and their programs)
 

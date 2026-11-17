@@ -9,6 +9,7 @@ description = "High-level libraries and command line tools for comparative genom
 readme = "README.md"
 authors = [{ name = "Robson F. de Souza and contributors" }]
 license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -65,6 +66,23 @@ cli = [
 ]
 all = ["rotifer[seq,db,viz,network,cli]"]
 test = ["pytest"]
+
+# The commands ported from Perl (#138); bin/ links to the same modules
+[project.scripts]
+acc2pfam = "rotifer.cli.acc2pfam:main"
+acc2profiledb = "rotifer.cli.acc2profiledb:main"
+aln_order_by_tree = "rotifer.cli.aln_order_by_tree:main"
+architecture2table = "rotifer.cli.architecture2table:main"
+blast2table = "rotifer.cli.blast2table:main"
+dat2fa = "rotifer.cli.dat2fa:main"
+distinct_dom_per_prot = "rotifer.cli.distinct_dom_per_prot:main"
+dom_count = "rotifer.cli.dom_count:main"
+dom_per_prot = "rotifer.cli.dom_per_prot:main"
+domain2architecture = "rotifer.cli.domain2architecture:main"
+hmmer2table = "rotifer.cli.hmmer2table:main"
+phobius2table = "rotifer.cli.phobius2table:main"
+rrsw = "rotifer.cli.rrsw:main"
+tdesc = "rotifer.cli.tdesc:main"
 
 [project.urls]
 Homepage = "https://github.com/leepusp/rotifer"
