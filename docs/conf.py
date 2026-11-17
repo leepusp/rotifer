@@ -186,6 +186,7 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "_intersphinx",
+    "design",  # PRODUCT.md / DESIGN.md: design context, not site content
 ]
 
 # -- Markdown (MyST) ---------------------------------------------------------
