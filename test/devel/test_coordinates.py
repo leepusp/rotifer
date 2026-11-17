@@ -18,6 +18,8 @@ What has to hold, and why:
     0-based offset), so extend_aln adds exactly n_terminal residues
   * extend_aln's length column is the extended sequence's length, not the
     full-length protein's
+  * extend_aln only warns about missing coordinates for aligned proteins,
+    not for every other protein in full_length_seqobj
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -176,3 +178,25 @@ class TestExtendAln:
         aln, full = aligned
         e = rdag.extend_aln(aln, n_terminal=3, c_terminal=3, full_length_seqobj=full).df.set_index('id')
         assert e.length.to_dict() == {'p1': 16, 'p2': 13}
+
+    def test_no_warning_for_proteins_outside_the_alignment(self, aligned, caplog, capsys):
+        caplog.set_level(logging.WARNING)
+        aln, full = aligned                         # p3 is only in full
+        e = rdag.extend_aln(aln, n_terminal=3, c_terminal=3, full_length_seqobj=full)
+        assert sorted(e.df.id) == ['p1', 'p2']
+        reported = caplog.text + capsys.readouterr().out   # it used to be printed
+        assert 'missing the coordinates' not in reported
+
+    def test_aligned_protein_without_coordinates_is_warned_and_dropped(self, aligned, caplog):
+        caplog.set_level(logging.WARNING)
+        _, full = aligned
+        aln = seqobj(['p1', 'p2'], ['KLMNOPQRST', 'XXXXXXXXXX'])
+        e = rdag.extend_aln(aln, n_terminal=3, c_terminal=3, full_length_seqobj=full)
+        assert e.df.id.tolist() == ['p1']
+        assert 'missing the coordinates  p2' in caplog.text
+
+    def test_two_fragments_of_one_protein_are_both_kept(self):
+        full = seqobj(['p1'], [FULL])
+        aln = seqobj(['p1', 'p1'], ['KLMNOPQRST', 'efghijklmn'])
+        e = rdag.extend_aln(aln, n_terminal=0, c_terminal=0, full_length_seqobj=full)
+        assert sorted(e.df.sequence.str.replace('-', '')) == ['KLMNOPQRST', 'efghijklmn']

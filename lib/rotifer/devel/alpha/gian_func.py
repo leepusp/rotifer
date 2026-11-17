@@ -1,5 +1,7 @@
 from networkx.algorithms.bipartite.basic import color
 from networkx.generators import small
+import rotifer
+logger = rotifer.logging.getLogger(__name__)
 
 
 def load_seq_scan(name, folder, haldane=False):
@@ -985,6 +987,9 @@ def extend_aln(seqobj, n_terminal=50, c_terminal=50,c_term_list=[],n_term_list=[
         tm2 = full_length_seqobj.copy()
     else:    
         tm2 = rdbs.sequence(seqobj.df.id.tolist())
+    # Only the aligned proteins, once each: anything else would be reported
+    # below as missing coordinates, and duplicates would multiply rows
+    tm2.df = tm2.df[tm2.df.id.isin(seqobj.df.id)].drop_duplicates('id')
     tm2.df = tm2.df.merge(tm.df[['id', 'full_length', 'start', 'end', 'C_term', 'previous_length']], how='left')
     # Coordinates are 1-based and may be missing (pandas NA), which np.where can't take
     tm2.df['end'] = tm2.df.end.mask(
@@ -995,11 +1000,10 @@ def extend_aln(seqobj, n_terminal=50, c_terminal=50,c_term_list=[],n_term_list=[
         (tm2.df.start - n_terminal).clip(lower=1))
     if tm2.df['end'].isna().any():
         te = ', '.join(tm2.df.query("end.isna()").id.tolist())
-        print(f'some pid is missing the coordinates  {te}')
+        logger.warning(f'some pid is missing the coordinates  {te}')
         tm2.df = tm2.df.query('~end.isna()')
-        tm2.df.start = tm2.df.start.astype(int)
-        tm2.df.end = tm2.df.end.astype(int)
-        tm2.df = tm2.df.drop_duplicates('id')
+    tm2.df['start'] = tm2.df.start.astype(int)
+    tm2.df['end'] = tm2.df.end.astype(int)
     tm2.df.sequence = tm2.df.apply(lambda x : x.sequence[x.start -1: x.end], axis=1)
     tm2._reset()
     return tm2.align()
