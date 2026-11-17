@@ -76,10 +76,11 @@ In order to make this matter, and contribution and usage  easier, our complete d
 
 ### Setting up a development environment
 
-Follow the installation instructions in the [README](README.md) to create the
-`rotifer` conda environment and put the libraries and tools on your `PYTHONPATH`
-and `PATH`. Working from a clone with `conda-develop` means your edits take
-effect immediately, without reinstalling.
+Follow the "Full toolset" instructions in the [README](README.md) to create the
+`rotifer` conda environment from `environment.yml` and put the tools on your
+`PATH`. The environment installs the library from your clone in editable mode
+(`pip install -e .[all]`), so your edits take effect immediately, without
+reinstalling. Install the test runner with `pip install -e .[test]`.
 
 Before opening a pull request, please run the tests in `test/` and make sure the
 tools you touched still run.
