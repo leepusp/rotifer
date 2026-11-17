@@ -1,0 +1,27 @@
+{#- The landing page layout. A page opts in with "layout: rotifer-landing" in
+    its front matter (Shibuya picks layout/<name>.html from page metadata).
+
+    It keeps the theme's header and footer (layout.html) and replaces the
+    article with one partial per section from _templates/landing/. The copy
+    and the sequences come from _ext/landing_context.py; nothing here is
+    text. The page's own body (the hidden root toctree) renders nothing
+    and is not printed. -#}
+{%- extends "layout.html" -%}
+
+{%- block extrahead %}
+  {{ super() }}
+  {% include "components/meta-opengraph.html" %}
+  <link rel="stylesheet" href="{{ pathto('_static/landing/landing.css', 1) }}" type="text/css" />
+  <script defer src="{{ pathto('_static/landing/sequence-drift.js', 1) }}"></script>
+{%- endblock %}
+
+{%- block document -%}
+  {%- include "partials/banner.html" -%}
+  {%- include "partials/site-head.html" with context -%}
+  <main class="rot-landing" id="main">
+    {% include "landing/hero.html" %}
+    {% include "landing/capabilities.html" %}
+    {% include "landing/start.html" %}
+  </main>
+  {%- include "partials/site-foot.html" with context -%}
+{%- endblock -%}

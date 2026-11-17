@@ -1,0 +1,58 @@
+[
+  {
+    "entry": "7MU9",
+    "chain": "Chain A",
+    "molecule": "VirD4 interacting protein conserved domain",
+    "organism": "Xanthomonas axonopodis pv. citri (strain 306) (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/7MU9",
+    "sequence": "GSHMSDPRHPDNAMYNGAVSKLEALGERGGFANRKELEQAAGQIVFESKVSGLQRIDHVVPNKSGDGFFAVQGELTDPAMQRVFVDRNQAQNQPLENSSRQAAEE"
+  },
+  {
+    "entry": "4QTQ",
+    "chain": "Chain A",
+    "molecule": "XAC2610 protein",
+    "organism": "Xanthomonas axonopodis pv. citri (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/4QTQ",
+    "sequence": "MQKDLKMPSTANAKLNEQGEISADIGGIAVSVHAQSCTEDSPGIMLCNRSPVVEVTFPGAKPIALEPEALYVDSNSTFYHGPLDDTYKKNRHSIILTDINGDGHEDVVVWSGKEGNYGGPSYSVYLFDAAQKTLVFNQSLSDITVMANGLFSVKGNMLTSTSGDGCCIHVFDTYELKNNEAVLIERLTEDTNDPANPKKKIERLQDGEMKEVSN"
+  },
+  {
+    "entry": "7LKQ",
+    "chain": "Chain A",
+    "molecule": "FimX(GGDEF-EAL)",
+    "organism": "Xanthomonas axonopodis pv. citri (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/7LKQ",
+    "sequence": "EEFDPELAREVEDLRQRDQVTGLLNRPTFMVALEQAVAQAGRSEGQSGFLLIEPDHYARILPEFGLDSADALIAALAAHVASVLDDSVLAARFGEHSFALLLNGNYARTHALAETVRNAFAQHVFSVGTRSATVTVSIGGVQIGEKIASIGQVLNRGTEAVRTTAELGGNAVSIYDPAAADRAEEERIERWVEQLREALVGDGFLLHYQPVLNLQGEPLELYQAFLRLERNGEMMSPNAFMAIAEEHDLVTEIDRWVVARAIRQLGERQRAGHKTHLLVRIGPNSFSDPQMIDTIREQLAVYGVPGERLWLQTPESKVFTHLRNAQQFLAAVSAMDCKVGLEQFGSGLDSFQLLAHFHPAFLKLDRGITGDIASARDSQEKIREITSRAQPAGILTMAEFVADAQSMSSFFSAGVDYVQGDFVAPTGPLMNYEFG"
+  },
+  {
+    "entry": "7LKQ",
+    "chain": "Chain B",
+    "molecule": "Type IV fimbriae assembly protein",
+    "organism": "Xanthomonas axonopodis pv. citri (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/7LKQ",
+    "sequence": "MSAMNARQGILSLALKDKPALYSAYMPFVKGGGIFVPTPKRYMLGDEVFLLLTLPDSSERLPVAGKVIWTTPAGAQGNRAAGIGVQFPDGPEGEAVRNKIETLLAG"
+  },
+  {
+    "entry": "4FOU",
+    "chain": "Chains C, D",
+    "molecule": "Type IV fimbriae assembly protein",
+    "organism": "Xanthomonas axonopodis pv. citri (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/4FOU",
+    "sequence": "MSAMNARQGILSLALKDKPALYSAYMPFVKGGGIFVPTPKRYMLGDEVFLLLTLPDSSERLPVAGKVIWTTPAGAQGNRAAGIGVQFPDGPEGEAVRNKIETLLAGLTTSDKPTHTM"
+  },
+  {
+    "entry": "4FOU",
+    "chain": "Chains A, B",
+    "molecule": "FimX",
+    "organism": "Xanthomonas axonopodis pv. citri (1203463)",
+    "source": "https://www.rcsb.org/fasta/entry/4FOU",
+    "sequence": "VSIYDPAAADRAEEERIERWVEQLREALVGDGFLLHYQPVLNLQGEPLELYQAFLRLERNGEMMSPNAFMAIAEEHDLVTEIDRWVVARAIRQLGERQRAGHKTHLLVRIGPNSFSDPQMIDTIREQLAVYGVPGERLWLQTPESKVFTHLRNAQQFLAAVSAMDCKVGLEQFGSGLDSFQLLAHFHPAFLKLDRGITGDIASARDSQEKIREITSRAQPAGILTMAEFVADAQSMSSFFSAGVDYVQGDFVAPTGPLMNYEFG"
+  },
+  {
+    "entry": "8PX4",
+    "chain": "Chains A, B, C",
+    "molecule": "Diguanylate cyclase",
+    "organism": "Leptospira interrogans serovar Copenhageni (44275)",
+    "source": "https://www.rcsb.org/fasta/entry/8PX4",
+    "sequence": "GPTNFEKEYDLEKLVNNSLDLLSIQRLDGTVLQVNPAFERLLGWREEELIGRNPFHLLHPEDRESTFQEFKKLNQGLPVFAFQNRFLCSDGTYKYFSWTASPDLSAGLIYVTGRDI"
+  }
+]

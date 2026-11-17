@@ -1,0 +1,28 @@
+{#- Small helpers shared by the landing partials. -#}
+
+{#- href for an item that names either a Sphinx page or an external url. -#}
+{%- macro href(item) -%}
+  {%- if item.url or item.link_url -%}{{ item.url or item.link_url }}
+  {%- else -%}{{ pathto(item.page or item.link_page) }}{%- endif -%}
+{%- endmacro -%}
+
+{#- A link styled as a button (primary) or as a plain arrow link. -#}
+{%- macro action(item) -%}
+  <a class="rot-action{% if item.primary %} rot-action--primary{% endif %}" href="{{ href(item) }}">
+    {{- item.label -}}
+  </a>
+{%- endmacro -%}
+
+{#- A code sample. Console lines starting with "$ " get their prompt
+    wrapped so it can be dimmed and left out of a copy. -#}
+{%- macro sample(code, language) -%}
+<pre class="rot-sample rot-sample--{{ language }}"><code>
+  {%- for line in code.splitlines() -%}
+    {%- if language == 'console' and line.startswith('$ ') -%}
+      <span class="rot-prompt" aria-hidden="true">$ </span>{{ line[2:] }}
+    {%- else -%}
+      {{ line }}
+    {%- endif %}
+{% endfor -%}
+</code></pre>
+{%- endmacro -%}

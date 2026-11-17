@@ -1,0 +1,82 @@
+# Copy for the landing page (docs/index.md, rendered by
+# docs/_templates/layout/rotifer-landing.html). Templates hold markup only;
+# every visible string lives here. A translation is a sibling file, such as
+# landing.pt.yml, with the same keys. conf.py picks the file that matches the
+# build language.
+#
+# Links are page names (resolved with Sphinx's pathto) unless they start
+# with http.
+
+hero:
+  # The headline. "accent" is shown in the brand aqua, "rest" after it.
+  title:
+    accent: Genomics
+    rest: made easy
+  lede: >-
+    rotifer is a toolkit for comparative genomics: Python libraries and
+    command-line tools that fetch sequences and genomes, map gene
+    neighbourhoods and read domain architectures.
+  actions:
+    - label: Install
+      page: install
+      primary: true
+    - label: Read the docs
+      page: overview
+  sequences_note: >-
+    In the background: protein sequences from PDB entries 7MU9, 4QTQ, 7LKQ,
+    4FOU and 8PX4.
+
+capabilities:
+  heading: What it does
+  items:
+    - id: data
+      title: Database cursors
+      text: >-
+        One interface for NCBI, UniProt and local mirrors. Ask for one
+        accession or thousands, and the cursor batches the requests, retries
+        what fails and keeps a list of anything it could not find.
+      code_language: python
+      code: |-
+        from rotifer.db import ncbi
+        assembly_reports = ncbi.assemblies(taxonomy=True)
+      names: [rotifer.db.ncbi, rotifer.db.ncbi.entrez, rotifer.db.uniprot]
+      link_label: Data access guide
+      link_page: db/index
+    - id: context
+      title: Genomic context
+      text: >-
+        Collect the genes around a protein, normalise neighbourhood reports
+        and turn operons into tables, figures and networks.
+      code_language: console
+      code: |-
+        $ operon2table operons.txt
+        $ neighborhood_explorer neighborhood.txt > neighborhood.clean.txt
+      names: [acc2operon, neighborhood_explorer, neighborhood2svg, operon2table, context2network]
+      link_label: Browse the tools
+      link_url: https://github.com/leepusp/rotifer/tree/master/bin
+    - id: domains
+      title: Domains and alignments
+      text: >-
+        Parse HMMER, HH-suite and RPS-BLAST output into tables, build domain
+        architectures and draw them, and clean up alignments.
+      code_language: console
+      code: |-
+        $ blast2table -c cdd -s result.rps > result.tsv
+        $ domain2architecture result.tsv > result.arch
+      names: [hmmer2table, hhsuite2table, domain2architecture, architecture2svg, alntool]
+      link_label: API reference
+      link_page: api/index
+
+start:
+  heading: Get started
+  text: >-
+    rotifer runs from a clone of its repository inside a conda environment.
+    The install guide walks through each step.
+  links:
+    - label: Install guide
+      page: install
+      primary: true
+    - label: Documentation
+      page: overview
+    - label: Source on GitHub
+      url: https://github.com/leepusp/rotifer

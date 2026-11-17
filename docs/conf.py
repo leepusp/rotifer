@@ -176,6 +176,8 @@ if ENABLE_DATATABLES:
     extensions.append("sphinx_datatables")
 if NEST_API_SIDEBAR:
     extensions.append("sidebar_tree")
+# Copy and background data for the landing page (docs/_ext/landing_context.py).
+extensions.append("landing_context")
 
 templates_path = ["_templates"]
 exclude_patterns = [
