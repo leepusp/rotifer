@@ -1,0 +1,19 @@
+{#- Overrides Shibuya's footer text with the lab credit: "Made at" and the
+    psel lockup, one image per color mode (footer.css shows the right one).
+    The theme's own credit line is kept underneath. -#}
+<div class="sy-foot-copyright rot-credit">
+  <p class="rot-credit-line">
+    <span class="rot-credit-label">{{ _('Made at') }}</span>
+    {%- set tag = 'a' if lab_url else 'span' %}
+    <{{ tag }} class="rot-credit-logo"{% if lab_url %} href="{{ lab_url }}"{% endif %}>
+      <img class="light-logo" src="{{ pathto('_static/brand/psel-lockup-horizontal-color.svg', 1) }}"
+           alt="{{ lab_name }}" height="40" loading="lazy">
+      <img class="dark-logo" src="{{ pathto('_static/brand/psel-lockup-horizontal-reverse.svg', 1) }}"
+           alt="{{ lab_name }}" height="40" loading="lazy">
+    </{{ tag }}>
+  </p>
+  <p class="rot-credit-tools">
+    {{ _('Built with') }} <a href="https://www.sphinx-doc.org/">Sphinx</a>
+    {{ _('and the') }} <a href="https://shibuya.lepture.com">Shibuya</a> {{ _('theme') }}.
+  </p>
+</div>

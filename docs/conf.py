@@ -27,6 +27,10 @@ SITE_URL = "https://leepusp.github.io/rotifer/"
 # theme owns; the exact brand tokens live in _static/css/tokens.css.
 ACCENT_COLOR = "teal"
 
+# The lab credited in the footer ("Made at" + its logo). LAB_URL may stay
+# empty, in which case the logo is shown without a link.
+LAB_NAME = "psel, the Protein Structure and Evolution Laboratory, ICB, Universidade de São Paulo"
+LAB_URL = "https://leep.icb.usp.br"
 
 # Third-party packages that autodoc must NOT import for real. These are the
 # heavy scientific dependencies of the rotifer package. Extend this list if
@@ -286,6 +290,7 @@ html_css_files = [
     "css/theme-map.css",
     "css/content.css",
     "css/navigation.css",
+    "css/footer.css",
 ]
 html_favicon = "_static/brand/favicon.svg"
 html_title = f"{PROJECT_NAME} {release}"
@@ -302,6 +307,11 @@ html_theme_options = {
         {"title": "Contributing", "url": "contributing/index"},
         {"title": "License", "url": "licensing/index"},
     ],
+}
+
+html_context = {
+    "lab_name": LAB_NAME,
+    "lab_url": LAB_URL,
 }
 
 # Drop the theme sidebars that call external services (repo stats, ads).
