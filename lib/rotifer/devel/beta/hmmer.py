@@ -17,6 +17,62 @@ from tqdm import tqdm
 import math
 from multiprocessing import Pool, pool
 
+logger = rotifer.logging.getLogger(__name__)
+
+# Characters Easel reads as gaps ('-', '.', '_') or missing data ('~'). Left in a
+# sequence to be searched, HMMER scores them as residues: hits are lost and the
+# coordinates count alignment columns instead of residues (issue #137).
+GAP_CHARACTERS = '-._~'
+_UNGAP = str.maketrans('', '', GAP_CHARACTERS)
+
+def _is_pressed(hmm_file):
+    """
+    Tell whether an HMM database was pressed with hmmpress.
+
+    `HMMFile.is_pressed` is a method in recent pyhmmer releases (0.12.3, at
+    least) and a property in older ones. Testing the method without calling it
+    is always true, which sends unpressed files to `optimized_profiles()` and
+    makes it fail, so support both forms.
+    """
+    pressed = hmm_file.is_pressed
+    if callable(pressed):
+        pressed = pressed()
+    return bool(pressed)
+
+def _sequence_rows(seqobj):
+    """
+    Rows of a sequence object that hold sequences, leaving out rows such as
+    consensus lines added by `add_consensus`.
+    """
+    df = seqobj.df
+    if 'type' in df.columns:
+        df = df[df.type == 'sequence']
+    return df
+
+def _digitize(records, ungap):
+    """
+    Digitize (name, sequence) pairs with the amino acid alphabet.
+
+    Returns
+    -------
+    tuple
+        The list of digital sequences and the number of sequences that had
+        gaps removed (always 0 when `ungap` is false).
+    """
+    abc = ph.easel.Alphabet.amino()
+    digital_sequences = []
+    ungapped = 0
+    for name, seq in records:
+        seq = str(seq)
+        if ungap:
+            residues = seq.translate(_UNGAP)
+            if len(residues) != len(seq):
+                ungapped += 1
+            seq = residues
+        text_seq = ph.easel.TextSequence(name=str(name).encode(), sequence=seq)
+        digital_sequences.append(text_seq.digitize(abc))
+    return digital_sequences, ungapped
+
 def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
     """
     Convert sequences from a sequence object into digital format for use with pyhmmer.
@@ -24,6 +80,13 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
     This function takes a sequence object (expected to have a `.df` attribute with
     columns "id" and "sequence"), digitizes the sequences using a aminoacid alphabet,
     and optionally returns a pyhmmer DigitalMSA object.
+
+    Only rows of type "sequence" are digitized: rows such as the consensus
+    lines added by `add_consensus` are left out.
+
+    Gaps ('-', '.', '_', '~') are removed unless `alignment` is true, so that
+    an aligned sequence object can be searched like unaligned sequences. With
+    `alignment=True` the gaps are kept, as building an HMM needs them.
 
     Args:
         seqobj: Object
@@ -37,7 +100,8 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
         pyhmmer.easel.DigitalMSA or list
             - If `alignment=True`: returns a `DigitalMSA` object containing all
               digitized sequences, suitable for building an HMM.
-            - Otherwise: returns a list of `DigitalSequence` objects, one per sequence.
+            - Otherwise: returns a list of `DigitalSequence` objects, one per
+              sequence, without gaps.
 
     Example:
         # Digitize sequences without creating a DigitalMSA
@@ -46,19 +110,12 @@ def digitalize_seqobj(seqobj, alignment=None, msa_name='alignment'):
         # Create a DigitalMSA for HMM building
         msa = digitalize_seqobj(seqobj, alignment=True, msa_name='my_alignment')
     """
-    abc = ph.easel.Alphabet.amino()
-    digital_sequences = []
-
-    for _, row in seqobj.df.iterrows():
-        name = str(row["id"]).encode()
-        seq = str(row["sequence"])
-        text_seq = ph.easel.TextSequence(name=name, sequence=seq)
-        digital_sequences.append(text_seq.digitize(abc))
+    rows = _sequence_rows(seqobj)
+    digital_sequences, _ = _digitize(zip(rows.id, rows.sequence), ungap=not alignment)
 
     if alignment:
-        for dseq in digital_sequences:
-            msa = ph.easel.DigitalMSA(abc, sequences=digital_sequences, name = (msa_name.encode()))    
-        return msa
+        abc = ph.easel.Alphabet.amino()
+        return ph.easel.DigitalMSA(abc, sequences=digital_sequences, name=msa_name.encode())
     else:
         return digital_sequences
 
@@ -149,12 +206,16 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
 
     return df
 
-def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
+def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True, alignment_coordinates=False):
     
     '''
     Perform an hmmscan of protein sequences against a Pfam HMM database.
     This function accepts an sequence object or a FASTA file path, and 
     returns a pandas DataFrame summarizing domain hits and alignment attributes.
+
+    Gaps are removed from the input before the search, so an alignment (a
+    sequence object or an aligned FASTA file) gives the same results as the
+    unaligned sequences, and coordinates refer to the ungapped sequences.
     ----------
     Parameters
     ----------
@@ -170,33 +231,34 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
     columns: list of str, optional
         Subset of result column names to include in the output DataFrame.
         Default columns include basic domain and alignment metrics.
+    alignment_coordinates: bool, optional
+        If True, add the columns `col_start` and `col_end`: the alignment
+        columns where each domain envelope (estart/eend) starts and ends.
+        Requires a sequence object (not `file`) with unique ids, and the
+        columns aln_target_name, env_from and env_to. Default: False.
     '''
     #Progress bar callback
     def callback(hmm, hits):
         pbar.update(1)
 
+    if alignment_coordinates:
+        _check_alignment_coordinates(file, columns)
+
     if isinstance(models_path, str):
         models_path = [models_path]
+
+    #Sequences load, once for all models
+    seqs, seqobj = _load_sequences(sequences, file)
+    residue_columns = _residue_columns(seqobj) if alignment_coordinates else None
 
     results = []
     #HMM load
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-           if hmm_file.is_pressed:
+           if _is_pressed(hmm_file):
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
-
-        #Sequences load
-        abc = ph.easel.Alphabet.amino()
-        if file:
-           seqs = ph.easel.SequenceFile(file, digital = True, alphabet=abc)
-        else:
-           if type(sequences) == list:
-               seqobj = rdbs.sequence(sequences)
-               seqs = digitalize_seqobj(seqobj)
-           elif type(sequences) == rotifer.devel.beta.sequence.sequence:
-               seqs = digitalize_seqobj(sequences)
 
         #Hmmscan run and file processment
         pbar = tqdm(total=len(seqs), desc='hmmscan')
@@ -206,6 +268,8 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
         results.append(df)
 
     df = pd.concat(results)
+    if alignment_coordinates:
+        df = _add_alignment_columns(df, residue_columns)
     if rename:
         df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
     return df
@@ -236,7 +300,7 @@ def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hm
     results = []
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-           if hmm_file.is_pressed:
+           if _is_pressed(hmm_file):
                hmms = list(hmm_file.optimized_profiles())
            else:
                hmms = list(hmm_file)
@@ -298,7 +362,7 @@ def _load_models(models_path):
     HMM_MODELS = {}
     for model in models_path:
         with ph.plan7.HMMFile(model) as hmm_file:
-            if hmm_file.is_pressed:
+            if _is_pressed(hmm_file):
                 hmms = list(hmm_file.optimized_profiles())
             else:
                 hmms = list(hmm_file)
@@ -306,38 +370,96 @@ def _load_models(models_path):
 
 def _load_sequences(sequences, file):
     """
-    Load and digitalize protein sequences.
+    Load and digitalize protein sequences, without gaps.
+
+    Gaps are removed from every sequence, so an alignment is searched like
+    the unaligned sequences. A warning is logged when any were found.
 
     Parameters
     ----------
     sequences : sequence object or list
         Sequence container used in the rotifer ecosystem.
     file : str or None
-        Path to a FASTA file.
+        Path to a FASTA file, aligned or not.
 
     Returns
     -------
-    list
-        List of digital pyhmmer sequences.
+    tuple
+        The list of digital pyhmmer sequences and the sequence object they
+        came from (None when reading from `file`).
     """
-    abc = ph.easel.Alphabet.amino()
     if file:
-        seqs = list(
-            ph.easel.SequenceFile(
-                file,
-                digital=True,
-                alphabet=abc
-            )
-        )
+        # Easel's FASTA parser rejects gap characters, digital or not, so
+        # read the file with Biopython and remove the gaps here.
+        from Bio import SeqIO
+        seqobj = None
+        records = ((r.id, str(r.seq)) for r in SeqIO.parse(file, 'fasta'))
     else:
-        if type(sequences) == list:
+        if isinstance(sequences, list):
             seqobj = rdbs.sequence(sequences)
-            seqs = list(digitalize_seqobj(seqobj))
-        elif type(sequences) == rotifer.devel.beta.sequence.sequence:
-            seqs = list(digitalize_seqobj(sequences))
+        elif isinstance(sequences, rdbs.sequence):
+            seqobj = sequences
         else:
             raise ValueError("Unsupported sequence input type")
-    return seqs
+        rows = _sequence_rows(seqobj)
+        records = zip(rows.id, rows.sequence)
+
+    seqs, ungapped = _digitize(records, ungap=True)
+    if ungapped:
+        logger.warning(
+            f'{ungapped} of {len(seqs)} input sequences contained gaps: gaps were '
+            'removed before scanning and coordinates refer to the ungapped sequences.'
+        )
+    return seqs, seqobj
+
+def _check_alignment_coordinates(file, columns):
+    """
+    Fail before searching when alignment coordinates cannot be computed.
+    """
+    if file:
+        raise ValueError(
+            'alignment_coordinates requires a sequence object: '
+            'a FASTA file given as file= has no alignment columns to map to.'
+        )
+    required = ['aln_target_name', 'env_from', 'env_to']
+    missing = [ c for c in required if columns and c not in columns ]
+    if missing:
+        raise ValueError(
+            f'alignment_coordinates requires the columns {", ".join(missing)}.'
+        )
+
+def _residue_columns(seqobj):
+    """
+    Map each sequence id to the alignment columns (1-based) of its residues.
+
+    Entry i-1 of an id's array is the column of residue i, so residue
+    coordinates convert to alignment columns by indexing.
+    """
+    rows = _sequence_rows(seqobj)
+    ids = rows.id.astype(str)
+    if ids.duplicated().any():
+        duplicated = sorted(ids[ids.duplicated()].unique())
+        raise ValueError(
+            'alignment_coordinates requires unique sequence ids, found duplicates: '
+            + ', '.join(duplicated[:5]) + (' ...' if len(duplicated) > 5 else '')
+        )
+    gaps = np.frombuffer(GAP_CHARACTERS.encode(), dtype='S1')
+    columns = {}
+    for name, seq in zip(ids, rows.sequence):
+        chars = np.frombuffer(str(seq).encode(), dtype='S1')
+        columns[name] = np.flatnonzero(~np.isin(chars, gaps)) + 1
+    return columns
+
+def _add_alignment_columns(df, residue_columns):
+    """
+    Add `col_start` and `col_end`: the alignment columns of each domain's
+    envelope start (env_from) and end (env_to).
+    """
+    df = df.copy()
+    names = df.aln_target_name.map(lambda x: x.decode() if isinstance(x, bytes) else str(x))
+    df['col_start'] = [ int(residue_columns[n][s - 1]) for n, s in zip(names, df.env_from) ]
+    df['col_end'] = [ int(residue_columns[n][e - 1]) for n, e in zip(names, df.env_to) ]
+    return df
 
 def _chunk_sequences(seqs, chunk_size):
     """
@@ -396,7 +518,8 @@ def hmmscan(
         'env_from',
         'env_to'
     ],
-    rename=True
+    rename=True,
+    alignment_coordinates=False
 ):
     """
     Perform hmmscan searches against one or more HMM databases.
@@ -412,14 +535,21 @@ def hmmscan(
     • Configurable CPU usage per worker
     • Compatible with both sequence objects and FASTA input
     • Efficient scaling on multi-core systems
+    • Aligned input is searched without its gaps
+
+    Gaps are removed from the input before the search, so an alignment (a
+    sequence object or an aligned FASTA file) gives the same results as the
+    unaligned sequences, and coordinates refer to the ungapped sequences. A
+    warning is logged when gaps were removed.
 
     Parameters
     ----------
     sequences : sequence object or list, optional
         Sequence container to scan. Ignored if `file` is provided.
+        Only rows of type "sequence" are scanned (consensus rows are not).
 
     file : str, optional
-        Path to FASTA file containing protein sequences.
+        Path to FASTA file containing protein sequences, aligned or not.
 
     models_path : str or list[str], optional
         Path(s) to HMM database files.
@@ -446,11 +576,21 @@ def hmmscan(
     rename : bool, optional
         Whether to apply column renaming in the parser.
 
+    alignment_coordinates : bool, optional
+        If True, add the columns `col_start` and `col_end`: the alignment
+        columns where each domain envelope (estart/eend) starts and ends,
+        e.g. to cut an alignment at a domain. Requires a sequence object
+        (not `file`) with unique ids, and the columns aln_target_name,
+        env_from and env_to. Default: False.
+
     Returns
     -------
     pandas.DataFrame
         Combined hmmscan results for all sequences and models.
     """
+
+    if alignment_coordinates:
+        _check_alignment_coordinates(file, columns)
 
     # --------------------------------------------------------------
     # MODEL PATH NORMALIZATION
@@ -466,7 +606,8 @@ def hmmscan(
     # --------------------------------------------------------------
     # LOAD SEQUENCES
     # --------------------------------------------------------------
-    seqs = _load_sequences(sequences, file)
+    seqs, seqobj = _load_sequences(sequences, file)
+    residue_columns = _residue_columns(seqobj) if alignment_coordinates else None
 
     # --------------------------------------------------------------
     # CHUNK SEQUENCES
@@ -505,6 +646,8 @@ def hmmscan(
     # MERGE RESULTS
     # --------------------------------------------------------------
     df = pd.concat(results, ignore_index=True)
+    if alignment_coordinates:
+        df = _add_alignment_columns(df, residue_columns)
     if rename:
         df.rename({'aln_target_name': 'sequence', 'aln_hmm_name': 'model', 'i_evalue': 'evalue', 'env_from': 'estart', 'env_to': 'eend'}, axis=1, inplace=True)
     return df
