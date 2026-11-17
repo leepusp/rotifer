@@ -61,7 +61,13 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     else:
         seqobj = seqobj.copy()
 
-    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
+    # Only proteins with a hit: the others have no envelope to extract
+    nohit = ~seqobj.df.id.isin(df.sequence)
+    if nohit.any():
+        dropped = seqobj.df.id[nohit].drop_duplicates().astype(str)
+        logger.warning(f'{len(dropped)} protein(s) had no hit and were dropped: ' + ', '.join(dropped))
+        seqobj.df = seqobj.df[~nohit]
+    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='inner')
     seqobj.df['end'] = seqobj.df[end].fillna(seqobj.df.length).astype(int)
     seqobj.df['start'] = seqobj.df[start].fillna(1).astype(int)
 
