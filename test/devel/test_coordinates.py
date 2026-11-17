@@ -24,6 +24,9 @@ What has to hold, and why:
     1-based and were sliced as 0-based)
   * extract_envelope (epsoares) widens both sides by exactly expand, within
     the protein, and its id names the region actually cut
+  * proteins in seqobj without a hit are dropped and logged, instead of
+    coming back uncut with a missing id; hits without coordinates still
+    return the whole protein
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -278,3 +281,24 @@ class TestEpsoaresExtractEnvelope:
     def test_no_expansion_cuts_the_envelope(self, epsoares):
         e = epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=seqobj(['p1'], [FULL]), expand=0)
         assert envelopes(e) == {'p1/21-30': FULL[20:30]}
+
+    def test_proteins_without_a_hit_are_dropped_and_logged(self, epsoares, caplog):
+        caplog.set_level(logging.WARNING)
+        e = epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=seqobj(['p1', 'p2'], [FULL, FULL]), expand=0)
+        assert e.df.id.tolist() == ['p1/21-30']
+        assert e.df.pid.tolist() == ['p1']
+        assert 'p2' in caplog.text
+
+    def test_hit_without_coordinates_returns_the_whole_protein(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 21, 30), ('p2', None, None)),
+                                      seqobj=seqobj(['p1', 'p2'], [FULL, FULL]), expand=0)
+        assert envelopes(e) == {'p1/21-30': FULL[20:30], 'p2/1-52': FULL}
+
+    def test_two_hits_in_one_protein_give_two_envelopes(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 5, 10), ('p1', 31, 40)), seqobj=seqobj(['p1'], [FULL]), expand=0)
+        assert envelopes(e) == {'p1/5-10': FULL[4:10], 'p1/31-40': FULL[30:40]}
+
+    def test_input_seqobj_is_not_modified(self, epsoares):
+        full = seqobj(['p1', 'p2'], [FULL, FULL])
+        epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=full, expand=0)
+        assert full.df.id.tolist() == ['p1', 'p2'] and full.df.sequence.tolist() == [FULL, FULL]
