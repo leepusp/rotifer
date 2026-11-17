@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Tests for residue coordinates in sequence and envelope helpers (issue #142).
+
+ROTIFER coordinates are 1-based and inclusive: residue i is seq[i - 1] and
+the region s-e is seq[s - 1:e]. Several helpers mixed this with Python's
+0-based offsets and returned wrong coordinates, lengths and ids without
+any warning.
+
+What has to hold, and why:
+
+  * fragment_coordinates returns 1-based inclusive start/end, and missing
+    values plus a warning when a fragment can't be located, instead of
+    find()'s -1
+
+The fixtures are synthetic: full-length sequences are runs of distinct
+letters, so every residue's position can be read off directly, and the
+full-length sequences are passed in (or the database fetch is patched),
+so nothing needs a sequence database.
+
+Run under pytest: PYTHONPATH=lib pytest test/devel/test_coordinates.py
+"""
+
+import logging
+
+import pandas as pd
+import pytest
+
+import rotifer.devel.beta.sequence as rdbs
+
+# Residue i (1-based) of FULL is FULL[i - 1]: A=1 ... Z=26, a=27 ... z=52
+FULL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
+
+def seqobj(ids, sequences):
+    """A sequence object built from plain lists, without any database."""
+    return rdbs.sequence(pd.DataFrame({'id': ids, 'sequence': sequences}))
+
+
+# --- fragment_coordinates ----------------------------------------------------
+
+class TestFragmentCoordinates:
+    def test_coordinates_are_1_based_and_inclusive(self):
+        c = rdbs.fragment_coordinates(pd.Series(['KLMNOPQRST', 'ABCDEFGHIJ']), pd.Series([FULL, FULL]))
+        assert c.start.tolist() == [11, 1]
+        assert c.end.tolist() == [20, 10]
+
+    def test_gaps_are_ignored(self):
+        c = rdbs.fragment_coordinates(pd.Series(['--KLM-NO--']), pd.Series([FULL]))
+        assert (c.start[0], c.end[0]) == (11, 15)
+
+    def test_slice_recovers_the_fragment(self):
+        c = rdbs.fragment_coordinates(pd.Series(['xyz']), pd.Series([FULL]))
+        assert FULL[c.start[0] - 1:c.end[0]] == 'xyz'
+
+    def test_fragment_not_found_is_missing_and_warned(self, caplog):
+        caplog.set_level(logging.WARNING)
+        c = rdbs.fragment_coordinates(pd.Series(['XXXX'], index=['p1']), pd.Series([FULL], index=['p1']))
+        assert c.start.isna().all() and c.end.isna().all()
+        assert 'p1' in caplog.text
+
+    def test_missing_full_sequence_is_missing_and_warned(self, caplog):
+        caplog.set_level(logging.WARNING)
+        c = rdbs.fragment_coordinates(pd.Series(['ABC'], index=['p9']), pd.Series([None], index=['p9']))
+        assert c.start.isna().all()
+        assert 'p9' in caplog.text
+
+    def test_no_warning_when_everything_is_found(self, caplog):
+        caplog.set_level(logging.WARNING)
+        rdbs.fragment_coordinates(pd.Series(['ABC']), pd.Series([FULL]))
+        assert caplog.text == ''
