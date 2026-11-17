@@ -473,8 +473,12 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             'key': key[is_query],
             'strand': df.loc[is_query, 'strand'],
         }).drop_duplicates('key')
-        if len(first_query) < key.nunique():
-            raise NameError('Query_Missing')
+        no_query = ~key.isin(first_query['key'])
+        if no_query.any():
+            blocks = pd.unique(df.loc[no_query, 'block_id'])
+            listed = ', '.join(str(b) for b in blocks[:10])
+            more = f' and {len(blocks) - 10} more' if len(blocks) > 10 else ''
+            raise NameError(f'Query_Missing: no query in block_id(s) {listed}{more}')
         forward_by_key = pd.Series((first_query['strand'] == 1).to_numpy(),
                                    index=first_query['key'].to_numpy())
         forward = key.map(forward_by_key).to_numpy(dtype=bool)
