@@ -929,18 +929,33 @@ def remove_redundancy(seqobj, identity =80, coverage = 70):
     return(s)
 
 def add_cordinates_to_aln(seqobj, full_length_seqobj=False):
-    from rotifer.devel.beta.sequence import sequence as sequence
+    '''
+    Add the coordinates of each aligned sequence in its full-length sequence.
+
+    Adds the columns full_length, start, end (1-based and inclusive, so the
+    aligned residues are full_sequence[start - 1:end]) and C_term (residues
+    after end). Coordinates are missing, with a warning, for sequences that
+    can't be found in their full-length sequence.
+
+    full_length_seqobj: sequence object with the full-length sequences.
+    By default they are fetched from the database.
+    '''
+    from rotifer.devel.beta.sequence import sequence, fragment_coordinates
     c = seqobj.copy()
     if full_length_seqobj:
         cx = full_length_seqobj.copy()
-    else:    
+    else:
         cx = sequence(c.df.id.tolist())
-    cx.df = cx.df.rename({'sequence':'full_sequence', 'length':'full_length'}, axis=1)
-    c.df = c.df.merge(cx.df[['id','full_sequence','full_length']], how='left')
-    c.df['start'] = c.df.apply(lambda x : 0 + x.full_sequence.find(x.sequence.replace('-','')), axis=1)
-    c.df['end'] = c.df.start + c.df['length']
+    full = cx.df.drop_duplicates('id').set_index('id')
+    seqs = c.df.query('type == "sequence"')
+    coordinates = fragment_coordinates(
+        seqs.sequence.set_axis(seqs.id),
+        seqs.id.map(full.sequence).set_axis(seqs.id),
+    ).set_axis(seqs.index)
+    c.df['full_length'] = c.df.id.map(full['length'])
+    c.df['start'] = coordinates.start
+    c.df['end'] = coordinates.end
     c.df['C_term'] = c.df['full_length'] - c.df['end']
-    c.df =  c.df.drop(['full_sequence'], axis=1)
     return c
 
 def trim_unk_neigh(df, ann='profiledb'):
@@ -976,18 +991,13 @@ def extend_aln(seqobj, n_terminal=50, c_terminal=50,c_term_list=[],n_term_list=[
     else:    
         tm2 = rdbs.sequence(seqobj.df.id.tolist())
     tm2.df = tm2.df.merge(tm.df[['id', 'full_length', 'start', 'end', 'C_term', 'previous_length']], how='left')
-    tm2.df.end = np.where(tm2.df.id.isin(c_term_list),
-                          np.where(
-                              tm2.df.end + c_terminal <= tm2.df.full_length,
-                              tm2.df.end + c_terminal,
-                              tm2.df.full_length),
-                          tm2.df.end)
-    tm2.df.start = np.where(tm2.df.id.isin(n_term_list),
-                           np.where(
-                                tm2.df.start - n_terminal > 0,
-                                tm2.df.start - n_terminal,
-                                1),
-                            tm2.df.start)
+    # Coordinates are 1-based and may be missing (pandas NA), which np.where can't take
+    tm2.df['end'] = tm2.df.end.mask(
+        tm2.df.id.isin(c_term_list),
+        (tm2.df.end + c_terminal).clip(upper=tm2.df.full_length))
+    tm2.df['start'] = tm2.df.start.mask(
+        tm2.df.id.isin(n_term_list),
+        (tm2.df.start - n_terminal).clip(lower=1))
     if tm2.df['end'].isna().any():
         te = ', '.join(tm2.df.query("end.isna()").id.tolist())
         print(f'some pid is missing the coordinates  {te}')

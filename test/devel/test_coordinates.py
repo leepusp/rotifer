@@ -14,6 +14,8 @@ What has to hold, and why:
   * gaps_to_numbers(adjust_coordinates=True), used by the HTML and LaTeX
     alignment views, numbers each row from its first to its last residue
     in the full-length sequence (the trailing number was one past the end)
+  * add_cordinates_to_aln's start is 1-based like its end (it was find()'s
+    0-based offset), so extend_aln adds exactly n_terminal residues
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -29,6 +31,7 @@ import pandas as pd
 import pytest
 
 import rotifer.devel.beta.sequence as rdbs
+import rotifer.devel.alpha.gian_func as rdag
 
 # Residue i (1-based) of FULL is FULL[i - 1]: A=1 ... Z=26, a=27 ... z=52
 FULL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
@@ -121,3 +124,48 @@ class TestGapsToNumbers:
         _, numbers, _, _ = seqobj(*GAPPED).gaps_to_numbers('m1', adjust_coordinates=True)
         assert numbers.iloc[:, 0].tolist() == [1, 1]
         assert numbers.iloc[:, -1].tolist() == [6, 8]
+
+
+# --- add_cordinates_to_aln and extend_aln (#1, #2) ---------------------------
+
+def ungapped(aln):
+    """Map each id to its sequence without gaps."""
+    return dict(zip(aln.df.id, aln.df.sequence.str.replace('-', '')))
+
+
+@pytest.fixture
+def aligned():
+    """p1 is residues 11-20 and p2 residues 2-10 of FULL; p3 is a bystander."""
+    full = seqobj(['p1', 'p2', 'p3'], [FULL] * 3)
+    aln = seqobj(['p1', 'p2'], ['KLMNOPQRST', '-BCDEFGHIJ'])
+    return aln, full
+
+
+class TestAddCoordinates:
+    def test_start_and_end_are_1_based_and_inclusive(self, aligned):
+        aln, full = aligned
+        c = rdag.add_cordinates_to_aln(aln, full_length_seqobj=full).df.set_index('id')
+        assert c.start.tolist() == [11, 2]
+        assert c.end.tolist() == [20, 10]
+        assert c.C_term.tolist() == [32, 42]
+        assert c.full_length.tolist() == [52, 52]
+
+    def test_fragment_not_found_is_missing_not_minus_one(self, aligned, caplog):
+        caplog.set_level(logging.WARNING)
+        _, full = aligned
+        c = rdag.add_cordinates_to_aln(seqobj(['p1'], ['XXXX']), full_length_seqobj=full)
+        assert c.df.start.isna().all()
+        assert 'p1' in caplog.text
+
+
+class TestExtendAln:
+    def test_extends_by_exactly_the_requested_residues(self, aligned):
+        aln, full = aligned
+        e = ungapped(rdag.extend_aln(aln, n_terminal=3, c_terminal=3, full_length_seqobj=full))
+        assert e['p1'] == FULL[11 - 3 - 1:20 + 3]   # HIJ ... TUVW
+        assert e['p2'] == FULL[0:10 + 3]            # capped at residue 1
+
+    def test_sequences_not_extended_keep_their_start(self, aligned):
+        aln, full = aligned
+        e = ungapped(rdag.extend_aln(aln, n_terminal=3, c_terminal=0, n_term_list=['p1'], full_length_seqobj=full))
+        assert e['p2'] == FULL[1:10]                # still starts at residue 2 (B)
