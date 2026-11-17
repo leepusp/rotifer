@@ -22,6 +22,8 @@ What has to hold, and why:
     not for every other protein in full_length_seqobj
   * split_by_model keeps each domain's first residue (HMMER coordinates are
     1-based and were sliced as 0-based)
+  * extract_envelope (epsoares) widens both sides by exactly expand, within
+    the protein, and its id names the region actually cut
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -237,3 +239,42 @@ def test_split_by_model_keeps_the_first_residue(monkeypatch):
     monkeypatch.setattr(subprocess, 'Popen', FakeHmmer)
     domains = rdag.split_by_model(seqobj(['p1'], [FULL]), 'model.hmm')
     assert domains.df.sequence.str.replace('-', '').tolist() == [FULL[10:20]]  # residues 11-20
+
+
+# --- extract_envelope in epsoares (#3, #4) -----------------------------------
+
+@pytest.fixture
+def epsoares():
+    return pytest.importorskip('rotifer.devel.alpha.epsoares')
+
+
+def hits(*rows):
+    """A hit table like hmmer2table's: (protein, estart, eend) per row."""
+    return pd.DataFrame(rows, columns=['sequence', 'estart', 'eend'])
+
+
+def envelopes(aln):
+    """Map each id to its sequence."""
+    return dict(zip(aln.df.id, aln.df.sequence))
+
+
+class TestEpsoaresExtractEnvelope:
+    def test_id_names_the_region_cut(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=seqobj(['p1'], [FULL]), expand=10)
+        assert envelopes(e) == {'p1/11-40': FULL[10:40]}
+
+    def test_both_sides_widen_by_expand(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=seqobj(['p1'], [FULL]), expand=5)
+        assert e.df[['start', 'end']].values.tolist() == [[16, 35]]
+
+    def test_start_stops_at_residue_1(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 11, 20)), seqobj=seqobj(['p1'], [FULL]), expand=10)
+        assert envelopes(e) == {'p1/1-30': FULL[0:30]}
+
+    def test_end_stops_at_the_last_residue(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 40, 48)), seqobj=seqobj(['p1'], [FULL]), expand=10)
+        assert envelopes(e) == {'p1/30-52': FULL[29:52]}
+
+    def test_no_expansion_cuts_the_envelope(self, epsoares):
+        e = epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=seqobj(['p1'], [FULL]), expand=0)
+        assert envelopes(e) == {'p1/21-30': FULL[20:30]}
