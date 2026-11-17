@@ -24,8 +24,9 @@ GITHUB_URL = "https://github.com/leepusp/rotifer"
 SITE_URL = "https://leepusp.github.io/rotifer/"
 
 # Shibuya accent family (radix color name). This only controls surfaces the
-# theme owns; the exact brand tokens live in _static/theme.css.
+# theme owns; the exact brand tokens live in _static/css/tokens.css.
 ACCENT_COLOR = "teal"
+
 
 # Third-party packages that autodoc must NOT import for real. These are the
 # heavy scientific dependencies of the rotifer package. Extend this list if
@@ -278,13 +279,23 @@ iconify_script_url = "vendor/iconify-icon.min.js"
 html_theme = "shibuya"
 html_baseurl = SITE_URL
 html_static_path = ["_static"]
-html_css_files = ["theme.css"]
+# Loaded in this order; each file has one job (see contributing/design-system).
+html_css_files = [
+    "css/fonts.css",
+    "css/tokens.css",
+    "css/theme-map.css",
+    "css/content.css",
+    "css/navigation.css",
+]
+html_favicon = "_static/brand/favicon.svg"
 html_title = f"{PROJECT_NAME} {release}"
 
 html_theme_options = {
     "accent_color": ACCENT_COLOR,
     "github_url": GITHUB_URL,
     "show_ai_links": False,  # keep the site free of external services
+    "light_logo": "_static/brand/rotifer-lockup-horizontal-color.svg",
+    "dark_logo": "_static/brand/rotifer-lockup-horizontal-reverse.svg",
     "nav_links": [
         {"title": "Data access", "url": "db/index"},
         {"title": "API", "url": "api/index"},

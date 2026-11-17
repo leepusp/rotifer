@@ -1,0 +1,182 @@
+/* Page content: prose, headings, code, cards, tables, focus and the
+ * browser surfaces (selection, scrollbars). Only tokens are referenced. */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-feature-settings: "kern", "liga";
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--rot-accent-tint);
+  color: var(--rot-text);
+}
+
+/* Readability: keep prose near 72 characters. Tables, code blocks and API
+ * signatures may use the full content column but never force the page to
+ * scroll sideways (their containers scroll instead). */
+.yue p,
+.yue li,
+.yue dd {
+  max-width: 72ch;
+}
+
+/* Headings: Chivo carries the hierarchy through weight and size steps. */
+.yue h1,
+.yue h2,
+.yue h3,
+.yue h4 {
+  font-family: var(--rot-font-sans);
+  text-wrap: balance;
+}
+
+.yue h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.yue h2 {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.yue h3,
+.yue h4 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Anchors land below the sticky header instead of under it. */
+.yue h1,
+.yue h2,
+.yue h3,
+.yue h4,
+.yue dt[id],
+.yue section[id] {
+  scroll-margin-top: calc(var(--sy-s-navbar-height, 4rem) + 1rem);
+}
+
+.yue a {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+/* Code. Inline code gets a quiet tint; blocks sit on the code surface
+ * with a hairline so they read as one object in both modes. */
+.yue code,
+.yue kbd,
+.yue pre {
+  font-family: var(--rot-font-mono);
+  font-variant-ligatures: none;
+}
+
+/* Inline code stays in the text color: the accent means "link". */
+.yue :not(pre):not(a) > code {
+  color: var(--rot-text);
+}
+
+.yue :not(pre) > code {
+  background-color: var(--rot-surface);
+  border-radius: var(--rot-radius);
+  padding: 0.1em 0.35em;
+  font-size: 0.875em;
+}
+
+.yue div.highlight pre {
+  background-color: var(--rot-code-bg);
+  border: 1px solid var(--rot-border);
+  border-radius: var(--rot-radius);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+/* sphinx-copybutton: visible on hover and focus, in the accent. */
+button.copybtn {
+  border-radius: var(--rot-radius);
+  transition: opacity var(--rot-transition), color var(--rot-transition);
+}
+
+button.copybtn:hover,
+button.copybtn:focus-visible {
+  color: var(--rot-accent);
+}
+
+/* Numbers in tables line up. */
+.yue table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One radius scale everywhere. */
+.sd-card,
+.sd-dropdown,
+.yue img,
+.yue table.dataTable,
+.admonition {
+  border-radius: var(--rot-radius);
+}
+
+/* Cards: functional hover feedback on the border only. */
+.sd-card {
+  border-color: var(--rot-border);
+  background-color: var(--rot-bg);
+  transition: border-color var(--rot-transition);
+}
+
+.sd-card:hover {
+  border-color: var(--rot-accent);
+}
+
+.sd-card .sd-card-title {
+  font-weight: 700;
+}
+
+.sd-card .sd-card-title iconify-icon {
+  color: var(--rot-accent);
+  vertical-align: -0.2em;
+  margin-right: 0.35em;
+}
+
+/* Focus rings use the accent. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--rot-accent);
+  outline-offset: 2px;
+  border-radius: var(--rot-radius);
+}
+
+/* DataTables widgets inherit the site palette. */
+table.dataTable {
+  border-color: var(--rot-border);
+}
+
+div.dt-container .dt-search input {
+  border: 1px solid var(--rot-border);
+  border-radius: var(--rot-radius);
+  background-color: var(--rot-bg);
+  color: var(--rot-text);
+}
+
+/* Scrollbars follow the palette instead of the browser default. */
+* {
+  scrollbar-color: var(--rot-border) transparent;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
