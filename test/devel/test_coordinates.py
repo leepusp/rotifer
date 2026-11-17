@@ -27,6 +27,10 @@ What has to hold, and why:
   * proteins in seqobj without a hit are dropped and logged, instead of
     coming back uncut with a missing id; hits without coordinates still
     return the whole protein
+  * extract_envelope in blast clamps the expanded envelope to the protein
+    (a start closer than expand to residue 1 gave a negative index and an
+    empty or wrong sequence), names the region cut in the id, and returns
+    the whole protein for hits without coordinates instead of crashing
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -302,3 +306,32 @@ class TestEpsoaresExtractEnvelope:
         full = seqobj(['p1', 'p2'], [FULL, FULL])
         epsoares.extract_envelope(hits(('p1', 21, 30)), seqobj=full, expand=0)
         assert full.df.id.tolist() == ['p1', 'p2'] and full.df.sequence.tolist() == [FULL, FULL]
+
+
+# --- extract_envelope in blast (#5) ------------------------------------------
+
+@pytest.fixture
+def blast():
+    return pytest.importorskip('rotifer.devel.beta.blast')
+
+
+class TestBlastExtractEnvelope:
+    def test_id_names_the_region_cut(self, blast, database):
+        database.update(p1=FULL)
+        e = blast.extract_envelope(hits(('p1', 21, 30)), expand=10)
+        assert envelopes(e) == {'p1/11-40': FULL[10:40]}
+
+    def test_start_closer_than_expand_to_residue_1(self, blast, database):
+        database.update(p1=FULL)
+        e = blast.extract_envelope(hits(('p1', 3, 12)), expand=10)
+        assert envelopes(e) == {'p1/1-22': FULL[0:22]}
+
+    def test_end_stops_at_the_last_residue(self, blast, database):
+        database.update(p1=FULL)
+        e = blast.extract_envelope(hits(('p1', 40, 48)), expand=10)
+        assert envelopes(e) == {'p1/30-52': FULL[29:52]}
+
+    def test_hit_without_coordinates_returns_the_whole_protein(self, blast, database):
+        database.update(p1=FULL, p2=FULL)
+        e = blast.extract_envelope(hits(('p1', 21, 30), ('p2', None, None)), expand=0)
+        assert envelopes(e) == {'p1/21-30': FULL[20:30], 'p2/1-52': FULL}
