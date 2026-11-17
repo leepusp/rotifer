@@ -2,7 +2,7 @@
  *
  * Loaded from <head> (see _templates/partials/extra-head.html) so a
  * remembered state is on <html> before the first paint. Everything visual
- * lives in _static/theme.css, keyed off the classes this file sets.
+ * lives in _static/css/navigation.css, keyed off the classes this file sets.
  *
  * The listeners are bound to the buttons themselves rather than delegated
  * from the document, and that is not a style choice. Shibuya wires its
@@ -36,7 +36,7 @@
   ];
 
   /* Long enough to read as one movement, short enough not to be in the
-   * way. Must match --rot-transition-panel in theme.css. */
+   * way. Must match --rot-transition-panel in css/tokens.css. */
   var ANIMATING = "sidebars-animating";
   var DURATION = 500;
 
