@@ -91,6 +91,24 @@ def test_only_query_1_is_a_query():
     assert compact(df, strand=True).compact.to_dict() == {1: '*A->B->'}
 
 
+def test_missing_query_names_the_blocks():
+    rows = [dict(block_id=b, pid=f'p{b}', cluster='A', strand=1, query=int(b == 1))
+            for b in range(1, 14)]
+    try:
+        compact(neighborhood(rows))
+    except NameError as e:
+        assert str(e) == ('Query_Missing: no query in block_id(s) '
+                          '2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 2 more'), str(e)
+    else:
+        raise AssertionError('expected NameError')
+    try:
+        compact(neighborhood(rows[:3]))
+    except NameError as e:
+        assert str(e) == 'Query_Missing: no query in block_id(s) 2, 3', str(e)
+    else:
+        raise AssertionError('expected NameError')
+
+
 if __name__ == '__main__':
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith('test_') and callable(f)]
     failed = 0
