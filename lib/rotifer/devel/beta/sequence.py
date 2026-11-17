@@ -5,7 +5,6 @@ import rotifer.db.ncbi as ncbi
 from rotifer.pandas import functions as rpf
 from rotifer.core.functions import loadConfig
 
-from IPython.core.page import page
 from copy import deepcopy
 from io import StringIO
 from Bio import SeqIO
@@ -1309,6 +1308,7 @@ class sequence(rotifer.pipeline.Annotatable):
             out = df.to_string(index=False) + "\n"
 
         if pager:
+            from IPython.core.page import page
             page(out, pager_cmd=pager)
         else:
             return df
@@ -1371,6 +1371,7 @@ class sequence(rotifer.pipeline.Annotatable):
             df.sequence = rpf.to_color(df.sequence, padding='right')
 
         if pager:
+            from IPython.core.page import page
             df = df.to_string(index=False, header=header) + "\n"
             page(df, pager_cmd=pager)
         else:
