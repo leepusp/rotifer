@@ -1019,6 +1019,84 @@ def get_network_community(G,
             #Leiden with CPM, the only one using the resolution:
             "Leidein_2": _community_scheme(G, leiden(la.CPMVertexPartition, resolution_parameter=cpm_resolution), 'LeidenCPM_')}
 
+def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50, seed=0, warn_below=0.8):
+    """
+    How much get_network_community's partitions depend on the seed.
+    Runs get_network_community with seeds seed, seed+1, ..., seed+n_seeds-1. The run with seed is the
+    reference: the partition get_network_community(G, seed=seed) returns, i.e. the one being reported.
+    Measures stability across seeds only, not robustness to the data nor whether the communities are
+    significant. Runtime is about n_seeds get_network_community calls.
+    Returns (summary, nodes):
+    summary: one row per partition (Louvain, Leidein, Leidein_2) with
+        communities: number of communities in the reference
+        distinct_partitions: distinct partitions among the n_seeds runs
+        ari_median, ari_min: adjusted Rand index over all pairs of runs (1 = identical, ~0 = chance level)
+    nodes: one row per node with, for each partition, its reference community (<name>) and
+        <name>_stability: mean Jaccard index between its community in each other run and its reference
+        community (1 = always the same community; splits and merges both lower it)
+    warn_below: warn for each partition whose median ARI is below it; None to disable.
+    """
+    import igraph as ig
+    from collections import Counter
+
+    if n_seeds < 2:
+        raise ValueError(f"n_seeds must be >= 2 to compare runs, got {n_seeds}")
+    # The repeated calls repeat their warnings (directed graph, missing weights): show each once
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        runs = [get_network_community(G, weight=weight, cpm_resolution=cpm_resolution, seed=s)
+                for s in range(seed, seed + n_seeds)]
+    for message, category in dict.fromkeys((str(w.message), w.category) for w in caught):
+        warnings.warn(message, category, stacklevel=2)
+
+    names = ["Louvain", "Leidein", "Leidein_2"]
+    nodes = list(runs[0]["Louvain"][0])
+    summary = pd.DataFrame(index=pd.Index(names, name='partition'),
+                           columns=['communities', 'distinct_partitions', 'ari_median', 'ari_min'], dtype=float)
+    node_table = pd.DataFrame(index=pd.Index(nodes, name='node'))
+    if not nodes:
+        summary[['communities', 'distinct_partitions']] = [0, 1]
+        for name in names:
+            node_table[name], node_table[f"{name}_stability"] = pd.Series(dtype=object), pd.Series(dtype=float)
+        return summary, node_table
+
+    for name in names:
+        # Codes by first appearance in node order: relabelled copies of a partition get the same codes
+        memberships = [pd.factorize(pd.Series([run[name][0][n] for n in nodes]))[0] for run in runs]
+        counts = Counter(m.tobytes() for m in memberships)
+        partitions = {m.tobytes(): m for m in memberships}
+
+        # ARI over all pairs of runs, computed once per pair of distinct partitions
+        aris, pairs = [], []
+        keys = list(counts)
+        for i, a in enumerate(keys):
+            if counts[a] > 1:
+                aris.append(1.0)
+                pairs.append(counts[a] * (counts[a] - 1) // 2)
+            for b in keys[i + 1:]:
+                aris.append(ig.compare_communities(partitions[a].tolist(), partitions[b].tolist(), method='adjusted_rand'))
+                pairs.append(counts[a] * counts[b])
+        all_aris = np.repeat(aris, pairs)
+
+        # Node stability: Jaccard of its community in each run with its reference community
+        ref = memberships[0]
+        ref_size = np.bincount(ref)[ref]
+        stability = np.zeros(len(nodes))
+        for m in memberships[1:]:
+            pair = ref * (m.max() + 1) + m
+            shared = np.bincount(pair)[pair]
+            stability += shared / (ref_size + np.bincount(m)[m] - shared)
+
+        summary.loc[name] = [ref.max() + 1, len(counts), np.median(all_aris), all_aris.min()]
+        node_table[name] = [runs[0][name][0][n] for n in nodes]
+        node_table[f"{name}_stability"] = stability / (n_seeds - 1)
+        if warn_below is not None and np.median(all_aris) < warn_below:
+            warnings.warn(f"{name}: median ARI {np.median(all_aris):.2f} across {n_seeds} seeds is below {warn_below}; "
+                          f"its communities depend on the seed (the nodes table shows which nodes are unstable).",
+                          stacklevel=2)
+    summary[['communities', 'distinct_partitions']] = summary[['communities', 'distinct_partitions']].astype(int)
+    return summary, node_table
+
 def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
                              cpm_resolution=0.5,
