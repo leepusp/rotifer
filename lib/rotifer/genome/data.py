@@ -450,13 +450,13 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         carried = columns[1:-1]
 
         # One output row per group: a block, or with strand=True a run of
-        # same-strand genes that contains a query.
+        # same-strand genes that contains a query. A row is a query when
+        # query == 1.
         group = 'block_id'
+        df = self.group_strand()
         if strand:
             group = 'strand_group'
-            df = self.same_strand(query=query)
-        else:
-            df = self.group_strand()
+            df = df[df['strand_group'].isin(df.loc[df[query] == 1, 'strand_group'])]
         df = df[df[group].notna()]
         if df.empty:
             return pd.DataFrame(columns=columns).set_index('block_id')
@@ -506,7 +506,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         # Strands are flipped for backward groups, so the query always points
         # forward.
         plus = ((df['strand'] * np.where(forward, 1, -1)) == 1).to_numpy()
-        star = ~(df[query] == 0).to_numpy()
+        star = is_query.to_numpy()
 
         def tokens(values):
             token = np.where(plus,

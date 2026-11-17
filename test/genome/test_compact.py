@@ -79,6 +79,18 @@ def test_empty_input_matches_normal_schema():
         assert list(r.columns) == list(normal.columns), strand
 
 
+def test_only_query_1_is_a_query():
+    # B (query=2) and C (query=NaN) are neither marked nor used for orientation,
+    # and with strand=True C's run has no query, so it is left out.
+    df = neighborhood([
+        dict(block_id=1, pid='p1', cluster='A', strand=1,  query=1),
+        dict(block_id=1, pid='p2', cluster='B', strand=1,  query=2),
+        dict(block_id=1, pid='p3', cluster='C', strand=-1, query=None),
+    ])
+    assert compact(df).compact.to_dict() == {1: '*A->B->|<-C'}
+    assert compact(df, strand=True).compact.to_dict() == {1: '*A->B->'}
+
+
 if __name__ == '__main__':
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith('test_') and callable(f)]
     failed = 0
