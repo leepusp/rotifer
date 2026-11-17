@@ -31,6 +31,8 @@ What has to hold, and why:
     (a start closer than expand to residue 1 gave a negative index and an
     empty or wrong sequence), names the region cut in the id, and returns
     the whole protein for hits without coordinates instead of crashing
+  * rodolfo.extract_envelope, an unmaintained copy of blast's, warns that
+    it is deprecated, with a warning shown by default (FutureWarning)
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -335,3 +337,10 @@ class TestBlastExtractEnvelope:
         database.update(p1=FULL, p2=FULL)
         e = blast.extract_envelope(hits(('p1', 21, 30), ('p2', None, None)), expand=0)
         assert envelopes(e) == {'p1/21-30': FULL[20:30], 'p2/1-52': FULL}
+
+
+def test_rodolfo_extract_envelope_is_deprecated(database):
+    rodolfo = pytest.importorskip('rotifer.devel.alpha.rodolfo')
+    database.update(p1=FULL)
+    with pytest.warns(FutureWarning, match='rotifer.devel.beta.blast.extract_envelope'):
+        rodolfo.extract_envelope(hits(('p1', 21, 30)), expand=0)
