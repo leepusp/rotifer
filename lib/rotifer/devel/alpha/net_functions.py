@@ -938,78 +938,97 @@ def _cpm_resolution(cpm_resolution, resolution_parameter):
                   DeprecationWarning, stacklevel=3)
     return resolution_parameter
 
+def _undirected_max(G, weight):
+    # A pair's directed or parallel edges become one undirected edge with the largest weight
+    # (net_functions graphs give every edge of a pair the same edge_total; summing would double it)
+    H = nx.Graph()
+    H.add_nodes_from(G.nodes(data=True))
+    for u, v, d in G.edges(data=True):
+        if not H.has_edge(u, v) or (weight is not None and d.get(weight, 1) > H[u][v].get(weight, 1)):
+            H.add_edge(u, v)
+            H[u][v].clear()
+            H[u][v].update(d)
+    return H
+
+def _community_scheme(nodes, communities, prefix):
+    # [node -> label, label -> colour]: labels numbered by size, largest first (ties by smallest node name);
+    # pastel has 10 colours and cycles, so more communities get evenly spaced hues
+    import seaborn as sns
+    ordered = sorted(communities, key=lambda c: (-len(c), min(str(n) for n in c)))
+    label = {n: f"{prefix}{i}" for i, c in enumerate(ordered) for n in c}
+    palette = sns.color_palette('pastel' if len(ordered) <= 10 else 'husl', len(ordered)).as_hex()
+    return [{n: label[n] for n in nodes}, {f"{prefix}{i}": colour for i, colour in enumerate(palette)}]
+
 def get_network_community(G,
-                 community_to_color='leidein', weight='edge_total', cpm_resolution=0.05,
+                 community_to_color='leidein', weight='edge_total', cpm_resolution=0.05, seed=0,
                  *, resolution_parameter=None):
     """
     Community partitions of G as network_dash colour schemes: {name: [node -> community, community -> colour]}.
     Louvain and Leidein (Leiden) maximise standard modularity (resolution 1).
     Leidein_2 is Leiden with the Constant Potts Model, with resolution cpm_resolution:
     edges must weigh more than it on average for nodes to group, so higher values give more, smaller communities.
+    Communities are labelled Louvain_<i>, Leiden_<i> and LeidenCPM_<i>, numbered by size (0 = largest).
     weight: edge attribute used as weight, or None for unweighted.
+    seed: random seed for all three algorithms, so results are reproducible; None for unseeded runs.
+          A fixed seed gives a reproducible partition, not necessarily a stable one: on weak community
+          structure another seed can give another partition.
+    Directed graphs are run on an undirected copy (a pair's edges keep the largest weight); an empty
+    graph gives empty schemes.
+    community_to_color: unused, kept so positional calls still work.
     resolution_parameter: deprecated name of cpm_resolution.
     """
-    import community
-    import seaborn as sns
     import leidenalg as la
     import igraph as ig
-    import matplotlib.pyplot as plt
-    from matplotlib import cm as cm
-    import numpy as np
-    import networkx as nx
 
     cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
-    G = _simple_graph(G)
-    #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1 (as Louvain does)
+    if community_to_color != 'leidein':
+        warnings.warn("community_to_color is unused and deprecated; all three partitions are always returned",
+                      DeprecationWarning, stacklevel=2)
+    if G.number_of_nodes() == 0:
+        warnings.warn("G has no nodes; returning empty community schemes.")
+        return {name: [{}, {}] for name in ["Louvain", "Leidein", "Leidein_2"]}
+    if G.is_directed():
+        warnings.warn("G is directed; detecting communities on an undirected copy (a pair's edges keep the largest weight).")
+        G = _undirected_max(G, weight)
+    else:
+        G = _simple_graph(G)
+
+    #Edge weights: weight=None means unweighted; edges lacking the attribute count as 1
+    g = ig.Graph.from_networkx(G)
     leiden_weight = weight
     if weight is not None:
         n_missing = sum(1 for u, v, d in G.edges(data=True) if weight not in d)
-        if n_missing and n_missing == G.number_of_edges():
+        if G.number_of_edges() == 0:
+            weight = leiden_weight = None
+        elif n_missing == G.number_of_edges():
             warnings.warn(f"No edge has the '{weight}' attribute; running community detection unweighted.")
             weight = leiden_weight = None
         elif n_missing:
             warnings.warn(f"{n_missing} of {G.number_of_edges()} edges lack the '{weight}' attribute; using 1 for them.")
-            leiden_weight = [1 if w is None else w for w in ig.Graph.from_networkx(G).es[weight]]
-    #Louvain needs a string key: run it on an attribute-free copy when unweighted
-    if weight is None:
-        louvain_G = nx.create_empty_copy(G)
-        louvain_G.add_edges_from(G.edges())
-        louvain_weight = 'weight'
-    else:
-        louvain_G = G
-        louvain_weight = weight
+            leiden_weight = [1 if w is None else w for w in g.es[weight]]
 
-    #Community detection by Louvain
-    partition = community.best_partition(louvain_G,weight=louvain_weight)
-    #Df to easily map community to node:
-    c = pd.DataFrame.from_dict(partition,orient='index').reset_index().rename(
-       {'index': 'cluster', 0: 'Louvain'}, axis=1)
-    #Leiden partition:
-    part = la.find_partition(ig.Graph.from_networkx(G), la.ModularityVertexPartition, weights=leiden_weight)
-    c['leidein'] = pd.Series(part.membership)
-    #Leiden partition with CPM, the only one using the resolution:
-    part2 = la.find_partition(ig.Graph.from_networkx(G), la.CPMVertexPartition, weights=leiden_weight, resolution_parameter = cpm_resolution)
-    c['leidein_2'] = pd.Series(part2.membership)
+    #Partitions as sets of node names, never by position
+    names = g.vs['_nx_name']
+    def leiden(partition_type, **kwargs):
+        part = la.find_partition(g, partition_type, weights=leiden_weight, n_iterations=-1, seed=seed, **kwargs)
+        return [{names[i] for i in c} for c in part]
 
-
-    c.Louvain  = 'Louvain_' + c.Louvain.astype(str)
-    c.leidein  = 'Leiden_' + c.leidein.astype(str)
-    c.leidein_2 = 'Leiden_' + c.leidein_2.astype(str)
-
-    community_dict = {"Louvain" : [c.set_index('cluster').Louvain.to_dict(),pd.Series(sns.color_palette('pastel',c.Louvain.nunique()).as_hex(), index=c.Louvain.unique()).to_dict()],
-                      "Leidein":  [c.set_index('cluster').leidein.to_dict(),pd.Series(sns.color_palette('pastel',c.leidein.nunique()).as_hex(), index=c.leidein.unique()).to_dict()],
-                      "Leidein_2": [c.set_index('cluster').leidein_2.to_dict(),pd.Series(sns.color_palette('pastel',c.leidein_2.nunique()).as_hex(), index=c.leidein_2.unique()).to_dict()]}
-
-    return community_dict
+    louvain = nx.community.louvain_communities(G, weight=weight, resolution=1, seed=seed)
+    return {"Louvain": _community_scheme(G, louvain, 'Louvain_'),
+            "Leidein": _community_scheme(G, leiden(la.ModularityVertexPartition), 'Leiden_'),
+            #Leiden with CPM, the only one using the resolution:
+            "Leidein_2": _community_scheme(G, leiden(la.CPMVertexPartition, resolution_parameter=cpm_resolution), 'LeidenCPM_')}
 
 def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
                              cpm_resolution=0.5,
                              min_clique_size=10,
+                             seed=0,
                              *, resolution_parameter=None):
     """
     cpm_resolution: CPM resolution of the Leidein_2 partition (the *_leidein_resolution columns),
                     passed to get_network_community. resolution_parameter: deprecated name of it.
+    seed: random seed passed to get_network_community.
     """
     cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
     cliques = list(nx.find_cliques(G))
@@ -1026,7 +1045,7 @@ def clique_jaccard_community(G,
     cm.rename({"clique_n_x" :'source', 'clique_n_y' :'target'}, axis=1, inplace=True)
     cm = cm[cm.Jaccard_index >= min_jaccard_index]
     G = nx.from_pandas_edgelist(cm, edge_attr='Jaccard_index')
-    z = get_network_community(G, weight='Jaccard_index', cpm_resolution=cpm_resolution)
+    z = get_network_community(G, weight='Jaccard_index', cpm_resolution=cpm_resolution, seed=seed)
     cm['source_leidein_resolution'] = cm.source.replace(z['Leidein_2'][0])
     cm['target_leidein_resolution'] = cm.target.replace(z['Leidein_2'][0])
     cm['source_leidein'] = cm.source.replace(z['Leidein'][0])
