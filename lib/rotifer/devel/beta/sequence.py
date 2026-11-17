@@ -2027,22 +2027,19 @@ class sequence(rotifer.pipeline.Annotatable):
         end_position =  nongaps[-1]
 
         if adjust_coordinates:
-            def add_cordinates_to_aln(seqobj):
-                from rotifer.devel.beta.sequence import sequence
-                c = seqobj.copy()
-                cx = sequence(c.df.id.tolist())
-                cx. df = cx.df.rename({'sequence':'full_sequence', 'length':'full_length'}, axis=1)
-                c.df = c.df.merge(cx.df[['id','full_sequence','full_length']], how='left')
-                c.df.full_sequence = c.df.full_sequence.fillna(c.df.sequence)
-                c.df.full_length = c.df.full_length.fillna(c.df['length'])
-                c.df['start'] = c.df.apply(lambda x : 1 + x.full_sequence.find(x.sequence.replace('-','')), axis=1)
-                c.df['end'] = c.df.start + c.df['length']
-                c.df['C_term'] = c.df['full_length'] - c.df['end']
-                c.df =  c.df.drop(['full_sequence'], axis=1)
-                #c.df = c.df.fillna(0)
-                c.df = c.df.query('type =="sequence"')
-                return c
-            cord = add_cordinates_to_aln(self).df[['start', 'end', 'C_term']]
+            # Coordinates of each sequence in its full-length sequence.
+            # Without a full-length sequence, or when the fragment isn't
+            # found in it, the sequence is numbered on its own (1 to length)
+            seqs = self.df.query('type == "sequence"')
+            ungapped = seqs.sequence.str.replace('-', '', regex=False)
+            full = sequence(seqs.id.tolist()).df.drop_duplicates('id').set_index('id').sequence
+            full = seqs.id.map(full).astype(object).fillna(ungapped)
+            cord = fragment_coordinates(
+                seqs.sequence.set_axis(seqs.id),
+                full.set_axis(seqs.id),
+            ).set_axis(seqs.index)
+            cord['start'] = cord.start.fillna(1).astype(int)
+            cord['end'] = cord.end.fillna(ungapped.str.len()).astype(int)
             #num_gaps[nongaps[-1] + 1] = cord.C_term.mask(cord.C_term < 0,0 )
             if end_position not in num_gaps.columns:  # Adding column to have the trailling number with the amminoacids counts.
                 num_gaps[end_position +1] = 0 

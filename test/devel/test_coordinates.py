@@ -11,6 +11,9 @@ What has to hold, and why:
   * fragment_coordinates returns 1-based inclusive start/end, and missing
     values plus a warning when a fragment can't be located, instead of
     find()'s -1
+  * gaps_to_numbers(adjust_coordinates=True), used by the HTML and LaTeX
+    alignment views, numbers each row from its first to its last residue
+    in the full-length sequence (the trailing number was one past the end)
 
 The fixtures are synthetic: full-length sequences are runs of distinct
 letters, so every residue's position can be read off directly, and the
@@ -34,6 +37,28 @@ FULL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 def seqobj(ids, sequences):
     """A sequence object built from plain lists, without any database."""
     return rdbs.sequence(pd.DataFrame({'id': ids, 'sequence': sequences}))
+
+
+@pytest.fixture
+def database(monkeypatch):
+    """Serve full-length sequences from a dict instead of a database.
+
+    sequence(list_of_ids) fetches from the database. The patched class
+    looks the ids up in the returned dict instead (unknown ids are left
+    out, as a failed fetch would). Fill the dict in the test.
+    """
+    proteins = {}
+    original = rdbs.sequence
+
+    class served(original):
+        def __init__(self, input=None, *args, **kwargs):
+            if isinstance(input, list):
+                found = [i for i in input if i in proteins]
+                input = pd.DataFrame({'id': found, 'sequence': [proteins[i] for i in found]}) if found else None
+            super().__init__(input, *args, **kwargs)
+
+    monkeypatch.setattr(rdbs, 'sequence', served)
+    return proteins
 
 
 # --- fragment_coordinates ----------------------------------------------------
@@ -68,3 +93,31 @@ class TestFragmentCoordinates:
         caplog.set_level(logging.WARNING)
         rdbs.fragment_coordinates(pd.Series(['ABC']), pd.Series([FULL]))
         assert caplog.text == ''
+
+
+# --- gaps_to_numbers (#7) ----------------------------------------------------
+
+# m1 is residues 11-16 of FULL and is the model whose gap columns are hidden;
+# p1 is residues 5-12 of its own protein and has a 2-residue insertion (QQ)
+GAPPED = (['m1', 'p1'], ['KLM--NOP', 'KLMQQNOP'])
+P1_FULL = 'AAAAKLMQQNOPCCCC'
+
+
+class TestGapsToNumbers:
+    def test_rows_are_numbered_from_first_to_last_residue(self, database):
+        database.update(m1=FULL, p1=P1_FULL)
+        _, numbers, _, _ = seqobj(*GAPPED).gaps_to_numbers('m1', adjust_coordinates=True)
+        assert numbers.iloc[:, 0].tolist() == [11, 5]   # first residue
+        assert numbers.iloc[:, 1].tolist() == [0, 2]    # hidden insertion
+        assert numbers.iloc[:, -1].tolist() == [16, 12] # last residue
+
+    def test_compact_view_shows_the_last_residue(self, database):
+        database.update(m1=FULL, p1=P1_FULL)
+        view = seqobj(*GAPPED).compact_residue_df(50, remove_gaps='m1', adjust_coordinates=True)
+        assert view.loc['m1'].iloc[[0, -1]].str.strip().tolist() == ['11', '16']
+        assert view.loc['p1'].iloc[[0, -1]].str.strip().tolist() == ['5', '12']
+
+    def test_without_full_length_sequences_rows_are_numbered_on_their_own(self, database):
+        _, numbers, _, _ = seqobj(*GAPPED).gaps_to_numbers('m1', adjust_coordinates=True)
+        assert numbers.iloc[:, 0].tolist() == [1, 1]
+        assert numbers.iloc[:, -1].tolist() == [6, 8]
