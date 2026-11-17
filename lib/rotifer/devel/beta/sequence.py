@@ -2389,6 +2389,51 @@ def concat(alignments, axis=0, by='id'):
     aln._reset()
     return aln
 
+def fragment_coordinates(fragments, full_sequences):
+    """
+    Locate sequence fragments in their full-length sequences.
+
+    Coordinates follow ROTIFER's convention: 1-based and inclusive,
+    so the fragment is ``full[start - 1:end]``.
+
+    Parameters
+    ----------
+    fragments : pandas.Series
+      Fragments to locate. Gaps ('-') are removed before searching,
+      so rows of an alignment can be passed as they are.
+    full_sequences : pandas.Series
+      Full-length sequences, with the same index as ``fragments``.
+
+    Returns
+    -------
+    pandas.DataFrame
+      Columns ``start`` and ``end`` (nullable integers), indexed like
+      ``fragments``. Both are missing when the full-length sequence is
+      missing or does not contain the fragment, and a warning lists
+      the index labels of those rows.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> fragment_coordinates(pd.Series(['C-DE']), pd.Series(['ABCDEFG']))
+       start  end
+    0      3    5
+    """
+    fragments = fragments.astype(str).str.replace('-', '', regex=False)
+    starts = []
+    for fragment, full in zip(fragments, full_sequences):
+        offset = full.find(fragment) if isinstance(full, str) else -1
+        starts.append(offset + 1 if offset >= 0 else pd.NA)
+    coordinates = pd.DataFrame({'start': pd.array(starts, dtype='Int64')}, index=fragments.index)
+    coordinates['end'] = coordinates.start + fragments.str.len().astype('Int64') - 1
+    missing = coordinates.start.isna()
+    if missing.any():
+        logger.warning(
+            f'{missing.sum()} fragment(s) not found in their full-length sequence: '
+            + ', '.join(map(str, coordinates.index[missing]))
+        )
+    return coordinates
+
 __doc__ = """
 ========================
 Rotifer Sequence Objects
