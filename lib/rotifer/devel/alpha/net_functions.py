@@ -1373,17 +1373,21 @@ def subgraph_stats(net,
                    return_df = False):
     from  scipy.stats import fisher_exact
     import pandas as pd
-    to_test = pd.Series(list(subnet.nodes),name="node",dtype='object').to_frame()
-    to_test['theme'] = to_test.node.map(theme_dict)
-    total = pd.Series(list(net.nodes),name="node").to_frame()
-    total['theme'] = total.node.map(theme_dict)
-    sub_total = to_test.node.nunique()
-    sub_theme = to_test.query('theme == @theme_to_stats').node.nunique()
-    ttt = to_test.node.tolist()
-    total = total[~total.node.isin(ttt)]
-    net_total = total.node.nunique()
-    net_theme = total.query('theme == @theme_to_stats').node.nunique()
-    to_fisher = [[sub_theme, sub_total - sub_theme], [net_theme, net_total - net_theme]] 
+
+    def count(nodes):
+        # Nodes missing from theme_dict, or mapped to a missing value, are left out of the test
+        annotated = [n for n in nodes if n in theme_dict and not (np.ndim(theme_dict[n]) == 0 and pd.isna(theme_dict[n]))]
+        theme = sum(1 for n in annotated if theme_dict[n] == theme_to_stats)
+        return theme, len(annotated) - theme, len(nodes) - len(annotated)
+
+    sub_nodes = set(subnet.nodes)
+    rest_nodes = set(net.nodes) - sub_nodes
+    sub_theme, sub_other, sub_missing = count(sub_nodes)
+    net_theme, net_other, net_missing = count(rest_nodes)
+    if sub_missing or net_missing:
+        warnings.warn(f"{sub_missing} of {len(sub_nodes)} subnetwork nodes and {net_missing} of {len(rest_nodes)} "
+                      f"other nodes are missing from theme_dict and were left out of the test", stacklevel=2)
+    to_fisher = [[sub_theme, sub_other], [net_theme, net_other]]
     if return_df:
         print(fisher_exact(to_fisher, alternative=alternative))
         return pd.DataFrame(to_fisher, columns=['Theme', 'Total'], index=['Subnetwork', 'net - subnet'] )
