@@ -963,19 +963,74 @@ def get_network_community(G,
                  community_to_color='leidein', weight='edge_total', cpm_resolution=0.05, seed=0,
                  *, resolution_parameter=None):
     """
-    Community partitions of G as network_dash colour schemes: {name: [node -> community, community -> colour]}.
-    Louvain and Leidein (Leiden) maximise standard modularity (resolution 1).
-    Leidein_2 is Leiden with the Constant Potts Model, with resolution cpm_resolution:
-    edges must weigh more than it on average for nodes to group, so higher values give more, smaller communities.
-    Communities are labelled Louvain_<i>, Leiden_<i> and LeidenCPM_<i>, numbered by size (0 = largest).
-    weight: edge attribute used as weight, or None for unweighted.
-    seed: random seed for all three algorithms, so results are reproducible; None for unseeded runs.
-          A fixed seed gives a reproducible partition, not necessarily a stable one: on weak community
-          structure another seed can give another partition.
-    Directed graphs are run on an undirected copy (a pair's edges keep the largest weight); an empty
-    graph gives empty schemes.
-    community_to_color: unused, kept so positional calls still work.
-    resolution_parameter: deprecated name of cpm_resolution.
+    Detect communities with Louvain, Leiden and Leiden-CPM, as network_dash colour schemes.
+
+    Partitions ``G`` three ways: Louvain [1]_ and Leiden [2]_ maximising standard modularity [3]_
+    (resolution 1), and Leiden with the Constant Potts Model (CPM) [4]_ at resolution
+    ``cpm_resolution``. Each partition is returned as a colour scheme ready for ``network_dash``.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph to partition. A directed graph is partitioned as an undirected copy in which a pair's
+        edges keep the largest weight; the parallel edges of a MultiGraph are collapsed to one edge
+        per pair.
+    community_to_color : str, default 'leidein'
+        Unused, kept so positional calls still work. Any other value raises a DeprecationWarning.
+    weight : str or None, default 'edge_total'
+        Edge attribute used as weight, or None for unweighted. Edges lacking the attribute count as 1.
+    cpm_resolution : float, default 0.05
+        CPM resolution of ``Leidein_2``: a group of nodes forms a community only if its edges weigh
+        more than this on average per pair of nodes, so higher values give more, smaller
+        communities. Louvain and ``Leidein`` do not use it.
+    seed : int or None, default 0
+        Random seed for all three algorithms, so results are reproducible; None for unseeded runs.
+    resolution_parameter : float, optional
+        Deprecated name of ``cpm_resolution``. When given, it is used and raises a
+        DeprecationWarning.
+
+    Returns
+    -------
+    dict
+        ``{"Louvain" | "Leidein" | "Leidein_2": [node_to_label, label_to_colour]}``. Labels are
+        ``Louvain_<i>``, ``Leiden_<i>`` and ``LeidenCPM_<i>``, numbered by community size
+        (0 = largest, ties broken by the smallest node name). Colours are pastel up to 10
+        communities and evenly spaced hues beyond. An empty graph gives empty dicts.
+
+    Warns
+    -----
+    UserWarning
+        If ``G`` is empty or directed, or if some or all edges lack ``weight``.
+    DeprecationWarning
+        If ``community_to_color`` or ``resolution_parameter`` is passed.
+
+    See Also
+    --------
+    community_stability : How much these partitions depend on ``seed``.
+    clique_jaccard_community : Communities of overlapping maximal cliques.
+
+    Notes
+    -----
+    A fixed seed gives a reproducible partition, not necessarily a stable one: modularity has many
+    structurally different partitions with nearly the same score [5]_, and on weak community
+    structure another seed can give another partition. Use ``community_stability`` to measure it.
+
+    References
+    ----------
+    .. [1] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E. "Fast unfolding of
+       communities in large networks." J. Stat. Mech. P10008 (2008).
+       https://doi.org/10.1088/1742-5468/2008/10/P10008
+    .. [2] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to Leiden: guaranteeing
+       well-connected communities." Sci. Rep. 9, 5233 (2019).
+       https://doi.org/10.1038/s41598-019-41695-z
+    .. [3] Newman, M. E. J. & Girvan, M. "Finding and evaluating community structure in networks."
+       Phys. Rev. E 69, 026113 (2004). https://doi.org/10.1103/PhysRevE.69.026113
+    .. [4] Traag, V. A., Van Dooren, P. & Nesterov, Y. "Narrow scope for resolution-limit-free
+       community detection." Phys. Rev. E 84, 016114 (2011).
+       https://doi.org/10.1103/PhysRevE.84.016114
+    .. [5] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of modularity maximization in
+       practical contexts." Phys. Rev. E 81, 046106 (2010).
+       https://doi.org/10.1103/PhysRevE.81.046106
     """
     import leidenalg as la
     import igraph as ig
@@ -1021,20 +1076,82 @@ def get_network_community(G,
 
 def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50, seed=0, warn_below=0.8):
     """
-    How much get_network_community's partitions depend on the seed.
-    Runs get_network_community with seeds seed, seed+1, ..., seed+n_seeds-1. The run with seed is the
-    reference: the partition get_network_community(G, seed=seed) returns, i.e. the one being reported.
-    Measures stability across seeds only, not robustness to the data nor whether the communities are
-    significant. Runtime is about n_seeds get_network_community calls.
-    Returns (summary, nodes):
-    summary: one row per partition (Louvain, Leidein, Leidein_2) with
-        communities: number of communities in the reference
-        distinct_partitions: distinct partitions among the n_seeds runs
-        ari_median, ari_min: adjusted Rand index over all pairs of runs (1 = identical, ~0 = chance level)
-    nodes: one row per node with, for each partition, its reference community (<name>) and
-        <name>_stability: mean Jaccard index between its community in each other run and its reference
-        community (1 = always the same community; splits and merges both lower it)
-    warn_below: warn for each partition whose median ARI is below it; None to disable.
+    Measure how much the partitions of get_network_community depend on the seed.
+
+    Runs ``get_network_community`` with seeds ``seed, seed + 1, ..., seed + n_seeds - 1``. The run
+    with ``seed`` is the reference: the partition ``get_network_community(G, seed=seed)`` returns,
+    i.e. the one being reported. Modularity has many structurally different partitions with nearly
+    the same score [1]_, and Louvain [2]_ and Leiden [3]_ land on one of them depending on the seed;
+    this function reports how much that changes the result, for each partition and each node.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph to partition, as in ``get_network_community``.
+    weight : str or None, default 'edge_total'
+        Edge attribute used as weight, or None for unweighted.
+    cpm_resolution : float, default 0.05
+        CPM resolution of ``Leidein_2``.
+    n_seeds : int, default 50
+        Number of runs, including the reference.
+    seed : int, default 0
+        Seed of the reference run; the other runs use the following seeds.
+    warn_below : float or None, default 0.8
+        Warn for each partition whose median ARI is below this; None disables the warning.
+
+    Returns
+    -------
+    summary : pandas.DataFrame
+        One row per partition (``Louvain``, ``Leidein``, ``Leidein_2``) with columns
+        ``communities`` (communities in the reference), ``distinct_partitions`` (distinct
+        partitions among the runs) and ``ari_median``, ``ari_min`` (adjusted Rand index [4]_ over
+        all pairs of runs: 1 = identical, about 0 = chance-level agreement).
+    nodes : pandas.DataFrame
+        One row per node with, for each partition, ``<name>`` (the node's reference community) and
+        ``<name>_stability``: the mean Jaccard index [5]_ between the node's community in each other
+        run and its reference community (1 = always the same community; splits and merges both
+        lower it).
+
+    Raises
+    ------
+    ValueError
+        If ``n_seeds`` is less than 2.
+
+    Warns
+    -----
+    UserWarning
+        For each partition whose median ARI is below ``warn_below``. Warnings raised by the
+        repeated ``get_network_community`` calls are shown once each.
+
+    See Also
+    --------
+    get_network_community : The partitions being measured.
+
+    Notes
+    -----
+    The node stability follows the co-assignment idea of consensus clustering [6]_ (how often nodes
+    end up together across runs), measured against the reference instead of building a node x node
+    matrix, so it costs O(nodes) per run. This measures stability across seeds only: not robustness
+    to sampling of the data, nor whether the graph has significant community structure. Runtime is
+    about ``n_seeds`` ``get_network_community`` calls.
+
+    References
+    ----------
+    .. [1] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of modularity maximization in
+       practical contexts." Phys. Rev. E 81, 046106 (2010).
+       https://doi.org/10.1103/PhysRevE.81.046106
+    .. [2] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E. "Fast unfolding of
+       communities in large networks." J. Stat. Mech. P10008 (2008).
+       https://doi.org/10.1088/1742-5468/2008/10/P10008
+    .. [3] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to Leiden: guaranteeing
+       well-connected communities." Sci. Rep. 9, 5233 (2019).
+       https://doi.org/10.1038/s41598-019-41695-z
+    .. [4] Hubert, L. & Arabie, P. "Comparing partitions." J. Classif. 2, 193-218 (1985).
+       https://doi.org/10.1007/BF01908075
+    .. [5] Jaccard, P. "The distribution of the flora in the alpine zone." New Phytol. 11, 37-50
+       (1912). https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
+    .. [6] Lancichinetti, A. & Fortunato, S. "Consensus clustering in complex networks."
+       Sci. Rep. 2, 336 (2012). https://doi.org/10.1038/srep00336
     """
     import igraph as ig
     from collections import Counter
@@ -1097,33 +1214,147 @@ def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50,
     summary[['communities', 'distinct_partitions']] = summary[['communities', 'distinct_partitions']].astype(int)
     return summary, node_table
 
+def _clique_pairs(cliques, nodes, min_jaccard_index, warn_checked, warn_kept, block=1000):
+    # Pairs of cliques sharing at least one node, from a sparse clique x node matrix times its transpose,
+    # one block of cliques at a time so memory stays bounded; each pair once (i < j), no clique with itself.
+    # Returns positions i, j (sorted) and their Jaccard index.
+    from scipy import sparse
+    node_id = {n: k for k, n in enumerate(nodes)}
+    size = np.array([len(c) for c in cliques], dtype=np.int64)
+    n = len(cliques)
+    rows = np.repeat(np.arange(n), size)
+    cols = np.fromiter((node_id[v] for c in cliques for v in c), dtype=np.int64, count=size.sum())
+    M = sparse.csr_matrix((np.ones(len(cols), dtype=np.float32), (rows, cols)), shape=(n, len(node_id)))
+    MT = M.T.tocsr()
+    kept_i, kept_j, kept_jaccard = [], [], []
+    for start in range(0, n, block):
+        part = (M[start:start + block] @ MT).tocoo()
+        i = part.row.astype(np.int64) + start
+        j = part.col.astype(np.int64)
+        upper = j > i
+        i, j, shared = i[upper], j[upper], part.data[upper].astype(np.float64)
+        if start == 0 and warn_checked is not None:
+            # Overlap rate in the first block, extrapolated to all pairs
+            block_pairs = sum(n - 1 - r for r in range(min(block, n)))
+            estimate = len(i) / block_pairs * n * (n - 1) / 2 if block_pairs else 0
+            if estimate > warn_checked:
+                warnings.warn(f"about {estimate:,.0f} pairs of the {n:,} cliques share nodes and must be checked "
+                              f"(more than warn_checked={warn_checked:,}); this can take minutes. "
+                              "Raise min_clique_size or min_jaccard_index to reduce it.", stacklevel=3)
+        jaccard = shared / (size[i] + size[j] - shared)
+        keep = jaccard >= min_jaccard_index
+        order = np.lexsort((j[keep], i[keep]))
+        kept_i.append(i[keep][order]); kept_j.append(j[keep][order]); kept_jaccard.append(jaccard[keep][order])
+    i, j, jaccard = (np.concatenate(x) if x else np.array([], dtype=np.int64) for x in (kept_i, kept_j, kept_jaccard))
+    if warn_kept is not None and len(i) > warn_kept:
+        warnings.warn(f"{len(i):,} pairs of cliques pass min_jaccard_index (more than warn_kept={warn_kept:,}); "
+                      "the result table will be very large. Raise min_clique_size or min_jaccard_index to reduce it.",
+                      stacklevel=3)
+    return i, j, jaccard
+
 def clique_jaccard_community(G,
                              min_jaccard_index=0.4,
                              cpm_resolution=0.5,
                              min_clique_size=10,
                              seed=0,
-                             *, resolution_parameter=None):
+                             *, resolution_parameter=None,
+                             warn_checked=100_000_000,
+                             warn_kept=5_000_000):
     """
-    cpm_resolution: CPM resolution of the Leidein_2 partition (the *_leidein_resolution columns),
-                    passed to get_network_community. resolution_parameter: deprecated name of it.
-    seed: random seed passed to get_network_community.
+    Detect communities of overlapping maximal cliques.
+
+    Finds the maximal cliques of ``G`` with at least ``min_clique_size`` nodes, connects each pair
+    of cliques whose Jaccard index [1]_ (nodes in both over nodes in either) is at least
+    ``min_jaccard_index``, and partitions that clique graph with ``get_network_community``, using
+    the Jaccard index as edge weight.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph whose maximal cliques are compared.
+    min_jaccard_index : float, default 0.4
+        Minimum Jaccard index for two cliques to be connected. Must be greater than 0.
+    cpm_resolution : float, default 0.5
+        CPM resolution of the ``Leidein_2`` partition (the ``*_leidein_resolution`` columns),
+        passed to ``get_network_community``.
+    min_clique_size : int, default 10
+        Smallest clique, in nodes, that is compared.
+    seed : int or None, default 0
+        Random seed passed to ``get_network_community``.
+    resolution_parameter : float, optional
+        Deprecated name of ``cpm_resolution``.
+    warn_checked : int or None, default 100_000_000
+        Warn when the estimated number of clique pairs sharing a node, which must all be checked,
+        exceeds this. Estimated after the first block of 1,000 cliques. None disables it.
+    warn_kept : int or None, default 5_000_000
+        Warn when more pairs than this pass ``min_jaccard_index``, i.e. the returned table will be
+        very large. None disables it.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per connected pair of cliques, with ``source < target``. Columns: ``source`` and
+        ``target`` (clique numbers, their position in ``networkx.find_cliques`` output),
+        ``cliques_x``, ``clique_size_x``, ``cliques_y``, ``clique_size_y`` (each clique's nodes and
+        size), ``t`` (constant 1), ``uni`` and ``inter`` (sets of nodes in either and in both
+        cliques), ``Jaccard_index``, and the community of each clique in the ``Leidein_2``,
+        ``Leidein`` and ``Louvain`` partitions: ``source_leidein_resolution``,
+        ``target_leidein_resolution``, ``source_leidein``, ``target_leidein``, ``source_louvain``,
+        ``target_louvain``. Empty, with the same columns, when no pair qualifies.
+
+    Raises
+    ------
+    ValueError
+        If ``min_jaccard_index`` is not greater than 0.
+
+    Warns
+    -----
+    UserWarning
+        If the estimated pairs to check exceed ``warn_checked``, or the kept pairs exceed
+        ``warn_kept``.
+
+    See Also
+    --------
+    get_network_community : The partitions computed on the clique graph.
+
+    Notes
+    -----
+    Pairs come from the number of nodes each pair of cliques shares, computed as a sparse
+    clique x node matrix times its transpose in blocks of 1,000 cliques. Pairs sharing no node
+    (Jaccard index 0) are never formed, which is why ``min_jaccard_index`` must be positive, and a
+    clique that overlaps no other above the threshold does not appear in the result. The cost grows
+    with the number of pairs sharing a node, not with all pairs, and memory is bounded by the
+    block. When nearly every pair overlaps (many maximal cliques on few nodes) the work is quadratic
+    again; raising ``min_clique_size`` or ``min_jaccard_index`` reduces it.
+
+    References
+    ----------
+    .. [1] Jaccard, P. "The distribution of the flora in the alpine zone." New Phytol. 11, 37-50
+       (1912). https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
     """
     cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
+    if not min_jaccard_index > 0:
+        raise ValueError(f"min_jaccard_index must be > 0 (pairs sharing no node are never connected), got {min_jaccard_index}")
     cliques = list(nx.find_cliques(G))
-    cliques = pd.Series(cliques).rename('cliques').to_frame()
+    cliques = pd.Series(cliques, dtype=object).rename('cliques').to_frame()
     cliques['clique_size'] = cliques.cliques.apply(lambda x: len(x))
     cliques = cliques.query('clique_size >= @min_clique_size')
     cliques['t']  = 1
-    cliques.reset_index(inplace=True)
-    cliques.rename({'index':'clique_n'}, axis=1, inplace=True)
-    cm = cliques.merge(cliques, on='t')
-    # Each pair of cliques once, never a clique with itself (Jaccard 1, a self-loop)
-    cm = cm[cm.clique_n_x < cm.clique_n_y]
-    cm['uni'] = cm.apply(lambda x: set(x.cliques_x).union(set(x.cliques_y)), axis=1)
-    cm['inter'] = cm.apply(lambda x: set(x.cliques_x).intersection(set(x.cliques_y)), axis=1)
-    cm['Jaccard_index'] = cm.apply(lambda x: len(x.inter)/len(x.uni), axis=1)
+    cliques = cliques.reset_index().rename({'index':'clique_n'}, axis=1)
+    i, j, jaccard = _clique_pairs(cliques.cliques.tolist(), list(G), min_jaccard_index, warn_checked, warn_kept)
+    # Same columns, order and index as the former all-pairs merge of cliques with itself
+    left = cliques.iloc[i].reset_index(drop=True).add_suffix('_x').rename({'t_x': 't'}, axis=1)
+    right = cliques.iloc[j].reset_index(drop=True).add_suffix('_y').drop(columns='t_y')
+    cm = pd.concat([left, right], axis=1)
+    cm.index = i * len(cliques) + j
+    cm['uni'] = [set(a) | set(b) for a, b in zip(cm.cliques_x, cm.cliques_y)]
+    cm['inter'] = [set(a) & set(b) for a, b in zip(cm.cliques_x, cm.cliques_y)]
+    cm['Jaccard_index'] = jaccard.astype(float)
     cm.rename({"clique_n_x" :'source', 'clique_n_y' :'target'}, axis=1, inplace=True)
-    cm = cm[cm.Jaccard_index >= min_jaccard_index]
+    community_columns = ['source_leidein_resolution', 'target_leidein_resolution', 'source_leidein',
+                         'target_leidein', 'source_louvain', 'target_louvain']
+    if cm.empty:
+        return cm.assign(**{c: pd.Series(dtype=object) for c in community_columns})
     G = nx.from_pandas_edgelist(cm, edge_attr='Jaccard_index')
     z = get_network_community(G, weight='Jaccard_index', cpm_resolution=cpm_resolution, seed=seed)
     cm['source_leidein_resolution'] = cm.source.replace(z['Leidein_2'][0])
@@ -1132,7 +1363,6 @@ def clique_jaccard_community(G,
     cm['target_leidein'] = cm.target.replace(z['Leidein'][0])
     cm['source_louvain'] = cm.source.replace(z['Louvain'][0])
     cm['target_louvain'] = cm.target.replace(z['Louvain'][0])
-    # result = {"Louvain" : cm.explode(
     return cm
 
 def subgraph_stats(net,
