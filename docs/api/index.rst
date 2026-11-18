@@ -79,6 +79,16 @@ Sequence and interval utilities
    rotifer.io.fileinput
    rotifer.io.hhsuite
 
+Graphs and networks
+-------------------
+
+.. autosummary::
+   :toctree: generated
+
+   rotifer.graph
+   rotifer.graph.network
+   rotifer.view.network
+
 Data manipulation and taxonomy
 ------------------------------
 
