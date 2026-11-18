@@ -2417,3 +2417,195 @@ Parsing a FASTA alignment from an explicit string:
 >>> aln = sequence('>Seq1\nACFH--GHT\n>Seq2\nACFW--GHS\n')
 >>> aln.add_consensus().view()
 """
+
+
+# ---------------------------------------------------------------------------
+# Session codec: lets rotifer.core.session save and load `sequence` objects.
+# Nothing here is needed to use the class; if rotifer.core.session is missing,
+# the registration at the bottom is skipped.
+# ---------------------------------------------------------------------------
+
+_SESSION_ATTRIBUTES = ("name", "input_format", "file_path")
+
+
+def _session_table_hash(df):
+    """Hash the full content of a DataFrame: values, index, columns, dtypes."""
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    h.update(repr((list(map(str, df.columns)), [str(t) for t in df.dtypes],
+                   str(df.index.dtype), list(map(str, df.index.names)))).encode())
+    try:
+        h.update(pd.util.hash_pandas_object(df, index=True).values.tobytes())
+    except TypeError:  # unhashable cells (lists, dicts): hash their repr
+        h.update(pd.util.hash_pandas_object(df.index.to_series(), index=False)
+                 .values.tobytes())
+        for column in df.columns:
+            h.update(repr(df[column].tolist()).encode())
+    return h.hexdigest()
+
+
+def _session_parquet_matches(df, back):
+    return (df.equals(back)
+            and df.columns.equals(back.columns)
+            and list(df.dtypes) == list(back.dtypes)
+            and df.index.equals(back.index)
+            and df.columns.names == back.columns.names
+            and df.index.names == back.index.names
+            and df.index.dtype == back.index.dtype
+            and getattr(df.index, "freq", None) == getattr(back.index, "freq", None))
+
+
+def _session_save_table(df, prefix, label):
+    """Write one DataFrame next to prefix and return (file name, format).
+
+    The table goes to Parquet when Parquet can hold it and reading it back
+    gives the same table (checked like the parquet codec does). Otherwise it
+    goes to a stdlib pickle.
+    """
+    import pickle
+    from pathlib import Path
+    from rotifer.core.session._files import atomic_writer
+
+    path = Path(str(prefix) + "." + label + ".parquet")
+    try:
+        with atomic_writer(path, "wb") as handle:
+            df.to_parquet(handle, engine="pyarrow")
+        back = pd.read_parquet(path, engine="pyarrow")
+        if _session_parquet_matches(df, back):
+            return path.name, "parquet"
+    except Exception:
+        pass
+    path.unlink(missing_ok=True)
+    path = Path(str(prefix) + "." + label + ".pkl")
+    with atomic_writer(path, "wb") as handle:
+        pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return path.name, "pickle"
+
+
+def _session_load_table(directory, name, fmt):
+    """Read a table written by _session_save_table."""
+    import pickle
+    path = directory / name
+    if fmt == "parquet":
+        return pd.read_parquet(path, engine="pyarrow")
+    with open(path, "rb") as handle:
+        return pickle.load(handle)
+
+
+def _session_encode_attributes(obj):
+    """Return a JSON-safe dict of the plain attributes; raise TypeError otherwise."""
+    from pathlib import Path
+    attributes = {}
+    path_like = []
+    for key in _SESSION_ATTRIBUTES:
+        if key not in obj.__dict__:
+            continue
+        value = obj.__dict__[key]
+        if type(value) is Path or type(value) is type(Path()):
+            path_like.append(key)
+            value = str(value)
+        elif value is not None and type(value) not in (str, int, float, bool):
+            raise TypeError("attribute %r of type %s cannot be stored as JSON"
+                            % (key, type(value).__name__))
+        attributes[key] = value
+    return attributes, path_like
+
+
+def _sequence_session_write(obj, prefix):
+    """Save a sequence object under prefix and return the metadata dict.
+
+    Files: prefix.df.parquet (or .df.pkl), prefix.ndf.parquet (or .ndf.pkl)
+    when the object has a neighborhood table, and prefix.json with the plain
+    attributes and content hashes. Cursors are not saved; they are rebuilt
+    from the configuration when the object is loaded.
+    """
+    import json
+    from pathlib import Path
+    from rotifer.core.session._files import atomic_writer
+
+    prefix = Path(prefix)
+    attributes, path_like = _session_encode_attributes(obj)
+    files = []
+    tables = {}
+    table_files = {}
+    hashes = {"df": _session_table_hash(obj.df)}
+    name, fmt = _session_save_table(obj.df, prefix, "df")
+    files.append(name)
+    tables["df"] = fmt
+    table_files["df"] = name
+    ndf = getattr(obj, "ndf", None)
+    if isinstance(ndf, pd.DataFrame):
+        hashes["ndf"] = _session_table_hash(ndf)
+        name, fmt = _session_save_table(ndf, prefix, "ndf")
+        files.append(name)
+        tables["ndf"] = fmt
+        table_files["ndf"] = name
+
+    sidecar = {"attributes": attributes, "path_attributes": path_like,
+               "checksum": obj.checksum, "hashes": hashes}
+    json_path = Path(str(prefix) + ".json")
+    with atomic_writer(json_path, "w") as handle:
+        json.dump(sidecar, handle, indent=1)
+    files.append(json_path.name)
+    return {"files": files, "tables": tables, "table_files": table_files,
+            "sidecar": json_path.name}
+
+
+def _sequence_session_read(prefix, meta):
+    """Rebuild a sequence object from the files written by the codec."""
+    import json
+    from pathlib import Path
+
+    directory = Path(prefix).parent
+    sidecar_path = directory / meta["sidecar"]
+    with open(sidecar_path) as handle:
+        sidecar = json.load(handle)
+    result = sequence()
+    tables = meta["tables"]
+    table_files = meta["table_files"]
+    result.df = _session_load_table(directory, table_files["df"], tables["df"])
+    if "ndf" in tables:
+        result.ndf = _session_load_table(directory, table_files["ndf"], tables["ndf"])
+    for key, value in sidecar["attributes"].items():
+        if key in sidecar.get("path_attributes", ()):
+            value = Path(value)
+        setattr(result, key, value)
+    for label, saved in sidecar["hashes"].items():
+        if _session_table_hash(getattr(result, label)) != saved:
+            raise ValueError("table %r of the sequence loaded from %s does not match "
+                             "its saved hash" % (label, sidecar_path))
+    if result.checksum != sidecar["checksum"]:
+        raise ValueError("sequence loaded from %s does not match its saved checksum"
+                         % sidecar_path)
+    return result
+
+
+def _sequence_session_describe(obj):
+    """Return a short summary of a sequence object. Does no I/O."""
+    df = obj.df
+    lengths = df.sequence.str.len() if "sequence" in df.columns and len(df) else None
+    seqs = df[df.type == "sequence"] if "type" in df.columns else df
+    return {"kind": "sequence",
+            "length": int(len(seqs)),
+            "alignment_length": int(lengths.max()) if lengths is not None else 0,
+            "rows": int(len(df)),
+            "name": obj.name,
+            "ids": [str(x) for x in seqs.id.head(5)] if "id" in seqs.columns else []}
+
+
+try:
+    from rotifer.core.session import codecs as _session_codecs
+except ImportError:
+    pass
+else:
+    _session_codecs.register_codec(
+        _session_codecs.Codec(
+            name="rotifer.sequence",
+            version=1,
+            types=(sequence,),
+            write=_sequence_session_write,
+            read=_sequence_session_read,
+            subclasses=False,
+            describe=_sequence_session_describe,
+        ),
+        replace=True)
