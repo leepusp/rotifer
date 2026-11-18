@@ -55,3 +55,6 @@ docs/api/generated/
 
 # Distribution / packaging
 lib/rotifer.egg-info/
+
+# ctags index, generate locally with ctags -R
+tags
