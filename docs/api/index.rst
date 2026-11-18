@@ -52,6 +52,7 @@ Core infrastructure
    rotifer.core.logger
    rotifer.core.methods
    rotifer.core.time
+   rotifer.core.session
 
 Genomes and annotation
 ----------------------

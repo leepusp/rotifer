@@ -4,7 +4,6 @@ import os
 import sys
 import types
 import typing
-import shelve
 from copy import deepcopy
 from datetime import datetime as dt
 
@@ -833,31 +832,47 @@ def _fasta_ls(*args):
     return fasta_res
 
 def save_session(filename, exclude=['In','Out','exit','quit'], exclude_type=tuple([types.ModuleType,types.FunctionType,types.MethodType,typing.Type]), namespace=None):
-    myshelve = shelve.open(filename)
-    if namespace is None:
-        namespace = sys.modules['__main__'].__dict__
-    with shelve.open(filename) as myshelve:
-        for y in myshelve:
-            if y not in namespace:
-                del(myshelve[y])
-        for x in namespace:
-            if x.startswith('_') or (x in exclude) or isinstance(namespace[x],exclude_type):
-                continue
-            try:
-                myshelve[x] = namespace[x]
-            except Exception as e:
-                print(f'Will not save {x} ({type(namespace[x])}): {e}', file=sys.stderr)
-        myshelve.sync()
+    """
+    Save the variables of a namespace to a session at `filename`.
+
+    The session is a directory written by rotifer.core.session. Variables that
+    were saved before but are gone from the namespace are removed. Names in
+    `exclude`, and values of type `exclude_type`, are skipped. A variable
+    that cannot be saved is logged as a warning and the others are still
+    saved. Returns the rotifer.core.session Report.
+
+    An old shelve session at `filename` is converted to `<filename>.session/`
+    when it is opened; the old file is not changed. New code should use
+    rotifer.core.session.Session directly.
+    """
+    from rotifer.core.session import Session, default_namespace
+    ns = namespace if namespace is not None else default_namespace()
+    excluded = list(exclude)
+    for name, value in ns.items():
+        try:
+            if isinstance(value, exclude_type):
+                excluded.append(name)
+        except TypeError:
+            pass
+    report = Session(filename).save(ns=ns, exclude=excluded, prune=True)
+    return report
 
 def restore_session(filename, exclude=[], namespace=None):
-    myshelve = shelve.open(filename)
-    if namespace is None:
-        namespace = sys.modules['__main__'].__dict__
-    with shelve.open(filename) as myshelve:
-        for x in myshelve.keys():
-            if x in exclude:
-                continue
-            try:
-                namespace[x] = myshelve[x]
-            except Exception as e:
-                print(f'Failed to restore {x}: {e}', file=sys.stderr)
+    """
+    Load the variables of the session at `filename` into a namespace.
+
+    The session is a directory written by rotifer.core.session. Names in
+    `exclude` are not loaded. A variable that cannot be loaded is logged as a
+    warning and the others are still loaded. Returns the rotifer.core.session
+    Report. Raises FileNotFoundError if there is no session at `filename`
+    (nothing is created).
+
+    An old shelve session at `filename` is converted to `<filename>.session/`
+    when it is opened; the old file is not changed. New code should use
+    rotifer.core.session.Session directly.
+    """
+    from rotifer.core.session import Session, default_namespace
+    s = Session(filename, create=False)
+    names = [n for n in s.ls()['name'] if n not in exclude]
+    report = s.load(names=names, ns=namespace if namespace is not None else default_namespace())
+    return report
