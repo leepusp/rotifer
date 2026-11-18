@@ -1,0 +1,14 @@
+{#- Closing strip: where to go next. -#}
+{%- from "landing/macros.html" import action with context -%}
+{%- set start = landing.start -%}
+<section class="rot-section rot-start" aria-labelledby="rot-start-title">
+  <div class="rot-start-text">
+    <h2 id="rot-start-title" class="rot-section-title">{{ start.heading }}</h2>
+    <p>{{ start.text }}</p>
+  </div>
+  <div class="rot-actions">
+    {%- for item in start.links %}
+    {{ action(item) }}
+    {%- endfor %}
+  </div>
+</section>

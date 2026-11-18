@@ -3,26 +3,35 @@
 ## Where the tokens live
 
 Every color, font stack, corner radius and transition used by this
-site is defined in exactly one place: the two token blocks at the
-top of `docs/_static/theme.css`. The first `:root` block holds the
+site is defined in exactly one place: the two token blocks in
+`docs/_static/css/tokens.css`. The first `:root` block holds the
 light palette; the `html.dark` block directly beneath it holds the
 dark palette (Shibuya switches modes by setting the `dark` class on
-the root element). Everything below those blocks only references
-the tokens; no other CSS file, template or directive may contain a
+the root element). Every other stylesheet only references the
+tokens; no other CSS file, template or directive may contain a
 color literal.
 
-To change the accent, edit `--rot-accent` and `--rot-accent-hover`
-in both blocks, and set the `ACCENT_COLOR` tunable in
+The other files in `docs/_static/css/` each have one job, and
+`html_css_files` in `docs/conf.py` loads them in this order:
+`fonts.css` (the self-hosted typefaces), `tokens.css`,
+`theme-map.css` (tokens mapped onto the Shibuya and sphinx-design
+variables), `content.css` (prose, code, cards, tables),
+`navigation.css` (header and sidebars) and `footer.css`. The landing
+page adds `docs/_static/landing/landing.css`.
+
+To change the accent, edit the `--rot-accent-*` tokens in both
+blocks, and set the `ACCENT_COLOR` tunable in
 `docs/conf.py` to the nearest radix family name so the surfaces
 Shibuya owns stay in sync. Nothing else needs to change.
 
 ## The palette
 
-One accent color, used for links, active navigation, focus rings
-and card hover borders. Nothing else gets a brand color; admonition
+One accent color, used for links, active navigation, focus rings,
+card hover borders and the landing page's main button (the brighter
+`--rot-accent-fill`, which always carries `--rot-on-accent` text). Nothing else gets a brand color; admonition
 colors are semantic and stay functional. All pairs pass WCAG AA:
 
-The values themselves live only in `theme.css`; this page cites
+The values themselves live only in `tokens.css`; this page cites
 tokens by name so the numbers cannot go stale. Contrast ratios from
 the last audit, measured against `--rot-bg` in each mode:
 
@@ -33,14 +42,14 @@ the last audit, measured against `--rot-bg` in each mode:
   - Light mode
   - Dark mode
 * - `--rot-accent`
-  - 4.95:1
-  - 7.08:1
+  - 5.05:1
+  - 9.11:1
 * - `--rot-text`
-  - 16.14:1
-  - 14.73:1
+  - 17.42:1
+  - 15.54:1
 * - `--rot-text-muted`
-  - 5.80:1
-  - 7.18:1
+  - 6.06:1
+  - 7.34:1
 ```
 
 Run a contrast check on both modes whenever a token changes; the
@@ -49,21 +58,23 @@ accent must keep at least 4.5:1 against `--rot-bg` and
 
 ## Radius, typography, motion
 
-- One corner radius scale: `--rot-radius` (6px), applied to cards,
+- One corner radius scale: `--rot-radius` (4px), applied to cards,
   dropdowns, images, tables and code blocks. Do not introduce a
   second radius.
-- Two font stacks, both system-first, each behind one variable:
-  `--rot-font-sans` for body and headings, `--rot-font-mono` for
-  code. No Google Fonts. A webfont added later must be self-hosted
-  in `_static/fonts` with `font-display: swap`.
+- Two typefaces, each behind one variable: `--rot-font-sans`
+  (Chivo) for body and headings, `--rot-font-mono` (Chivo Mono) for
+  code. Both are self-hosted in `_static/fonts` with
+  `font-display: swap`, with system fonts as the fallback. No Google
+  Fonts.
 - Prose is capped near 72 characters. Tables and code blocks may
   use the full content column but scroll inside their own
   containers; the page never scrolls sideways.
 - Motion is limited to hover and focus transitions under 150ms
   (`--rot-transition`), with one exception: collapsing a sidebar is a
   movement rather than a state change, so it eases its width over
-  240ms (`--rot-transition-panel`). Both honour
-  `prefers-reduced-motion`, which disables them.
+  240ms (`--rot-transition-panel`). The landing page's drifting
+  sequences are the only continuous animation. All of it honours
+  `prefers-reduced-motion`, which disables it.
 
 ## Which component for which job
 

@@ -1,0 +1,374 @@
+/* Landing page only (loaded by _templates/layout/rotifer-landing.html).
+ * Built on the shared tokens in css/tokens.css; no color values here. */
+
+.rot-landing {
+  --rot-landing-width: 76rem;
+  --rot-landing-gutter: clamp(1.25rem, 4vw, 3rem);
+  display: block;
+}
+
+/* Shared section frame: centred column with the site gutter. */
+.rot-hero-inner,
+.rot-section {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--rot-landing-width);
+  margin-inline: auto;
+  padding-inline: var(--rot-landing-gutter);
+}
+
+/* ------------------------------------------------------------------ hero */
+
+/* The hero is ink in both color modes, with paper text and the brand aqua
+ * on the one word that carries the promise. */
+.rot-hero {
+  --rot-hero-ink: var(--rot-paper);
+  --rot-hero-ink-soft: color-mix(in oklab, var(--rot-paper) 75%, var(--rot-ink));
+  --rot-hero-accent: var(--rot-aqua-on-ink);
+  --rot-drift-ink: color-mix(in oklab, var(--rot-paper) 14%, var(--rot-ink));
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding-block: clamp(5rem, 14vh, 9rem) clamp(3rem, 7vh, 4.5rem);
+  background-color: var(--rot-ink);
+  color: var(--rot-hero-ink);
+  border-bottom: 1px solid var(--rot-border);
+  text-align: center;
+}
+
+.rot-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 1.5rem;
+}
+
+.rot-hero-logo {
+  height: 2.75rem;
+  width: auto;
+}
+
+.rot-hero-title {
+  margin: 0;
+  max-width: 12ch;
+  font-family: var(--rot-font-sans);
+  font-size: clamp(3rem, 9vw, 6rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--rot-hero-ink);
+  text-wrap: balance;
+}
+
+.rot-hero-title-accent {
+  color: var(--rot-hero-accent);
+}
+
+.rot-hero-lede {
+  margin: 0;
+  max-width: 36rem;
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--rot-hero-ink-soft);
+  text-wrap: pretty;
+}
+
+.rot-hero .rot-actions {
+  justify-content: center;
+}
+
+/* On the ink hero the primary action is the aqua button with ink text,
+ * and the secondary link is paper. */
+.rot-hero .rot-action {
+  color: var(--rot-hero-ink);
+}
+
+.rot-hero .rot-action:hover {
+  color: var(--rot-hero-accent);
+}
+
+.rot-hero .rot-action--primary,
+.rot-hero .rot-action--primary:hover {
+  background-color: var(--rot-hero-accent);
+  color: var(--rot-ink);
+}
+
+.rot-hero .rot-action--primary:hover {
+  background-color: color-mix(in oklab, var(--rot-hero-accent) 85%, var(--rot-paper));
+}
+
+.rot-hero .rot-action:focus-visible {
+  outline-color: var(--rot-hero-accent);
+}
+
+.rot-hero-note {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  max-width: var(--rot-landing-width);
+  margin: clamp(3rem, 8vh, 5rem) auto 0;
+  padding-inline: var(--rot-landing-gutter);
+  font-family: var(--rot-font-mono);
+  font-size: 0.75rem;
+  color: var(--rot-hero-ink-soft);
+}
+
+/* The drifting sequences. Each row prints its text twice, so moving it by
+ * half its width loops without a seam. The mask fades the rows out at the
+ * edges and quiets them behind the centred text. Any opaque color works
+ * in a mask; tokens keep literals out. */
+.rot-drift {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55rem;
+  font-family: var(--rot-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: var(--rot-drift-ink);
+  user-select: none;
+  pointer-events: none;
+  --rot-drift-quiet: color-mix(in srgb, var(--rot-text) 25%, transparent);
+  --rot-drift-fade-x: linear-gradient(90deg,
+    transparent 0%, var(--rot-text) 12%, var(--rot-drift-quiet) 32%,
+    var(--rot-drift-quiet) 68%, var(--rot-text) 88%, transparent 100%);
+  --rot-drift-fade-y: linear-gradient(180deg,
+    transparent 0%, var(--rot-text) 14%, var(--rot-text) 86%, transparent 100%);
+  -webkit-mask-image: var(--rot-drift-fade-x), var(--rot-drift-fade-y);
+  -webkit-mask-composite: source-in;
+  mask-image: var(--rot-drift-fade-x), var(--rot-drift-fade-y);
+  mask-composite: intersect;
+}
+
+/* On narrow screens the text spans the whole width, so the rows stay
+ * quiet everywhere except at the very top and bottom of the hero. */
+@media (max-width: 860px) {
+  .rot-drift {
+    --rot-drift-fade-x: linear-gradient(90deg, var(--rot-text), var(--rot-text));
+    --rot-drift-fade-y: linear-gradient(180deg,
+      var(--rot-text) 0%, var(--rot-drift-quiet) 14%,
+      var(--rot-drift-quiet) 86%, var(--rot-text) 100%);
+  }
+}
+
+.rot-drift-row {
+  display: flex;
+  width: max-content;
+  white-space: pre;
+  animation: rot-drift var(--rot-drift-duration, 180s) linear infinite;
+  will-change: transform;
+}
+
+.rot-drift-row span {
+  padding-right: 3ch;
+}
+
+.rot-drift-row--reverse {
+  animation-direction: reverse;
+}
+
+/* sequence-drift.js sets this while the hero is scrolled out of view. */
+.rot-hero.is-offscreen .rot-drift-row {
+  animation-play-state: paused;
+}
+
+@keyframes rot-drift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rot-drift-row {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------- actions */
+
+.rot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.rot-action {
+  font-family: var(--rot-font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--rot-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+  transition: color var(--rot-transition);
+}
+
+.rot-action:hover {
+  color: var(--rot-accent-hover);
+}
+
+.rot-action--primary {
+  padding: 0.75rem 1.4rem;
+  border-radius: var(--rot-radius);
+  background-color: var(--rot-accent-fill);
+  color: var(--rot-on-accent);
+  text-decoration: none;
+  transition: background-color var(--rot-transition), transform var(--rot-transition);
+}
+
+.rot-action--primary:hover {
+  color: var(--rot-on-accent);
+  background-color: color-mix(in oklab, var(--rot-accent-fill) 85%, var(--rot-text));
+}
+
+.rot-action--primary:active {
+  transform: translateY(1px);
+}
+
+.rot-action:focus-visible {
+  outline: 2px solid var(--rot-accent);
+  outline-offset: 3px;
+}
+
+.rot-link {
+  font-weight: 600;
+  color: var(--rot-accent);
+  text-underline-offset: 0.25em;
+  text-decoration-thickness: 1px;
+}
+
+/* -------------------------------------------------------------- sections */
+
+.rot-section {
+  padding-block: clamp(4rem, 9vw, 6.5rem);
+}
+
+.rot-section-title {
+  margin: 0 0 clamp(2rem, 4vw, 3rem);
+  font-family: var(--rot-font-sans);
+  font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--rot-text);
+}
+
+/* What it does: rows divided by hairlines, text beside a real sample. */
+.rot-caps-list {
+  display: grid;
+}
+
+.rot-cap {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 1.5rem clamp(2rem, 5vw, 4rem);
+  align-items: start;
+  padding-block: 2.5rem;
+  border-top: 1px solid var(--rot-border);
+}
+
+.rot-cap-text {
+  display: grid;
+  gap: 0.9rem;
+  justify-items: start;
+}
+
+.rot-cap-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: var(--rot-text);
+}
+
+.rot-cap-text p {
+  margin: 0;
+  max-width: 44ch;
+  line-height: 1.6;
+  color: var(--rot-text-muted);
+}
+
+.rot-cap-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rot-cap-names code {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--rot-border);
+  border-radius: var(--rot-radius);
+  font-family: var(--rot-font-mono);
+  font-size: 0.8125rem;
+  color: var(--rot-text);
+}
+
+.rot-sample {
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  background-color: var(--rot-code-bg);
+  border: 1px solid var(--rot-border);
+  border-radius: var(--rot-radius);
+  font-family: var(--rot-font-mono);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--rot-text);
+}
+
+.rot-sample code {
+  font-family: inherit;
+  white-space: pre;
+}
+
+.rot-prompt {
+  color: var(--rot-text-muted);
+  user-select: none;
+}
+
+/* Get started: a quiet band on the surface color. */
+.rot-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.rot-start .rot-section-title {
+  margin-bottom: 0.75rem;
+}
+
+.rot-start-text p {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.6;
+  color: var(--rot-text-muted);
+}
+
+.rot-landing > .rot-start {
+  max-width: none;
+  background-color: var(--rot-surface);
+  border-top: 1px solid var(--rot-border);
+  padding-inline: max(var(--rot-landing-gutter), calc((100% - var(--rot-landing-width)) / 2 + var(--rot-landing-gutter)));
+}
+
+@media (max-width: 860px) {
+  .rot-cap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rot-start {
+    align-items: start;
+  }
+}

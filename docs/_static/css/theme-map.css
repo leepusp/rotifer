@@ -1,0 +1,37 @@
+/* Map the ROTIFER tokens onto the variables Shibuya and sphinx-design
+ * consume. Because the --rot-* tokens flip inside html.dark, a single
+ * mapping covers both modes. Only tokens.css holds color values. */
+
+:root,
+html.dark {
+  --sy-c-link:        var(--rot-accent);
+  --sy-c-link-hover:  var(--rot-accent-hover);
+  --sy-c-text:        var(--rot-text);
+  --sy-c-light:       var(--rot-text-muted);
+  --sy-c-bold:        var(--rot-text);
+  --sy-c-heading:     var(--rot-text);
+  --sy-c-background:  var(--rot-bg);
+  --sy-c-surface:     var(--rot-surface);
+  --sy-c-border:      var(--rot-border);
+  --sy-c-divider:     var(--rot-border);
+  --sy-c-foot-background: var(--rot-bg);
+  --sy-c-foot-divider:    var(--rot-border);
+  --sy-c-foot-text:       var(--rot-text-muted);
+  --sy-f-heading:     var(--rot-font-sans);
+  --sy-f-text:        var(--rot-font-sans);
+  --sy-f-mono:        var(--rot-font-mono);
+}
+
+:root,
+html.dark {
+  --sd-color-primary:            var(--rot-accent);
+  --sd-color-primary-highlight:  var(--rot-accent-hover);
+  --sd-color-card-border:        var(--rot-border);
+  --sd-color-card-border-hover:  var(--rot-accent);
+  --sd-color-tabs-label-active:        var(--rot-accent);
+  --sd-color-tabs-label-hover:         var(--rot-accent-hover);
+  --sd-color-tabs-label-inactive:      var(--rot-text-muted);
+  --sd-color-tabs-underline-active:    var(--rot-accent);
+  --sd-color-tabs-underline-hover:     var(--rot-border);
+  --sd-color-tabs-underline-inactive:  transparent;
+}

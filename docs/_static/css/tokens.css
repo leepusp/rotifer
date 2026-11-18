@@ -1,0 +1,64 @@
+/* ROTIFER design tokens.
+ *
+ * Single source of truth: every color, font, radius and duration used by
+ * the site is defined in the two token blocks below (light, then dark).
+ * No other CSS file, template or directive in this docs tree may contain a
+ * color literal. The palette is "Lagoa": one aqua accent with green-tinted
+ * neutrals (see docs/design/DESIGN.md).
+ *
+ * Contrast (WCAG AA): every text pair below was measured against --rot-bg
+ * and --rot-surface; see contributing/design-system for the numbers.
+ */
+
+:root {
+  /* Accent. --rot-accent is the text and link form; --rot-accent-fill is
+   * the brighter aqua used for filled shapes, which always carry ink text. */
+  --rot-accent:        #0B7869;  /* teal, 5.05:1 on --rot-bg */
+  --rot-accent-hover:  #075B50;
+  --rot-accent-fill:   #2FB3A1;
+  --rot-accent-tint:   #DDF1EC;  /* selection, active nav, inline highlights */
+  --rot-on-accent:     #101413;  /* text on --rot-accent-fill, 7.14:1 */
+
+  /* Fixed surfaces that look the same in both modes (the landing hero is
+   * always ink). Not redefined in html.dark. */
+  --rot-ink:           #101413;
+  --rot-paper:         #F7F8F6;  /* 17.42:1 on --rot-ink */
+  --rot-aqua-on-ink:   #4CC9B5;  /* 9.13:1 on --rot-ink */
+
+  --rot-bg:            #F7F8F6;
+  --rot-surface:       #EEF1EE;
+  --rot-border:        #DCE1DD;
+  --rot-text:          #101413;
+  --rot-text-muted:    #59605C;  /* 6.06:1 on --rot-bg */
+  --rot-code-bg:       #EEF1EE;
+
+  --rot-font-sans: "Chivo", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+                   "Helvetica Neue", Arial, sans-serif;
+  --rot-font-mono: "Chivo Mono", ui-monospace, "SFMono-Regular", "Menlo",
+                   "Consolas", "Liberation Mono", monospace;
+
+  /* One corner-radius scale for the whole site. */
+  --rot-radius:     4px;
+  /* Motion: hover and focus transitions, always under 150ms. */
+  --rot-transition: 120ms ease;
+  /* The one exception, because collapsing a sidebar is a movement and not
+   * a state change: an ease-out long enough to follow. Keep the duration
+   * in step with DURATION in _static/sidebar-toggle.js. */
+  --rot-transition-panel: 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Shibuya toggles dark mode by setting the "dark" class on <html>. */
+html.dark {
+  --rot-accent:        #4CC9B5;  /* 9.11:1 on --rot-bg */
+  --rot-accent-hover:  #7DDCCB;
+  --rot-accent-fill:   #4CC9B5;
+  --rot-accent-tint:   #173A34;
+  --rot-on-accent:     #101413;
+
+  --rot-bg:            #111413;
+  --rot-surface:       #181D1B;
+  --rot-border:        #28302D;
+  --rot-text:          #E8ECE9;
+  --rot-text-muted:    #9DA5A0;  /* 7.34:1 on --rot-bg */
+  --rot-code-bg:       #161B19;
+}

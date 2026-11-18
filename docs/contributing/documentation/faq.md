@@ -124,7 +124,7 @@ page to page. Two details there are load-bearing:
   `<body>`, which would paint both sidebars expanded for one frame
   first.
 
-**The appearance.** `docs/_static/theme.css` owns the rails, which
+**The appearance.** `docs/_static/css/navigation.css` owns the rails, which
 icon shows, and the animation. The width eases over
 `--rot-transition-panel`, but only while a toggle is in flight: the
 script adds a `sidebars-animating` class for the duration, because a

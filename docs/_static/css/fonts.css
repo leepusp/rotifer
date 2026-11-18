@@ -1,0 +1,18 @@
+/* Self-hosted typefaces. See _static/fonts/README.md for where the files
+ * come from. One variable file per family covers every weight. */
+
+@font-face {
+  font-family: "Chivo";
+  src: url("../fonts/chivo-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Chivo Mono";
+  src: url("../fonts/chivo-mono-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,14 +1,13 @@
 # Builds the Sphinx documentation and publishes it to GitHub Pages at
 # https://leepusp.github.io/rotifer/
 #
-# The docs tree currently lives only on docs/v1, so that is the branch this
-# workflow triggers on. If docs/v1 is ever merged into master, move the branch
-# name below and drop the github-pages environment branch allowance.
+# The site is built from master. The github-pages environment (repository
+# Settings > Environments) must allow deployments from master too.
 name: Docs
 
 on:
   push:
-    branches: [docs/v1]
+    branches: [master]
     paths:
       - 'docs/**'
       - 'lib/rotifer/**'
