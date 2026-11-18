@@ -26,6 +26,12 @@ setup(
         "tqdm",                # progress bars in rotifer.db
         "clickhouse-connect",  # rotifer.db.clickhouse
     ],
+    extras_require={
+        # rotifer.graph.network: domain networks, layouts, communities, statistics
+        "graph": ["networkx", "scipy", "igraph", "leidenalg", "seaborn", "PyYAML"],
+        # rotifer.view.network: the network_dash viewer, with the graph dependencies it uses
+        "view": ["networkx", "scipy", "igraph", "leidenalg", "seaborn", "PyYAML", "dash", "dash-cytoscape"],
+    },
     license="BSD-3-Clause",
     classifiers=[
         "Programming Language :: Python :: 3",
