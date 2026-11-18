@@ -851,11 +851,17 @@ def extract_envelope(df, start='estart', end='eend', expand=10, local_database_p
     if len(df.sequence.drop_duplicates().tolist()) > 0:
         seqobj = rdbs.sequence(df.sequence.drop_duplicates().to_list(), local_database_path=local_database_path)
         seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
-        seqobj.df.end = seqobj.df[end].fillna(seqobj.df.length)
-        seqobj.df.start = seqobj.df[start].fillna(1)
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x[start])-expand:int(x[end])+expand], axis=1)
+        seqobj.df['end'] = seqobj.df[end].fillna(seqobj.df.length).astype(int)
+        seqobj.df['start'] = seqobj.df[start].fillna(1).astype(int)
+        # Coordinates are 1-based and inclusive: expand both sides by the
+        # same margin, within the protein
+        if expand:
+            seqobj.df['start'] = (seqobj.df.start - expand).clip(lower=1)
+            seqobj.df['end'] = (seqobj.df.end + expand).clip(upper=seqobj.df.length)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x['start'] - 1:x['end']], axis=1)
+        # The id names the region actually cut, margin included
         seqobj.df['pid'] = seqobj.df['id']
-        seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df[start].astype(str) + '-' + seqobj.df[end].astype(str)
+        seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['start'].astype(str) + '-' + seqobj.df['end'].astype(str)
     else:
         print(f'No sequences were left after filtering')
         seqobj = rdbs.sequence()
