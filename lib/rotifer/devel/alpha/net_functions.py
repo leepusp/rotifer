@@ -1,3 +1,31 @@
+"""
+Build, view and analyse networks of protein domains found together.
+
+Two domains are related when they occur in the same conserved gene
+neighbourhood (a "block"): either fused in one protein, or in different
+genes of the block. :func:`get_relations` turns a table of domain hits
+into such relations, :func:`network_annotation` makes a styled networkx
+graph from them, :func:`calculate_positions` and :func:`network_dash`
+lay the graph out and open it in an interactive viewer, and
+:func:`get_network_community`, :func:`community_stability`,
+:func:`clique_jaccard_community` and :func:`subgraph_stats` find and
+test groups of domains.
+
+A typical session::
+
+    edges = get_relations(domdf, gene_pos="start", feature_pos="dom_start")
+    G = network_annotation(edges, node_color=colours)
+    layouts = calculate_positions(G, iterations=50)
+    positions = {name: {n: [float(c) for c in p] for n, p in layout.items()}
+                 for name, layout in layouts.items()}
+    schemes = get_network_community(G)
+    network_dash(G, positions, group_colours, node_groups, schemes)
+
+Importing the module loads the extra Cytoscape layouts of
+``dash_cytoscape``, which also enables SVG export in the viewer. Nothing
+here contacts a remote service; :func:`network_dash` starts a local web
+server.
+"""
 from operator import pos
 from dash import Dash, dcc, html, Input, Output, ctx, State
 import dash_cytoscape as cyto
@@ -22,16 +50,91 @@ def network_annotation(networkdf,
                      unidirected_graph=True,
                      split_types=False):
     """
-    networkdf: get_relations output (source, target, edge_type, edge_count, edge_total).
-               Without edge_total, it is estimated by summing edge_count over the pair's
-               edge types, which counts a block once per type it occurs in.
-    unidirected_graph: if False, a MultiDiGraph with one edge per (source, target, edge_type).
-    split_types: undirected only. If True, a MultiGraph with one edge per edge type
-                 (keyed by edge_type); if False, a Graph with one edge per pair carrying
-                 its most frequent type. In both, mirrored relations (A->B Cterminal and
-                 B->A Nterminal) are merged, and edge_type is read from the node in the
-                 edge's type_from attribute (the alphabetically first of the pair) to the
-                 other. edge_total is the pair's block count either way.
+    Build a styled networkx graph from domain relations.
+
+    Each domain becomes a node and each relation an edge. Nodes get a
+    colour, shape, outline and degree, and edges get a line colour, style
+    and opacity, as attributes that :func:`network_dash` and other drawing
+    code read.
+
+    Parameters
+    ----------
+    networkdf : pandas.DataFrame
+        Relations, as returned by :func:`get_relations`: columns ``source``,
+        ``target``, ``edge_type``, ``edge_count`` and ``edge_total``. When
+        ``edge_total`` is missing it is estimated by summing ``edge_count``
+        over the pair's edge types, which counts a block once for each type
+        it shows, and a warning is raised.
+    node_color : dict, optional
+        Colour of each node, as a CSS colour (for example ``"#4C9BE8"``).
+        Nodes not in it are drawn grey (``"#D3D3D3"``). By default every
+        node is grey.
+    node_shape : str, default 'ellipse'
+        Cytoscape shape for the nodes, for example ``'ellipse'``,
+        ``'rectangle'`` or ``'diamond'``.
+    second_shape : dict or str, optional
+        Shape for the nodes in ``second_shape_list``: a dict from node to
+        shape, or one shape for all of them. By default they are hexagons.
+    second_shape_list : list, optional
+        Nodes drawn with ``second_shape`` instead of ``node_shape``.
+    node_outline : bool, optional
+        If true, outline the nodes in ``node_outline_list`` with
+        ``node_outline_color``. Otherwise each outline has the node's own
+        colour, so it does not show.
+    node_outline_color : dict or str, optional
+        Outline colour for the nodes in ``node_outline_list``: a dict from
+        node to colour, or one colour for all of them. By default black.
+    node_outline_list : list, optional
+        Nodes that get an outline when ``node_outline`` is true.
+    edge_color : bool, default True
+        Style the edges: an edge between two nodes of the same colour is
+        drawn in that colour, solid, with opacity 0.7; any other edge is
+        grey, dotted, with opacity 0.2. If False, edges get no style
+        attributes.
+    unidirected_graph : bool, default True
+        If true, build an undirected graph (see ``split_types``). If false,
+        build a ``networkx.MultiDiGraph`` with one edge per row of
+        ``networkdf``.
+    split_types : bool, default False
+        Undirected graphs only. If true, build a ``networkx.MultiGraph``
+        with one edge per relation type of each pair, keyed by
+        ``edge_type``. If false, build a ``networkx.Graph`` with one edge
+        per pair, carrying the pair's most frequent type (ties broken
+        alphabetically).
+
+    Returns
+    -------
+    networkx.Graph, networkx.MultiGraph or networkx.MultiDiGraph
+        The graph. Node attributes: ``node_color``, ``degree`` (number of
+        neighbours), ``node_shape`` and ``node_outline``. Edge attributes:
+        ``edge_type``, ``edge_count`` and ``edge_total`` from
+        ``networkdf``; ``type_from`` in undirected graphs (see Notes); and
+        ``line_style``, ``edge_color`` and ``opacity`` when ``edge_color``
+        is true.
+
+    Warns
+    -----
+    UserWarning
+        If ``networkdf`` has no ``edge_total`` column, or if some nodes are
+        missing from ``node_color``, ``second_shape`` or
+        ``node_outline_color``. The warning names the nodes.
+
+    See Also
+    --------
+    get_relations : Builds ``networkdf``.
+    network_dash : Interactive viewer for the returned graph.
+
+    Notes
+    -----
+    In an undirected graph every relation is stored once. :func:`get_relations`
+    lists each relation from both ends (A to B ``Cterminal`` and B to A
+    ``Nterminal`` come from the same blocks), so the two rows are merged:
+    each row is turned so that its source is the alphabetically first node,
+    flipping the type when needed. Because an undirected edge does not keep
+    a direction, ``type_from`` names the node that ``edge_type`` is read
+    from. For example, ``type_from='ABC_tran'`` with ``edge_type='Downstream'``
+    means the other domain's gene lies downstream of ABC_tran's gene.
+    ``edge_total`` is the pair's number of blocks either way.
     """
 
     import networkx as nx
@@ -165,10 +268,72 @@ def network_annotation(networkdf,
 def _simple_graph(G):
     # Parallel edges of an undirected MultiGraph (split_types) share one pair: collapse them
     # so degree, layouts and communities match the one-edge-per-pair graph
+    """
+    Collapse the parallel edges of an undirected multigraph.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Any graph.
+
+    Returns
+    -------
+    networkx.Graph
+        ``G`` itself, unless it is an undirected multigraph (for example
+        from ``network_annotation(..., split_types=True)``). Then a
+        ``networkx.Graph`` with one edge per pair, so that degrees, layouts
+        and communities match the graph with one edge per pair. The kept
+        edge has the attributes of the pair's last parallel edge; in graphs
+        from :func:`network_annotation` all of them carry the same
+        ``edge_total``.
+    """
     return nx.Graph(G) if G.is_multigraph() and not G.is_directed() else G
 
 def calculate_positions(G, iterations):
     # Recalculate positions as needed
+    """
+    Compute four layouts of a graph for the viewer.
+
+    :func:`network_dash` offers them as starting points: you can switch
+    between them, move nodes by hand and save the result as a new layout.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph to lay out. Parallel edges are collapsed first, so a pair
+        with several relation types does not pull its nodes closer.
+    iterations : int
+        Iterations of the spring layout. More iterations let the layout
+        settle further and take longer.
+
+    Returns
+    -------
+    dict
+        Layout name to ``{node: numpy.ndarray([x, y])}``. The names are
+        ``'Spring Layout'`` (force-directed [1]_, seed 1, so it is
+        reproducible), ``'Kamada-Kawai'`` (spring energy over graph
+        distances [2]_), ``'Kamada-Kawai from Spring layout'`` (the same,
+        starting from the spring layout) and ``'Circular'``.
+
+    See Also
+    --------
+    network_dash : Shows these layouts; the dict needs converting to
+        lists first (see the example in that function).
+
+    Notes
+    -----
+    The Kamada-Kawai layout uses the distances between all pairs of nodes,
+    so its time and memory grow with the square of the number of nodes.
+
+    References
+    ----------
+    .. [1] Fruchterman, T. M. J. & Reingold, E. M. "Graph drawing by
+       force-directed placement." Softw. Pract. Exp. 21, 1129-1164 (1991).
+       https://doi.org/10.1002/spe.4380211102
+    .. [2] Kamada, T. & Kawai, S. "An algorithm for drawing general
+       undirected graphs." Inf. Process. Lett. 31, 7-15 (1989).
+       https://doi.org/10.1016/0020-0190(89)90102-6
+    """
     G = _simple_graph(G)
     pos1 = nx.spring_layout(G, iterations=iterations, seed=1)
     pos2 = nx.kamada_kawai_layout(G, pos=pos1)
@@ -180,6 +345,48 @@ def calculate_positions(G, iterations):
             "Circular": pos4}
 
 def convert_to_cytoscape(G, positions, layout_key, scaling_factor=900, x_scale=1, y_scale=1):
+    """
+    Convert a graph and one of its layouts to Dash Cytoscape elements.
+
+    :func:`network_dash` calls it on every redraw, with the layout and the
+    scaling chosen in the viewer.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph to convert. All node and edge attributes go into each
+        element's ``data``.
+    positions : dict
+        Layout name to ``{node: [x, y]}``, as built for
+        :func:`network_dash`.
+    layout_key : str
+        Name of the layout in ``positions`` to use.
+    scaling_factor : float, default 900
+        Pixels per layout unit. Larger values spread the nodes further
+        apart.
+    x_scale : float, default 1
+        Extra horizontal stretch.
+    y_scale : float, default 1
+        Extra vertical stretch.
+
+    Returns
+    -------
+    list of dict
+        Node elements followed by edge elements, in the format of
+        ``networkx.cytoscape_data``. Node elements found in the layout also
+        get a ``position`` with integer ``x`` and ``y`` in pixels.
+
+    See Also
+    --------
+    network_dash : The viewer that draws these elements.
+
+    Notes
+    -----
+    The layout's second coordinate becomes the horizontal position and its
+    first coordinate the vertical one, so the drawing is the layout
+    mirrored along its diagonal. Saved positions use the same convention,
+    so they come back unchanged.
+    """
     cy = nx.cytoscape_data(G)
     # Modify node positions and style
     for node in cy["elements"]["nodes"]:
@@ -195,8 +402,86 @@ def convert_to_cytoscape(G, positions, layout_key, scaling_factor=900, x_scale=1
 
 def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     """
-    Extra keyword arguments (e.g. host, port, debug, jupyter_mode) are passed to app.run;
-    defaults: jupyter_mode="external", debug=True.
+    Open an interactive viewer for a domain network.
+
+    Starts a Dash app that draws ``G`` with Dash Cytoscape, a wrapper around
+    Cytoscape.js [1]_. In the viewer you can switch layouts, show only some
+    groups of nodes, hide pairs seen in few blocks, recolour nodes and
+    edges, add or remove edges, save node positions as new layouts, and
+    export the picture.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph from :func:`network_annotation`. Its ``node_shape`` and
+        ``node_outline`` attributes are used as they are; node and edge
+        colours are recomputed from the selected groups.
+    pos_dict : dict
+        Layout name to ``{node: [x, y]}``, with plain lists of floats (the
+        data is stored in the browser as JSON). The first layout is shown
+        first.
+    xx : dict
+        Colour of each group, as a CSS colour.
+    function : dict
+        Group of each node. Every node needs a group, and every group a
+        colour in ``xx``.
+    color_schemes : dict
+        Named alternatives to ``function`` and ``xx``, each
+        ``[node_to_group, group_to_colour]``, for example the output of
+        :func:`get_network_community` or ``{"Theme": [function, xx]}``.
+        Choosing one in the viewer replaces the current groups and colours.
+    **run_kwargs
+        Passed to ``dash.Dash.run``, for example ``port=8051`` or
+        ``jupyter_mode="inline"``. Defaults: ``jupyter_mode="external"``
+        and ``debug=True``.
+
+    Returns
+    -------
+    None
+        The function returns when the server stops. Outside Jupyter it
+        blocks until then.
+
+    See Also
+    --------
+    network_annotation : Builds ``G``.
+    calculate_positions : Builds the layouts for ``pos_dict``.
+    get_network_community : Builds colour schemes from communities.
+
+    Notes
+    -----
+    The graph is copied into the page when the app starts. Edges added or
+    removed in the viewer, saved positions and recoloured nodes live only in
+    that page and are lost when it reloads; ``G`` itself is never changed.
+
+    What the controls do:
+
+    - "Minimmun connection" hides edges whose ``edge_total`` (number of
+      blocks with the pair) is below the value. Edges added by hand have
+      ``edge_type='manual'`` and are always shown.
+    - Node size is the square root of the node's degree in the shown
+      graph, times "Node size".
+    - Double-clicking an edge cycles it through the edge styles on screen;
+      double-clicking a node moves it to the next group colour, which also
+      changes its group.
+    - "Update layouts" recomputes :func:`calculate_positions` on the shown
+      graph and adds the results as layouts named ``updated ...``.
+    - The "Update Communities" button has no action yet.
+
+    References
+    ----------
+    .. [1] Franz, M. et al. "Cytoscape.js: a graph theory library for
+       visualisation and analysis." Bioinformatics 32, 309-311 (2016).
+       https://doi.org/10.1093/bioinformatics/btv557
+
+    Examples
+    --------
+    Positions from :func:`calculate_positions` hold numpy arrays, which the
+    browser store cannot hold, so convert them to lists first:
+
+    >>> layouts = calculate_positions(G, iterations=50)  # doctest: +SKIP
+    >>> pos_dict = {name: {n: [float(c) for c in p] for n, p in layout.items()}
+    ...             for name, layout in layouts.items()}  # doctest: +SKIP
+    >>> network_dash(G, pos_dict, xx, function, {"Theme": [function, xx]})  # doctest: +SKIP
     """
     from dash import Dash, dcc, html, Input, Output, ctx, State
     import dash
@@ -454,6 +739,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
          Input('edge-size', 'value')]       # Edge size input
     )
     def update_stylesheet(font_size,outline_size, edge_size):
+        """Rebuild the stylesheet from the font size, outline width and edge width boxes."""
         return [
             {
                 'selector': 'node',
@@ -531,6 +817,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         State("select-mode", "value"),
     )
     def update_input_boxes(node_data,toggle):
+        """Copy a clicked node's name into the source or target box, as the toggle says."""
         if node_data and "id" in node_data:
             node_id = node_data["id"]
             if  toggle == "source":
@@ -576,6 +863,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         elements, last_click, color_cycle, style_overrides, last_node_click, node_color_cycle, func_color_dict, function_data, pos_dict_data, serial_graph
     ):
 
+        """Redraw the graph, or restyle a double-clicked edge or recolour a double-clicked node."""
         from dash import Input, Output, State, ctx, no_update
         import time
         import numpy as np
@@ -747,6 +1035,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     )
     def save_positions(n_clicks, text,x_scale,y_scale, scale, n_elements, current_pos_dict):
         # Extract positions from the Cytoscape graph
+        """Save the nodes' current positions as a new layout named by the text box."""
         positions = {
             node["data"]["id"]: node.get("position", {})
             for node in n_elements if "position" in node
@@ -768,6 +1057,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     )
     def print_stored_data(n_clicks, toprint):
         
+        """Print the last saved positions to the console and show them on the page."""
         print("Stored data:", toprint)  # Print to console
         return f"Printed data: {toprint}"  # Show feedback in the app
     
@@ -782,6 +1072,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         prevent_initial_call=True
     )
     def get_image(get_jpg_clicks, get_png_clicks, get_svg_clicks):
+        """Export the drawing as JPG, PNG or SVG."""
         triggered_id = ctx.triggered_id
         file_type_map = {
             'btn-get-jpg': 'jpg',
@@ -803,6 +1094,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         prevent_initial_call=True
     )
     def update_group_selection(selected_scheme, color_schemes_data):
+        """Load the groups and colours of the chosen colour scheme."""
         if not selected_scheme or selected_scheme not in color_schemes_data:
             return [], [], dash.no_update, dash.no_update
 
@@ -824,6 +1116,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         prevent_initial_call=True
     )
     def add_group(n_clicks, new_key, new_color, current_xx):
+        """Add a group and its colour to the current colours."""
         if not new_key or not new_color:
             return dash.no_update
         current_xx[new_key] = new_color
@@ -844,6 +1137,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         prevent_initial_call=True,  # Prevent execution on page load
     )
     def update_layouts(n_clicks, groups,Spring_lay_iteractions, min_connections, pos_dict, serial_graph, function_data):
+        """Recompute the layouts on the graph currently shown."""
         stored_G = json_graph.node_link_graph(serial_graph)
         filter_nodes = list({key: value for key, value in function_data.items() if value in groups}.keys())
         G_filtered = stored_G.subgraph(filter_nodes)
@@ -875,6 +1169,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         prevent_initial_call=True
     )
     def modify_edge(add_clicks, remove_clicks, source, target, graph_data, trigger_count):
+        """Add or remove the edge between the source and target nodes, and report the result."""
         triggered_id = ctx.triggered_id
         if not source or not target:
             raise PreventUpdate
@@ -915,6 +1210,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
         Input("color-schemes-store", "data")
     )
     def populate_colorscheme_dropdown(color_data):
+        """List the colour schemes in the dropdown and select the first."""
         if not color_data:
             return [], None
         keys = list(color_data.keys())
@@ -931,6 +1227,28 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
 
 def _cpm_resolution(cpm_resolution, resolution_parameter):
     # resolution_parameter is the old name of cpm_resolution; it wins when given
+    """
+    Return the CPM resolution, accepting its deprecated name.
+
+    Parameters
+    ----------
+    cpm_resolution : float
+        Value given under the current name.
+    resolution_parameter : float or None
+        Value given under the old name, or None.
+
+    Returns
+    -------
+    float
+        ``resolution_parameter`` when it is given, otherwise
+        ``cpm_resolution``.
+
+    Warns
+    -----
+    DeprecationWarning
+        When ``resolution_parameter`` is given. The warning points at the
+        caller of the public function.
+    """
     if resolution_parameter is None:
         return cpm_resolution
     warnings.warn("resolution_parameter is deprecated, use cpm_resolution "
@@ -941,6 +1259,29 @@ def _cpm_resolution(cpm_resolution, resolution_parameter):
 def _undirected_max(G, weight):
     # A pair's directed or parallel edges become one undirected edge with the largest weight
     # (net_functions graphs give every edge of a pair the same edge_total; summing would double it)
+    """
+    Turn a directed graph into an undirected one, keeping each pair's heaviest edge.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Directed graph or multigraph.
+    weight : str or None
+        Edge attribute compared between the edges of a pair; edges without
+        it count as 1. With None, the pair's first edge is kept.
+
+    Returns
+    -------
+    networkx.Graph
+        One edge per pair of nodes, with all the attributes of the kept
+        edge. Node attributes are copied.
+
+    Notes
+    -----
+    Graphs from :func:`network_annotation` give every edge of a pair the
+    same ``edge_total``, so taking the largest weight keeps the pair's
+    number of blocks, where a sum would count them twice.
+    """
     H = nx.Graph()
     H.add_nodes_from(G.nodes(data=True))
     for u, v, d in G.edges(data=True):
@@ -953,6 +1294,28 @@ def _undirected_max(G, weight):
 def _community_scheme(nodes, communities, prefix):
     # [node -> label, label -> colour]: labels numbered by size, largest first (ties by smallest node name);
     # pastel has 10 colours and cycles, so more communities get evenly spaced hues
+    """
+    Turn a partition into a colour scheme for the viewer.
+
+    Parameters
+    ----------
+    nodes : iterable
+        Nodes in the order the returned mapping should follow. Every node
+        must belong to one of ``communities``.
+    communities : iterable of set
+        The communities, as sets of nodes.
+    prefix : str
+        Text put before each community number, for example ``'Louvain_'``.
+
+    Returns
+    -------
+    list
+        ``[node_to_label, label_to_colour]``. Communities are numbered by
+        size, 0 being the largest; ties go to the community whose smallest
+        node name comes first. Colours come from the seaborn ``pastel``
+        palette for up to 10 communities and from evenly spaced ``husl``
+        hues beyond that, so no two communities share a colour.
+    """
     import seaborn as sns
     ordered = sorted(communities, key=lambda c: (-len(c), min(str(n) for n in c)))
     label = {n: f"{prefix}{i}" for i, c in enumerate(ordered) for n in c}
@@ -963,44 +1326,54 @@ def get_network_community(G,
                  community_to_color='leidein', weight='edge_total', cpm_resolution=0.05, seed=0,
                  *, resolution_parameter=None):
     """
-    Detect communities with Louvain, Leiden and Leiden-CPM, as network_dash colour schemes.
+    Find communities with Louvain, Leiden and Leiden-CPM, as viewer colour schemes.
 
-    Partitions ``G`` three ways: Louvain [1]_ and Leiden [2]_ maximising standard modularity [3]_
-    (resolution 1), and Leiden with the Constant Potts Model (CPM) [4]_ at resolution
-    ``cpm_resolution``. Each partition is returned as a colour scheme ready for ``network_dash``.
+    Partitions ``G`` three ways: Louvain [1]_ and Leiden [2]_, both
+    maximising standard modularity [3]_ (resolution 1), and Leiden with the
+    Constant Potts Model (CPM) [4]_ at resolution ``cpm_resolution``. Each
+    partition is returned as a colour scheme that :func:`network_dash` can
+    show.
 
     Parameters
     ----------
     G : networkx.Graph
-        Graph to partition. A directed graph is partitioned as an undirected copy in which a pair's
-        edges keep the largest weight; the parallel edges of a MultiGraph are collapsed to one edge
-        per pair.
+        Graph to partition. A directed graph is partitioned as an
+        undirected copy in which each pair keeps its heaviest edge. The
+        parallel edges of a multigraph are collapsed to one edge per pair.
     community_to_color : str, default 'leidein'
-        Unused, kept so positional calls still work. Any other value raises a DeprecationWarning.
+        Unused. Kept so that positional calls still work; any other value
+        raises a DeprecationWarning.
     weight : str or None, default 'edge_total'
-        Edge attribute used as weight, or None for unweighted. Edges lacking the attribute count as 1.
+        Edge attribute used as the weight, or None for an unweighted run.
+        Edges without the attribute count as 1.
     cpm_resolution : float, default 0.05
-        CPM resolution of ``Leidein_2``: a group of nodes forms a community only if its edges weigh
-        more than this on average per pair of nodes, so higher values give more, smaller
-        communities. Louvain and ``Leidein`` do not use it.
+        Resolution of ``Leidein_2``. A group of nodes becomes a community
+        only if its edges weigh more than this per pair of nodes, on
+        average, so higher values give more and smaller communities. In
+        the unit of ``weight``: with ``edge_total``, a number of blocks.
+        Louvain and ``Leidein`` do not use it.
     seed : int or None, default 0
-        Random seed for all three algorithms, so results are reproducible; None for unseeded runs.
+        Random seed for all three algorithms, so a rerun gives the same
+        partitions. None gives unseeded runs.
     resolution_parameter : float, optional
-        Deprecated name of ``cpm_resolution``. When given, it is used and raises a
-        DeprecationWarning.
+        Deprecated name of ``cpm_resolution``. When given, it is used, and
+        a DeprecationWarning is raised.
 
     Returns
     -------
     dict
-        ``{"Louvain" | "Leidein" | "Leidein_2": [node_to_label, label_to_colour]}``. Labels are
-        ``Louvain_<i>``, ``Leiden_<i>`` and ``LeidenCPM_<i>``, numbered by community size
-        (0 = largest, ties broken by the smallest node name). Colours are pastel up to 10
-        communities and evenly spaced hues beyond. An empty graph gives empty dicts.
+        ``{"Louvain" | "Leidein" | "Leidein_2": [node_to_label,
+        label_to_colour]}``. Labels are ``Louvain_<i>``, ``Leiden_<i>`` and
+        ``LeidenCPM_<i>``, numbered by community size (0 is the largest,
+        ties broken by the smallest node name). Colours are pastel for up
+        to 10 communities and evenly spaced hues beyond that. An empty
+        graph gives empty dicts.
 
     Warns
     -----
     UserWarning
-        If ``G`` is empty or directed, or if some or all edges lack ``weight``.
+        If ``G`` is empty or directed, or if some or all edges lack
+        ``weight``.
     DeprecationWarning
         If ``community_to_color`` or ``resolution_parameter`` is passed.
 
@@ -1008,29 +1381,33 @@ def get_network_community(G,
     --------
     community_stability : How much these partitions depend on ``seed``.
     clique_jaccard_community : Communities of overlapping maximal cliques.
+    network_dash : Shows the returned colour schemes.
 
     Notes
     -----
-    A fixed seed gives a reproducible partition, not necessarily a stable one: modularity has many
-    structurally different partitions with nearly the same score [5]_, and on weak community
-    structure another seed can give another partition. Use ``community_stability`` to measure it.
+    A fixed seed makes a partition reproducible, yet another seed can
+    still give another partition. Modularity has many structurally
+    different partitions with nearly the same score [5]_, so this happens
+    on graphs with weak community structure.
+    :func:`community_stability` measures how much that happens.
 
     References
     ----------
-    .. [1] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E. "Fast unfolding of
-       communities in large networks." J. Stat. Mech. P10008 (2008).
-       https://doi.org/10.1088/1742-5468/2008/10/P10008
-    .. [2] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to Leiden: guaranteeing
-       well-connected communities." Sci. Rep. 9, 5233 (2019).
-       https://doi.org/10.1038/s41598-019-41695-z
-    .. [3] Newman, M. E. J. & Girvan, M. "Finding and evaluating community structure in networks."
-       Phys. Rev. E 69, 026113 (2004). https://doi.org/10.1103/PhysRevE.69.026113
-    .. [4] Traag, V. A., Van Dooren, P. & Nesterov, Y. "Narrow scope for resolution-limit-free
-       community detection." Phys. Rev. E 84, 016114 (2011).
-       https://doi.org/10.1103/PhysRevE.84.016114
-    .. [5] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of modularity maximization in
-       practical contexts." Phys. Rev. E 81, 046106 (2010).
-       https://doi.org/10.1103/PhysRevE.81.046106
+    .. [1] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E.
+       "Fast unfolding of communities in large networks." J. Stat. Mech.
+       P10008 (2008). https://doi.org/10.1088/1742-5468/2008/10/P10008
+    .. [2] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to
+       Leiden: guaranteeing well-connected communities." Sci. Rep. 9, 5233
+       (2019). https://doi.org/10.1038/s41598-019-41695-z
+    .. [3] Newman, M. E. J. & Girvan, M. "Finding and evaluating community
+       structure in networks." Phys. Rev. E 69, 026113 (2004).
+       https://doi.org/10.1103/PhysRevE.69.026113
+    .. [4] Traag, V. A., Van Dooren, P. & Nesterov, Y. "Narrow scope for
+       resolution-limit-free community detection." Phys. Rev. E 84, 016114
+       (2011). https://doi.org/10.1103/PhysRevE.84.016114
+    .. [5] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of
+       modularity maximization in practical contexts." Phys. Rev. E 81,
+       046106 (2010). https://doi.org/10.1103/PhysRevE.81.046106
     """
     import leidenalg as la
     import igraph as ig
@@ -1078,39 +1455,45 @@ def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50,
     """
     Measure how much the partitions of get_network_community depend on the seed.
 
-    Runs ``get_network_community`` with seeds ``seed, seed + 1, ..., seed + n_seeds - 1``. The run
-    with ``seed`` is the reference: the partition ``get_network_community(G, seed=seed)`` returns,
-    i.e. the one being reported. Modularity has many structurally different partitions with nearly
-    the same score [1]_, and Louvain [2]_ and Leiden [3]_ land on one of them depending on the seed;
-    this function reports how much that changes the result, for each partition and each node.
+    Runs :func:`get_network_community` with the seeds ``seed``,
+    ``seed + 1``, ..., ``seed + n_seeds - 1``. The run with ``seed`` is the
+    reference: it gives the partition you would report. Modularity has many
+    structurally different partitions with nearly the same score [1]_, and
+    Louvain [2]_ and Leiden [3]_ settle on one of them depending on the
+    seed. This function reports how much the result changes with the seed,
+    for each partition and for each node.
 
     Parameters
     ----------
     G : networkx.Graph
-        Graph to partition, as in ``get_network_community``.
+        Graph to partition, as in :func:`get_network_community`.
     weight : str or None, default 'edge_total'
-        Edge attribute used as weight, or None for unweighted.
+        Edge attribute used as the weight, or None for an unweighted run.
     cpm_resolution : float, default 0.05
-        CPM resolution of ``Leidein_2``.
+        Resolution of the ``Leidein_2`` partition.
     n_seeds : int, default 50
-        Number of runs, including the reference.
+        Number of runs, the reference included.
     seed : int, default 0
-        Seed of the reference run; the other runs use the following seeds.
+        Seed of the reference run. The other runs use the seeds after it.
     warn_below : float or None, default 0.8
-        Warn for each partition whose median ARI is below this; None disables the warning.
+        Warn for each partition whose median ARI is below this value. None
+        turns the warning off.
 
     Returns
     -------
     summary : pandas.DataFrame
-        One row per partition (``Louvain``, ``Leidein``, ``Leidein_2``) with columns
-        ``communities`` (communities in the reference), ``distinct_partitions`` (distinct
-        partitions among the runs) and ``ari_median``, ``ari_min`` (adjusted Rand index [4]_ over
-        all pairs of runs: 1 = identical, about 0 = chance-level agreement).
+        One row per partition (``Louvain``, ``Leidein``, ``Leidein_2``),
+        with columns ``communities`` (communities in the reference),
+        ``distinct_partitions`` (different partitions among the runs), and
+        ``ari_median`` and ``ari_min``: the median and smallest adjusted
+        Rand index [4]_ over all pairs of runs. An ARI of 1 means identical
+        partitions; about 0 means no more agreement than chance.
     nodes : pandas.DataFrame
-        One row per node with, for each partition, ``<name>`` (the node's reference community) and
-        ``<name>_stability``: the mean Jaccard index [5]_ between the node's community in each other
-        run and its reference community (1 = always the same community; splits and merges both
-        lower it).
+        One row per node with two columns per partition: ``<name>``, the
+        node's community in the reference, and ``<name>_stability``, the
+        mean Jaccard index [5]_ between the node's community in each other
+        run and its reference community. A stability of 1 means the node
+        always had the same community; splits and merges both lower it.
 
     Raises
     ------
@@ -1120,8 +1503,9 @@ def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50,
     Warns
     -----
     UserWarning
-        For each partition whose median ARI is below ``warn_below``. Warnings raised by the
-        repeated ``get_network_community`` calls are shown once each.
+        For each partition whose median ARI is below ``warn_below``.
+        Warnings from the repeated :func:`get_network_community` calls,
+        such as a directed graph or missing weights, are shown once each.
 
     See Also
     --------
@@ -1129,29 +1513,36 @@ def community_stability(G, weight='edge_total', cpm_resolution=0.05, n_seeds=50,
 
     Notes
     -----
-    The node stability follows the co-assignment idea of consensus clustering [6]_ (how often nodes
-    end up together across runs), measured against the reference instead of building a node x node
-    matrix, so it costs O(nodes) per run. This measures stability across seeds only: not robustness
-    to sampling of the data, nor whether the graph has significant community structure. Runtime is
-    about ``n_seeds`` ``get_network_community`` calls.
+    The node stability follows the co-assignment idea of consensus
+    clustering [6]_, which counts how often nodes end up together across
+    runs. Here it is measured against the reference, which avoids building
+    a node by node matrix and costs time proportional to the number of
+    nodes per run.
+
+    This measures stability across seeds only. It does not tell how robust
+    the communities are to sampling of the data, nor whether the graph has
+    significant community structure. The runtime is about ``n_seeds`` calls
+    of :func:`get_network_community`.
 
     References
     ----------
-    .. [1] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of modularity maximization in
-       practical contexts." Phys. Rev. E 81, 046106 (2010).
-       https://doi.org/10.1103/PhysRevE.81.046106
-    .. [2] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E. "Fast unfolding of
-       communities in large networks." J. Stat. Mech. P10008 (2008).
-       https://doi.org/10.1088/1742-5468/2008/10/P10008
-    .. [3] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to Leiden: guaranteeing
-       well-connected communities." Sci. Rep. 9, 5233 (2019).
-       https://doi.org/10.1038/s41598-019-41695-z
-    .. [4] Hubert, L. & Arabie, P. "Comparing partitions." J. Classif. 2, 193-218 (1985).
-       https://doi.org/10.1007/BF01908075
-    .. [5] Jaccard, P. "The distribution of the flora in the alpine zone." New Phytol. 11, 37-50
-       (1912). https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
-    .. [6] Lancichinetti, A. & Fortunato, S. "Consensus clustering in complex networks."
-       Sci. Rep. 2, 336 (2012). https://doi.org/10.1038/srep00336
+    .. [1] Good, B. H., de Montjoye, Y.-A. & Clauset, A. "Performance of
+       modularity maximization in practical contexts." Phys. Rev. E 81,
+       046106 (2010). https://doi.org/10.1103/PhysRevE.81.046106
+    .. [2] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E.
+       "Fast unfolding of communities in large networks." J. Stat. Mech.
+       P10008 (2008). https://doi.org/10.1088/1742-5468/2008/10/P10008
+    .. [3] Traag, V. A., Waltman, L. & van Eck, N. J. "From Louvain to
+       Leiden: guaranteeing well-connected communities." Sci. Rep. 9, 5233
+       (2019). https://doi.org/10.1038/s41598-019-41695-z
+    .. [4] Hubert, L. & Arabie, P. "Comparing partitions." J. Classif. 2,
+       193-218 (1985). https://doi.org/10.1007/BF01908075
+    .. [5] Jaccard, P. "The distribution of the flora in the alpine zone."
+       New Phytol. 11, 37-50 (1912).
+       https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
+    .. [6] Lancichinetti, A. & Fortunato, S. "Consensus clustering in
+       complex networks." Sci. Rep. 2, 336 (2012).
+       https://doi.org/10.1038/srep00336
     """
     import igraph as ig
     from collections import Counter
@@ -1218,6 +1609,45 @@ def _clique_pairs(cliques, nodes, min_jaccard_index, warn_checked, warn_kept, bl
     # Pairs of cliques sharing at least one node, from a sparse clique x node matrix times its transpose,
     # one block of cliques at a time so memory stays bounded; each pair once (i < j), no clique with itself.
     # Returns positions i, j (sorted) and their Jaccard index.
+    """
+    Find the pairs of cliques that share nodes, with their Jaccard index.
+
+    The shared-node count of every pair comes from a sparse clique by node
+    matrix multiplied by its transpose, one block of cliques at a time, so
+    memory stays bounded. Pairs that share no node are never formed.
+
+    Parameters
+    ----------
+    cliques : list of list
+        Nodes of each clique.
+    nodes : list
+        All nodes of the graph.
+    min_jaccard_index : float
+        Pairs below this Jaccard index are dropped.
+    warn_checked : int or None
+        Warn when the estimated number of pairs to check is above this.
+        None turns the warning off.
+    warn_kept : int or None
+        Warn when more pairs than this are kept. None turns the warning
+        off.
+    block : int, default 1000
+        Number of cliques compared at a time.
+
+    Returns
+    -------
+    i, j : numpy.ndarray
+        Positions in ``cliques`` of each kept pair, with ``i < j``, sorted
+        by ``i`` then ``j``. A clique is never paired with itself.
+    jaccard : numpy.ndarray
+        Jaccard index of each kept pair.
+
+    Warns
+    -----
+    UserWarning
+        After the first block, if the overlap rate seen there, extrapolated
+        to all pairs, gives more than ``warn_checked`` pairs to check; and
+        at the end, if more than ``warn_kept`` pairs are kept.
+    """
     from scipy import sparse
     node_id = {n: k for k, n in enumerate(nodes)}
     size = np.array([len(c) for c in cliques], dtype=np.int64)
@@ -1261,46 +1691,63 @@ def clique_jaccard_community(G,
                              warn_checked=100_000_000,
                              warn_kept=5_000_000):
     """
-    Detect communities of overlapping maximal cliques.
+    Find communities of overlapping maximal cliques.
 
-    Finds the maximal cliques of ``G`` with at least ``min_clique_size`` nodes, connects each pair
-    of cliques whose Jaccard index [1]_ (nodes in both over nodes in either) is at least
-    ``min_jaccard_index``, and partitions that clique graph with ``get_network_community``, using
-    the Jaccard index as edge weight.
+    Finds the maximal cliques of ``G`` with at least ``min_clique_size``
+    nodes [1]_ [2]_, connects each pair of cliques whose Jaccard index [3]_
+    (nodes in both over nodes in either) is at least ``min_jaccard_index``,
+    and partitions that graph of cliques with
+    :func:`get_network_community`, using the Jaccard index as the edge
+    weight. The idea resembles clique percolation [4]_, which joins
+    k-cliques sharing k - 1 nodes; here the cliques are maximal and are
+    joined by their Jaccard index.
 
     Parameters
     ----------
     G : networkx.Graph
         Graph whose maximal cliques are compared.
     min_jaccard_index : float, default 0.4
-        Minimum Jaccard index for two cliques to be connected. Must be greater than 0.
+        Smallest Jaccard index for two cliques to be connected. Must be
+        greater than 0.
     cpm_resolution : float, default 0.5
-        CPM resolution of the ``Leidein_2`` partition (the ``*_leidein_resolution`` columns),
-        passed to ``get_network_community``.
+        Resolution of the ``Leidein_2`` partition (the
+        ``*_leidein_resolution`` columns), passed to
+        :func:`get_network_community`.
     min_clique_size : int, default 10
-        Smallest clique, in nodes, that is compared.
+        Smallest clique compared, in nodes.
     seed : int or None, default 0
-        Random seed passed to ``get_network_community``.
+        Random seed passed to :func:`get_network_community`.
     resolution_parameter : float, optional
         Deprecated name of ``cpm_resolution``.
     warn_checked : int or None, default 100_000_000
-        Warn when the estimated number of clique pairs sharing a node, which must all be checked,
-        exceeds this. Estimated after the first block of 1,000 cliques. None disables it.
+        Warn when the estimated number of clique pairs that share a node,
+        all of which must be checked, is above this. The estimate is made
+        after the first 1,000 cliques. None turns the warning off.
     warn_kept : int or None, default 5_000_000
-        Warn when more pairs than this pass ``min_jaccard_index``, i.e. the returned table will be
-        very large. None disables it.
+        Warn when more pairs than this pass ``min_jaccard_index``, which
+        means the returned table will be very large. None turns the warning
+        off.
 
     Returns
     -------
     pandas.DataFrame
-        One row per connected pair of cliques, with ``source < target``. Columns: ``source`` and
-        ``target`` (clique numbers, their position in ``networkx.find_cliques`` output),
-        ``cliques_x``, ``clique_size_x``, ``cliques_y``, ``clique_size_y`` (each clique's nodes and
-        size), ``t`` (constant 1), ``uni`` and ``inter`` (sets of nodes in either and in both
-        cliques), ``Jaccard_index``, and the community of each clique in the ``Leidein_2``,
-        ``Leidein`` and ``Louvain`` partitions: ``source_leidein_resolution``,
-        ``target_leidein_resolution``, ``source_leidein``, ``target_leidein``, ``source_louvain``,
-        ``target_louvain``. Empty, with the same columns, when no pair qualifies.
+        One row per connected pair of cliques, with ``source < target``.
+        Columns:
+
+        - ``source``, ``target``: clique numbers, their position in the
+          output of ``networkx.find_cliques``.
+        - ``cliques_x``, ``clique_size_x``, ``cliques_y``,
+          ``clique_size_y``: the nodes and size of each clique.
+        - ``t``: always 1.
+        - ``uni``, ``inter``: the sets of nodes in either clique and in
+          both.
+        - ``Jaccard_index``.
+        - ``source_leidein_resolution``, ``target_leidein_resolution``,
+          ``source_leidein``, ``target_leidein``, ``source_louvain``,
+          ``target_louvain``: the community of each clique in the
+          ``Leidein_2``, ``Leidein`` and ``Louvain`` partitions.
+
+        Empty, with the same columns, when no pair qualifies.
 
     Raises
     ------
@@ -1310,27 +1757,44 @@ def clique_jaccard_community(G,
     Warns
     -----
     UserWarning
-        If the estimated pairs to check exceed ``warn_checked``, or the kept pairs exceed
-        ``warn_kept``.
+        If the estimated pairs to check exceed ``warn_checked``, or the
+        kept pairs exceed ``warn_kept``.
 
     See Also
     --------
-    get_network_community : The partitions computed on the clique graph.
+    get_network_community : The partitions computed on the graph of cliques.
 
     Notes
     -----
-    Pairs come from the number of nodes each pair of cliques shares, computed as a sparse
-    clique x node matrix times its transpose in blocks of 1,000 cliques. Pairs sharing no node
-    (Jaccard index 0) are never formed, which is why ``min_jaccard_index`` must be positive, and a
-    clique that overlaps no other above the threshold does not appear in the result. The cost grows
-    with the number of pairs sharing a node, not with all pairs, and memory is bounded by the
-    block. When nearly every pair overlaps (many maximal cliques on few nodes) the work is quadratic
-    again; raising ``min_clique_size`` or ``min_jaccard_index`` reduces it.
+    Pairs come from the number of nodes each pair of cliques shares,
+    computed as a sparse clique by node matrix times its transpose, 1,000
+    cliques at a time. Pairs that share no node (Jaccard index 0) are never
+    formed, which is why ``min_jaccard_index`` must be positive, and a
+    clique that overlaps no other clique above the threshold is absent from
+    the result.
+
+    The cost grows with the number of pairs that share a node, and memory
+    is bounded by the block of cliques. When nearly every pair overlaps,
+    as with many maximal cliques on few nodes, the work grows with the
+    square of the number of cliques again; raising ``min_clique_size`` or
+    ``min_jaccard_index`` reduces it.
 
     References
     ----------
-    .. [1] Jaccard, P. "The distribution of the flora in the alpine zone." New Phytol. 11, 37-50
-       (1912). https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
+    .. [1] Bron, C. & Kerbosch, J. "Algorithm 457: finding all cliques of
+       an undirected graph." Commun. ACM 16, 575-577 (1973).
+       https://doi.org/10.1145/362342.362367
+    .. [2] Tomita, E., Tanaka, A. & Takahashi, H. "The worst-case time
+       complexity for generating all maximal cliques and computational
+       experiments." Theor. Comput. Sci. 363, 28-42 (2006).
+       https://doi.org/10.1016/j.tcs.2006.06.015
+    .. [3] Jaccard, P. "The distribution of the flora in the alpine zone."
+       New Phytol. 11, 37-50 (1912).
+       https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
+    .. [4] Palla, G., Derenyi, I., Farkas, I. & Vicsek, T. "Uncovering the
+       overlapping community structure of complex networks in nature and
+       society." Nature 435, 814-818 (2005).
+       https://doi.org/10.1038/nature03607
     """
     cpm_resolution = _cpm_resolution(cpm_resolution, resolution_parameter)
     if not min_jaccard_index > 0:
@@ -1374,9 +1838,9 @@ def subgraph_stats(net,
     """
     Test whether a theme is enriched in a subnetwork.
 
-    Compare how often nodes of one theme (a functional category, for
-    example) occur in a subnetwork and in the rest of the network, with
-    Fisher's exact test [1]_ on the 2x2 table::
+    Compares how often nodes of one theme, such as a functional category,
+    occur in a subnetwork and in the rest of the network, with Fisher's
+    exact test [1]_ on the 2x2 table::
 
                            theme   not theme
         subnetwork         a       b
@@ -1391,8 +1855,8 @@ def subgraph_stats(net,
         The whole network. Its nodes outside ``subnet`` form the second
         row of the table.
     subnet : networkx.Graph
-        The subnetwork tested, usually a subgraph of ``net`` (a community,
-        for example).
+        The subnetwork tested, usually a subgraph of ``net`` such as a
+        community.
     theme_dict : dict or pandas.Series
         Theme of each node. Nodes missing from it, or mapped to a missing
         value (``None``, NaN), count as unannotated.
@@ -1400,23 +1864,23 @@ def subgraph_stats(net,
         The theme tested, compared with ``==`` to the values of
         ``theme_dict``.
     alternative : {'two-sided', 'greater', 'less'}, default 'two-sided'
-        Alternative hypothesis, passed to :func:`scipy.stats.fisher_exact`.
-        'greater' tests for enrichment in the subnetwork, 'less' for
-        depletion.
+        Alternative hypothesis, passed to ``scipy.stats.fisher_exact``.
+        ``'greater'`` tests for enrichment in the subnetwork, ``'less'``
+        for depletion.
     return_df : bool, default False
         Also return the table of counts.
 
     Returns
     -------
-    result : scipy.stats._result_classes.SignificanceResult
-        Result of :func:`scipy.stats.fisher_exact`, with ``statistic``
-        (the sample odds ratio, ``a*d / (b*c)``) and ``pvalue``. Returned
-        alone when ``return_df`` is False.
+    result : SignificanceResult
+        The result of ``scipy.stats.fisher_exact``, with ``statistic`` (the
+        sample odds ratio, ``a*d / (b*c)``) and ``pvalue``. Returned alone
+        when ``return_df`` is false.
     table : pandas.DataFrame
-        Only when ``return_df`` is True, returned as ``(result, table)``.
+        Only when ``return_df`` is true, returned as ``(result, table)``.
         Rows ``'Subnetwork'`` and ``'net - subnet'``; columns ``'Theme'``
-        and ``'Not theme'`` (the counts tested) and ``'Unannotated'``
-        (nodes left out of the test).
+        and ``'Not theme'`` (the counts tested) and ``'Unannotated'`` (the
+        nodes left out of the test).
 
     Warns
     -----
@@ -1432,20 +1896,20 @@ def subgraph_stats(net,
     Notes
     -----
     Leaving unannotated nodes out tests enrichment among annotated nodes.
-    That is unbiased when annotation is missing at random. If it is not,
+    That is unbiased when annotation is missing at random. When it is not,
     for example when well-studied themes are better annotated, the result
     can still be biased, and the warning is the cue to check. Fewer nodes
     also mean less power.
 
     A node is counted once per row, however often it is listed. Nodes of
-    ``subnet`` that are not in ``net`` are still counted in the
-    subnetwork row.
+    ``subnet`` that are not in ``net`` are still counted in the subnetwork
+    row.
 
     References
     ----------
-    .. [1] Fisher, R. A. (1922). On the interpretation of chi-squared from
-       contingency tables, and the calculation of P. Journal of the Royal
-       Statistical Society 85(1), 87-94. doi:10.2307/2340521
+    .. [1] Fisher, R. A. "On the interpretation of chi-squared from
+       contingency tables, and the calculation of P." J. R. Stat. Soc. 85,
+       87-94 (1922). https://doi.org/10.2307/2340521
     """
     from  scipy.stats import fisher_exact
     import pandas as pd
@@ -1481,21 +1945,109 @@ def get_relations(domdf,
                   gene_pos,
                   feature_pos):
     """
-    domdf to network, it can create dictionary to create a YAML file or a dataframe.
-    dom: list of domains to be used as query in the network, if full all domdf will be used
-    min_connections: Minimum number of relationship (Operon or fusion) anode should have to be presente in the network.
-    yaml: If decided to transform the network in dictionary to latter be exported as YAML file.
-    Iteration: If a list of domains was supplied, the number of iteration in the network to collect other nodes.
-               Must be >= 1. For a network of the seed domains only, filter the result:
-               edges[edges.source.isin(dom) & edges.target.isin(dom)]
-    gene_pos: column ordering genes along the genome (smaller = upstream), e.g. start coordinate.
-    feature_pos: column ordering domains along the protein, N->C (smaller = N-terminal),
-                 e.g. domain start in amino acid coordinates.
-    Dataframe output: one row per (source, target, edge_type); edge_count is the number of
-    blocks with that relation, edge_total the number of blocks with the pair in any type.
-    Row order does not matter. For gian_func.split_domain output, whose domp
-    follows genome order (C->N on - strand), use gene_pos='blockp' and:
+    List the relations between domains that share gene neighbourhoods.
+
+    Two domains are related when they occur in the same block (a conserved
+    gene neighbourhood). Domains of the same protein are related by their
+    order along the protein (a fusion); domains of different genes by the
+    order of the genes in the block. Each relation is counted once per
+    block, and only pairs seen in at least ``min_connections`` blocks are
+    kept.
+
+    Parameters
+    ----------
+    domdf : pandas.DataFrame
+        One row per domain hit, with columns ``block_id`` (the
+        neighbourhood), ``pid`` (the protein), ``dom`` (the domain name),
+        and the columns named by ``gene_pos`` and ``feature_pos``. It is
+        not modified.
+    dom : str or list of str, default 'full'
+        ``'full'`` uses every block. Otherwise, one or more seed domains:
+        only blocks that contain them are used (see ``iteration``).
+    min_connections : int, default 5
+        Smallest number of blocks in which a pair of domains must occur,
+        in any relation, for its relations to be kept.
+    self_relation : bool, default False
+        Keep relations of a domain with itself, for example two copies in
+        one protein or in neighbouring genes.
+    to_yaml : bool, default False
+        Return a dict ready to be written as YAML instead of a DataFrame.
+    iteration : int, default 1
+        With seed domains, how far to expand from them. With 1, the blocks
+        used are those containing a seed domain. With 2, the blocks
+        containing any domain found in those blocks, and so on. Must be at
+        least 1.
+    filter_rename_yaml : str or False, default False
+        Path to a YAML file that renames and selects domains. Each key is
+        a domain name with two fields: ``Display_name`` (the new name; an
+        empty string keeps the key) and ``Include`` (1 to keep the domain).
+        Domains are renamed first; then only domains whose display name
+        belongs to an included entry are kept, so domains missing from the
+        file are dropped.
+    gene_pos : str
+        Keyword only. Column that orders the genes of a block along the
+        genome, smaller meaning upstream, for example the start
+        coordinate.
+    feature_pos : str
+        Keyword only. Column that orders the domains of a protein from the
+        N- to the C-terminus, smaller meaning more N-terminal, for example
+        the domain start in amino-acid coordinates.
+
+    Returns
+    -------
+    pandas.DataFrame or dict
+        With ``to_yaml`` false, a DataFrame with one row per (``source``,
+        ``target``, ``edge_type``) and columns:
+
+        - ``source``, ``target``: the two domains.
+        - ``edge_type``: where ``target`` lies relative to ``source``.
+          ``'Cterminal'`` or ``'Nterminal'`` in the same protein,
+          ``'Downstream'`` or ``'Upstream'`` in another gene of the block.
+        - ``edge_count``: number of blocks with this relation.
+        - ``edge_total``: number of blocks with the pair in any relation,
+          the value ``min_connections`` is compared to.
+
+        Every relation appears from both ends: A to B ``Cterminal`` comes
+        with B to A ``Nterminal``, from the same blocks. Row order carries
+        no meaning.
+
+        With ``to_yaml`` true, a dict ``{source: {'total': n, 'Cterminal':
+        [...], 'Downstream': [...], 'Nterminal': [...], 'Upstream':
+        [...]}}``, where ``total`` is the number of blocks in which
+        ``source`` has a kept relation, and each list holds
+        ``"target(count)"`` strings, or ``['']`` when there is none. An
+        empty dict when no pair passes ``min_connections``.
+
+    Raises
+    ------
+    ValueError
+        If seed domains are given and ``iteration`` is less than 1.
+
+    Warns
+    -----
+    UserWarning
+        If some seed domains do not occur in ``domdf``.
+
+    See Also
+    --------
+    network_annotation : Builds a graph from the returned DataFrame.
+
+    Notes
+    -----
+    Relation types come from the ``gene_pos`` and ``feature_pos``
+    values, so row order does not matter. Two domains with the same
+    ``feature_pos`` in one protein, or two genes with the same
+    ``gene_pos``, get no relation.
+
+    ``gene_pos`` is used as it is, whatever the strand. For the output of
+    ``gian_func.split_domain``, whose ``domp`` follows genome order (C to N
+    on the minus strand), use ``gene_pos='blockp'`` and a ``feature_pos``
+    column built as::
+
         domdf['dom_aa_order'] = np.where(domdf.strand == -1, -domdf.domp, domdf.domp)
+
+    To keep only the relations among the seed domains themselves, filter
+    the result: ``edges[edges.source.isin(dom) & edges.target.isin(dom)]``.
     """
     from rotifer.devel.alpha import gian_func as gf
     domdf = domdf.copy()
