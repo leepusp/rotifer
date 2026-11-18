@@ -26,12 +26,10 @@ The interactive viewer, :func:`rotifer.view.network.network_dash`, is in
 :mod:`rotifer.view.network`, so this module does not need Dash. Nothing
 here contacts a remote service.
 """
-from operator import pos
 import networkx as nx
 import numpy as np
 import pandas as pd
 import warnings
-from rotifer.devel.alpha import gian_func as gf
 
 def network_annotation(networkdf,
                      node_color=None,
@@ -1050,6 +1048,85 @@ def subgraph_stats(net,
         return result, table
     return result
 
+def count_series(
+        series,
+        normalize=False,
+        cut_off=False,
+        count='domain',
+        as_list=False
+        ):
+    """
+    Count the domains or architectures in a series and list them with their counts.
+
+    Each value is an architecture: domain names joined by ``+``, such as
+    ``"SP+TM"``. By default every architecture is split into its domains
+    and the domains are counted; with ``count='architecture'`` whole
+    architectures are counted instead. :func:`get_relations` uses it to
+    list the partners of each domain in its YAML output.
+
+    Parameters
+    ----------
+    series : pandas.Series of str
+        Architectures, one per row. Missing values are skipped.
+    normalize : bool, default False
+        Report each item's frequency as a percentage instead of its count.
+    cut_off : float or False, default False
+        Keep only items whose count is at least this value. With
+        ``normalize=True`` the comparison uses the frequency as a fraction
+        between 0 and 1, so pass 0.1 for 10 %. False keeps everything.
+    count : {'domain', 'architecture'}, default 'domain'
+        What to count: single domains or whole architectures.
+    as_list : bool, default False
+        Return a list of strings instead of one comma-separated string.
+
+    Returns
+    -------
+    str or list of str
+        Items formatted as ``"name(count)"``, or ``"name(12.34%)"`` with
+        ``normalize=True``, most frequent first. A string joins them with
+        ``", "`` (empty when there is nothing to count); a list has one item
+        per entry, or ``[""]`` when there is nothing to count.
+
+    Notes
+    -----
+    Moved unchanged from ``rotifer.devel.alpha.gian_func`` (issue #150),
+    which still imports it from here. Its old docstring said ``cut_off`` is
+    a percentage when ``normalize=True``; the code compares it with the
+    fraction, as described above.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> count_series(pd.Series(["SP+TM", "TM", None]))
+    'TM(2), SP(1)'
+    >>> count_series(pd.Series(["SP+TM", "TM", "TM"]), count="architecture", as_list=True)
+    ['TM(2)', 'SP+TM(1)']
+    """
+    flattened_list = []
+    if count == 'architecture':
+        s = series.dropna().value_counts(normalize=normalize)
+    else:
+        s = series.str.split('+').explode().dropna().value_counts(
+                normalize=normalize
+                )
+
+    if cut_off:
+        #cut_off = cut_off/100
+        s = s.where(lambda x: x >= cut_off).dropna()
+    for y, z in s.items():
+        if normalize:
+            flattened_list.append(f'{y}({100 * z:.2f}%)')
+        else:
+            flattened_list.append(f'{y}({z})')
+    
+    if as_list:
+        if len(flattened_list) ==0:
+            return list([''])
+        else:
+            return flattened_list
+
+    return ', '.join(flattened_list)
+
 def get_relations(domdf,
                   dom='full',
                   min_connections = 5,
@@ -1165,7 +1242,6 @@ def get_relations(domdf,
     To keep only the relations among the seed domains themselves, filter
     the result: ``edges[edges.source.isin(dom) & edges.target.isin(dom)]``.
     """
-    from rotifer.devel.alpha import gian_func as gf
     domdf = domdf.copy()
     domdf.dom = domdf.dom.str.strip()
     if filter_rename_yaml:
@@ -1222,7 +1298,7 @@ def get_relations(domdf,
                             columns='edge_type',
                             values = ['target'],
                             aggfunc={
-                                'target':lambda x : gf.count_series(x, as_list=True)}
+                                'target':lambda x : count_series(x, as_list=True)}
                             )
         # Edge types absent from the filtered relations get no pivot column
         yamldf = yamldf.loc[:,'target'].reindex(columns=['Cterminal', 'Downstream', 'Nterminal', 'Upstream'], fill_value='')
