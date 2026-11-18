@@ -25,6 +25,8 @@ setup(
         "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
         "tqdm",                # progress bars in rotifer.db
         "clickhouse-connect",  # rotifer.db.clickhouse
+        "filelock",            # rotifer.core.session (session lock)
+        "cloudpickle",         # rotifer.core.session (interactively defined functions and classes)
     ],
     license="BSD-3-Clause",
     classifiers=[

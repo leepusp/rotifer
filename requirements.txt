@@ -21,6 +21,8 @@ networkx
 oauth2client
 sqlalchemy
 clickhouse-connect
+filelock
+cloudpickle
 argcomplete
 blast
 datamash
