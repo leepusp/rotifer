@@ -445,96 +445,111 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         strand of the query, and also the ID displayed is a new calculated Strand ID.
         """
 
-        def compacted(dataframe, annotation=annotation):
-            """
-            Take a groupby slice of the dataframe and make a new collum
-            containing  a string of  annotation  and strand direction.
-            """
+        columns = ['compact', 'block_id', 'lineage', 'organism', 'seq_type',
+                   'classification', 'pid_compact']
+        carried = columns[1:-1]
 
-            #dataframe[annotation].fillna('?', inplace=True) changed the line to be compatible with pandas 3.0
-            dataframe.fillna({annotation:'?'}, inplace=True)
-            dataframe[annotation] = np.where(
-                dataframe['type'] != 'CDS',
-                dataframe['type'],
-                dataframe[annotation]
-            )
-            if fill_unk:
-                dataframe[annotation] = np.where(
-                    dataframe[annotation] == '?',
-                    dataframe[fill_unk],
-                    dataframe[annotation])
+        df = self[self['block_id'].notna()]
+        if df.empty:
+            return pd.DataFrame(columns=columns).set_index('block_id')
 
-            dataframe[annotation] = dataframe[annotation].astype(str)
-            return np.where(
-                dataframe['strand_group'] == dataframe['strand_group'].shift(-1),
-                np.where(
-                    dataframe[query] == 0,
-                    np.where(
-                        dataframe.strand == 1,
-                        dataframe[annotation]+'->',
-                        '<-'+dataframe[annotation]),
-                    np.where(
-                        dataframe.strand == 1,
-                        '*' + dataframe[annotation]+'->',
-                        '<-'+dataframe[annotation]+'*')
-                ),
-                np.where(
-                    dataframe[query] == 0,
-                    np.where(
-                        dataframe.strand == 1,
-                        dataframe[annotation]+'->|',
-                        '<-'+dataframe[annotation] + '|'),
-                    np.where(
-                        dataframe.strand == 1,
-                        '*' + dataframe[annotation]+'->|',
-                        '<-'+dataframe[annotation]+ '*|'),
-                )
-            )
+        # Strand runs: a new run starts where a gene's strand differs from
+        # the previous gene of the same block. Comparing within the block,
+        # not with the row above, keeps a block's runs intact when its rows
+        # are not contiguous. Runs are numbered in order of appearance.
+        previous_strand = df['strand'].groupby(df['block_id']).shift(1)
+        new_run = (df['strand'] != previous_strand) | previous_strand.isna()
+        run_in_block = new_run.groupby(df['block_id']).cumsum()
+        run = pd.Series(
+            pd.factorize(pd.MultiIndex.from_arrays([df['block_id'], run_in_block]))[0],
+            index=df.index)
 
-        def main_cnei(df_to_compact):
-            """
-            Main function to make the compact_neighborhood.
-            It was designed to be used in a groupby.
-            """
-            #Checking the orientation of the first query, and if it is
-            # in the reverse strand, change the orientation. This way all
-            # the blocks will be displayed at the same orientation.
-            #Somehow if you are trying to groupby one block without a query
-            # an error will be raised.
-            try:
-                if df_to_compact[df_to_compact[query] == 1].loc[:, 'strand'].iloc[0] == 1:
-                    _ = df_to_compact.copy()
-                else:
-                    _ = df_to_compact.copy().iloc[::-1]
-                    _.strand = _.strand *- 1
-            except IndexError:
-                raise NameError('Query_Missing')
-
-            #Fill the unannotated with an ? marker or a column in the Dataframe
-            # that the users can select by the option fill_unk=column name.
-            _['compact'] = compacted(_)
-            _['pid_compact'] = compacted(_, annotation='pid')
-
-            return _.groupby(
-                group
-            ).agg({'compact': lambda x: "".join(list(x))[:-1],
-                   'block_id':'first',
-                   'lineage':'first',
-                   'organism':'first',
-                   'seq_type':'first',
-                   'classification':'first',
-                   'pid_compact': lambda x: "".join(list(x))[:-1]
-                  })
-
-        # Main function, select if it will be grouped by block_id or strand,
-        # and then make the groupby.
-        group = 'block_id'
+        # One output row per group: a block, or with strand=True a run of
+        # same-strand genes that contains a query. A row is a query when
+        # query == 1. The key is named so that grouping does not clash with
+        # the block_id column.
         if strand:
-            group = 'strand_group'
-            _1 = self.same_strand(query=query).copy()
+            keep = run.isin(run[df[query] == 1])
+            df, run = df[keep], run[keep]
+            if df.empty:
+                return pd.DataFrame(columns=columns).set_index('block_id')
+            key = run.rename('_group')
         else:
-            _1 = self.group_strand().copy()
-        return _1.groupby(group).apply(main_cnei).reset_index(drop = True).set_index('block_id')
+            key = df['block_id'].rename('_group')
+
+        # Each group is read in the direction of its first query row (in
+        # table order): forward if that row is on the plus strand, backward
+        # otherwise. Backward groups are joined in reverse, so rows are never
+        # sorted.
+        is_query = df[query] == 1
+        first_query = pd.DataFrame({
+            'key': key[is_query],
+            'strand': df.loc[is_query, 'strand'],
+        }).drop_duplicates('key')
+        no_query = ~key.isin(first_query['key'])
+        if no_query.any():
+            blocks = pd.unique(df.loc[no_query, 'block_id'])
+            listed = ', '.join(str(b) for b in blocks[:10])
+            more = f' and {len(blocks) - 10} more' if len(blocks) > 10 else ''
+            raise NameError(f'Query_Missing: no query in block_id(s) {listed}{more}')
+        forward_by_key = pd.Series((first_query['strand'] == 1).to_numpy(),
+                                   index=first_query['key'].to_numpy())
+        forward = key.map(forward_by_key).to_numpy(dtype=bool)
+
+        # '|' goes after a gene whose next gene, in reading order, belongs to
+        # another strand run. The last gene of a group gets none.
+        next_run = run.groupby(key).shift(-1)
+        previous_run = run.groupby(key).shift(1)
+        bar = np.where(forward,
+                       next_run.notna() & (run != next_run),
+                       previous_run.notna() & (run != previous_run))
+
+        # Text for each gene: '?' when unannotated, the feature type for
+        # non-CDS rows, and optionally the fill_unk column for '?'. A value
+        # still missing after that (no type, or an empty fill_unk value) is
+        # shown as '?' too. The annotation pass runs first and the pid pass
+        # sees its result, as fill_unk may name either column.
+        work = df[list(dict.fromkeys(
+            [annotation, 'pid', 'type'] + ([fill_unk] if fill_unk else [])
+        ))].copy()
+
+        def text(column):
+            work.fillna({column: '?'}, inplace=True)
+            work[column] = np.where(work['type'] != 'CDS', work['type'], work[column])
+            if fill_unk:
+                work[column] = np.where(work[column] == '?', work[fill_unk], work[column])
+            work[column] = work[column].fillna('?').astype(str)
+            return work[column]
+
+        # Strands are flipped for backward groups, so the query always points
+        # forward.
+        plus = ((df['strand'] * np.where(forward, 1, -1)) == 1).to_numpy()
+        star = is_query.to_numpy()
+
+        def tokens(values):
+            token = np.where(plus,
+                             np.where(star, '*' + values + '->', values + '->'),
+                             np.where(star, '<-' + values + '*', '<-' + values))
+            return np.where(bar, token + '|', token)
+
+        annotation_tokens = tokens(text(annotation))
+        pid_tokens = tokens(text('pid'))
+        token_frame = pd.DataFrame({'compact': annotation_tokens,
+                                    'pid_compact': pid_tokens}, index=df.index)
+        joined = pd.concat([
+            token_frame[forward].groupby(key[forward]).agg(''.join),
+            token_frame[~forward].groupby(key[~forward]).agg(lambda x: ''.join(x.iloc[::-1])),
+        ]).sort_index()
+
+        # Carried columns take the first non-missing value in reading order,
+        # which for backward groups is the last one in the table.
+        by_key = df[carried].groupby(key)
+        first, last = by_key.first(), by_key.last()
+        backward_keys = forward_by_key.index[~forward_by_key.to_numpy()]
+        first.loc[first.index.isin(backward_keys)] = last.loc[last.index.isin(backward_keys)]
+
+        result = pd.concat([joined, first], axis=1)[columns]
+        return result.reset_index(drop=True).set_index('block_id')
 
     #Alias for compact neighborhood
     compact = compact_neighborhood
