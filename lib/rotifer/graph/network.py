@@ -490,7 +490,7 @@ def network_dash(G,pos_dict, xx, function, color_schemes, **run_kwargs):
     from networkx.readwrite import json_graph
     import numpy as np
     import pandas as pd
-    from rotifer.devel.alpha import net_functions
+    from rotifer.graph import network as net_functions
     from dash.exceptions import PreventUpdate
 
 
