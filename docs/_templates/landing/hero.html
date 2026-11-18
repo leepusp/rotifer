@@ -1,0 +1,33 @@
+{#- Hero: the logo, the promise, two ways in, and real protein sequences
+    drifting behind. The rows are rendered here (no JavaScript needed to
+    see them); CSS moves them, and sequence-drift.js only pauses them while
+    the hero is off screen. -#}
+{%- from "landing/macros.html" import action with context -%}
+{%- set hero = landing.hero -%}
+<section class="rot-hero" aria-labelledby="rot-hero-title">
+  <div class="rot-drift" aria-hidden="true">
+    {%- for row in drift_rows %}
+    <div class="rot-drift-row{% if row.reverse %} rot-drift-row--reverse{% endif %}"
+         style="--rot-drift-duration: {{ row.duration }}s">
+      <span>{{ row.text }}</span><span>{{ row.text }}</span>
+    </div>
+    {%- endfor %}
+  </div>
+
+  <div class="rot-hero-inner">
+    {#- Reverse lockup: the hero is ink in both color modes. #}
+    <img class="rot-hero-logo" src="{{ pathto('_static/brand/rotifer-lockup-horizontal-reverse.svg', 1) }}"
+         alt="rotifer" width="168" height="44">
+    <h1 id="rot-hero-title" class="rot-hero-title">
+      <span class="rot-hero-title-accent">{{ hero.title.accent }}</span> {{ hero.title.rest }}
+    </h1>
+    <p class="rot-hero-lede">{{ hero.lede }}</p>
+    <div class="rot-actions">
+      {%- for item in hero.actions %}
+      {{ action(item) }}
+      {%- endfor %}
+    </div>
+  </div>
+
+  <p class="rot-hero-note">{{ hero.sequences_note }}</p>
+</section>

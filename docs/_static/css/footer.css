@@ -1,0 +1,46 @@
+/* Site footer: the lab credit ("Made at" + the psel lockup) and the theme
+ * credit. Template: _templates/components/foot-copyright.html. */
+
+.rot-credit {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.rot-credit-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 0;
+}
+
+.rot-credit-label {
+  font-size: 0.875rem;
+  color: var(--rot-text-muted);
+}
+
+.rot-credit-logo {
+  display: inline-flex;
+}
+
+.rot-credit-logo img {
+  height: 40px;
+  width: auto;
+  max-width: 100%;
+}
+
+.rot-credit-tools {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--rot-text-muted);
+}
+
+/* One lockup per color mode, switched the same way as the header logo. */
+.rot-credit-logo .dark-logo,
+html.dark .rot-credit-logo .light-logo {
+  display: none;
+}
+
+html.dark .rot-credit-logo .dark-logo {
+  display: inline;
+}

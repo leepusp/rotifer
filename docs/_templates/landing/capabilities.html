@@ -1,0 +1,26 @@
+{#- What rotifer does: one row per capability, text on one side and a real
+    usage sample on the other. -#}
+{%- from "landing/macros.html" import href, sample with context -%}
+{%- set caps = landing.capabilities -%}
+<section class="rot-section rot-caps" aria-labelledby="rot-caps-title">
+  <h2 id="rot-caps-title" class="rot-section-title">{{ caps.heading }}</h2>
+  <div class="rot-caps-list">
+    {%- for item in caps["items"] %}
+    <article class="rot-cap" id="cap-{{ item.id }}">
+      <div class="rot-cap-text">
+        <h3 class="rot-cap-title">{{ item.title }}</h3>
+        <p>{{ item.text }}</p>
+        <ul class="rot-cap-names" aria-label="{{ item.title }}">
+          {%- for name in item.names %}
+          <li><code>{{ name }}</code></li>
+          {%- endfor %}
+        </ul>
+        <a class="rot-link" href="{{ href(item) }}">{{ item.link_label }}</a>
+      </div>
+      <div class="rot-cap-sample">
+        {{ sample(item.code, item.code_language) }}
+      </div>
+    </article>
+    {%- endfor %}
+  </div>
+</section>
