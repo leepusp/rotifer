@@ -1371,6 +1371,82 @@ def subgraph_stats(net,
                    theme_to_stats,
                    alternative = "two-sided",
                    return_df = False):
+    """
+    Test whether a theme is enriched in a subnetwork.
+
+    Compare how often nodes of one theme (a functional category, for
+    example) occur in a subnetwork and in the rest of the network, with
+    Fisher's exact test [1]_ on the 2x2 table::
+
+                           theme   not theme
+        subnetwork         a       b
+        net - subnet       c       d
+
+    "Not theme" means annotated with another theme. Nodes without an
+    annotation are left out of the table (see Notes).
+
+    Parameters
+    ----------
+    net : networkx.Graph
+        The whole network. Its nodes outside ``subnet`` form the second
+        row of the table.
+    subnet : networkx.Graph
+        The subnetwork tested, usually a subgraph of ``net`` (a community,
+        for example).
+    theme_dict : dict or pandas.Series
+        Theme of each node. Nodes missing from it, or mapped to a missing
+        value (``None``, NaN), count as unannotated.
+    theme_to_stats : object
+        The theme tested, compared with ``==`` to the values of
+        ``theme_dict``.
+    alternative : {'two-sided', 'greater', 'less'}, default 'two-sided'
+        Alternative hypothesis, passed to :func:`scipy.stats.fisher_exact`.
+        'greater' tests for enrichment in the subnetwork, 'less' for
+        depletion.
+    return_df : bool, default False
+        Also return the table of counts.
+
+    Returns
+    -------
+    result : scipy.stats._result_classes.SignificanceResult
+        Result of :func:`scipy.stats.fisher_exact`, with ``statistic``
+        (the sample odds ratio, ``a*d / (b*c)``) and ``pvalue``. Returned
+        alone when ``return_df`` is False.
+    table : pandas.DataFrame
+        Only when ``return_df`` is True, returned as ``(result, table)``.
+        Rows ``'Subnetwork'`` and ``'net - subnet'``; columns ``'Theme'``
+        and ``'Not theme'`` (the counts tested) and ``'Unannotated'``
+        (nodes left out of the test).
+
+    Warns
+    -----
+    UserWarning
+        When nodes are left out because they have no annotation, with
+        their number in each row.
+
+    See Also
+    --------
+    get_network_community : Partitions whose communities can be tested.
+    community_stability : Whether those communities depend on the seed.
+
+    Notes
+    -----
+    Leaving unannotated nodes out tests enrichment among annotated nodes.
+    That is unbiased when annotation is missing at random. If it is not,
+    for example when well-studied themes are better annotated, the result
+    can still be biased, and the warning is the cue to check. Fewer nodes
+    also mean less power.
+
+    A node is counted once per row, however often it is listed. Nodes of
+    ``subnet`` that are not in ``net`` are still counted in the
+    subnetwork row.
+
+    References
+    ----------
+    .. [1] Fisher, R. A. (1922). On the interpretation of chi-squared from
+       contingency tables, and the calculation of P. Journal of the Royal
+       Statistical Society 85(1), 87-94. doi:10.2307/2340521
+    """
     from  scipy.stats import fisher_exact
     import pandas as pd
 
@@ -1387,11 +1463,12 @@ def subgraph_stats(net,
     if sub_missing or net_missing:
         warnings.warn(f"{sub_missing} of {len(sub_nodes)} subnetwork nodes and {net_missing} of {len(rest_nodes)} "
                       f"other nodes are missing from theme_dict and were left out of the test", stacklevel=2)
-    to_fisher = [[sub_theme, sub_other], [net_theme, net_other]]
+    result = fisher_exact([[sub_theme, sub_other], [net_theme, net_other]], alternative=alternative)
     if return_df:
-        print(fisher_exact(to_fisher, alternative=alternative))
-        return pd.DataFrame(to_fisher, columns=['Theme', 'Total'], index=['Subnetwork', 'net - subnet'] )
-    return fisher_exact(to_fisher,alternative=alternative)
+        table = pd.DataFrame([[sub_theme, sub_other, sub_missing], [net_theme, net_other, net_missing]],
+                             columns=['Theme', 'Not theme', 'Unannotated'], index=['Subnetwork', 'net - subnet'])
+        return result, table
+    return result
 
 def get_relations(domdf,
                   dom='full',
