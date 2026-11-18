@@ -1117,6 +1117,8 @@ def clique_jaccard_community(G,
     cliques.reset_index(inplace=True)
     cliques.rename({'index':'clique_n'}, axis=1, inplace=True)
     cm = cliques.merge(cliques, on='t')
+    # Each pair of cliques once, never a clique with itself (Jaccard 1, a self-loop)
+    cm = cm[cm.clique_n_x < cm.clique_n_y]
     cm['uni'] = cm.apply(lambda x: set(x.cliques_x).union(set(x.cliques_y)), axis=1)
     cm['inter'] = cm.apply(lambda x: set(x.cliques_x).intersection(set(x.cliques_y)), axis=1)
     cm['Jaccard_index'] = cm.apply(lambda x: len(x.inter)/len(x.uni), axis=1)
