@@ -654,10 +654,11 @@ TO_COLOR = {
      ['\x1b[38;5;1mA\x1b[m\x1b[39;5;000mC\x1b[m\x1b[39;5;000mD\x1b[m',
       '\x1b[39;5;000mW\x1b[m\x1b[39;5;000mK\x1b[m\x1b[39;5;000m-\x1b[m',
       '\x1b[39;5;000mX\x1b[m\x1b[39;5;000mB\x1b[m\x1b[39;5;000m-\x1b[m']),
+    # changed: a single colour code now colours every character (38;5;N); it used to emit 39;5;N, the terminal default
     'fallback_color': ({'colors': '7'},
-     ['\x1b[39;5;7mA\x1b[m\x1b[39;5;7mC\x1b[m\x1b[39;5;7mD\x1b[m',
-      '\x1b[39;5;7mW\x1b[m\x1b[39;5;7mK\x1b[m',
-      '\x1b[39;5;7mX\x1b[m\x1b[39;5;7mB\x1b[m']),
+     ['\x1b[38;5;7mA\x1b[m\x1b[38;5;7mC\x1b[m\x1b[38;5;7mD\x1b[m',
+      '\x1b[38;5;7mW\x1b[m\x1b[38;5;7mK\x1b[m',
+      '\x1b[38;5;7mX\x1b[m\x1b[38;5;7mB\x1b[m']),
 }
 
 

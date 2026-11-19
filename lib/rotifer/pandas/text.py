@@ -354,12 +354,13 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
 
     Notes
     -----
-    Characters missing from the colour map get the default colour code
-    ``000``. The default colour is written with the sequence ``39;5;000`` (or
-    ``49;5;000`` for a background) instead of ``38;5;`` or ``48;5;``, so a
-    terminal shows it in its own default colour or ignores it. With a single
-    colour code as ``colors``, all characters are written this way, with the
-    given code in place of ``000``.
+    A single colour code given as ``colors`` colours every character with that
+    code (``38;5;N`` or ``48;5;N``). A character that is missing from a colour
+    map gets the terminal default colour instead: it is written with the
+    sequence ``39;5;000`` (or ``49;5;000`` for a background), not ``38;5;`` or
+    ``48;5;``, so a terminal shows its own default colour or ignores the code.
+    A map entry whose code is ``000`` is an explicit colour and is written
+    with ``38;5;000``.
 
     Examples
     --------
@@ -377,6 +378,7 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
 
     # Load colors
     default_color = "000"
+    single_code = None
     if colors is None or colors is False:
         colors = config["colors"]
     if not isinstance(colors,dict):
@@ -385,22 +387,26 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
                 with open(colors) as fh:
                     colors = yaml.safe_load(fh)
             else:
-                default_color = colors
+                single_code = colors
                 colors = dict()
 
-    def color_bg(s, color):
-        if color == default_color:
-            color = f'49;5;{default_color}'
-        else:
-            color = f'48;5;{color}'
-        return f'\033[{color}m{s}\033[0m'
+    def color_of(ch):
+        # (code, explicit): explicit characters get 38/48;5;N, the others the default
+        if single_code is not None:
+            return single_code, True
+        if ch in colors:
+            return colors[ch], True
+        return default_color, False
 
-    def color_fg(s, color):
-        if color == default_color:
-            color = f'39;5;{default_color}'
-        else:
-            color = f'38;5;{color}'
-        return f'\033[{color}m{s}\033[m'
+    def color_bg(s, color, explicit):
+        if explicit:
+            return f'\033[48;5;{color}m{s}\033[0m'
+        return f'\033[49;5;{default_color}m{s}\033[0m'
+
+    def color_fg(s, color, explicit):
+        if explicit:
+            return f'\033[38;5;{color}m{s}\033[m'
+        return f'\033[39;5;{default_color}m{s}\033[m'
 
     # Forcing all data to be of the same length
     if padding:
@@ -409,10 +415,9 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     if not isinstance(data, (pd.DataFrame, pd.Series)):
         return data
 
-    # One escape-coded replacement per distinct character, built once per call;
-    # characters not in colors get the default color.
+    # One escape-coded replacement per distinct character, built once per call.
     paint = color_bg if style in ('bg', 'background') else color_fg
     values = data.to_numpy().ravel()
-    table = {ord(ch): paint(ch, colors[ch] if ch in colors else default_color)
+    table = {ord(ch): paint(ch, *color_of(ch))
              for ch in set(chain.from_iterable(values))}
     return data.map(lambda x: x.translate(table))

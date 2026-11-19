@@ -70,3 +70,19 @@ def test_to_color_unknown_style_names_the_accepted_values():
     # Bug: an unknown style raised KeyError from an internal dict lookup.
     with pytest.raises(ValueError, match="style must be 'fg', 'foreground', 'bg' or 'background'"):
         rpf.to_color(pd.Series(['A']), style='underline')
+
+
+def test_to_color_single_code_colours_every_character():
+    # Bug: a single colour code (not a path) was never used; every character got 39;5;N
+    # (default foreground), so no colour showed.
+    out = rpf.to_color(pd.Series(['AC']), colors='196')
+    assert out.tolist() == ['\x1b[38;5;196mA\x1b[m\x1b[38;5;196mC\x1b[m']
+    out = rpf.to_color(pd.Series(['AC']), colors='196', style='bg')
+    assert out.tolist() == ['\x1b[48;5;196mA\x1b[0m\x1b[48;5;196mC\x1b[0m']
+
+
+def test_to_color_map_entry_equal_to_default_code_is_explicit():
+    # Bug: a map entry whose code equalled the default code (000) was treated as
+    # "not in the map" and written as 39;5;000 instead of 38;5;000.
+    out = rpf.to_color(pd.Series(['AB']), colors={'A': '000'})
+    assert out.tolist() == ['\x1b[38;5;000mA\x1b[m\x1b[39;5;000mB\x1b[m']
