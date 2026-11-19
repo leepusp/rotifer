@@ -38,7 +38,6 @@ blocks has its rows concatenated, and the resulting frames are merged on the gro
 columns.
 """
 
-import io
 import re
 from collections.abc import Mapping
 
@@ -64,11 +63,11 @@ SEPARATOR = '# ' + '-' * 5
 # cost of reading. Both loaders produce the same object.
 LOADER = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
 
-# A pipe that is not backslash-escaped: as a separator string for read_csv, and
-# compiled for splitting rows directly.
-_CELL_SEP = r'\s*(?<!\\)\|\s*'
+# A pipe that is not backslash-escaped, for splitting rows into cells.
 _CELL_RE = re.compile(r'(?<!\\)\|')
 _RULE_RE = re.compile(r'^\s*\|[\s:|-]+\|\s*$')
+# Rows buffered as Python strings before being packed into an arrow array.
+_CHUNK = 1 << 15
 
 
 # --------------------------------------------------------------------- helpers
@@ -134,16 +133,14 @@ def md_table(df, indent=None, index=False):
 
 
 def read_md_table(text):
-    """Parse one markdown table. pandas does the tokenizing; the separator regex
-    only tells it which pipes delimit cells."""
+    """Parse one markdown table, cutting and typing cells exactly as read_yaml does."""
     rows = [ln for ln in text.split('\n') if ln.strip().startswith('|')]
     rows = [ln for ln in rows if not _RULE_RE.match(ln)]
     if not rows:
         return pd.DataFrame()
-    frame = pd.read_csv(io.StringIO('\n'.join(rows)), sep=_CELL_SEP, engine='python',
-                        skipinitialspace=True, dtype=None).iloc[:, 1:-1]
-    return frame.apply(lambda s: s.str.replace(r'\|', '|', regex=False)
-                       if _is_text(s) else s)
+    table = _open_table(_header_cells(rows[0]), [])
+    _add_rows(table, rows[1:], [])
+    return _to_frames({'table': table}, [])['table']
 
 
 # --------------------------------------------------------------------- writing
@@ -240,6 +237,200 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
 
 
 # --------------------------------------------------------------------- reading
+class _Table:
+    """One table being collected: cells accumulate column by column, packed into
+    arrow string arrays every _CHUNK rows so no list of row lists ever exists."""
+    __slots__ = ('header', 'nstored', 'buffer', 'chunks', 'extras', 'escaped', 'nrows')
+
+    def __init__(self, stored, extra_names):
+        self.header = stored + extra_names
+        self.nstored = len(stored)
+        self.buffer = [[] for _ in stored]           # pending cells per stored column
+        self.chunks = [[] for _ in stored]           # packed arrow arrays per column
+        self.extras = [[] for _ in extra_names]      # group columns, as Python values
+        self.escaped = False
+        self.nrows = 0
+
+
+def _header_cells(line):
+    """Column names of a markdown header line, outer pipes dropped."""
+    return [c.strip() for c in line.split('|')][1:-1]
+
+
+def _flush(table):
+    """Pack the buffered cells of every stored column into arrow arrays."""
+    for buf, chunks in zip(table.buffer, table.chunks):
+        if buf:
+            chunks.append(pa.array(buf, type=pa.string()))
+            buf.clear()
+
+
+def _open_table(stored, groupcols):
+    """A collector for a table stored with these columns; group columns missing from
+    it are carried as extra columns."""
+    return _Table(stored, [c for c in groupcols if c not in stored])
+
+
+def _add_rows(table, lines, extra):
+    """Cut `lines` into cells and append them column-wise; `extra` holds one value
+    per extra column, repeated on every row."""
+    width = table.nstored
+    escaped = any(r'\|' in ln for ln in lines)       # rare, so only then pay for the regex
+    table.escaped |= escaped
+    cut = _CELL_RE.split if escaped else (lambda ln: ln.split('|'))
+    rows = []
+    for line in lines:
+        if not line.strip():
+            continue
+        cells = cut(line)[1:-1]
+        if len(cells) != width:
+            if len(cells) > width:
+                raise ValueError(f'row has {len(cells)} cells, header has {width}: {line!r}')
+            cells += [''] * (width - len(cells))
+        rows.append(cells)
+    if not rows:
+        return
+    for buf, col in zip(table.buffer, zip(*rows)):
+        buf.extend([c.strip() or None for c in col])
+    for values, v in zip(table.extras, extra):
+        values.extend([v] * len(rows))
+    table.nrows += len(rows)
+    if len(table.buffer[0] if table.buffer else ()) >= _CHUNK:
+        _flush(table)
+
+
+def _load_document(source):
+    """Source (text, path or file-like) -> the YAML sequence it holds."""
+    doc = yaml.load(_read_source(source), Loader=LOADER)
+    if not isinstance(doc, list):
+        raise ValueError('not a to_yaml document: top level is not a YAML sequence')
+    return doc
+
+
+def _parameters(doc):
+    """The grouping columns the document's parameters element names."""
+    params = {}
+    for element in doc:
+        if isinstance(element, dict) and 'parameters' in element:
+            params = element['parameters'] or {}
+            break
+    return _as_list(params.get('groupby', []))
+
+
+def _collect_rows(doc, groupcols, dropped):
+    """Document -> {name: _Table} with every block's rows gathered under the key
+    they are stored under; one header is kept and later blocks add data rows only."""
+    tables = {}
+    for element in doc:
+        if not isinstance(element, dict) or 'parameters' in element:
+            continue
+        values = dict(zip(groupcols, _as_list(element.get('key', []))))
+        for name, text in element.items():
+            if name in RESERVED or name in dropped or not isinstance(text, str):
+                continue
+            head, _, rest = text.partition('\n')
+            _, _, body = rest.partition('\n')          # the second line is the rule
+            if name not in tables:
+                tables[name] = _open_table(_header_cells(head), groupcols)
+            table = tables[name]
+            names = table.header[table.nstored:]
+            _add_rows(table, body.split('\n'), [_py(values.get(c)) for c in names])
+    return tables
+
+
+def _numeric(column):
+    """Arrow string column -> Series, numeric only if every present value parses."""
+    try:
+        return pd.Series(pc.cast(column, pa.int64()).to_numpy())
+    except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
+        pass
+    series = pd.Series(column, dtype='str')
+    try:
+        return pd.to_numeric(series)
+    except (ValueError, TypeError):
+        return series
+
+
+def _text_column(table, j):
+    """Stored column j of a table -> typed Series (unescaped, numeric if it can be)."""
+    _flush(table)
+    if not table.nrows:
+        return pd.Series([], dtype='int64')     # what to_numeric made of an empty column
+    column = pa.chunked_array(table.chunks[j], type=pa.string())
+    if column.null_count == len(column):
+        return pd.Series([None] * len(column), dtype=object)
+    if table.escaped and pc.any(pc.match_substring(column, '\\|')).as_py():
+        column = pc.replace_substring(column, '\\|', '|')
+    return _numeric(column)
+
+
+def _to_frames(collected, groupcols):
+    """{name: _Table} -> {name: DataFrame}, group columns first, typed per column."""
+    frames = {}
+    for name, table in collected.items():
+        cols = [_text_column(table, j) for j in range(table.nstored)]
+        cols += [pd.Series(values) if values else pd.Series([], dtype='int64')
+                 for values in table.extras]
+        frame = pd.DataFrame(dict(enumerate(cols)))
+        frame.columns = table.header
+        front = [c for c in groupcols if c in frame.columns]
+        frames[name] = frame[front + [c for c in frame.columns if c not in front]]
+    return frames
+
+
+def _check_tables(names, frames):
+    """KeyError naming the first of `names` the document does not hold."""
+    unknown = [name for name in names if name not in frames]
+    if unknown:
+        raise KeyError(f'no table named {unknown[0]!r} in the document '
+                       f'(have {sorted(frames)})')
+
+
+def _merge_plan(merge, frames, groupcols):
+    """merge argument -> ordered {table: [join columns]}; {} means no merge."""
+    if merge is None or merge is False:
+        return {}
+    if merge is True:
+        # No order was given, so take the document in reverse: to_yaml appends the
+        # main table after the aggregations, which puts it first here, where it
+        # keeps its column names and sets the row granularity.
+        plan = {name: groupcols for name in reversed(frames)}
+    elif isinstance(merge, Mapping):
+        plan = {name: _as_list(c) for name, c in merge.items()}
+    else:
+        plan = {name: groupcols for name in _as_list(merge)}
+    _check_tables(plan, frames)
+    if not plan:
+        raise ValueError('merge names no tables')
+    return plan
+
+
+def _merge(frames, plan, how):
+    """Join the planned tables in order onto the first, suffixing later columns with
+    the name of the table they came from."""
+    names = list(plan)
+    merged = frames[names[0]]
+    for name in names[1:]:
+        right = frames[name]
+        on = [c for c in plan[name] if c in merged.columns and c in right.columns]
+        if not on:
+            raise ValueError(f'table {name!r} shares none of {plan[name]} with the '
+                             f'tables merged before it')
+        merged = merged.merge(right, on=on, how=how, suffixes=('', f'_{name}'))
+    return merged
+
+
+def _assemble(merged, frames, plan, keep):
+    """The merged frame, whatever the plan left out and any original asked for by
+    keep; a lone merged frame comes back bare. No merge returns every table."""
+    if merged is None:
+        return frames
+    result = {MERGED: merged}
+    result.update({name: frame for name, frame in frames.items() if name not in plan})
+    result.update({name: frames[name] for name in keep})
+    return merged if len(result) == 1 else result
+
+
 def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     """Read a document written by to_yaml.
 
@@ -281,131 +472,19 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     with that table's key, so aggregating `id` under `stats` lands as `id_stats`
     beside the row-level `id`. The widest table keeps the unsuffixed names.
     """
-    text = _read_source(source)
-
-    doc = yaml.load(text, Loader=LOADER)
-    if not isinstance(doc, list):
-        raise ValueError('not a to_yaml document: top level is not a YAML sequence')
-
-    params = {}
-    for element in doc:
-        if isinstance(element, dict) and 'parameters' in element:
-            params = element['parameters'] or {}
-            break
-    groupcols = params.get('groupby', [])
-    groupcols = _as_list(groupcols)
-
-    # keep wins over drop, so a table named in both survives to be returned.
-    keep = _as_list(keep)
+    doc = _load_document(source)
+    groupcols = _parameters(doc)
+    keep = _as_list(keep)                         # keep wins over drop
     dropped = set(_as_list(drop)) - set(keep)
 
-    # Gather each table's text as one string. The key a table is stored under is
-    # what makes two of them equivalent, not their columns: a `stats` table and a
-    # `span` table are different things whether or not they share column names.
-    # Every block wrote the table with the same header on the first line and the
-    # ---- rule on the second, so one header is kept and later blocks contribute
-    # only their data rows.
-    # Rows are cut into cells here and never rebuilt into text, so the frames are
-    # assembled from lists at the end rather than re-parsed from a string. The
-    # grouping columns ride along as extra cells on each row, so a row carries its
-    # own key and nothing has to be realigned afterwards; a table already naming a
-    # grouping column keeps the one it stores.
-    rows, header, missing, escaped = {}, {}, {}, {}
-    for element in doc:
-        if not isinstance(element, dict) or 'parameters' in element:
-            continue
-        key = element.get('key', [])
-        key = _as_list(key)
-        values = dict(zip(groupcols, key))
-        for name, table in element.items():
-            if name in RESERVED or name in dropped or not isinstance(table, str):
-                continue
-            head, _, rest = table.partition('\n')
-            _, _, body = rest.partition('\n')           # the second line is the rule
-            if name not in rows:
-                stored = [c.strip() for c in head.split('|')][1:-1]
-                missing[name] = [c for c in groupcols if c not in stored]
-                header[name] = stored + missing[name]
-                rows[name], escaped[name] = [], False
-            extra = [_py(values.get(c)) for c in missing[name]]
-            # An escaped pipe is rare, so only pay for the regex where one occurs.
-            here = r'\|' in body
-            escaped[name] |= here
-            for line in body.split('\n'):
-                if not line.strip():
-                    continue
-                cells = _CELL_RE.split(line) if here else line.split('|')
-                rows[name].append([c.strip() or None for c in cells[1:-1]] + extra)
-
-    if not rows:
+    collected = _collect_rows(doc, groupcols, dropped)
+    if not collected:
         raise ValueError('no tables found in document')
-
-    frames = {}
-    for name, table in rows.items():
-        frame = pd.DataFrame(table, columns=header[name])
-        if escaped[name]:
-            frame = frame.apply(lambda s: s.str.replace(r'\|', '|', regex=False)
-                                if _is_text(s) else s)
-        # read_csv used to type the columns; do it here instead, per column and
-        # all-or-nothing, so an identifier that merely looks numeric is left alone
-        # unless the whole column is numeric.
-        for c in frame.columns:
-            if _is_text(frame[c]):
-                try:
-                    frame[c] = pd.to_numeric(frame[c])
-                except (ValueError, TypeError):
-                    pass
-        front = [c for c in groupcols if c in frame.columns]
-        frames[name] = frame[front + [c for c in frame.columns if c not in front]]
-    unknown = [name for name in keep if name not in frames]
-    if unknown:
-        raise KeyError(f'no table named {unknown[0]!r} in the document '
-                       f'(have {sorted(frames)})')
-    if merge is None or merge is False:
-        return frames
-
-    # Which tables to merge, and on what. True takes them all on the grouping
-    # columns; a list picks some of them, still on the grouping columns; a mapping
-    # picks some and says which columns each is joined on.
-    if merge is True:
-        # No order was given, so take the document in reverse: to_yaml appends the
-        # main table after the aggregations, which puts it first here, where it
-        # keeps its column names and sets the row granularity.
-        joins = {name: groupcols for name in reversed(frames)}
-    elif isinstance(merge, Mapping):
-        joins = {name: _as_list(c) for name, c in merge.items()}
-    else:
-        joins = {name: groupcols for name in _as_list(merge)}
-
-    unknown = [name for name in joins if name not in frames]
-    if unknown:
-        raise KeyError(f'no table named {unknown[0]!r} in the document '
-                       f'(have {sorted(frames)})')
-    if not joins:
-        raise ValueError('merge names no tables')
-
-    # Tables are merged in the order merge gave them: the first is the frame the
-    # rest are joined onto, so it is the one that keeps its column names unsuffixed
-    # and sets the row granularity. A column arriving from a later table is
-    # suffixed with the name that table has in the document, so the merged frame
-    # stays self-describing.
-    names = list(joins)
-    merged = frames[names[0]]
-    for name in names[1:]:
-        right = frames[name]
-        on = [c for c in joins[name] if c in merged.columns and c in right.columns]
-        if not on:
-            raise ValueError(f'table {name!r} shares none of {joins[name]} with the '
-                             f'tables merged before it')
-        merged = merged.merge(right, on=on, how=how, suffixes=('', f'_{name}'))
-
-    # Everything the document held comes back: the merged frame, whatever a
-    # partial merge left out, and any original asked for by keep. A lone merged
-    # frame is handed back bare rather than wrapped in a mapping of one.
-    result = {MERGED: merged}
-    result.update({name: frame for name, frame in frames.items() if name not in joins})
-    result.update({name: frames[name] for name in keep})
-    return merged if len(result) == 1 else result
+    frames = _to_frames(collected, groupcols)
+    _check_tables(keep, frames)
+    plan = _merge_plan(merge, frames, groupcols)
+    merged = _merge(frames, plan, how) if plan else None
+    return _assemble(merged, frames, plan, keep)
 
 
 read_blocks = read_yaml  # alias
