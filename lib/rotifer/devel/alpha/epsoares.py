@@ -77,49 +77,21 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     return seqobj
 
 def to_network(df, target=['pfam'], ftype=['CDS'], interaction=True, ignore = [], strand = True):
-    if isinstance(ftype, str):
-        ftype = [ftype]
-    if isinstance(target, str):
-        itarget = [target]
+    """Deprecated: use NeighborhoodDF.to_network (removed on 2026-11-30, issue #TBD)."""
+    import warnings
+    from rotifer.genome.data import NeighborhoodDF
 
-    w = df.copy()
-    if strand:
-        w = df.neighbors(strand='same')
-        w['rid'] = list(range(1,len(w)+1))
-        w.rid = w.rid * w.strand
-        w.sort_values(['rid'], inplace=True)
+    warnings.warn(
+        "rotifer.devel.alpha.epsoares.to_network is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        "use NeighborhoodDF.to_network instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    if not isinstance(df, NeighborhoodDF):
+        df = NeighborhoodDF(df)
+    return df.to_network(target, strand=strand, ftype=ftype, interaction=interaction,
+                         ignore=ignore or None)
 
-    # Building the source column
-    w = w.query(f'type == "{ftype}"').block_id.reset_index().drop('index', axis=1)
-    w['source'] = df[target[0]]
-    for col in target[1:]:
-        w['source'] = np.where(w['source'].isna(), df[df.type == ftype][col], w['source'])
-    w['source'] = w['source'].fillna("?").str.split('+')
-    w = w.explode(column='source')
-    if ignore:
-        w = w[~w.source.isin(ignore)].copy()
-
-    # Building target data
-    w['tblock_id'] = w['block_id'].shift(-1)
-    w['target'] = w['source'].shift(-1)
-
-    # Selecting same block rows
-    w = w[w.block_id == w.tblock_id.shift(1)].copy()
-
-    # Fix source target order when not restricted to the same strand
-    sameprotein = (w.index.to_series() == w.index.to_series().shift(1))
-    if not strand:
-        reverse = (~sameprotein) & (w.source > w.target)
-        w.loc[reverse,['source','target']] = w.loc[reverse, ['target', 'source']].values
-
-    if interaction:
-        w['interaction'] = np.where(sameprotein, 'fusion', 'neighbor')
-        w = w.groupby(['source', 'target', 'interaction'])
-    else:
-        w = w.groupby(['source', 'target'])
-
-    w = w.agg(weight=('block_id', 'count'), blocks=('block_id', 'nunique')).reset_index()
-    return w
 
 def make_palette(categories):
     """

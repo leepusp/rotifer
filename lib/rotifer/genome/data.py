@@ -959,3 +959,50 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         import rotifer.pandas.yaml_blocks
         from rotifer.genome.blocks import NEIGHBORHOOD_YAML
         return rotifer.pandas.yaml_blocks.to_yaml(self, **{**NEIGHBORHOOD_YAML, **kwargs})
+
+    def to_network(self, target='pfam', *, strand=True, ftype='CDS', interaction=True,
+                   ignore=None, separator='+', separator_regex=False, replace=None,
+                   replace_regex=False, stats=None):
+        """List the edges between features that are adjacent in each block.
+
+        With ``strand=True`` each block is first reduced to the features on the
+        query strand and read in the query's direction (minus-strand blocks are
+        reversed). With ``strand=False`` the table is used as it is and neighbour
+        edges are made undirected.
+
+        Parameters
+        ----------
+        target : str or list of str, default 'pfam'
+            Column or columns that label each feature.
+        strand : bool, default True
+            Keep only same-strand features and orient every block along the query.
+        ftype, interaction, ignore, separator, separator_regex, replace, replace_regex, stats
+            As in `rotifer.graph.network.adjacency_edges`.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per distinct edge, with its counts. ``self`` is not modified.
+
+        See Also
+        --------
+        rotifer.graph.network.adjacency_edges, rotifer.graph.network.get_relations
+        """
+        try:
+            from rotifer.graph.network import adjacency_edges
+        except ImportError as exc:
+            raise ImportError(
+                "NeighborhoodDF.to_network needs the graph extra: pip install rotifer[graph]"
+            ) from exc
+        if strand:
+            w = self.neighbors(before=len(self), after=len(self), strand='same')
+            w['rid'] = range(1, len(w) + 1)
+            w['rid'] = w['rid'] * w['strand']
+            w = w.sort_values(['rid'])
+        else:
+            w = self
+        return adjacency_edges(w, target, ftype=ftype, interaction=interaction,
+                               ignore=ignore, separator=separator,
+                               separator_regex=separator_regex, replace=replace,
+                               replace_regex=replace_regex, orient=not strand,
+                               stats=stats)
