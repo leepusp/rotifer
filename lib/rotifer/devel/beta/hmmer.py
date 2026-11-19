@@ -7,7 +7,6 @@ import rotifer
 import rotifer.devel.beta.sequence as rdbs
 from rotifer.devel.alpha import trsantos as rdat
 from rotifer.db import ncbi
-from rotifer.taxonomy import utils as rtu
 from rotifer.interval import utils as riu
 import seaborn as sns
 import matplotlib.pyplot as plt

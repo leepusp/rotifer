@@ -113,8 +113,6 @@ tags:
     - miscellaneous
   rdocmodel:
     - miscellaneous
-  rlineage:
-    - miscellaneous
   rmsd_comparer:
     - miscellaneous
   rneighbors2:
