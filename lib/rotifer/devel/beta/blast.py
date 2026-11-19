@@ -672,7 +672,7 @@ def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None, l
             archdf = pd.read_csv(f'{tmpdirname}/arch',sep="\t", names=['id', 'arch', 'position'])
 
     seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
-    seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x.hitstart:x.hitend], axis=1)
+    seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.hitstart)-1:int(x.hitend)], axis=1)
     seqobj.df.id = seqobj.df.apply(lambda x: f'{x.id}/{x.hitstart}-{x.hitend}', axis=1)
     evalues = seqobj.df.copy()[['id', 'evalue']]
     seqobj = seqobj.align()
@@ -920,12 +920,12 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
         seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
         seqobj.df.end = seqobj.df.eend.fillna(seqobj.df.length)
         seqobj.df.start = seqobj.df.estart.fillna(1)
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.estart):int(x.eend)], axis=1)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.estart)-1:int(x.eend)], axis=1)
         seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['estart'].astype(str) + '-' + seqobj.df['eend'].astype(str)
 
     else:
 
-        if df:
+        if df is not False and df is not None:
             df = df.query(f'evalue <= {evalue} and querycoverage > {coverage}')
             seqobj = seqobj.filter(keep=df.hit.drop_duplicates().to_list())
         if arch == 'profiledb':
@@ -937,7 +937,7 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
                 archdf = pd.read_csv(f'{tmpdirname}/arch',sep="\t", names=['id', 'arch', 'position'])
 
         seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x.hitstart:x.hitend], axis=1)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.hitstart)-1:int(x.hitend)], axis=1)
         seqobj = seqobj.align()
         seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
         seqobj = seqobj.sort(['evalue'])
