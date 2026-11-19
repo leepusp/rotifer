@@ -590,7 +590,17 @@ def psiblast(acc,
              slurm_kwargs={'partition':'basic', 'time':480}):
     '''
     Psiblast search of a seqobj against sequence database.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.psiblast` instead.
     '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.psiblast is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.psiblast instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     import tempfile
     import subprocess
     from subprocess import Popen, PIPE, STDOUT
@@ -650,6 +660,19 @@ def psiblast(acc,
 
 
 def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None, local_database_path=config['local_database_path']):
+    '''
+    Deprecated: use rotifer.devel.beta.blast.search2aln instead.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.search2aln` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.search2aln is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.search2aln instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     import os
     import tempfile
     import subprocess
@@ -897,7 +920,17 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
         architecture2table
         splishrps
         rps2arch
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.split_by_model` instead.
     '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.split_by_model is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.split_by_model instead',
+        FutureWarning,
+        stacklevel=2,
+    )
 
     import os
     import pandas as pd

@@ -661,7 +661,17 @@ def psiblast(acc,
              max_out = 5000):
     '''
     Psiblast it can accept sequence object. 
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.psiblast` instead.
     '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.gian_func.psiblast is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.psiblast instead',
+        FutureWarning,
+        stacklevel=2,
+    )
 
     import tempfile
     import subprocess
@@ -725,6 +735,19 @@ def psiblast(acc,
 
 
 def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None):
+    '''
+    Deprecated: use rotifer.devel.beta.blast.search2aln instead.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.search2aln` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.gian_func.search2aln is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.search2aln instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     import os
     import tempfile
     import subprocess
