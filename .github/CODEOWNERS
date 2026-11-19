@@ -1,0 +1,12 @@
+# Code owners are requested for review automatically when a pull request
+# touches their paths. Code-owner approval is not required to merge.
+# See docs/contributing/governance.md for what owners do.
+
+*                           @leepbioinfo @castlelli @EdwardNSeven @andreaniml
+
+/docs/                      @castlelli @leepbioinfo
+/docs/contributing/         @leepbioinfo @castlelli @EdwardNSeven @andreaniml
+/.github/                   @leepbioinfo @castlelli @EdwardNSeven @andreaniml
+/lib/rotifer/devel/         @leepbioinfo @castlelli @EdwardNSeven @andreaniml
+/CONTRIBUTING.md            @leepbioinfo @castlelli @EdwardNSeven @andreaniml
+/SECURITY.md                @leepbioinfo @castlelli @EdwardNSeven @andreaniml

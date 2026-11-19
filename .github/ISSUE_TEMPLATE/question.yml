@@ -1,0 +1,34 @@
+name: Question
+description: Ask how to use ROTIFER
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you ask, please search the existing issues and the documentation at
+        https://leepusp.github.io/rotifer first. Your question may already be answered there.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: Describe the analysis or task you want to accomplish, and the data you have.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Commands, code, or documentation pages you already used, and what happened.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: ROTIFER version or commit
+      description: The release version or the commit hash you are using (for example, output of `git rev-parse HEAD`).
+    validations:
+      required: false
