@@ -1,6 +1,7 @@
 """Plain-text rendering of DataFrames: to_string, pad and to_color."""
 
 import os
+from itertools import chain
 import pandas as pd
 from rotifer.core import functions as rcf
 
@@ -39,12 +40,53 @@ def pad_columns(arrays, names=None, align='left', fillchar=' '):
         widths.append(width)
     return padded, widths
 
-def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
-                      float_format=None, align="left", **kwargs):
+_ALIGNS = ('left', 'right', 'center')
+
+def _check_align(align):
+    if align not in _ALIGNS:
+        raise ValueError(f"align must be 'left', 'right' or 'center', not {align!r}")
+
+def _justify(name, width, align):
+    """A header set the way pad_columns sets its values (str.center for 'center')."""
+    return {'left': str.ljust, 'right': str.rjust, 'center': str.center}[align](name, width)
+
+def _text_columns(df, na_rep, float_format, index):
+    """Text of every cell of `df` as (names, pyarrow string arrays), one pair per
+    column, the index first when asked. Columns are walked by position, so
+    duplicate labels are fine. The one conversion shared by to_string and to_blocks."""
+    import pyarrow as pa
+    columns = []
+    if index:
+        columns.append((str(df.index.name or ""), df.index.to_series().astype("string")))
+    for i, c in enumerate(df.columns):
+        s = df.iloc[:, i]
+        if float_format is not None and pd.api.types.is_float_dtype(s.dtype):
+            body = s.map(lambda v: na_rep if pd.isna(v) else float_format % v).astype("string")
+        else:
+            body = s.astype("string")
+        columns.append((str(c), body.fillna(na_rep)))
+    names = [name for name, _ in columns]
+    return names, [pa.Array.from_pandas(body, type=pa.string()) for _, body in columns]
+
+def _join_rows(names, arrays, sep, align, taken=None):
+    """Header and rows of converted columns, padded and joined. `taken` selects rows
+    of every array first (an arrow take), so a block can be cut from a frame that
+    was converted once."""
     import pyarrow as pa
     import pyarrow.compute as pc
+    _check_align(align)
+    if taken is not None:
+        arrays = [a.take(taken) for a in arrays]
+    padded, widths = pad_columns(arrays, names, align=align)
+    header = sep.join(_justify(name, w, align) for name, w in zip(names, widths))
+    if not padded:
+        return header
+    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
+    return header + "\n" + "\n".join(lines.to_pylist())
 
-    just = str.rjust if align == "right" else str.ljust
+def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
+                      float_format=None, align="left"):
+    _check_align(align)
 
     if insert:
         df = df.copy()
@@ -53,25 +95,8 @@ def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
                 raise ValueError(f"insert entries must be (loc, column, value) tuples, got {data!r}")
             df.insert(loc=data[0], column=data[1], value=data[2])
 
-    columns = []
-    if index:
-        columns.append((str(df.index.name or ""), df.index.to_series().astype("string")))
-    for c in df.columns:
-        s = df[c]
-        if float_format is not None and pd.api.types.is_float_dtype(s.dtype):
-            body = s.map(lambda v: na_rep if pd.isna(v) else float_format % v).astype("string")
-        else:
-            body = s.astype("string")
-        columns.append((str(c), body.fillna(na_rep)))
-
-    names = [name for name, _ in columns]
-    arrays = [pa.Array.from_pandas(body, type=pa.string()) for _, body in columns]
-    padded, widths = pad_columns(arrays, names, align=align)
-    header = sep.join(just(name, w) for name, w in zip(names, widths))
-    if not padded:
-        return header
-    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
-    return header + "\n" + "\n".join(lines.to_pylist())
+    names, arrays = _text_columns(df, na_rep, float_format, index)
+    return _join_rows(names, arrays, sep, align)
 
 # pad's side is where the fill goes; pad_columns' align is where the text sits
 _PAD_ALIGN = {'left': 'right', 'right': 'left', 'both': 'center'}
@@ -103,13 +128,15 @@ def pad(data, side='left', fillchar=' ', na_rep='', header=False):
     columns default to 'left'). Missing values are first replaced by na_rep.
     With header=True (DataFrame only) the column names are padded too, each column
     to max(value width, name width), with the name on the same side as its values."""
+    if not isinstance(data, (pd.DataFrame, pd.Series)):
+        raise TypeError(f'pad expects a DataFrame or Series, not {type(data).__name__}')
     data = data.astype(str)
     if isinstance(data, pd.DataFrame):
         if isinstance(side, str):
             side = { x: side for x in data.columns }
         else:
             side = { x: side[x] if x in side else 'left' for x in data.columns }
-        out = data.copy()
+        out = data
         names = []
         for i, name in enumerate(data.columns):
             s, width = _pad_series(data.iloc[:, i], side[name], fillchar, na_rep,
@@ -119,9 +146,7 @@ def pad(data, side='left', fillchar=' ', na_rep='', header=False):
         if header:
             out.columns = names
         return out
-    if isinstance(data, pd.Series):
-        return _pad_series(data, side, fillchar, na_rep)[0]
-    return data
+    return _pad_series(data, side, fillchar, na_rep)[0]
 
 def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     """
@@ -191,5 +216,5 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     paint = color_bg if style in ('bg', 'background') else color_fg
     values = data.to_numpy().ravel()
     table = {ord(ch): paint(ch, colors[ch] if ch in colors else default_color)
-             for ch in set(''.join(values))}
+             for ch in set(chain.from_iterable(values))}
     return data.map(lambda x: x.translate(table))

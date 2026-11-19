@@ -71,13 +71,6 @@ _CHUNK = 1 << 15
 
 
 # --------------------------------------------------------------------- helpers
-def _is_text(series):
-    """True for a column still holding parsed text. Cells arrive as str, but the
-    dtype carrying them depends on the pandas version: object before 3.0, str
-    from 3.0 on, where text is no longer inferred as object."""
-    return pd.api.types.is_string_dtype(series)
-
-
 def _flow(value):
     """Render a scalar or sequence as a compact YAML flow scalar, letting PyYAML
     handle quoting so values containing commas or brackets stay valid."""
@@ -147,7 +140,7 @@ def read_md_table(text):
 
 
 def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
-            sortblocks=None, sample=None, name='rows', sep='\n\n',
+            sortblocks=None, sample=None, random_state=None, name='rows', sep='\n\n',
             **tables):
     """Write `df` as the YAML block document described above.
 
@@ -164,6 +157,8 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
                  column or any column produced by an aggregation table below.
     sample     : rows per block, sampled without replacement when a block is
                  larger.
+    random_state: seed for `sample`: an int, a numpy Generator or None (fresh).
+                 Rows whose group key is NaN belong to no block.
 
     Every remaining keyword argument defines one further table, the keyword
     naming it in the document. Two forms are accepted:
@@ -173,7 +168,8 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
           with a single groupby.agg, producing a one-row table per block. This is
           much the cheaper form, and `stats` is the conventional name for it.
           Named aggregation works too, {'n_kinds': ('kind', 'nunique')}, naming
-          the output column apart from its source.
+          the output column apart from its source. A 2-tuple value is always read
+          as (column, aggregation).
 
       kinds=lambda block: block[['kind']].drop_duplicates()
           A callable receiving each block as a DataFrame and returning the table
@@ -200,19 +196,18 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
     Columns named in sortrows or sortblocks that are not present are ignored, so a
     single ordering can be reused across frames that differ in shape.
     """
-    rng = np.random.default_rng() if sample else None
     plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks,
-                       sample=sample, tables=tables, rng=rng)
+                       sample=sample, tables=tables, rng=np.random.default_rng(random_state))
     head = f'- parameters:\n    groupby: {_flow(plan.groupby)}'
 
-    body = df.filter(columns) if columns else df.drop(columns=plan.groupby, errors='ignore')
+    body = df.filter(columns) if columns is not None else df.drop(columns=plan.groupby, errors='ignore')
     cols = _escape_columns(body)                  # once, not per block
     names = [str(c) for c in body.columns]
 
     # Aggregate values are read column by column so each keeps its own dtype: a
     # row taken across columns would upcast an int next to a float.
     agg = {table: ([str(c) for c in frame.columns],
-                   [frame.iloc[:, j].to_numpy() for j in range(frame.shape[1])])
+                   [frame.iloc[:, j].tolist() for j in range(frame.shape[1])])
            for table, frame in plan.tables.items()}
 
     parts = [head]

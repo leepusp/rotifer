@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from ._labels import _as_label, _fmt_label, _group_key, _group_labels, _py
 from ._io import _write_sink
-from .text import to_string, pad_columns
+from .text import to_string, _check_align, _text_columns, _join_rows
 
 def _resolve_stats(df, stats: Mapping):
     """{col: aggfunc_name} -> {col: value}. `stats` is any dictionary-like object
@@ -66,7 +66,7 @@ def _row_rank(df, sortrows):
     cols = [c for c in sortrows if c in df]
     if not cols:
         return None
-    order = (df.reset_index(drop=True)
+    order = (df[cols].reset_index(drop=True)
                .sort_values(cols, ascending=[sortrows[c] for c in cols], kind='stable')
                .index.to_numpy())
     rank = np.empty(len(df), dtype=np.int64)
@@ -82,6 +82,8 @@ def _group_agg(grouped, spec, table):
         {'species': 'nunique'};
       * a named aggregation, {'n_species': ('species', 'nunique')};
       * a plain value, repeated for every block, {'n': 7}.
+    A 2-tuple value is always read as (column, aggregation), never as a plain value.
+    An aggregation that fails raises ValueError naming the table and column.
     Returns a DataFrame indexed by group key, columns in spec order."""
     obj = grouped.obj
     entries = []
@@ -94,7 +96,20 @@ def _group_agg(grouped, spec, table):
 
     named = {f'_{i}': (col, agg) for i, (_, col, agg) in enumerate(entries)
              if isinstance(agg, str) or callable(agg)}
-    frame = grouped.agg(**named) if named else pd.DataFrame(index=grouped.size().index)
+    if named:
+        try:
+            frame = grouped.agg(**named)
+        except Exception as error:
+            for i, (_, col, agg) in enumerate(entries):
+                if f'_{i}' in named:
+                    try:
+                        grouped.agg(**{f'_{i}': named[f'_{i}']})
+                    except Exception as one:
+                        raise ValueError(f'table {table!r}: cannot aggregate column '
+                                         f'{col!r} with {agg!r}') from one
+            raise
+    else:
+        frame = pd.DataFrame(index=grouped.size().index)
     for i, (_, _, agg) in enumerate(entries):
         if f'_{i}' not in named:
             frame[f'_{i}'] = agg
@@ -136,10 +151,12 @@ def plan_blocks(df, groupby, *, sortrows=None, sortblocks=None, sample=None,
     orders rows inside each block and never moves a block. sample keeps at most
     that many rows per block, drawn with `rng` (a numpy Generator, fresh by
     default) and then sorted like any other rows. Columns named in sortrows or
-    sortblocks that do not exist are ignored.
+    sortblocks that do not exist are ignored. Rows whose group key is NaN belong
+    to no block (groupby drops them).
 
-    tables is {name: spec}; see _group_agg for the mapping forms, a callable
-    spec lands in BlockPlan.callbacks."""
+    tables is {name: spec}; see _group_agg for the mapping forms (a 2-tuple value is
+    always read as (column, aggregation)), a callable spec lands in
+    BlockPlan.callbacks."""
     tables = tables or {}
     labels, scalar = _group_labels(df, groupby)
     grouped = df.groupby(labels[0] if scalar else labels, sort=False)
@@ -253,44 +270,27 @@ def default_block_rows(df, groupby, header=default_header, colsep=" : ",
 
     if columns is not None:
         block = block.filter(columns)
-    block = [headerStr + "\n" + to_string(block, sep=colsep, **kwargs)]
+    own = {k: v for k, v in kwargs.items() if k in _TO_STRING_OPTIONS}
+    block = [headerStr + "\n" + to_string(block, sep=colsep, **own)]
     return pd.DataFrame({'blocks': block, **statDict})
 
 
-def _string_columns(body, na_rep, float_format, index):
-    """Text of every cell of `body`, converted once for the whole frame so a block
-    is later cut out with an arrow `take`. Mirrors text.to_string cell for cell."""
-    import pyarrow as pa
-    columns = []
-    if index:
-        columns.append((str(body.index.name or ""), body.index.to_series().astype("string")))
-    for c in body.columns:
-        s = body[c]
-        if float_format is not None and pd.api.types.is_float_dtype(s.dtype):
-            text = s.map(lambda v: na_rep if pd.isna(v) else float_format % v).astype("string")
-        else:
-            text = s.astype("string")
-        columns.append((str(c), text.fillna(na_rep)))
-    names = [name for name, _ in columns]
-    return names, [pa.Array.from_pandas(text, type=pa.string()) for _, text in columns]
-
-
-def _render_rows(names, arrays, taken, sep, align):
-    """The rows `taken` of pre-converted columns, padded and joined like to_string."""
-    import pyarrow as pa
-    import pyarrow.compute as pc
-    just = str.rjust if align == "right" else str.ljust
-    padded, widths = pad_columns([a.take(taken) for a in arrays], names, align=align)
-    header = sep.join(just(name, w) for name, w in zip(names, widths))
-    if not padded:
-        return header
-    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
-    return header + "\n" + "\n".join(lines.to_pylist())
+def _call_header(header, key, label, values):
+    """header(key, label, values), explaining the failure of a hook still written for
+    the old (df, groupby, stats) signature. default_header's own errors pass through."""
+    if header is default_header:
+        return header(key, label, values)
+    try:
+        return header(key, label, values)
+    except (TypeError, AttributeError) as error:
+        raise TypeError('header hooks are now called as header(key, groupby, stats); '
+                        'key is the group key and stats a {name: value} dict, no longer '
+                        'the block DataFrame') from error
 
 
 def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
               sortblocks=None, sample=None, header=default_header, colsep=' : ',
-              sep='\n', buf=None, apply=None, **to_string_kwargs):
+              sep='\n', buf=None, apply=None, random_state=None, **to_string_kwargs):
     """Write `df` as text blocks, one per group: a header, then the block's rows.
 
     groupby    : column label, or list of labels, to group by. Blocks come out in
@@ -298,11 +298,13 @@ def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
     columns    : columns shown in each block's rows; every column but the grouping
                  ones when None.
     stats      : {column: aggregation} or {name: (column, aggregation)} computed
-                 once per block and handed to `header`.
+                 once per block and handed to `header`. A 2-tuple value is always
+                 read as (column, aggregation).
     sortrows   : {column: ascending} ordering the rows inside each block.
     sortblocks : {column: ascending} ordering the blocks; it may name a grouping
                  column or a stats column.
     sample     : rows per block, drawn at random when a block is larger.
+    random_state: seed for `sample`: an int, a numpy Generator or None (fresh).
     header     : callable ``header(key, groupby, stats) -> str``, where stats is a
                  {name: value} dict for the block. This replaces the old
                  ``header(df, groupby=..., stats=...)`` signature, and a header
@@ -311,17 +313,19 @@ def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
     buf        : path or file-like to write to; the text is returned when None.
     apply      : deprecated, see below.
 
-    Any other keyword must be one of the to_string options: index, na_rep,
-    float_format, align, insert. Anything else raises TypeError.
+    Rows whose group key is NaN belong to no block. Any other keyword must be one
+    of the to_string options: index, na_rep, float_format, align, insert. Anything
+    else raises TypeError, except together with the deprecated `apply`, which
+    receives them all.
 
     apply, the old hook returning a DataFrame with a `blocks` column, is
     deprecated and runs the previous group-by-group algorithm."""
     import pyarrow as pa
-    unknown = [k for k in to_string_kwargs if k not in _TO_STRING_OPTIONS]
-    if unknown:
-        raise TypeError(f'to_blocks() got an unexpected keyword argument {unknown[0]!r}')
-
-    if apply is not None:
+    if apply is None:
+        unknown = [k for k in to_string_kwargs if k not in _TO_STRING_OPTIONS]
+        if unknown:
+            raise TypeError(f'to_blocks() got an unexpected keyword argument {unknown[0]!r}')
+    else:
         _deprecated('to_blocks(apply=...)', 'to_blocks now builds the blocks itself; '
                     'customise them with header, columns and stats', stacklevel=2)
         return _to_blocks_apply(df, groupby, buf, header, apply, colsep, sortblocks, sep,
@@ -330,21 +334,24 @@ def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
                                  if v is not None} | to_string_kwargs)
 
     plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks, sample=sample,
-                       tables={'stats': stats} if stats else None)
+                       tables={'stats': stats} if stats else None,
+                       rng=np.random.default_rng(random_state))
     label = _as_label(groupby)
 
     body = df if columns is None else df.filter(columns)
     body = body.drop(columns=plan.groupby, errors='ignore')
     opts = {k: to_string_kwargs[k] for k in _TO_STRING_OPTIONS if k in to_string_kwargs}
+    align = opts.get('align', 'left')
+    _check_align(align)
     fast = 'insert' not in opts or not opts['insert']
     if fast:
-        names, arrays = _string_columns(body, opts.get('na_rep', ' '), opts.get('float_format'),
-                                        opts.get('index', True))
+        names, arrays = _text_columns(body, opts.get('na_rep', ' '), opts.get('float_format'),
+                                      opts.get('index', True))
 
     stat_table = plan.tables.get('stats')
     if stat_table is not None:
         stat_names = list(stat_table.columns)
-        stat_values = [stat_table.iloc[:, j].to_numpy() for j in range(stat_table.shape[1])]
+        stat_values = [stat_table.iloc[:, j].tolist() for j in range(stat_table.shape[1])]
 
     blocks = []
     for i, key in enumerate(plan.keys):
@@ -352,10 +359,10 @@ def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
         values = {} if stat_table is None else {
             c: _py(v[i]) for c, v in zip(stat_names, stat_values)}
         if fast:
-            rows = _render_rows(names, arrays, pa.array(idx), colsep, opts.get('align', 'left'))
+            rows = _join_rows(names, arrays, colsep, align, taken=pa.array(idx))
         else:
             rows = to_string(body.take(idx), sep=colsep, **opts)
-        blocks.append(header(key, label, values) + "\n" + rows)
+        blocks.append(_call_header(header, key, label, values) + "\n" + rows)
 
     return _write_sink(sep.join(blocks), buf)
 
@@ -364,10 +371,13 @@ def _to_blocks_apply(df, groupby, buf, header, apply, colsep, sortblocks, sep, k
     """The old algorithm for a user-supplied `apply`: one call per group."""
     labels, scalar = _group_labels(df, groupby)
     results = []
-    for key, block in df.groupby(labels[0] if scalar else labels, sort=False):
-        block = block.drop(columns=labels)
-        object.__setattr__(block, 'name', key)
-        results.append(apply(block, groupby=groupby, header=header, colsep=colsep, **kwargs))
+    # The caller was warned once; nested deprecated hooks must not warn per block.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', FutureWarning)
+        for key, block in df.groupby(labels[0] if scalar else labels, sort=False):
+            block = block.drop(columns=labels)
+            object.__setattr__(block, 'name', key)
+            results.append(apply(block, groupby=groupby, header=header, colsep=colsep, **kwargs))
     blocks = pd.concat(results, ignore_index=True) if results else pd.DataFrame({'blocks': []})
 
     if sortblocks:
