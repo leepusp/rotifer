@@ -43,9 +43,8 @@ NEIGHBORHOOD_BLOCKS = dict(
 NEIGHBORHOOD_YAML = dict(
     groupby='c80e3',            # one block per sequence cluster
     columns=_COLUMNS,
-    # Rows ordered by taxonomy, then by 70% cluster. 'qc80e3' matches no column of a
-    # NeighborhoodDF, so that entry is ignored.
-    sortrows={'qc80e3': True, 'superkingdom': True, 'phylum': True, 'lineage': True,
+    # Rows ordered by taxonomy, then by 70% cluster.
+    sortrows={'superkingdom': True, 'phylum': True, 'lineage': True,
               'classification': True, 'c80i70': True},
     # Blocks with the most phyla first, then those with the most 70% clusters.
     sortblocks={'phylum': False, 'c80i70': False},

@@ -967,7 +967,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         Applies :data:`rotifer.genome.blocks.NEIGHBORHOOD_YAML` to
         :func:`rotifer.pandas.yaml_blocks.to_yaml`. The preset groups by
         ``c80e3`` and shows the same columns as :meth:`to_blocks`. It sorts
-        rows by ``qc80e3``, ``superkingdom``, ``phylum``, ``lineage``,
+        rows by ``superkingdom``, ``phylum``, ``lineage``,
         ``classification`` and ``c80i70`` in ascending order, and sorts
         blocks by ``phylum`` and ``c80i70`` in descending order. Each block gets an
         annotation table holding the most frequent ``pfam``, a ``stats``

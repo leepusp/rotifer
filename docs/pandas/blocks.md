@@ -227,7 +227,6 @@ nei = NeighborhoodDF({
     'superkingdom': ['Bacteria', 'Bacteria', 'Archaea'],
     'phylum': ['Firmicutes', 'Proteobacteria', 'Euryarchaeota'],
     'taxid': [1, 2, 3],
-    'qc80e3': ['q', 'q', 'q'],
 })
 print(nei.to_blocks())
 print(nei.to_yaml())
