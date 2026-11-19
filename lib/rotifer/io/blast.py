@@ -322,4 +322,7 @@ def read_blast(source, columns=COLUMNS, swap=False, **kwargs):
     for column in columns:
         if column in DTYPES:
             df[column] = pd.to_numeric(df[column], errors='coerce')
+            if DTYPES[column] is float:
+                # an empty column would otherwise come back as int64
+                df[column] = df[column].astype('float64')
     return df

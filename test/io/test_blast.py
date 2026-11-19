@@ -63,3 +63,10 @@ def test_overlap_as_residues_or_fraction_gives_different_row_counts():
     path = os.path.join(golden.INPUTS, "psiblast.out")
     assert len(blast.read_blast(path, overlap="1")) == 15
     assert len(blast.read_blast(path, overlap="1.0")) == 23
+
+def test_empty_report_gives_float_columns():
+    """A report without hits keeps evalue, bits and coverage as float64, not int64."""
+    import io
+    df = blast.read_blast(io.StringIO(""))
+    assert df.empty and list(df.columns) == blast.COLUMNS
+    assert {df[c].dtype.name for c in ("evalue", "bits", "query_coverage")} == {"float64"}
