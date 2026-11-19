@@ -780,16 +780,33 @@ def full_annotate(seqobj,
     return seqobj
 
 def padding_df(df):
-    cdf = df.copy()
-    c = df.columns
-    pad_col_name=[]
-    for x in c:
-        cdf[x] = cdf[x].fillna('').astype(str)
-        w = cdf[x].str.len().max()
-        cdf[x] = cdf[x].str.pad(width =w)
-        pad_col_name.append(x.rjust(w))
-    cdf.columns = pad_col_name    
-    return cdf
+    """Pad every column of a DataFrame to a common width, names included.
+
+    .. deprecated::
+       Use :func:`rotifer.pandas.pad` with ``side='left'`` and ``header=True``
+       instead. ``rotifer.devel.alpha.rodolfo.padding_df`` will be removed on 2026-11-30
+       (issue #TBD).
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Frame to pad. Missing values are written as empty strings.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of ``df`` with padded values and padded column names.
+    """
+    import warnings
+    from rotifer.pandas import pad
+
+    warnings.warn(
+        "rotifer.devel.alpha.rodolfo.padding_df is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        "use rotifer.pandas.pad(df, side='left', header=True) instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return pad(df, side='left', na_rep='', header=True)
 
 
 def alnxaln(seqobj, clustercol = 'c50i0', minseq=10):

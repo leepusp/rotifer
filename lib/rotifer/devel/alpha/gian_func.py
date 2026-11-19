@@ -768,20 +768,35 @@ def full_annotate(seqobj,
     return seqobj
 
 def padding_df(df, how='right'):
-    cdf = df.copy()
-    c = df.columns
-    pad_col_name=[]
-    for x in c:
-        cdf[x] = cdf[x].fillna('').astype(str)
-        w = cdf[x].str.len().max()
-        cdf[x] = cdf[x].str.pad(width =w, side=how)
-        if how == 'left':
-            pad_col_name.append(x.rjust(w))
-        else:
-            pad_col_name.append(x.ljust(w))
+    """Pad every column of a DataFrame to a common width, names included.
 
-    cdf.columns = pad_col_name    
-    return cdf
+    .. deprecated::
+       Use :func:`rotifer.pandas.pad` with ``side=how`` and ``header=True`` instead.
+       ``rotifer.devel.alpha.gian_func.padding_df`` will be removed on 2026-11-30
+       (issue #TBD).
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Frame to pad. Missing values are written as empty strings.
+    how : {'right', 'left'}, default 'right'
+        Side of the fill: 'right' left-justifies values and names, 'left' right-justifies them.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of ``df`` with padded values and padded column names.
+    """
+    import warnings
+    from rotifer.pandas import pad
+
+    warnings.warn(
+        "rotifer.devel.alpha.gian_func.padding_df is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        f"use rotifer.pandas.pad(df, side={how!r}, header=True) instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return pad(df, side=how, na_rep='', header=True)
 
 
 def alnxaln(seqobj, clustercol = 'c50i0', minseq=10, aln_method='famsa'):
@@ -3451,7 +3466,8 @@ def to_html2(seqobj, output, background = 'black', columns =[], consensus=(50,60
         columns = ['id','html']
     else:
         columns = columns.append(['id','html'] )
-    my_text = gf.padding_df(s.df[columns]).to_csv(sep="\t", index=None, header = None)
+    from rotifer.pandas import pad
+    my_text = pad(s.df[columns], side='right', na_rep='', header=True).to_csv(sep="\t", index=None, header = None)
     """
     Save the MSA as HTML file
     
