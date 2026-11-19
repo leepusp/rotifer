@@ -49,7 +49,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from rotifer.pandas import _py
+from ._labels import _py
 from rotifer.core import functions as rcf
 
 config = rcf.loadConfig(__name__, defaults = {

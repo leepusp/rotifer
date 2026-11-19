@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 import rotifer.pandas as rp
+import rotifer.pandas.text as rpt
 
 # name -> (DataFrame, to_string kwargs)
 def cases():
@@ -61,7 +62,7 @@ def backend(request, monkeypatch):
     """to_string dispatches to _to_string_arrow, falling back to _to_string_pandas
     on ImportError. Point the former at the latter to exercise the fallback."""
     if request.param == 'pandas':
-        monkeypatch.setattr(rp, '_to_string_arrow', rp._to_string_pandas)
+        monkeypatch.setattr(rp, '_to_string_arrow', rpt._to_string_pandas)
     return request.param
 
 
@@ -76,12 +77,12 @@ def test_both_backends_agree():
     for name, (df, kwargs) in cases().items():
         just = str.rjust if kwargs.get('align') == 'right' else str.ljust
         arrow = rp.to_string(df, **kwargs)
-        original = rp._to_string_arrow
+        original = rpt._to_string_arrow
         try:
-            rp._to_string_arrow = rp._to_string_pandas
+            rpt._to_string_arrow = rpt._to_string_pandas
             fallback = rp.to_string(df, **kwargs)
         finally:
-            rp._to_string_arrow = original
+            rpt._to_string_arrow = original
         assert arrow == fallback, name
 
 
@@ -89,13 +90,13 @@ if __name__ == '__main__':
     import sys
     failures = 0
     for impl in ('arrow', 'pandas'):
-        original = rp._to_string_arrow
+        original = rpt._to_string_arrow
         if impl == 'pandas':
-            rp._to_string_arrow = rp._to_string_pandas
+            rpt._to_string_arrow = rpt._to_string_pandas
         try:
             bad = [n for n, (d, k) in cases().items() if rp.to_string(d, **k) != GOLDEN[n]]
         finally:
-            rp._to_string_arrow = original
+            rpt._to_string_arrow = original
         failures += len(bad)
         print('%-7s %s' % (impl, 'ALL %d MATCH' % len(GOLDEN) if not bad else 'MISMATCH %s' % bad))
     sys.exit(1 if failures else 0)
