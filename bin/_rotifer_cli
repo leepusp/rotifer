@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""
+Run the ROTIFER command named after this executable.
+
+The commands in bin/ are symbolic links to this file: bin/hmmer2table
+runs rotifer.cli.hmmer2table.main(). See lib/rotifer/cli/__init__.py.
+"""
+
+import importlib
+import os
+import sys
+
+# Use the rotifer library of this checkout
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+
+name = os.path.basename(sys.argv[0])
+try:
+    command = importlib.import_module(f"rotifer.cli.{name}")
+except ModuleNotFoundError as error:
+    if error.name != f"rotifer.cli.{name}":
+        raise
+    sys.exit(f"{name}: not a rotifer command (run it through a link in bin/ named after the command)")
+
+try:
+    sys.exit(command.main())
+except BrokenPipeError:
+    # Output closed early (e.g. piped to head): exit quietly, like the shell tools
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    sys.exit(141)

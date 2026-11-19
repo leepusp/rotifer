@@ -78,18 +78,19 @@ the server.
 The site is published to GitHub Pages at
 <https://leepusp.github.io/rotifer/> by
 `.github/workflows/docs.yml`. On every push to `docs/v1` that
-touches `docs/`, `lib/rotifer/` or `setup.py`, the workflow runs
+touches `docs/`, `lib/rotifer/` or `pyproject.toml`, the workflow runs
 `sphinx-build` on Ubuntu with Python 3.12 and uploads
 `docs/_build/html` as the Pages artifact.
 
 It installs `docs/requirements.txt` and then `pip install -e .` —
-and only those. Never add the repository-root `requirements.txt` to
-the workflow: it lists conda and system tools (`blast`, `datamash`,
-`famsa`) that do not exist on PyPI, plus `pygraphviz`, which needs
-Graphviz headers. The editable install is what makes numpy and
-pandas available to autodoc, which imports them for real, and what
-lets `conf.py` read the version from the package metadata; without
-it the published title would read `0.0.0`.
+and only those. Do not install the package extras or
+`environment.yml` there: the extras pull in heavy packages that
+`conf.py` mocks anyway, and `environment.yml` lists conda and system
+tools (`blast`, `datamash`, `famsa`) that do not exist on PyPI. The
+editable install is what makes numpy and pandas available to autodoc,
+which imports them for real, and what lets `conf.py` read the version
+from the package metadata; without it the published title would read
+`0.0.0`.
 
 The hosted build does **not** pass `-W`, so unlike `make strict` a
 warning will not fail the deploy. Run `make strict` locally before

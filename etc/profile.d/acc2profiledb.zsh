@@ -1,1 +1,0 @@
-acc2profiledb.sh

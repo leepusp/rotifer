@@ -18,7 +18,7 @@ for f in $(\ls -1 db/FASTA/* 2> /dev/null | grep -Fv 'db/FASTA/*' | grep -v '\.m
 do
 	target=$(basename $f)
 	if [ "$target" == "nt" ]; then DBTYPE="nucl"; fi
-	run_or_show perl -i -pe 's/\-/X/go if (substr($_,0,1) ne ">")' $f
+	run_or_show "sed -i '/^>/!s/-/X/g' \"$f\""
 	run_or_show esl-sfetch --index $f
 done
 if [   -d "$base/freeze" ]; then run_or_show  ln -s $base/freeze .; fi

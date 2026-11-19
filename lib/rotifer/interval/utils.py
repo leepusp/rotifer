@@ -1,13 +1,23 @@
-#!/usr/bin/env python3
+__doc__ = """
+Older helpers for regions in one-dimensional coordinates.
 
-import sys
-import pandas as pd
-import numpy as np
+- ``complement`` lists the gaps between the regions of each sequence.
+- ``filter_nonoverlapping_regions`` and ``architecture`` are deprecated
+  wrappers around ``rotifer.interval.architecture.select_regions``; they
+  keep their old arguments and output for existing callers.
+- ``config`` holds their per-format presets (``config['hmmer']``, ...),
+  which can be overridden by the user's rotifer configuration.
+"""
+
+import math
+import warnings
 from collections import OrderedDict
+
+import numpy as np
+import pandas as pd
 
 import rotifer
 from rotifer.core.functions import loadConfig
-from rotifer.devel.beta import sequence as rdbs
 logger = rotifer.logging.getLogger(__name__)
 config = loadConfig(__name__, defaults = {
     'default': {
@@ -44,227 +54,321 @@ config = loadConfig(__name__, defaults = {
     },
 })
 
-def architecture(df,
-        reference       = config['default']['reference'],
-        collapse        = config['default']['collapse'],
-        start           = config['default']['start'],
-        end             = config['default']['end'],
-        maximum_overlap = config['default']['maximum_overlap'],
-        criteria        = config['default']['criteria'],
-    ):
-    '''
-    This function builds a compact representation of all non-overlapping
-    regions for a given reference column.
+_REMOVAL = "2026-11-30 (issue #173)"
+"""When the deprecated wrappers go away, and the issue tracking it."""
 
-    It is often used to produce a compact protein domain architecture table
-
-    The input Pandas DataFrame must contain columns corresponding
-    to unidimensional interval coordinates (start and end columns)
-    and at least one reference column (e.g. pid or sequence).
+def _select(df, reference, start, end, maximum_overlap, criteria):
+    """
+    Run ``select_regions`` with the old arguments and rules.
 
     Parameters
     ----------
-    df : Pandas dataframe
-       The dataframe must have at least a reference column and coordinates
-    reference : (list of) strings, default ['query']
-        Name of the column storing sequence identifiers
-    collapse : (list of) strings, default 'hits'
-        Name of the column storing region identifiers
-    start : string, default estart
-        Name of the column with the first coordinate of each interval
-    end : string, default eend
-        Name of the column with the last coordinate of each interval
-    maximum_overlap : integer, default 0.1 (10% of the shortest)
-        Maximum number of overlapping residues to ignore.
-        If maximum_overlap < 1, the parameter is treated as a percentage 
-    criteria : ordered dictionary
-        Criteria for best interval selection.
+    df : pandas.DataFrame
+        Regions, one per row. It is not modified.
+    reference : str or list of str
+        Column(s) naming the sequence of each region.
+    start, end : str
+        Columns with the first and last position of each region.
+    maximum_overlap : int or float
+        Below 1, a fraction of the shorter region; from 1 up, a number of
+        residues (a non-integer number is rounded down, since overlaps are
+        whole residues).
+    criteria : dict or None
+        Ranking columns mapped to True (smallest first) or False (largest
+        first). None means ``config['default']['criteria']``.
 
-        Keys in this dictionary must match column names in the input
-        Pandas DataFrame. Values should be booleans (True or False).
-
-        'region_length' is an exception: this column is automatically
-        calculated from the start and end coordinates of each region.
-
-        A True value for a given column will give precedence for rows
-        with the smallest value in that column. A False value
-        will select rows with the largest values.
-
-    Examples
-    --------
-    HH-suite results based on the largest probability and/or region length:
-
-    >>> from rotifer.interval.utils import architecture
-    >>> df = pd.read_csv("results.hhsuite2table.tsv", sep="\t")
-    >>> dfc = architecture(df, start='qstart', end='qend', criteria=c)
-    '''
-    arch = filter_nonoverlapping_regions(df, reference=reference, start=start, end=end, maximum_overlap=maximum_overlap, criteria=criteria)
-    arch.sort_values([*reference, start, end], ascending=True, inplace=True)
-    arch = arch.groupby(reference).agg(architecture=(collapse,lambda x: "+".join([ str(y) for y in x ]))).reset_index()
-    return arch
+    Returns
+    -------
+    pandas.DataFrame
+        The kept rows, as ``select_regions`` returns them with
+        ``nested=False`` (a region inside a kept region is always
+        dropped, as these functions always did).
+    """
+    from rotifer.interval.architecture import select_regions
+    if isinstance(reference, str):
+        reference = [reference]
+    if criteria is None:
+        criteria = config['default']['criteria']
+    if maximum_overlap < 1:
+        overlap = float(maximum_overlap)
+    else:
+        overlap = int(math.floor(maximum_overlap))
+    return select_regions(df, reference=list(reference), start=start, end=end,
+                          criteria=dict(criteria), overlap=overlap, nested=False)
 
 def filter_nonoverlapping_regions(df,
         reference       = config['default']['reference'],
         start           = config['default']['start'],
         end             = config['default']['end'],
         maximum_overlap = config['default']['maximum_overlap'],
-        criteria        = config['default']['criteria'],
+        criteria        = None,
         *args, **kwargs
     ):
-    '''
-    This function selects the best set of non-overlapping intervals.
+    """
+    Select the best set of non-overlapping regions of each sequence.
 
-    The input Pandas DataFrame must contain columns corresponding
-    to unidimensional interval coordinates (start and end columns)
-    and at least one reference column (e.g. pid or sequence).
+    Deprecated: use ``rotifer.interval.architecture.select_regions`` with
+    ``nested=False``, which this function calls.
+
+    Regions are ranked by ``criteria`` within each sequence, then by the
+    smallest start, then by input order, and taken best first; a region is
+    dropped when it overlaps a kept region by more than
+    ``maximum_overlap`` or lies inside it.
 
     Parameters
     ----------
-    df : Pandas dataframe
-       The dataframe must have at least a reference column and coordinates
-    reference : (list of) strings, default ['sequence']
-        Name of the column storing sequence identifiers
-    start : string, default estart
-        Name of the column with the first coordinate of each interval
-    end : string, default eend
-        Name of the column with the last coordinate of each interval
-    maximum_overlap : integer, default 0.1 (10% of the shortest)
-        Maximum number of overlapping residues to ignore.
-        If maximum_overlap < 1, the parameter is treated as a percentage 
-    criteria : ordered dictionary
-        Criteria for best interval selection.
+    df : pandas.DataFrame
+        One row per region. It is not modified.
+    reference : str or list of str, default ['query']
+        Column(s) naming the sequence of each region.
+    start : str, default 'qstart'
+        Column with the first position of each region.
+    end : str, default 'qend'
+        Column with the last position of each region.
+    maximum_overlap : int or float, default 0.4
+        Below 1, the largest fraction of the shorter region two regions
+        may share; from 1 up, the largest number of shared residues.
+    criteria : dict, optional
+        Ranking columns, in order of precedence, mapped to True to prefer
+        the smallest values or False to prefer the largest.
+        ``'region_length'`` is ``end - start + 1`` unless ``df`` has such
+        a column. None means ``config['default']['criteria']`` (largest
+        sum_probs, probability, score and region length).
+    *args, **kwargs
+        Ignored. They let callers unpack a ``config`` preset, which also
+        has a ``collapse`` key.
 
-        Keys in this dictionary must match column names in the input
-        Pandas DataFrame. Values should be booleans (True or False).
+    Returns
+    -------
+    pandas.DataFrame
+        The kept rows of ``df`` with all its columns and index labels,
+        sorted by ``reference``, ``start`` and ``end``.
 
-        'region_length' is an exception: this column is automatically
-        calculated from the start and end coordinates of each region.
+    Warns
+    -----
+    FutureWarning
+        Always: this function will be removed.
 
-        A True value for a given column will give precedence for rows
-        with the smallest value in that column. A False value
-        will select rows with the largest values.
+    See Also
+    --------
+    rotifer.interval.architecture.select_regions : the function to use
+        instead.
 
     Examples
     --------
-    HMMER results, parsed by hmmer2table, using the environment limits:
+    >>> import warnings
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({'sequence': ['p1', 'p1'], 'model': ['A', 'B'],
+    ...                    'estart': [1, 50], 'eend': [60, 100], 'evalue': [1e-10, 1e-5]})
+    >>> with warnings.catch_warnings():
+    ...     warnings.simplefilter('ignore', FutureWarning)
+    ...     filter_nonoverlapping_regions(df, **config['hmmer'])['model'].tolist()
+    ['A', 'B']
+    """
+    warnings.warn(
+        "rotifer.interval.utils.filter_nonoverlapping_regions is deprecated and will be removed on "
+        + _REMOVAL + "; use rotifer.interval.architecture.select_regions(..., nested=False) instead",
+        FutureWarning, stacklevel=2)
+    return _select(df, reference, start, end, maximum_overlap, criteria)
 
-    >>> df = pd.read_csv("results.hmmer2table.tsv", sep="\t")
-    >>> dfc = filter_overlapping_regions(df)
+def architecture(df,
+        reference       = config['default']['reference'],
+        collapse        = config['default']['collapse'],
+        start           = config['default']['start'],
+        end             = config['default']['end'],
+        maximum_overlap = config['default']['maximum_overlap'],
+        criteria        = None,
+    ):
+    """
+    Join the best non-overlapping regions of each sequence into one string.
 
-    HH-suite results based on the largest probability and/or region length:
+    Deprecated: use ``rotifer.interval.architecture.domain2architecture``
+    for architecture tables, or ``select_regions`` followed by a groupby.
 
-    >>> df = pd.read_csv("results.hhsuite2table.tsv", sep="\t")
-    >>> c = {'probability':False, 'region_length':False}
-    >>> dfc = filter_overlapping_regions(df, start='qstart', end='qend', criteria=c)
-    '''
-    from copy import deepcopy
-
-    # Process arguments and select columns for analysis
-    if not isinstance(criteria,OrderedDict):
-        criteria = OrderedDict(criteria)
-    if not isinstance(reference,list):
-        reference = [ reference ]
-
-    # Copy and sort the dataframe
-    # Sort row priority: best rows must appear first
-    crit = list(criteria.keys())
-    clean = deepcopy(df)
-    remove = False
-    if 'region_length' in crit and 'region_length' not in clean.columns:
-        clean['region_length'] = clean[end] - clean[start] + 1
-        remove = True
-    clean.sort_values(reference + crit, ascending=len(reference)*[True] + [ criteria[x] for x in crit ], inplace=True)
-    clean.reset_index(drop=True, inplace=True)
-
-    # Remove non-optimal layers
-    keep = pd.Series([ pd.NA ] * len(clean), index=clean.index.copy(), dtype="boolean")
-    while keep.isna().any():
-        logger.info(f'Running next layer with {keep.notna().sum()} processed rows out of {len(clean)} rows')
-        best = clean.loc[keep.isna()].drop_duplicates(reference)
-        keep.loc[best.index] = True
-        best = clean.loc[keep == True]
-        worst = clean.loc[keep.isna()].reset_index(drop=False).rename({'index':'_oid'}, axis=1)
-        worst = best.merge(worst, on=reference, how='inner')
-        overlap  = np.minimum(worst[f'{end}_x'],   worst[f'{end}_y'])
-        overlap -= np.maximum(worst[f'{start}_x'], worst[f'{start}_y'])
-        overlap += 1
-        maxoverlap = maximum_overlap
-        if maxoverlap < 1:
-            maxoverlap = np.floor(maxoverlap * np.minimum(worst.region_length_x, worst.region_length_y))
-        overlap = (overlap > maxoverlap)
-        overlap = overlap | ((worst[f'{start}_x'] <= worst[f'{start}_y']) & (worst[f'{end}_x'] >= worst[f'{end}_y']))
-        worst = worst[overlap]._oid.unique().tolist()
-        keep.loc[worst] = False
-
-    # Remove region_length and return
-    if remove:
-        clean.drop('region_length', axis=1, inplace=True)
-    clean = clean.loc[keep].copy()
-    clean.sort_values(reference + [start,end], ascending=(len(reference)+2)*[True], inplace=True)
-    return clean
-
-def complement(df, include=True, exclude=False, add=False, reference='ID', start='start', end='end'):
-    
-    '''
-    Given a DataFrame describing regions in one-dimensional
-    reference systems, return a similar DataFrame describing
-    the set of regions required to fully cover all the length
-    of the references.
-
-    The input table is expected to include one or more columns
-    describing the reference object and a pair of integer columns
-    corresponding to the start and end positions of each region.
-
-    If a column with the length of each interval is supplied, the
-    last interval and the length of each fragment will be included
-    in the returned dataframe.
+    Regions are selected as ``filter_nonoverlapping_regions`` does, then
+    the values of ``collapse`` of each sequence are joined with ``+`` in
+    coordinate order. Nested regions are never kept, so there are no
+    brackets.
 
     Parameters
     ----------
-    df : Pandas dataframe
-       The dataframe must have at least a reference column and coordinates
-    include: list
-    exclude: list
-    add: dict
-    reference : (list of) strings, default ['sequence']
-        Name of the column(s) storing sequence identifiers
-    start : string, default 'start'
-        Name of the column with the first coordinate of each interval
-    end : string, default 'end'
-        Name of the column with the last coordinate of each interval
-    '''
+    df : pandas.DataFrame
+        One row per region. It is not modified.
+    reference : str or list of str, default ['query']
+        Column(s) naming the sequence of each region.
+    collapse : str, default 'hit'
+        Column with the region names to join.
+    start, end, maximum_overlap, criteria
+        As in ``filter_nonoverlapping_regions``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The ``reference`` column(s) and ``architecture`` (str), one row per
+        sequence, sorted by ``reference``, with a 0..n-1 index. Empty, with
+        these columns, when ``df`` is empty.
+
+    Warns
+    -----
+    FutureWarning
+        Always: this function will be removed.
+
+    See Also
+    --------
+    rotifer.interval.architecture.domain2architecture : architecture table
+        with regions and E-values.
+
+    Examples
+    --------
+    >>> import warnings
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({'sequence': ['p1', 'p1', 'p2'], 'model': ['A', 'B', 'C'],
+    ...                    'estart': [1, 50, 5], 'eend': [60, 100, 80],
+    ...                    'evalue': [1e-10, 1e-5, 1e-4]})
+    >>> with warnings.catch_warnings():
+    ...     warnings.simplefilter('ignore', FutureWarning)
+    ...     architecture(df, **config['hmmer'])
+      sequence architecture
+    0       p1          A+B
+    1       p2            C
+    """
+    warnings.warn(
+        "rotifer.interval.utils.architecture is deprecated and will be removed on "
+        + _REMOVAL + "; use rotifer.interval.architecture.domain2architecture, "
+        "or select_regions and a groupby, instead",
+        FutureWarning, stacklevel=2)
     if isinstance(reference, str):
-        reference = [ reference ]
+        reference = [reference]
+    reference = list(reference)
+    kept = _select(df, reference, start, end, maximum_overlap, criteria)
+    if kept.empty:
+        return kept[reference].assign(architecture=pd.Series(dtype=object)).reset_index(drop=True)
+    return (kept.groupby(reference)[collapse]
+                .agg(lambda x: "+".join(str(y) for y in x))
+                .rename('architecture')
+                .reset_index())
 
-    regions = df.sort_values([*reference, start, end])
-    if 'length' not in regions.columns:
-        regions['length'] = regions.ID.map(regions.set_index(reference).end.to_dict())
-        regions.loc[regions.length.isna(), 'length'] = regions.loc[regions.length.isna(), 'end']
+def complement(df, include=True, exclude=False, add=False, reference='ID', start='start', end='end',
+               length='length'):
+    """
+    List the gaps between the regions of each sequence.
 
-    first = pd.DataFrame({
-        'ID':     regions.ID.tolist(),
-        'start':  np.where(regions.ID != regions.ID.shift(1),1,regions.end.shift(1) + 1).tolist(),
-        'end':    (regions.start - 1).tolist(),
-    }).astype({'start':int}).eval('length = end - start + 1').query('end > 0')
+    Each row of ``df`` is a region of the sequence named in ``reference``,
+    from ``start`` to ``end`` (inclusive, 1-based). Overlapping and nested
+    regions are merged first, so each position is either covered or in
+    exactly one gap. Gaps are the stretches before the first region (from
+    position 1), between regions, and after the last region up to the
+    sequence length, when the length is known.
 
-    uncovered = (regions.groupby(['ID','length']).end.max()+1)
-    uncovered = uncovered.reset_index()
-    uncovered = uncovered.query('end < length')
-    uncovered = uncovered.rename({'end':'start'}, axis=1)
-    uncovered = uncovered.eval('end = length').eval('length = end - start + 1')
-    uncovered = pd.concat([ first, uncovered ]).sort_values(['ID','start','end'])
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        One row per region. It is not modified. Rows with a missing start
+        or end, or with ``end < start``, cover nothing.
+    include : bool or list of str, default True
+        Columns of the result. True: the columns of ``df``, in its order
+        (columns not computed here are missing values). A list: these
+        columns, in this order. False: only the computed columns
+        (``reference``, ``start``, ``end`` and the gap length).
+    exclude : list of str or False, default False
+        Columns to drop from the result. Names not in the result are
+        ignored.
+    add : dict or False, default False
+        Columns to set on every gap, as ``{column: value}``, e.g.
+        ``{'domain': 'unk'}``. Applied after ``include`` and ``exclude``.
+    reference : str or list of str, default 'ID'
+        Column(s) naming the sequence of each region.
+    start, end : str, default 'start', 'end'
+        Columns with the first and last position of each region.
+    length : str, default 'length'
+        Column with the length of each region's sequence (the first
+        non-missing value of each sequence is used). When ``df`` has it,
+        the gap after the last region is listed, and the same column in
+        the result holds each gap's length. When it does not, there is no
+        trailing gap and no length column.
 
-    if isinstance(include, list):
-        uncovered = uncovered.filter(include).reindex(df.columns, axis=1)
+    Returns
+    -------
+    pandas.DataFrame
+        One row per gap, sorted by ``reference`` and ``start``, with a
+        0..n-1 index; ``start`` and ``end`` are int64. Sequences with no
+        gap have no row. Empty when there are no gaps.
+
+    See Also
+    --------
+    rotifer.devel.alpha.sequence.complete.complete : adds these gaps to
+        the regions.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> regions = pd.DataFrame({'ID': ['s1', 's1', 's1'], 'start': [10, 20, 50],
+    ...                         'end': [30, 25, 80], 'length': [100, 100, 100]})
+    >>> complement(regions)
+       ID  start  end  length
+    0  s1      1    9       9
+    1  s1     31   49      19
+    2  s1     81  100      20
+    """
+    if isinstance(reference, str):
+        reference = [reference]
+    reference = list(reference)
+    n = len(df)
+    has_length = length in df.columns
+
+    # One code per sequence, in sorted order of the reference columns
+    if n:
+        seq = df.groupby(reference, sort=True, dropna=False).ngroup().to_numpy()
+    else:
+        seq = np.zeros(0, dtype=np.int64)
+    nseq = int(seq.max()) + 1 if n else 0
+    first_row = np.zeros(nseq, dtype=np.int64)
+    first_row[seq[::-1]] = np.arange(n)[::-1]
+
+    first = pd.to_numeric(df[start], errors='coerce').to_numpy(dtype='float64')
+    last = pd.to_numeric(df[end], errors='coerce').to_numpy(dtype='float64')
+    valid = ~np.isnan(first) & ~np.isnan(last) & (last >= first)
+    regions = pd.DataFrame({'seq': seq[valid], 'start': first[valid].astype(np.int64),
+                            'end': last[valid].astype(np.int64)})
+    regions = regions.sort_values(['seq', 'start'], kind='stable')
+
+    # Gaps before and between regions: a region starts after everything
+    # before it, in the same sequence, has ended.
+    reach = regions.groupby('seq')['end'].cummax()
+    before = reach.groupby(regions['seq']).shift(1).fillna(0).astype(np.int64)
+    inner = regions['start'] > before + 1
+    pieces = [pd.DataFrame({'seq': regions['seq'][inner], 'start': (before + 1)[inner],
+                            'end': regions['start'][inner] - 1})]
+
+    # Gap after the last region, when the sequence length is known
+    if has_length:
+        size = pd.Series(pd.to_numeric(df[length], errors='coerce').to_numpy()).groupby(seq).first()
+        covered = reach.groupby(regions['seq']).max().reindex(range(nseq), fill_value=0)
+        size = size.reindex(range(nseq))
+        tail = size.notna() & (covered + 1 <= size)
+        pieces.append(pd.DataFrame({'seq': np.flatnonzero(tail.to_numpy()),
+                                    'start': (covered + 1)[tail].to_numpy(),
+                                    'end': size[tail].to_numpy().astype(np.int64)}))
+
+    gaps = pd.concat(pieces, ignore_index=True).astype({'seq': np.int64, 'start': np.int64, 'end': np.int64})
+    gaps = gaps.sort_values(['seq', 'start'], kind='stable').reset_index(drop=True)
+
+    result = df[reference].iloc[first_row[gaps['seq'].to_numpy()]].reset_index(drop=True)
+    result[start] = gaps['start'].to_numpy()
+    result[end] = gaps['end'].to_numpy()
+    if has_length:
+        result[length] = (gaps['end'] - gaps['start'] + 1).to_numpy()
+
+    if isinstance(include, (list, tuple)):
+        result = result.reindex(columns=list(include))
     elif include:
-        uncovered = uncovered.reindex(df.columns, axis=1)
+        result = result.reindex(columns=df.columns)
 
-    if isinstance(exclude, list):
-        uncovered = uncovered.drop(exclude, axis=1)
+    if isinstance(exclude, (list, tuple, set)):
+        result = result.drop(columns=[c for c in exclude if c in result.columns])
 
     if isinstance(add, dict):
-        for keys in values.keys():
-            uncovered[keys] = values[keys]
+        for column, value in add.items():
+            result[column] = value
 
-    return uncovered
-
+    return result
