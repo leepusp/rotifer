@@ -341,7 +341,9 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     Returns
     -------
     pandas.DataFrame or pandas.Series
-        Same shape and index as ``data``, holding the coloured strings.
+        Same shape and index as ``data``, holding the coloured strings. A
+        missing value (NaN or None) is an empty string, padded to the column
+        width when ``padding`` is given.
 
     Raises
     ------
@@ -407,6 +409,11 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
         if explicit:
             return f'\033[38;5;{color}m{s}\033[m'
         return f'\033[39;5;{default_color}m{s}\033[m'
+
+    # Missing values (NaN or None) become '' first, so that padding fills them to the
+    # column width like any other empty value.
+    if isinstance(data, (pd.DataFrame, pd.Series)):
+        data = data.mask(data.isna(), '')
 
     # Forcing all data to be of the same length
     if padding:

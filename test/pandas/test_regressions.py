@@ -86,3 +86,43 @@ def test_to_color_map_entry_equal_to_default_code_is_explicit():
     # "not in the map" and written as 39;5;000 instead of 38;5;000.
     out = rpf.to_color(pd.Series(['AB']), colors={'A': '000'})
     assert out.tolist() == ['\x1b[38;5;000mA\x1b[m\x1b[39;5;000mB\x1b[m']
+
+
+def test_to_color_renders_missing_values_as_empty_string():
+    # Bug: a NaN or None value raised TypeError ('float' object is not iterable) without
+    # padding. Without padding a missing value is ''; with padding it is filled to the
+    # column width like any other empty value, coloured the same way as its padding.
+    series = pd.Series(['A', None, float('nan')])
+    out = rpf.to_color(series, colors={'A': '196'})
+    assert out.tolist() == ['\x1b[38;5;196mA\x1b[m', '', '']
+    frame = rpf.to_color(pd.DataFrame({'x': ['A', None]}), colors={'A': '196'})
+    assert frame['x'].tolist() == ['\x1b[38;5;196mA\x1b[m', '']
+    padded = rpf.to_color(pd.Series(['AB', None]), colors={'A': '196'}, padding='right')
+    assert padded.tolist() == rpf.to_color(pd.Series(['AB', '  ']), colors={'A': '196'}).tolist()
+    assert padded.iloc[1] == '\x1b[39;5;000m \x1b[m\x1b[39;5;000m \x1b[m'
+
+
+def test_default_block_rows_warns_once_at_the_caller():
+    # Bug: the internal default_header(df, ...) call emitted a second FutureWarning
+    # pointing inside the library, so the caller saw two warnings, one of them misplaced.
+    import warnings
+    df = pd.DataFrame({'g': ['A', 'A', 'B'], 'v': [1, 2, 3]})
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        rp.default_block_rows(df, groupby='g', columns=['v'], stats={'v': 'sum'})
+    warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+    assert len(warns) == 1
+    assert warns[0].filename == __file__
+    assert '2026-11-30 (issue #TBD)' in str(warns[0].message)
+
+
+def test_to_blocks_buf_path_round_trips_non_ascii_as_utf8(tmp_path):
+    # Bug: _io opened files with the locale encoding, so non-ASCII text was not UTF-8.
+    from rotifer.pandas._io import _read_source
+    df = pd.DataFrame({'g': ['Ação', 'Ação', 'Pão'], 'nome': ['José', 'Zoë', 'Ångström']})
+    kwargs = dict(groupby='g', columns=['nome'], stats={'nome': 'nunique'}, sortrows={})
+    target = tmp_path / 'blocks.txt'
+    assert rp.to_blocks(df, buf=target, **kwargs) is None
+    expected = rp.to_blocks(df, **kwargs)
+    assert target.read_bytes() == expected.encode('utf-8')
+    assert _read_source(str(target)) == expected

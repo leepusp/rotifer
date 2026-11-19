@@ -8,7 +8,7 @@ def _read_source(source):
     if hasattr(source, 'read'):
         return source.read()
     if isinstance(source, (str, os.PathLike)) and '\n' not in str(source) and os.path.exists(source):
-        with open(source) as fh:
+        with open(source, encoding='utf-8') as fh:
             return fh.read()
     return source
 
@@ -18,7 +18,7 @@ def _write_sink(text, buf):
     if buf is None:
         return text
     if isinstance(buf, (str, os.PathLike)):
-        with open(buf, 'w') as fh:
+        with open(buf, 'w', encoding='utf-8') as fh:
             fh.write(text)
         return None
     buf.write(text) # file-like object; caller closes it

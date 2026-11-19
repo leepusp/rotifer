@@ -7,7 +7,6 @@ rotifer.genome.blocks. These tests pin the text those presets produce.
 """
 
 import pandas as pd
-import pytest
 
 from rotifer.genome.data import NeighborhoodDF
 from rotifer.genome import blocks as presets

@@ -318,7 +318,7 @@ _TO_STRING_OPTIONS = ('index', 'na_rep', 'float_format', 'align', 'insert')
 def _deprecated(what, instead, stacklevel=2):
     """Warn with a FutureWarning that `what` goes away on REMOVAL; `instead` says what to use."""
     # stacklevel counts from the deprecated function: 2 is its caller.
-    warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL}; {instead}.',
+    warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL} (issue #TBD); {instead}.',
                   FutureWarning, stacklevel=stacklevel + 1)
 
 
@@ -432,7 +432,12 @@ def default_block_rows(df, groupby, header=default_header, colsep=" : ",
     """
     _deprecated('default_block_rows', 'to_blocks builds the blocks itself now', stacklevel=2)
     statDict = _resolve_stats(df, stats or {})
-    headerStr = header(df, groupby=groupby, stats=statDict, **kwargs)
+    if header is default_header:
+        # Build the header through the private helper: calling default_header(df, ...)
+        # would emit a second FutureWarning from inside the library.
+        headerStr = _legacy_header(df, groupby, statDict)
+    else:
+        headerStr = header(df, groupby=groupby, stats=statDict, **kwargs)
 
     block = df.copy()
     if sample and sample < len(block):
