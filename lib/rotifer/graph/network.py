@@ -1480,10 +1480,16 @@ def adjacency_edges(df,
     if replace is not None:
         w['source'] = w['source'].replace(replace, regex=replace_regex)
     if ignore is not None:
-        w = w[~w['source'].isin(list(ignore))].reset_index(drop=True)
+        ignored = [ignore] if isinstance(ignore, str) else list(ignore)
+        w = w[~w['source'].isin(ignored)].reset_index(drop=True)
 
-    nxt = w.shift(-1)
-    w = w.assign(target=nxt['source'])
+    # The target is the next row's label. Built from a numpy array so the
+    # label dtype is kept (shift() would upcast integer labels to float).
+    # The last row's target is a placeholder: it never has a same-block
+    # successor, so it is dropped below.
+    src = w['source'].to_numpy()
+    nxt = w[['block_id', 'pid']].shift(-1)
+    w = w.assign(target=np.concatenate([src[1:], src[-1:]]))
     same_block = (w['block_id'] == nxt['block_id']).to_numpy()
     fusion = same_block & (w['pid'] == nxt['pid']).to_numpy()
     w = w.loc[same_block, ['block_id', 'pid', 'source', 'target']].assign(

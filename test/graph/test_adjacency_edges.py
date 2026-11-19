@@ -101,6 +101,18 @@ def test_ignore_makes_neighbors_adjacent():
     assert rows(e) == [('A', 'B', 'neighbor', 1, 1)]
 
 
+def test_ignore_string_is_one_label():
+    e = adjacency_edges(frame(['A', 'N', 'NA', 'B']), ignore='NA')
+    assert rows(e) == [('A', 'N', 'neighbor', 1, 1), ('N', 'B', 'neighbor', 1, 1)]
+
+
+def test_integer_labels_keep_dtype():
+    e = adjacency_edges(frame([1, 2, 3]), separator=None)
+    assert e['target'].dtype == e['source'].dtype
+    assert all(isinstance(v, int) for v in e['target'])
+    assert rows(e) == [(1, 2, 'neighbor', 1, 1), (2, 3, 'neighbor', 1, 1)]
+
+
 def test_replace_mapping_then_ignore():
     e = adjacency_edges(frame(['A', 'B', 'C']), replace={'B': 'Z'}, ignore=['Z'])
     assert rows(e) == [('A', 'C', 'neighbor', 1, 1)]

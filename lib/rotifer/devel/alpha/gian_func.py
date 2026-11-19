@@ -3467,7 +3467,7 @@ def to_html2(seqobj, output, background = 'black', columns =[], consensus=(50,60
     else:
         columns = columns.append(['id','html'] )
     from rotifer.pandas import pad
-    my_text = pad(s.df[columns], side='right', na_rep='', header=True).to_csv(sep="\t", index=None, header = None)
+    my_text = pad(s.df[columns], side='right', na_rep='', header=False).to_csv(sep="\t", index=None, header = None)
     """
     Save the MSA as HTML file
     
