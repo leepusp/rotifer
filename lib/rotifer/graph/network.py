@@ -5,7 +5,8 @@ Two domains are related when they occur in the same conserved gene
 neighbourhood (a "block"): either fused in one protein, or in different
 genes of the block. :func:`get_relations` turns a table of domain hits
 into such relations (:func:`adjacency_edges` does the same for adjacent
-features only), :func:`network_annotation` makes a styled networkx
+features only, and :func:`overlap_edges` relates whole blocks by the
+members they share), :func:`network_annotation` makes a styled networkx
 graph from them, :func:`calculate_positions` lays the graph out for
 :func:`rotifer.view.network.network_dash`, the interactive viewer, and
 :func:`get_network_community`, :func:`community_stability`,
@@ -30,6 +31,7 @@ here contacts a remote service.
 import networkx as nx
 import numpy as np
 import pandas as pd
+import scipy.sparse
 import warnings
 
 def network_annotation(networkdf,
@@ -1507,3 +1509,210 @@ def adjacency_edges(df,
     keys = ['source', 'target'] + (['interaction'] if interaction else [])
     edges = w.groupby(keys).agg(**stats).reset_index()
     return edges.sort_values(keys).reset_index(drop=True)
+
+def _overlap_pairs(incidence, sizes, metric, min_weight, block=1000):
+    """
+    Score every pair of groups that share a member, a slice of rows at a time.
+
+    Parameters
+    ----------
+    incidence : scipy.sparse.csr_matrix
+        Group-by-member matrix with one row per group and one column per
+        member, holding 1 where the group has the member and nothing
+        elsewhere. Every group appears once and every member at most once
+        per group, so a row sum is a group size.
+    sizes : numpy.ndarray
+        Number of members of each group, in row order: the row sums of
+        ``incidence``, as integers.
+    metric : {'count', 'jaccard', 'overlap'}
+        Score of a pair, as described in :func:`overlap_edges`. Not
+        checked here.
+    min_weight : float
+        Pairs scoring less than this are dropped, slice by slice.
+    block : int, default 1000
+        Number of rows multiplied against the whole matrix in one step.
+        Smaller values use less memory per step and need more steps; the
+        result does not depend on it.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(rows, cols, shared, weight)``, four arrays of the same length
+        with one entry per kept pair. ``rows`` and ``cols`` are row
+        indices of ``incidence`` with ``rows < cols``, so each pair
+        appears once and no group is paired with itself. ``shared`` is
+        the number of members the two groups have in common (int64) and
+        ``weight`` the score (int64 for ``'count'``, float64 otherwise).
+        Pairs are ordered by ``rows``, then ``cols``.
+
+    Notes
+    -----
+    Only the upper triangle of each slice of the product is kept, and
+    the slice is filtered before the next one is computed, so memory
+    follows the number of kept pairs rather than the square of the
+    number of groups. A member found in nearly every group still makes
+    each slice nearly dense, ``block`` times the number of groups.
+    """
+    n = incidence.shape[0]
+    transposed = incidence.T.tocsr()
+    kept = []
+    for start in range(0, n, block):
+        stop = min(start + block, n)
+        shared = (incidence[start:stop] @ transposed).tocoo()
+        rows = shared.row.astype(np.int64) + start
+        cols = shared.col.astype(np.int64)
+        count = shared.data.astype(np.int64)
+        upper = cols > rows
+        rows, cols, count = rows[upper], cols[upper], count[upper]
+        if metric == 'count':
+            weight = count
+        elif metric == 'jaccard':
+            weight = count / (sizes[rows] + sizes[cols] - count)
+        else:
+            weight = count / np.minimum(sizes[rows], sizes[cols])
+        good = weight >= min_weight
+        kept.append((rows[good], cols[good], count[good], weight[good]))
+
+    wtype = np.int64 if metric == 'count' else np.float64
+    if not kept:
+        empty = np.empty(0, dtype=np.int64)
+        return empty, empty.copy(), empty.copy(), np.empty(0, dtype=wtype)
+    rows, cols, count, weight = (np.concatenate(a) for a in zip(*kept))
+    order = np.lexsort((cols, rows))
+    return rows[order], cols[order], count[order], weight[order].astype(wtype, copy=False)
+
+
+def overlap_edges(df, group, member, *, metric='jaccard', min_members=1, min_weight=0):
+    """
+    List the pairs of groups that share members, scored by their overlap.
+
+    ``df`` is read as a long table that assigns members to groups, for
+    example the protein clusters (members) found in each gene
+    neighbourhood (group). Each pair of groups with at least one member in
+    common becomes an edge, weighted by the number of shared members or by
+    an overlap index between their member sets.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        One row per (group, member) assignment. Rows in which either
+        column is missing are ignored, and a member listed more than once
+        for the same group counts once. It is not modified.
+    group : hashable
+        Column with the group labels, which become ``source`` and
+        ``target``. The labels must be sortable against each other.
+    member : hashable
+        Column with the member labels.
+    metric : {'jaccard', 'count', 'overlap'}, default 'jaccard'
+        Score of a pair of groups with member sets A and B:
+
+        - ``'jaccard'``: :math:`|A \\cap B| / |A \\cup B|`, the Jaccard
+          index [1]_, from 0 (nothing shared) to 1 (same members).
+        - ``'count'``: :math:`|A \\cap B|`, the number of shared members.
+        - ``'overlap'``: :math:`|A \\cap B| / \\min(|A|, |B|)`, the
+          overlap coefficient, which is 1 when one set contains the other.
+    min_members : int, default 1
+        Groups with fewer distinct members than this are left out before
+        pairs are made.
+    min_weight : float, default 0
+        Pairs whose score is lower than this are left out. Pairs that
+        share no member are never listed, whatever this value.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per pair of groups, sorted by ``source`` and ``target``,
+        with the columns:
+
+        - ``source``, ``target``: the two group labels, ``source`` being
+          the one that sorts first. A group is never paired with itself.
+        - ``shared``: the number of members the two groups have in
+          common (int64).
+        - ``weight``: the score chosen by ``metric`` (int64 for
+          ``'count'``, float64 otherwise).
+
+        The frame is empty, with these columns, when no pair is kept.
+
+    Raises
+    ------
+    KeyError
+        If ``group`` or ``member`` is not a column of ``df``.
+    ValueError
+        If ``metric`` is not one of the three names, ``min_members`` is
+        lower than 1, or ``min_weight`` is negative.
+
+    See Also
+    --------
+    adjacency_edges : Edges between features that are next to each other
+        in a block.
+    clique_jaccard_community : Jaccard index between maximal cliques of a
+        graph.
+    rotifer.genome.data.NeighborhoodDF.jaccard : Applies this function to
+        the protein clusters of each neighbourhood and finds communities.
+
+    Notes
+    -----
+    The groups and members are turned into a sparse incidence matrix, and
+    the shared counts are its product with its own transpose. That
+    product is computed a slice of groups at a time and each slice is
+    filtered by ``min_weight`` before the next one, so a high
+    ``min_weight`` keeps memory low. Members present in almost every
+    group are the expensive case: they make nearly every pair share
+    something, and the number of pairs grows with the square of the
+    number of groups.
+
+    References
+    ----------
+    .. [1] Jaccard, P. "The distribution of the flora in the alpine zone."
+       New Phytol. 11, 37-50 (1912).
+       https://doi.org/10.1111/j.1469-8137.1912.tb05611.x
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({
+    ...     'block': ['b1', 'b1', 'b1', 'b2', 'b2', 'b3', 'b3'],
+    ...     'cluster': ['A', 'B', 'C', 'A', 'B', 'B', 'D']})
+    >>> overlap_edges(df, 'block', 'cluster')
+      source target  shared    weight
+    0     b1     b2       2  0.666667
+    1     b1     b3       1  0.250000
+    2     b2     b3       1  0.333333
+    >>> overlap_edges(df, 'block', 'cluster', metric='count', min_weight=2)
+      source target  shared  weight
+    0     b1     b2       2       2
+    """
+    missing = [c for c in (group, member) if c not in df.columns]
+    if missing:
+        raise KeyError(f"columns missing from df: {missing}")
+    if metric not in ('jaccard', 'count', 'overlap'):
+        raise ValueError(
+            f"metric must be 'jaccard', 'count' or 'overlap', got {metric!r}")
+    if min_members < 1:
+        raise ValueError(f"min_members must be at least 1, got {min_members}")
+    if min_weight < 0:
+        raise ValueError(f"min_weight must not be negative, got {min_weight}")
+
+    pairs = df[[group, member]].dropna().drop_duplicates()
+    g_codes, g_labels = pd.factorize(pairs[group], sort=True)
+    sizes = np.bincount(g_codes, minlength=len(g_labels))
+
+    # Re-index the surviving groups so the matrix has no empty rows and
+    # keeps the sorted label order.
+    keep = sizes >= min_members
+    new_index = np.cumsum(keep) - 1
+    rows_kept = keep[g_codes]
+    g_codes = new_index[g_codes[rows_kept]]
+    g_labels = g_labels[keep]
+    sizes = sizes[keep]
+    m_codes, m_labels = pd.factorize(pairs[member].to_numpy()[rows_kept], sort=True)
+
+    incidence = scipy.sparse.csr_matrix(
+        (np.ones(len(g_codes), dtype=np.int64), (g_codes, m_codes)),
+        shape=(len(g_labels), len(m_labels)))
+    rows, cols, shared, weight = _overlap_pairs(
+        incidence, sizes.astype(np.int64), metric, min_weight)
+    return pd.DataFrame({
+        'source': g_labels.take(rows),
+        'target': g_labels.take(cols),
+        'shared': shared,
+        'weight': weight})
