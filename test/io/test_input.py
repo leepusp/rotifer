@@ -42,3 +42,9 @@ def test_strip_suffix():
 @pytest.mark.parametrize("value,expected", [("0.4", True), (".5", True), ("1e-2", True), ("10", False), (10, False)])
 def test_written_as_fraction(value, expected):
     assert written_as_fraction(value) is expected
+
+def test_each_source_accepts_path_objects(tmp_path):
+    """A pathlib.Path is one file, and its name comes back as a string."""
+    path = tmp_path / "a.txt"
+    path.write_text("a")
+    assert [(name, handle.read()) for name, handle in each_source(path)] == [(str(path), "a")]

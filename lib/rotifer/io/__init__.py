@@ -41,7 +41,8 @@ def each_source(source):
     if hasattr(source, "read"):
         yield getattr(source, "name", STDIN), source
         return
-    for path in [source] if isinstance(source, str) else source:
+    for path in [source] if isinstance(source, (str, os.PathLike)) else source:
+        path = os.fspath(path)
         with open_input(path) as handle:
             yield path, handle
 

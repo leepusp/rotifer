@@ -66,7 +66,10 @@ def _cleaners(clean):
             if cleaner not in CLEANERS:
                 raise ValueError(f"unknown cleaner {cleaner!r}: use one of {', '.join(CLEANERS)} or a function")
             cleaner = CLEANERS[cleaner]
-        functions.setdefault(_TARGETS[target], cleaner)
+        if _TARGETS[target] in functions:
+            raise ValueError(f"two cleaners for {_TARGETS[target]!r}: use either model or query, "
+                             "and either sequence or hit")
+        functions[_TARGETS[target]] = cleaner
     return functions
 
 def parse_hmmer(handle, evalue=None, clean=None, force_basename=None, filename=None):
@@ -90,6 +93,8 @@ def parse_hmmer(handle, evalue=None, clean=None, force_basename=None, filename=N
     filename : str, optional
         Name of the report, required by ``force_basename``.
     """
+    if force_basename and filename is None:
+        raise ValueError("force_basename needs the report's filename")
     cleaners = _cleaners(clean)
     query = hit = qlen = program = None
     iteration = 1

@@ -49,3 +49,15 @@ def test_force_basename(tmp_path):
     report.write_text(golden.read("inputs/hmmsearch.out"))
     df = hmmer.read_hmmer(str(report), force_basename=[r"\.hmmsearch"])
     assert set(df.model) == {"PF00072"}
+
+def test_two_cleaners_for_one_target_are_rejected():
+    """model and query name the same target; giving both used to drop one silently."""
+    with pytest.raises(ValueError, match="two cleaners"):
+        hmmer.read_hmmer(os.path.join(golden.INPUTS, "hmmscan.out"),
+                         clean={"model": "version", "query": "profiledb"})
+
+def test_force_basename_needs_a_filename():
+    """Without the report's name there is nothing to take the model name from."""
+    with open(os.path.join(golden.INPUTS, "hmmscan.out")) as handle:
+        with pytest.raises(ValueError, match="filename"):
+            list(hmmer.parse_hmmer(handle, force_basename=[r"\.out"]))
