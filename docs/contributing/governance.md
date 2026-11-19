@@ -36,6 +36,7 @@ MUST, SHOULD and MAY are used as defined in the {doc}`policy`.
   https://github.com/leepbioinfo
 - castlelli: https://github.com/castlelli
 - EdwardNSeven: https://github.com/EdwardNSeven
+- andreaniml: https://github.com/andreaniml
 
 ## How decisions are made
 

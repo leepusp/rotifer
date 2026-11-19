@@ -107,8 +107,8 @@ edit rulesets in the web interface.
 ## Who can bypass
 
 The bypass list names the `admin` repository role. At the time of
-writing the admins are leepbioinfo and castlelli. EdwardNSeven is a
-maintainer with the `write` role, so they cannot use the emergency
-bypass until an admin changes their role in the repository's
-collaborator settings. Any use of the bypass is subject to the
+writing the admins are leepbioinfo and castlelli. EdwardNSeven and
+andreaniml are maintainers with the `write` role, so they cannot use
+the emergency bypass until an admin changes their role in the
+repository's collaborator settings. Any use of the bypass is subject to the
 follow-up rule in the {doc}`policy`.
