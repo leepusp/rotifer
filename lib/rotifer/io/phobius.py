@@ -25,10 +25,25 @@ def accession(identifier):
     """
     Extract the accession from a sequence identifier.
 
-    Region suffixes (``/10-200``, ``:10..200``) are removed. Plain
-    identifiers are returned as they are; for pipe-separated identifiers
-    (``gi|123|ref|NP_1.1|``, ``sp|P12345|NAME``) the second field is
-    returned. Returns an empty string when nothing can be extracted.
+    Parameters
+    ----------
+    identifier : str
+        A sequence identifier as Phobius prints it.
+
+    Returns
+    -------
+    str
+        The identifier without a region suffix (``/10-200``, ``:10..200``,
+        ``|10-200``). A plain identifier is returned as it is; for a
+        pipe-separated one (``gi|123|ref|NP_1.1|``, ``sp|P12345|NAME``) the
+        second field is returned. An empty string when the first or second
+        field is empty.
+
+    Examples
+    --------
+    >>> from rotifer.io.phobius import accession
+    >>> accession("sp|P12345|NAME"), accession("NP_414542.1/10-200")
+    ('P12345', 'NP_414542.1')
     """
     identifier = _REGION.sub('', identifier)
     fields = [field.strip() for field in split_fields(identifier, r'\|')]
@@ -40,15 +55,30 @@ def accession(identifier):
 
 def parse_phobius(handle, evalue='0'):
     """
-    Parse a Phobius report and yield one row (a list of strings) per
-    signal peptide or transmembrane segment, in ``COLUMNS`` order.
+    Parse a Phobius report and yield one row per signal peptide or TM segment.
 
     Parameters
     ----------
     handle : iterable of str
-        Lines of a Phobius report in the default (long) format.
+        Lines of a Phobius report in the default (long) format. Only ``ID``
+        lines and ``FT`` lines for ``SIGNAL`` and ``TRANSMEM`` are read.
     evalue : str or float, default '0'
-        Value written in the E-value column of every row.
+        Text written in the ``evalue`` column of every row. Phobius gives no
+        E-value; this one lets the rows pass E-value filters when they are
+        merged with HMMER or BLAST domains.
+
+    Yields
+    ------
+    list of str
+        ``[sequence, domain, start, end, evalue]``, with ``domain`` ``SP``
+        or ``TM`` and the sequence's accession from :func:`accession`.
+
+    Examples
+    --------
+    >>> from rotifer.io.phobius import parse_phobius
+    >>> with open("test/data/golden/inputs/phobius.out") as handle:
+    ...     next(parse_phobius(handle))
+    ['NP_414546.1', 'SP', '1', '23', '0']
     """
     evalue = str(evalue)
     sequence = ''
@@ -68,19 +98,32 @@ def read_phobius(source, evalue=0):
 
     Parameters
     ----------
-    source : str, list of str or file object
-        Report file name(s) or an open report.
+    source : str, os.PathLike, list of them, or file object
+        Report file name(s) (``-`` is standard input; ``.gz`` and ``.bz2``
+        are decompressed) or an open report. A single string is one file.
     evalue : float, default 0
-        Value of the E-value column.
+        Value of the ``evalue`` column (see :func:`parse_phobius`).
 
     Returns
     -------
-    pandas.DataFrame with ``COLUMNS``
+    pandas.DataFrame
+        One row per signal peptide or TM segment, in report order, with
+        :data:`COLUMNS`: ``sequence`` and ``domain`` (str), ``start`` and
+        ``end`` (int64), ``evalue`` (float64). Empty, with these columns,
+        when the reports have no such segment.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a report does not exist.
 
     Examples
     --------
     >>> from rotifer.io.phobius import read_phobius
-    >>> tm = read_phobius("seqs.phobius.out", evalue=0.0101)
+    >>> read_phobius("test/data/golden/inputs/phobius.out", evalue=0.0101).head(2)
+          sequence domain  start  end  evalue
+    0  NP_414546.1     SP      1   23  0.0101
+    1  NP_414548.1     TM     12   30  0.0101
     """
     import pandas as pd
     from rotifer.io import each_source

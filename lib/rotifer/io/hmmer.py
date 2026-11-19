@@ -56,7 +56,25 @@ _DOMAIN = re.compile(r'^\s+\d+\s+[?!]\s+')
 
 def _cleaners(clean):
     """
-    Turn ``{target: cleaner}`` into ``{'model'|'sequence': function}``.
+    Resolve ``clean`` into one function per target.
+
+    Parameters
+    ----------
+    clean : dict or None
+        Maps ``model`` (alias ``query``) or ``sequence`` (alias ``hit``) to
+        the name of a pre-defined cleaner (see :data:`CLEANERS`) or to a
+        function taking and returning a string. None means no cleaning.
+
+    Returns
+    -------
+    dict
+        ``{'model' or 'sequence': function}``.
+
+    Raises
+    ------
+    ValueError
+        If a target or a cleaner name is unknown, or if one target is given
+        twice (``model`` and ``query``, or ``sequence`` and ``hit``).
     """
     functions = {}
     for target, cleaner in (clean or {}).items():
@@ -74,24 +92,57 @@ def _cleaners(clean):
 
 def parse_hmmer(handle, evalue=None, clean=None, force_basename=None, filename=None):
     """
-    Parse one HMMER 3 report and yield one row (a list of strings) per
-    domain, in ``COLUMNS`` order.
+    Parse a HMMER 3 report and yield one row per domain.
+
+    Rows are lists of strings in :data:`COLUMNS` order, written as
+    ``hmmer2table`` writes them. Domains are read from the "Domain
+    annotation for each ..." sections. For hmmscan the query is the
+    sequence and the hits are models; for hmmsearch, phmmer and jackhmmer
+    it is the reverse, and ``sequence`` and ``model`` are swapped so that
+    ``sequence`` is always the protein. ``cov`` is the fraction of the query
+    covered (the sequence for hmmscan, the model otherwise), with two
+    decimals. ``talilen`` is ``end - start``, one less than the aligned
+    length, as the Perl tool wrote it.
 
     Parameters
     ----------
     handle : iterable of str
-        Lines of a HMMER report (an open file, for example).
+        Lines of a HMMER report (an open file, for example). Several
+        concatenated reports are read in turn.
     evalue : float, optional
-        Skip domains whose independent E-value is above this cutoff.
+        Skip domains whose independent E-value is above this value (the
+        cutoff is inclusive). None keeps every domain.
     clean : dict, optional
-        Identifier cleaners, mapping ``model`` (alias ``query``) or
-        ``sequence`` (alias ``hit``) to the name of a pre-defined cleaner
-        (see ``CLEANERS``) or to a function taking and returning a string.
+        Identifier cleaners: ``model`` (alias ``query``) or ``sequence``
+        (alias ``hit``) mapped to the name of a pre-defined cleaner (see
+        :data:`CLEANERS`) or to a function taking and returning a string.
     force_basename : list of str, optional
-        Replace the model name by the report's file name without these
-        suffixes (regular expressions).
+        Replace the model name with the report's file name without the
+        first of these suffixes (regular expressions) that matches.
     filename : str, optional
-        Name of the report, required by ``force_basename``.
+        Name of the report; required by ``force_basename``.
+
+    Yields
+    ------
+    list of str
+        One domain, in :data:`COLUMNS` order.
+
+    Raises
+    ------
+    ValueError
+        If ``force_basename`` is given without ``filename``, or ``clean``
+        is invalid (see :func:`_cleaners`).
+
+    Notes
+    -----
+    A domain line without 16 fields is still read, and a warning is logged.
+
+    Examples
+    --------
+    >>> from rotifer.io.hmmer import parse_hmmer
+    >>> with open("test/data/golden/inputs/hmmscan.out") as handle:
+    ...     next(parse_hmmer(handle))
+    ['NP_414542.1', 'Leader_Thr', '1', '21', '1.2e-10', '1.00', '1', '23', '1', '41.6', '20', '21', '1', '21', 'hmmscan']
     """
     if force_basename and filename is None:
         raise ValueError("force_basename needs the report's filename")
@@ -155,20 +206,36 @@ def read_hmmer(source, evalue=None, clean=None, force_basename=None):
 
     Parameters
     ----------
-    source : str, list of str or file object
-        Report file name(s) (``.gz`` and ``.bz2`` are decompressed) or an
-        open report.
+    source : str, os.PathLike, list of them, or file object
+        Report file name(s) (``-`` is standard input; ``.gz`` and ``.bz2``
+        are decompressed) or an open report. A single string is one file.
     evalue, clean, force_basename
-        See ``parse_hmmer``.
+        See :func:`parse_hmmer`. With ``force_basename`` the model name comes
+        from each file's name.
 
     Returns
     -------
-    pandas.DataFrame with ``COLUMNS``
+    pandas.DataFrame
+        One row per domain, in report order, with :data:`COLUMNS`:
+        ``sequence``, ``model`` and ``program`` are str; ``evalue``, ``cov``
+        and ``score`` float64; the others int64. The frame is empty, with
+        these columns and dtypes, when no domain passes.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a report does not exist.
+    ValueError
+        See :func:`parse_hmmer`.
 
     Examples
     --------
     >>> from rotifer.io.hmmer import read_hmmer
-    >>> df = read_hmmer("seqs.hmmscan.out", clean={'model': 'version'})
+    >>> df = read_hmmer("test/data/golden/inputs/hmmscan.out", clean={"model": "version"})
+    >>> df.iloc[:2, :6]
+          sequence          model  start  end        evalue   cov
+    0  NP_414542.1     Leader_Thr      1   21  1.200000e-10  1.00
+    1  NP_414543.1  Homoserine_dh    296  353  7.300000e+03  0.07
     """
     import pandas as pd
     from rotifer.io import each_source
