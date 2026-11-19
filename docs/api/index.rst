@@ -60,6 +60,7 @@ Genomes and annotation
    :toctree: generated
 
    rotifer.genome
+   rotifer.genome.blocks
    rotifer.genome.data
    rotifer.genome.database
    rotifer.genome.db.clickhouse
@@ -96,6 +97,10 @@ Data manipulation and taxonomy
    :toctree: generated
 
    rotifer.pandas
+   rotifer.pandas.text
+   rotifer.pandas.blocks
+   rotifer.pandas.yaml_blocks
+   rotifer.pandas.display
    rotifer.pandas.functions
    rotifer.taxonomy
    rotifer.taxonomy.utils
