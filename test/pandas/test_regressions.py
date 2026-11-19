@@ -12,3 +12,9 @@ def test_to_blocks_writes_to_path_buf(tmp_path):
     target = tmp_path / 'out.txt'
     assert rp.to_blocks(df, buf=target, **kwargs) is None
     assert target.read_text() == rp.to_blocks(df, **kwargs)
+
+
+def test_to_color_dataframe_uses_map_not_applymap():
+    # Bug: to_color called DataFrame.applymap, removed in pandas 3 -> AttributeError.
+    df = pd.DataFrame({'s': ['AC', 'GT']})
+    assert rpf.to_color(df)['s'].tolist() == rpf.to_color(df['s']).tolist()

@@ -88,7 +88,7 @@ def to_color(data, colors=config['colors'], style='fg', padding=None, fillchar='
 
     # Color the data
     if isinstance(data,pd.DataFrame):
-        data = data.applymap(lambda x: ''.join([color_res(y, color_switch[style]) for y in x]))
+        data = data.map(lambda x: ''.join([color_res(y, color_switch[style]) for y in x]))
     elif isinstance(data,pd.Series):
         data = data.map(lambda x: ''.join([color_res(y, color_switch[style]) for y in x]))
 
