@@ -72,8 +72,13 @@ LOADER = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
 # A pipe that is not backslash-escaped, for splitting rows into cells.
 _CELL_RE = re.compile(r'(?<!\\)\|')
 _RULE_RE = re.compile(r'^\s*\|[\s:|-]+\|\s*$')
+# A line break (any of the characters PyYAML treats as one) and the blanks around it.
+_BREAK_ARROW = r'\s*[\r\n\x{85}\x{2028}\x{2029}]+\s*'
+_BREAK_RE = re.compile(r'\s*[\r\n\x85\u2028\u2029]+\s*', re.ASCII)
 # Rows buffered as Python strings before being packed into an arrow array.
 _CHUNK = 1 << 15
+# Rows of blocks rendered together by to_yaml, which bounds its Python-string memory.
+_BATCH = 1 << 15
 
 
 # --------------------------------------------------------------------- helpers
@@ -89,8 +94,13 @@ def _flow(value):
                           allow_unicode=True).strip()
 
 
+def _escape_text(text):
+    """Escape pipes and flatten line breaks in one string, as `_escape_columns` does for columns."""
+    return _BREAK_RE.sub(' ', text.replace('|', r'\|'))
+
+
 def _escape_columns(df):
-    """Convert each column of `df` to an arrow string array, escaping pipes and flattening newlines.
+    """Convert each column of `df` to an arrow string array, escaping pipes and flattening line breaks.
 
     This happens before padding, so column widths include the escape characters,
     and once for the whole frame, so blocks can be cut from the result.
@@ -99,7 +109,7 @@ def _escape_columns(df):
     for c in df.columns:
         arr = pa.Array.from_pandas(df[c].astype('string').fillna(''), type=pa.string())
         arr = pc.replace_substring(arr, '|', r'\|')
-        out.append(pc.replace_substring_regex(arr, r'\s*\n\s*', ' '))
+        out.append(pc.replace_substring_regex(arr, _BREAK_ARROW, ' '))
     return out
 
 
@@ -110,6 +120,7 @@ def _md_arrow(cols, names, indent=None):
     """
     if indent is None:
         indent = ' ' * config['indent']
+    names = [_escape_text(n) for n in names]
     padded, widths = pad_columns(cols, names)
     headers = [name.ljust(w) for name, w in zip(names, widths)]
     head = f'{indent}| ' + ' | '.join(headers) + ' |'
@@ -237,18 +248,16 @@ def _one_row_table(indent, names, cells):
             + f'{indent}| ' + ' | '.join(c.ljust(w) for c, w in zip(cells, widths)) + ' |')
 
 
-def _rows_table(indent, names, name_widths, rows, lengths, pos):
-    """The main table of one block: the rows at `pos`, padded to the block's widths."""
-    pos = pos.tolist()
-    widths = [max(nw, int(ln[pos].max())) if pos else nw
+def _rows_table(indent, names, name_widths, rows, lengths, lo, hi):
+    """The main table of one block: rows `lo` to `hi` of the batch, padded to the block's widths."""
+    widths = [max(nw, int(ln[lo:hi].max())) if hi > lo else nw
               for nw, ln in zip(name_widths, lengths)]
     lead = f'{indent}| '
     lines = [lead + ' | '.join(n.ljust(w) for n, w in zip(names, widths)) + ' |',
              lead + ' | '.join('-' * w for w in widths) + ' |']
-    if names and pos:
+    if names and hi > lo:
         line = lead + ' | '.join(f'%-{w}s' for w in widths) + ' |'
-        cols = [[r[p] for p in pos] for r in rows]
-        lines += [line % cells for cells in zip(*cols)]
+        lines += [line % cells for cells in zip(*[r[lo:hi] for r in rows])]
     return '\n'.join(lines)
 
 
@@ -316,9 +325,11 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
 
     Notes
     -----
-    Pipes inside cells are escaped as ``\\|`` and newlines are replaced by a space,
-    so a cell cannot break the table or the YAML block. Missing values become empty
-    cells. Aggregated values are written with ``str``.
+    Pipes inside cells, aggregated values and column names are escaped as ``\\|``
+    and line breaks (``\\n``, ``\\r``, ``\\x85``, U+2028, U+2029) are replaced by a
+    space, so none of them can break the table or the YAML block. Other control
+    characters, such as ``\\x00`` or ``\\x07``, are not supported: PyYAML rejects them.
+    Missing values become empty cells. Aggregated values are written with ``str``.
 
     Blocks appear in order of first appearance of their key unless `sortblocks` is
     given. `sortrows` never moves blocks. `sample` is drawn per block before
@@ -376,31 +387,47 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
     # row taken across columns would upcast an int next to a float. Each is turned
     # into its text once, for all blocks.
     indent = ' ' * config['indent']
-    agg = {table: ([str(c) for c in frame.columns],
-                   [[str(_py(v)) for v in frame.iloc[:, j].tolist()]
+    agg = {table: ([_escape_text(str(c)) for c in frame.columns],
+                   [[_escape_text(str(_py(v))) for v in frame.iloc[:, j].tolist()]
                     for j in range(frame.shape[1])])
            for table, frame in plan.tables.items()}
 
-    # The main table is cut from Python strings, converted once.
-    rows = [c.to_pylist() for c in cols]
+    names = [_escape_text(n) for n in names]
     heads = [len(n) for n in names]
-    lengths = [np.fromiter(map(len, r), dtype=np.int64, count=len(r)) for r in rows]
+    keys = plan.keys
 
     parts = [head]
-    for i, key in enumerate(plan.keys):
-        pos = plan.positions[key]
-
-        keylist = list(key) if isinstance(key, tuple) else [key]
-        block = [SEPARATOR, f'- key: {_flow_keys(keylist)}']
-        for table in tables:                      # in the order the caller named them
-            if table in agg:
-                heads_t, values = agg[table]
-                rendered = _one_row_table(indent, heads_t, [v[i] for v in values])
-            else:
-                rendered = md_table(plan.callbacks[table](df.take(pos)))
-            block.append(f'  {table}: |\n' + rendered)
-        block.append(f'  {name}: |\n' + _rows_table(indent, names, heads, rows, lengths, pos))
-        parts.append('\n'.join(block))
+    start = 0
+    while start < len(keys):
+        # Blocks are rendered in batches of about _BATCH rows: only those rows are
+        # taken from the arrow columns and converted to Python strings.
+        stop, total = start, 0
+        while stop < len(keys) and (stop == start or total < _BATCH):
+            total += len(plan.positions[keys[stop]])
+            stop += 1
+        batch = keys[start:stop]
+        taken = pa.array(np.concatenate([plan.positions[k] for k in batch]).astype(np.int64))
+        rows = [c.take(taken).to_pylist() for c in cols]
+        lengths = [np.fromiter(map(len, r), dtype=np.int64, count=len(r)) for r in rows]
+        offset = 0
+        for i, key in enumerate(batch, start):
+            pos = plan.positions[key]
+            n = len(pos)
+            keylist = list(key) if isinstance(key, tuple) else [key]
+            block = [SEPARATOR, f'- key: {_flow_keys(keylist)}']
+            for table in tables:                  # in the order the caller named them
+                if table in agg:
+                    heads_t, values = agg[table]
+                    rendered = _one_row_table(indent, heads_t, [v[i] for v in values])
+                else:
+                    rendered = md_table(plan.callbacks[table](df.take(pos)))
+                block.append(f'  {table}: |\n' + rendered)
+            block.append(f'  {name}: |\n' + _rows_table(indent, names, heads, rows, lengths,
+                                                         offset, offset + n))
+            parts.append('\n'.join(block))
+            offset += n
+        del rows, lengths, taken
+        start = stop
 
     text = sep.join(parts) + '\n'
 
@@ -424,7 +451,7 @@ class _Table:
 
 def _header_cells(line):
     """Column names of a markdown header line."""
-    return [c.strip() for c in line.split('|')][1:-1]
+    return [c.strip().replace('\\|', '|') for c in _CELL_RE.split(line)][1:-1]
 
 
 def _flush(table):
@@ -513,10 +540,12 @@ def _collect_rows(doc, groupcols, dropped):
 
 def _numeric(column):
     """Convert an arrow string column to a Series, numeric only if every present value parses."""
-    try:
-        return pd.Series(pc.cast(column, pa.int64()).to_numpy())
-    except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
-        pass
+    # cast() alone would also take hexadecimal such as 0x10
+    if pc.all(pc.match_substring_regex(column, r'^[+-]?[0-9]+$')).as_py():
+        try:
+            return pd.Series(pc.cast(column, pa.int64()).to_numpy())
+        except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
+            pass
     series = pd.Series(column, dtype='str')
     try:
         return pd.to_numeric(series)

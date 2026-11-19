@@ -136,3 +136,50 @@ def test_md_table_short_row_is_padded_and_long_row_rejected():
     assert df['a'].tolist() == [1] and df['b'].isna().all()
     with pytest.raises(ValueError):
         yb.read_md_table('| a |\n| - |\n| 1 | 2 |\n')
+
+
+# ---------------------------------------------------------- escaping and hex
+def test_pipe_in_an_aggregate_round_trips():
+    df = pd.DataFrame({'g': ['A', 'A'], 's': ['a|b'] * 2, 'n': [1, 2]})
+    out = yb.read_yaml(yb.to_yaml(df, 'g', stats={'s': 'max', 'n': 'sum'}), merge=None)
+    assert out['stats'].loc[0, 's'] == 'a|b'
+    assert out['stats'].loc[0, 'n'] == 3
+
+
+def test_pipe_and_newline_in_a_column_name_round_trip():
+    df = pd.DataFrame({'g': ['A', 'B'], 'x|y\nz': [1, 2], 'k': ['p', 'q']})
+    out = yb.read_yaml(yb.to_yaml(df, 'g'), merge=None)['rows']
+    assert list(out.columns) == ['g', 'x|y z', 'k']
+    assert out['x|y z'].tolist() == [1, 2]
+    assert out['k'].tolist() == ['p', 'q']
+
+
+def test_pipe_and_newline_in_an_aggregate_name_round_trip():
+    df = pd.DataFrame({'g': ['A', 'A'], 'v': [1, 2]})
+    out = yb.read_yaml(yb.to_yaml(df, 'g', stats={'a|b\nc': ('v', 'sum')}), merge=None)
+    assert out['stats'].loc[0, 'a|b c'] == 3
+
+
+@pytest.mark.parametrize('ch', ['\r', '\x85', ' ', ' ', '\r\n'])
+def test_line_break_characters_in_cells_become_a_space(ch):
+    df = pd.DataFrame({'g': ['A', 'A'], 't': [f'one{ch}two', 'three']})
+    out = yb.read_yaml(yb.to_yaml(df, 'g'), merge=None)['rows']
+    assert out['t'].tolist() == ['one two', 'three']
+
+
+def test_line_break_in_an_aggregate_becomes_a_space():
+    df = pd.DataFrame({'g': ['A', 'A'], 's': ['a\rb', 'a\rb']})
+    out = yb.read_yaml(yb.to_yaml(df, 'g', stats={'s': 'max'}), merge=None)
+    assert out['stats'].loc[0, 's'] == 'a b'
+
+
+def test_hexadecimal_column_stays_text():
+    df = pd.DataFrame({'g': ['A', 'A'], 'h': ['0x10', '1']})
+    out = yb.read_yaml(yb.to_yaml(df, 'g'), merge=None)['rows']
+    assert out['h'].tolist() == ['0x10', '1']
+
+
+def test_signed_integers_are_still_numbers():
+    df = pd.DataFrame({'g': ['A', 'A'], 'i': ['+3', '-4']})
+    out = yb.read_yaml(yb.to_yaml(df, 'g'), merge=None)['rows']
+    assert out['i'].tolist() == [3, -4]
