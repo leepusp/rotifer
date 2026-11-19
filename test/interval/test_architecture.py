@@ -72,11 +72,13 @@ def test_library_chain_replaces_shell_pipeline():
     ("10", "A+B"),   # 10 residues are tolerated
 ])
 def test_overlap_modes(overlap, expected):
-    regions = [{"domain": "A", "start": "1", "end": "100", "length": 100, "evalue": "1e-10"},
-               {"domain": "B", "start": "91", "end": "110", "length": 20, "evalue": "1e-5"}]
-    assert arch.build_architecture(regions, overlap=overlap)[0] == expected
+    import pandas as pd
+    regions = pd.DataFrame({"sequence": ["p", "p"], "domain": ["A", "B"], "start": ["1", "91"],
+                            "end": ["100", "110"], "evalue": ["1e-10", "1e-5"]})
+    assert arch.domain2architecture(regions, overlap=overlap)["architecture"].tolist() == [expected]
 
 def test_nesting():
-    regions = [{"domain": "A", "start": "1", "end": "100", "length": 100, "evalue": "1e-10"},
-               {"domain": "B", "start": "20", "end": "40", "length": 21, "evalue": "1e-5"}]
-    assert arch.build_architecture(regions, ignore_overlap={"all"})[0] == "A[B]"
+    import pandas as pd
+    regions = pd.DataFrame({"sequence": ["p", "p"], "domain": ["A", "B"], "start": ["1", "20"],
+                            "end": ["100", "40"], "evalue": ["1e-10", "1e-5"]})
+    assert arch.domain2architecture(regions, ignore_overlap={"all"})["architecture"].tolist() == ["A[B]"]

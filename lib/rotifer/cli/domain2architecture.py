@@ -75,23 +75,22 @@ def add_arguments(parser):
                         help="output options: header=0, connector=<string>, columns=<comma-separated names>")
 
 def run(args):
-    from rotifer.interval.architecture import INPUT_COLUMNS, iter_architectures, parse_regions
+    from rotifer.interval.architecture import INPUT_COLUMNS, architecture_table, read_regions
     input_args = {"columns": ",".join(INPUT_COLUMNS), **dict(args.input_args)}
     output_args = {"header": "1", "connector": "+", "columns": "ID,architecture,regions,evalue",
                    **dict(args.output_args)}
-    data = {}
-    for path in input_files(args.files):
-        with open_input(path) as handle:
-            parse_regions(handle, data, evalue=args.evalue, target_cutoff=_mapping(args.target_cutoff),
-                          exclude=set(_words(args.exclude)), rename=_mapping(args.rename),
-                          columns=[c.strip() for c in input_args["columns"].split(",")],
-                          header=input_args.get("header", "0") not in ("", "0"),
-                          delimiter=args.delimiter)
+    regions = read_regions(input_files(args.files), evalue=args.evalue,
+                           target_cutoff=_mapping(args.target_cutoff),
+                           exclude=set(_words(args.exclude)), rename=_mapping(args.rename),
+                           columns=[c.strip() for c in input_args["columns"].split(",")],
+                           header=input_args.get("header", "0") not in ("", "0"),
+                           delimiter=args.delimiter)
     if output_args["header"] not in ("", "0"):
         sys.stdout.write(args.output_delimiter.join(c.strip() for c in output_args["columns"].split(",")) + "\n")
-    write_rows(iter_architectures(data, overlap=args.overlap, by_length=args.by_length,
-                                  ignore_overlap=set(_words(args.ignore_overlap)),
-                                  connector=output_args["connector"]))
+    table = architecture_table(regions, overlap=args.overlap, by_length=args.by_length,
+                               ignore_overlap=set(_words(args.ignore_overlap)),
+                               connector=output_args["connector"])
+    write_rows(table.itertuples(index=False, name=None))
     return 0
 
 def main(argv=None):

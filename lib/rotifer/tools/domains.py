@@ -50,12 +50,14 @@ def architecture_rows(region_rows, evalue=PHOBIUS_EVALUE):
     ``[ID, domain, start, end, evalue]`` as strings, preceded by a header
     row. This is ``domain2architecture | architecture2table``.
     """
-    from rotifer.interval.architecture import TABLE_COLUMNS, parse_regions, select_regions
-    data = parse_regions(('\t'.join(row) for row in region_rows), evalue=float(evalue))
+    import io
+    from rotifer.interval.architecture import TABLE_COLUMNS, read_regions, select_regions
+    lines = ''.join('\t'.join(row) + '\n' for row in region_rows)
+    regions = read_regions(io.StringIO(lines), evalue=float(evalue))
+    best = select_regions(regions, reference='sequence', domain='domain')
     yield list(TABLE_COLUMNS)
-    for sequence in sorted(data):
-        for region in select_regions(data[sequence]):
-            yield [sequence, region['domain'], region['start'], region['end'], region.get('evalue', '')]
+    for row in best.itertuples(index=False):
+        yield [row.sequence, row.domain, row.start, row.end, '' if row.evalue is None else row.evalue]
 
 def pfam_rows(hmmscan_report, phobius_report):
     """
