@@ -105,8 +105,9 @@ def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
     if insert:
         df = df.copy()
         for data in insert:
-            if len(data) == 3:
-                df.insert(loc=data[0], column=data[1], value=data[2])
+            if len(data) != 3:
+                raise ValueError(f"insert entries must be (loc, column, value) tuples, got {data!r}")
+            df.insert(loc=data[0], column=data[1], value=data[2])
 
     columns = []
     if index:

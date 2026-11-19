@@ -40,3 +40,10 @@ def test_to_color_loads_colors_yaml_safely(tmp_path):
     unsafe.write_text('A: !!python/object/apply:os.getcwd []\n')
     with pytest.raises(yaml.YAMLError):
         rpf.to_color(pd.Series(['A']), colors=str(unsafe))
+
+
+def test_to_string_insert_rejects_malformed_entries():
+    # Bug: to_string silently skipped insert entries whose length was not 3.
+    df = pd.DataFrame({'a': [1]})
+    with pytest.raises(ValueError, match="insert entries must be"):
+        rp.to_string(df, insert=[(0, 'x')])
