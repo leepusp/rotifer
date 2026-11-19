@@ -42,7 +42,6 @@ body:
       description: If you're not sure, choose "Not sure" and describe below.
       options:
         - Python library (lib/rotifer)
-        - Perl library (perl/lib)
         - Command-line tool (bin/ or sbin/)
         - Installation / packaging (conda)
         - Documentation

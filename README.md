@@ -43,6 +43,52 @@ commands are written for a Unix shell such as bash or zsh.
 
 Download the source code and move into it:
 
+## Installation
+
+ROTIFER needs Python 3.11 or newer.
+
+### Python library only
+
+```Bash
+pip install "rotifer[all]"
+```
+
+`rotifer[all]` installs every optional dependency. To keep the install small,
+pick only the groups you need instead (e.g. `rotifer[seq,db]`):
+
+| extra | for |
+|-------|-----|
+| `seq` | `rotifer.seq`, `rotifer.genome` |
+| `db` | `rotifer.db`, `rotifer.alchemy` |
+| `viz` | `rotifer.cluster` and plots |
+| `network` | neighborhood graphs in `rotifer.genome` |
+| `cli` | the Python tools in `bin/` |
+
+pip also installs the commands ported from Perl (`hmmer2table`,
+`blast2table`, `rrsw`, `domain2architecture`, ...). Some of them run
+external programs, such as HMMER or Phobius, that you install separately.
+
+### Full toolset (library, command line tools and their programs)
+
+The tools in `bin/` call external programs (BLAST, HMMER, MMseqs2, ...) that
+pip cannot install. `environment.yml` installs them with conda, plus the
+library in editable mode:
+
+```Bash
+git clone https://github.com/leepusp/rotifer.git
+cd rotifer
+conda env create -f environment.yml
+conda activate rotifer
+```
+
+Then put the tools on your `PATH`, e.g. in
+`$CONDA_PREFIX/etc/conda/activate.d/rotifer.sh`:
+
+```Bash
+export PATH="/path/to/rotifer/bin:$PATH"
+```
+
+## Examples of use
 ```bash
 git clone https://github.com/leepusp/rotifer.git
 cd rotifer

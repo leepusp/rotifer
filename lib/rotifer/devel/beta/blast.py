@@ -637,13 +637,13 @@ def psiblast(acc,
             blast_r = f.read()
 
         # Blast2table
-        cmd = f'blast2table {out} > {out.replace(".out",".tsv")}'
-        Popen(cmd, stdout=PIPE, shell=True).communicate()
-        t = pd.read_csv(out.replace(".out",".tsv"), sep='\t', names=cols)
+        from rotifer.io.blast import read_blast
+        t = read_blast(out)
+        t.columns = cols
 
         # Cleanup
         if delete:
-            for temp in [out,out.replace(".out",".tsv")]:
+            for temp in [out]:
                 if os.path.exists(temp):
                     os.unlink(temp)
     return (t, blast_r) 

@@ -1,1 +1,0 @@
-tdesc.sh

@@ -1,13 +1,1 @@
-#!/usr/bin/env perl
-
-while (<>) {
-    if (/^>>>> *(\S+)/) {
-        $id = $1;
-    } elsif (/^-sequence *\"(\S+)$/) {
-        $s = $1;
-    } elsif (/^-compnd *\"(.+)\"$/) {
-        print ">$id $1\n$s\n";
-    }
-}
-
-exit 0;
+_rotifer_cli

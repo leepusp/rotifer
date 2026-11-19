@@ -1,0 +1,27 @@
+# Configuration files for rrsw are YAML files
+#
+# For details on the syntax see
+#  - http://www.yaml.org/
+#  - http://en.wikipedia.org/wiki/YAML
+#
+# Supported keys: include and exclude
+# Supported values: strings and (Python) regular expressions
+#
+# Exclude is processed before include therefore 
+# excluded patterns take precedence over included ones
+# 
+---
+include:
+ - \.hmm\.gz$
+ - Pfam-.\.gz$
+ - Pfam-A.seed.gz
+ - Pfam-B.tgz
+ - \.txt$
+ - Pfam-A.clans.tsv.gz
+ - Pfam-A.seed.gz
+ - Pfam.version.gz
+ - active_site.dat.gz
+
+exclude:
+ - proteomes
+ - database_files

@@ -1,0 +1,27 @@
+# Full ROTIFER toolset: the Python library with all extras and the command
+# line programs that bin/ and lib/rotifer run, which pip cannot install.
+#
+#   conda env create -f environment.yml
+#   conda activate rotifer
+#
+# Python dependencies are declared in pyproject.toml, not here.
+name: rotifer
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pip
+
+  # Programs called by bin/ and lib/rotifer
+  - blast
+  - famsa
+  - foldseek
+  - hhsuite
+  - hmmer
+  - mafft
+  - mmseqs2
+  - parallel
+
+  - pip:
+      - -e .[all]
