@@ -248,68 +248,127 @@ def architecture(df,
                 .rename('architecture')
                 .reset_index())
 
-def complement(df, include=True, exclude=False, add=False, reference='ID', start='start', end='end'):
-    
-    '''
-    Given a DataFrame describing regions in one-dimensional
-    reference systems, return a similar DataFrame describing
-    the set of regions required to fully cover all the length
-    of the references.
+def complement(df, include=True, exclude=False, add=False, reference='ID', start='start', end='end',
+               length='length'):
+    """
+    List the gaps between the regions of each sequence.
 
-    The input table is expected to include one or more columns
-    describing the reference object and a pair of integer columns
-    corresponding to the start and end positions of each region.
-
-    If a column with the length of each interval is supplied, the
-    last interval and the length of each fragment will be included
-    in the returned dataframe.
+    Each row of ``df`` is a region of the sequence named in ``reference``,
+    from ``start`` to ``end`` (inclusive, 1-based). Overlapping and nested
+    regions are merged first, so each position is either covered or in
+    exactly one gap. Gaps are the stretches before the first region (from
+    position 1), between regions, and after the last region up to the
+    sequence length, when the length is known.
 
     Parameters
     ----------
-    df : Pandas dataframe
-       The dataframe must have at least a reference column and coordinates
-    include: list
-    exclude: list
-    add: dict
-    reference : (list of) strings, default ['sequence']
-        Name of the column(s) storing sequence identifiers
-    start : string, default 'start'
-        Name of the column with the first coordinate of each interval
-    end : string, default 'end'
-        Name of the column with the last coordinate of each interval
-    '''
+    df : pandas.DataFrame
+        One row per region. It is not modified. Rows with a missing start
+        or end, or with ``end < start``, cover nothing.
+    include : bool or list of str, default True
+        Columns of the result. True: the columns of ``df``, in its order
+        (columns not computed here are missing values). A list: these
+        columns, in this order. False: only the computed columns
+        (``reference``, ``start``, ``end`` and the gap length).
+    exclude : list of str or False, default False
+        Columns to drop from the result. Names not in the result are
+        ignored.
+    add : dict or False, default False
+        Columns to set on every gap, as ``{column: value}``, e.g.
+        ``{'domain': 'unk'}``. Applied after ``include`` and ``exclude``.
+    reference : str or list of str, default 'ID'
+        Column(s) naming the sequence of each region.
+    start, end : str, default 'start', 'end'
+        Columns with the first and last position of each region.
+    length : str, default 'length'
+        Column with the length of each region's sequence (the first
+        non-missing value of each sequence is used). When ``df`` has it,
+        the gap after the last region is listed, and the same column in
+        the result holds each gap's length. When it does not, there is no
+        trailing gap and no length column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per gap, sorted by ``reference`` and ``start``, with a
+        0..n-1 index; ``start`` and ``end`` are int64. Sequences with no
+        gap have no row. Empty when there are no gaps.
+
+    See Also
+    --------
+    rotifer.devel.alpha.sequence.complete.complete : adds these gaps to
+        the regions.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> regions = pd.DataFrame({'ID': ['s1', 's1', 's1'], 'start': [10, 20, 50],
+    ...                         'end': [30, 25, 80], 'length': [100, 100, 100]})
+    >>> complement(regions)
+       ID  start  end  length
+    0  s1      1    9       9
+    1  s1     31   49      19
+    2  s1     81  100      20
+    """
     if isinstance(reference, str):
-        reference = [ reference ]
+        reference = [reference]
+    reference = list(reference)
+    n = len(df)
+    has_length = length in df.columns
 
-    regions = df.sort_values([*reference, start, end])
-    if 'length' not in regions.columns:
-        regions['length'] = regions.ID.map(regions.set_index(reference).end.to_dict())
-        regions.loc[regions.length.isna(), 'length'] = regions.loc[regions.length.isna(), 'end']
+    # One code per sequence, in sorted order of the reference columns
+    if n:
+        seq = df.groupby(reference, sort=True, dropna=False).ngroup().to_numpy()
+    else:
+        seq = np.zeros(0, dtype=np.int64)
+    nseq = int(seq.max()) + 1 if n else 0
+    first_row = np.zeros(nseq, dtype=np.int64)
+    first_row[seq[::-1]] = np.arange(n)[::-1]
 
-    first = pd.DataFrame({
-        'ID':     regions.ID.tolist(),
-        'start':  np.where(regions.ID != regions.ID.shift(1),1,regions.end.shift(1) + 1).tolist(),
-        'end':    (regions.start - 1).tolist(),
-    }).astype({'start':int}).eval('length = end - start + 1').query('end > 0')
+    first = pd.to_numeric(df[start], errors='coerce').to_numpy(dtype='float64')
+    last = pd.to_numeric(df[end], errors='coerce').to_numpy(dtype='float64')
+    valid = ~np.isnan(first) & ~np.isnan(last) & (last >= first)
+    regions = pd.DataFrame({'seq': seq[valid], 'start': first[valid].astype(np.int64),
+                            'end': last[valid].astype(np.int64)})
+    regions = regions.sort_values(['seq', 'start'], kind='stable')
 
-    uncovered = (regions.groupby(['ID','length']).end.max()+1)
-    uncovered = uncovered.reset_index()
-    uncovered = uncovered.query('end < length')
-    uncovered = uncovered.rename({'end':'start'}, axis=1)
-    uncovered = uncovered.eval('end = length').eval('length = end - start + 1')
-    uncovered = pd.concat([ first, uncovered ]).sort_values(['ID','start','end'])
+    # Gaps before and between regions: a region starts after everything
+    # before it, in the same sequence, has ended.
+    reach = regions.groupby('seq')['end'].cummax()
+    before = reach.groupby(regions['seq']).shift(1).fillna(0).astype(np.int64)
+    inner = regions['start'] > before + 1
+    pieces = [pd.DataFrame({'seq': regions['seq'][inner], 'start': (before + 1)[inner],
+                            'end': regions['start'][inner] - 1})]
 
-    if isinstance(include, list):
-        uncovered = uncovered.filter(include).reindex(df.columns, axis=1)
+    # Gap after the last region, when the sequence length is known
+    if has_length:
+        size = pd.Series(pd.to_numeric(df[length], errors='coerce').to_numpy()).groupby(seq).first()
+        covered = reach.groupby(regions['seq']).max().reindex(range(nseq), fill_value=0)
+        size = size.reindex(range(nseq))
+        tail = size.notna() & (covered + 1 <= size)
+        pieces.append(pd.DataFrame({'seq': np.flatnonzero(tail.to_numpy()),
+                                    'start': (covered + 1)[tail].to_numpy(),
+                                    'end': size[tail].to_numpy().astype(np.int64)}))
+
+    gaps = pd.concat(pieces, ignore_index=True).astype({'seq': np.int64, 'start': np.int64, 'end': np.int64})
+    gaps = gaps.sort_values(['seq', 'start'], kind='stable').reset_index(drop=True)
+
+    result = df[reference].iloc[first_row[gaps['seq'].to_numpy()]].reset_index(drop=True)
+    result[start] = gaps['start'].to_numpy()
+    result[end] = gaps['end'].to_numpy()
+    if has_length:
+        result[length] = (gaps['end'] - gaps['start'] + 1).to_numpy()
+
+    if isinstance(include, (list, tuple)):
+        result = result.reindex(columns=list(include))
     elif include:
-        uncovered = uncovered.reindex(df.columns, axis=1)
+        result = result.reindex(columns=df.columns)
 
-    if isinstance(exclude, list):
-        uncovered = uncovered.drop(exclude, axis=1)
+    if isinstance(exclude, (list, tuple, set)):
+        result = result.drop(columns=[c for c in exclude if c in result.columns])
 
     if isinstance(add, dict):
-        for keys in values.keys():
-            uncovered[keys] = values[keys]
+        for column, value in add.items():
+            result[column] = value
 
-    return uncovered
-
+    return result
