@@ -49,6 +49,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._labels import _py, _as_list
+from .text import pad_columns
 from ._io import _read_source, _write_sink
 from rotifer.core import functions as rcf
 
@@ -140,11 +141,8 @@ def _md_arrow(cols, names, indent=INDENT):
 
     Padding and the surrounding pipes are both applied by arrow kernels, so no
     Python-level pass is made over the rows."""
-    padded, headers = [], []
-    for arr, name in zip(cols, names):
-        width = max(pc.max(pc.utf8_length(arr)).as_py() or 0, len(name))
-        padded.append(pc.utf8_rpad(arr, width, padding=' '))
-        headers.append(name.ljust(width))
+    padded, widths = pad_columns(cols, names)
+    headers = [name.ljust(w) for name, w in zip(names, widths)]
     head = f'{indent}| ' + ' | '.join(headers) + ' |'
     rule = f'{indent}| ' + ' | '.join('-' * len(h) for h in headers) + ' |'
     if not padded or len(padded[0]) == 0:

@@ -54,3 +54,13 @@ def test_to_yaml_rejects_merged_as_table_name():
     df = pd.DataFrame({'g': ['A'], 'pid': [1]})
     with pytest.raises(ValueError):
         yb.to_yaml(df, groupby='g', merged={'pid': 'nunique'})
+
+
+def test_pad_renders_missing_values_as_empty():
+    # Bug: pad(pd.Series(['a', None])) raised TypeError (the width was NaN).
+    assert rpf.pad(pd.Series(['a', None, 'ccc'])).tolist() == ['  a', '   ', 'ccc']
+    assert rpf.pad(pd.Series(['a', None]), side='right').tolist() == ['a', ' ']
+    out = rpf.pad(pd.DataFrame({'x': ['a', None], 'y': [1.5, float('nan')]}))
+    assert out['x'].tolist() == ['a', ' ']
+    assert out['y'].tolist() == ['1.5', '   ']
+    assert rpf.pad(pd.Series([], dtype=str)).tolist() == []

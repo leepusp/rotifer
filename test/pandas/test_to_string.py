@@ -2,9 +2,7 @@
 """Golden-output tests for rotifer.pandas.to_string.
 
 The expected strings were captured from the pre-pyarrow implementation, so they
-pin the exact rendering across the pyarrow and pandas backends alike. Both are
-exercised: _to_string_arrow is the default, _to_string_pandas the fallback used
-when pyarrow is unavailable.
+pin the exact rendering.
 
 Run under pytest, or standalone: python test/pandas/test_to_string.py
 """
@@ -14,7 +12,6 @@ import pandas as pd
 import pytest
 
 import rotifer.pandas as rp
-import rotifer.pandas.text as rpt
 
 # name -> (DataFrame, to_string kwargs)
 def cases():
@@ -57,46 +54,14 @@ GOLDEN = {
 }
 
 
-@pytest.fixture(params=['arrow', 'pandas'])
-def backend(request, monkeypatch):
-    """to_string dispatches to _to_string_arrow, falling back to _to_string_pandas
-    on ImportError. Point the former at the latter to exercise the fallback."""
-    if request.param == 'pandas':
-        monkeypatch.setattr(rp, '_to_string_arrow', rpt._to_string_pandas)
-    return request.param
-
-
 @pytest.mark.parametrize('name', sorted(GOLDEN))
-def test_to_string_matches_golden(name, backend):
+def test_to_string_matches_golden(name):
     df, kwargs = cases()[name]
     assert rp.to_string(df, **kwargs) == GOLDEN[name]
 
 
-def test_both_backends_agree():
-    """The fallback must be byte-identical to the pyarrow path, not merely close."""
-    for name, (df, kwargs) in cases().items():
-        just = str.rjust if kwargs.get('align') == 'right' else str.ljust
-        arrow = rp.to_string(df, **kwargs)
-        original = rpt._to_string_arrow
-        try:
-            rpt._to_string_arrow = rpt._to_string_pandas
-            fallback = rp.to_string(df, **kwargs)
-        finally:
-            rpt._to_string_arrow = original
-        assert arrow == fallback, name
-
-
 if __name__ == '__main__':
     import sys
-    failures = 0
-    for impl in ('arrow', 'pandas'):
-        original = rpt._to_string_arrow
-        if impl == 'pandas':
-            rpt._to_string_arrow = rpt._to_string_pandas
-        try:
-            bad = [n for n, (d, k) in cases().items() if rp.to_string(d, **k) != GOLDEN[n]]
-        finally:
-            rpt._to_string_arrow = original
-        failures += len(bad)
-        print('%-7s %s' % (impl, 'ALL %d MATCH' % len(GOLDEN) if not bad else 'MISMATCH %s' % bad))
-    sys.exit(1 if failures else 0)
+    bad = [n for n, (d, k) in cases().items() if rp.to_string(d, **k) != GOLDEN[n]]
+    print('ALL %d MATCH' % len(GOLDEN) if not bad else 'MISMATCH %s' % bad)
+    sys.exit(1 if bad else 0)

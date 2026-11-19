@@ -12,44 +12,38 @@ config = rcf.loadConfig('rotifer.pandas.functions', defaults = {
 # The name above is the config key users know (a user file named after
 # rotifer.pandas.functions), so it must not follow this module's name.
 
-def _to_string_arrow(columns, sep, align, just):
-    """Pad and join with pyarrow kernels. ~1.7x faster than the pandas path."""
+def pad_columns(arrays, names=None, align='left', fillchar=' '):
+    """Pad pyarrow string arrays to one common width per column.
+
+    align is where the text sits: 'left' pads on the right, 'right' on the left,
+    'center' on both sides (extra fill goes where str.center puts it). The width
+    of a column is its longest string, at least len(name) when names are given;
+    an empty or all-null column has width 0. Nulls are padded as empty strings.
+    Returns (padded arrays, widths)."""
     import pyarrow as pa
     import pyarrow.compute as pc
 
-    pad = pc.utf8_lpad if align == "right" else pc.utf8_rpad
-
-    padded, headers = [], []
-    for name, body in columns:
-        arr = pa.Array.from_pandas(body, type=pa.string())
-        width = max(pc.max(pc.utf8_length(arr)).as_py() or 0, len(name))
-        padded.append(pad(arr, width, padding=" "))
-        headers.append(just(name, width))
-
-    header = sep.join(headers)
-    if not padded:
-        return header
-    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
-    return header + "\n" + "\n".join(lines.to_pylist())
-
-def _to_string_pandas(columns, sep, align, just):
-    """Fallback for environments without pyarrow."""
-    acc = "rjust" if align == "right" else "ljust"
-
-    padded, headers = [], []
-    for name, body in columns:
-        w = body.str.len().max()
-        width = max(int(w) if pd.notna(w) else 0, len(name))
-        padded.append(getattr(body.str, acc)(width).to_numpy().tolist())
-        headers.append(just(name, width))
-
-    header = sep.join(headers)
-    if not padded:
-        return header
-    return header + "\n" + "\n".join([sep.join(row) for row in zip(*padded)])
+    if align not in ('left', 'right', 'center'):
+        raise ValueError(f"align must be 'left', 'right' or 'center', not {align!r}")
+    padded, widths = [], []
+    for k, arr in enumerate(arrays):
+        arr = pc.fill_null(arr, '')
+        width = pc.max(pc.utf8_length(arr)).as_py() or 0
+        if names is not None:
+            width = max(width, len(names[k]))
+        if align == 'center': # arrow's utf8_center splits odd padding the other way round
+            arr = pa.array([s.center(width, fillchar) for s in arr.to_pylist()], type=pa.string())
+        else:
+            arr = (pc.utf8_lpad if align == 'right' else pc.utf8_rpad)(arr, width, padding=fillchar)
+        padded.append(arr)
+        widths.append(width)
+    return padded, widths
 
 def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
                       float_format=None, align="left", **kwargs):
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
     just = str.rjust if align == "right" else str.ljust
 
     if insert:
@@ -70,21 +64,39 @@ def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
             body = s.astype("string")
         columns.append((str(c), body.fillna(na_rep)))
 
-    try:
-        return _to_string_arrow(columns, sep, align, just)
-    except ImportError:
-        return _to_string_pandas(columns, sep, align, just)
+    names = [name for name, _ in columns]
+    arrays = [pa.Array.from_pandas(body, type=pa.string()) for _, body in columns]
+    padded, widths = pad_columns(arrays, names, align=align)
+    header = sep.join(just(name, w) for name, w in zip(names, widths))
+    if not padded:
+        return header
+    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
+    return header + "\n" + "\n".join(lines.to_pylist())
+
+# pad's side is where the fill goes; pad_columns' align is where the text sits
+_PAD_ALIGN = {'left': 'right', 'right': 'left', 'both': 'center'}
+
+def _pad_series(s, side, fillchar):
+    import pyarrow as pa
+    if side not in _PAD_ALIGN:
+        raise ValueError("Invalid side: side must be 'left', 'right', or 'both'")
+    arr = pa.Array.from_pandas(s, type=pa.string())
+    (padded,), _ = pad_columns([arr], align=_PAD_ALIGN[side], fillchar=fillchar)
+    return pd.Series(padded.to_pylist(), index=s.index, name=s.name, dtype=s.dtype)
 
 def pad(data, side='left', fillchar=' '):
     data = data.astype(str)
-    if isinstance(data,pd.DataFrame):
+    if isinstance(data, pd.DataFrame):
         if isinstance(side, str):
             side = { x: side for x in data.columns }
         else:
             side = { x: side[x] if x in side else 'left' for x in data.columns }
-        data = data.apply(lambda x: x.str.pad(x.str.len().max(), side=side[x.name], fillchar=fillchar))
-    elif isinstance(data,pd.Series):
-        data = data.str.pad(data.str.len().max(), side=side, fillchar=fillchar)
+        out = data.copy()
+        for i, name in enumerate(data.columns):
+            out.isetitem(i, _pad_series(data.iloc[:, i], side[name], fillchar))
+        return out
+    if isinstance(data, pd.Series):
+        return _pad_series(data, side, fillchar)
     return data
 
 def to_color(data, colors=config['colors'], style='fg', padding=None, fillchar=' '):
