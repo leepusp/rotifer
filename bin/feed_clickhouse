@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from rotifer.alchemy.connect import clickhouse
+CLICKHOUSE_URI = 'clickhouse://default:@localhost:8123/rotifer'
 from clickhouse_driver import Client
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker
@@ -279,8 +279,7 @@ if __name__ == '__main__':
 
     for arg in args.files[0]:
         asms = assembly_summary(arg)
-        click = clickhouse(table_name = 'genomes')
-        conn = click.conn
+        conn = create_engine(CLICKHOUSE_URI).connect()
         ls_gbks_parsed = rcf._flatten([list(x) for x in conn.execute('''
                             SELECT DISTINCT nuc_asm from genomes
                             ''').fetchall()])

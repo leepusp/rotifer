@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 import rotifer.core.cli as corecli
 import rotifer.core.functions as rcf
 from rotifer.neighborhood import neighborhood
-from rotifer.alchemy.connect import clickhouse
+CLICKHOUSE_URI = 'clickhouse://default:@localhost:8123/rotifer'
 
 import subprocess
 import pandas as pd
@@ -414,8 +414,7 @@ if __name__ == '__main__':
 
     other_info = args.addinfo
     block_id = 0
-    click = clickhouse(table_name = 'genomes')
-    conn = click.conn
+    conn = create_engine(CLICKHOUSE_URI).connect()
 
     # format dataframes
     selected_df = pd.DataFrame()
