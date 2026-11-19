@@ -94,6 +94,12 @@ version to fold or unfold its notes; the newest is unfolded.
   `HHRFormatError`) lives in {py:mod}`rotifer.io.hhsuite`
   ({pr}`131`).
 - This changelog and the {doc}`/cli/index` page ({pr}`138`).
+- {py:func}`rotifer.interval.architecture.select_regions` selects
+  the best non-overlapping regions of every sequence of a DataFrame,
+  with any column names and ranking columns;
+  {py:func}`rotifer.interval.architecture.read_regions` loads domain
+  tables into a DataFrame, and `PRESETS` holds the arguments for
+  HMMER, HH-suite and architecture tables ({pr}`NNN`).
 
 ```{rubric} Changed
 ```
@@ -124,6 +130,14 @@ version to fold or unfold its notes; the newest is unfolded.
   {py:mod}`rotifer.io.hhsuite` ({pr}`131`).
 - ROTIFER's log handler is attached once, to the `rotifer` logger, and
   writes to standard error ({pr}`134`).
+- `domain2architecture` and `rotifer.interval.utils` select regions
+  with the same code, in whole-table passes. On a million regions,
+  `filter_nonoverlapping_regions` takes 1 s instead of 7.7 s (0.12 s
+  instead of 24 s when one sequence has a thousand domains), and
+  `domain2architecture` 6.7 s instead of 19 s ({pr}`NNN`).
+- `rotifer.interval.utils.filter_nonoverlapping_regions` keeps the
+  input index, and breaks ties by the smallest start instead of by
+  row order ({pr}`NNN`).
 
 ```{rubric} Deprecated
 ```
@@ -131,6 +145,11 @@ version to fold or unfold its notes; the newest is unfolded.
 - The names of the removed tools in `bin/` (links to
   `bin/_rotifer_removed`) will be deleted in a later release
   ({pr}`138`).
+- `rotifer.interval.utils.filter_nonoverlapping_regions` and
+  `rotifer.interval.utils.architecture`: use
+  {py:func}`rotifer.interval.architecture.select_regions` and
+  {py:func}`rotifer.interval.architecture.domain2architecture`. They
+  will be removed on 2026-11-30 ({issue}`173`, {pr}`NNN`).
 
 ```{rubric} Removed
 ```
@@ -193,4 +212,10 @@ version to fold or unfold its notes; the newest is unfolded.
   files; it now logs the error and the file ({pr}`134`).
 - `rotifer.genome.data` passed an invalid `file=` argument to the
   logger ({pr}`134`).
+- `rotifer.interval.utils.complement` raised `NameError` with `add=`
+  (which broke `devel.alpha.draw.arch_2_svg`), ignored its column
+  arguments, and returned negative gaps for nested regions
+  ({pr}`NNN`).
+- `filter_nonoverlapping_regions` raised `AttributeError` when the
+  criteria did not include `region_length` ({pr}`NNN`).
 :::
