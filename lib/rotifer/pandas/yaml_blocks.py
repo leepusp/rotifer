@@ -267,7 +267,8 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
     never joined to one another here. Columns produced by any aggregation table
     are visible to sortblocks, so blocks can be ordered by a statistic, and if two
     tables define the same column name the one named first decides. Names are
-    yours to choose except `key` and `parameters`, which carry block metadata.
+    yours to choose except `key` and `parameters`, which carry block metadata,
+    and `merged`, where read_yaml returns the joined frame.
 
     Rows are brought back together by read_yaml, not here -- it keys them on the
     grouping columns, which it restores into every table from the block key.

@@ -47,3 +47,10 @@ def test_to_string_insert_rejects_malformed_entries():
     df = pd.DataFrame({'a': [1]})
     with pytest.raises(ValueError, match="insert entries must be"):
         rp.to_string(df, insert=[(0, 'x')])
+
+
+def test_to_yaml_rejects_merged_as_table_name():
+    # Bug: the to_yaml docstring left `merged` out of the reserved names; it is reserved.
+    df = pd.DataFrame({'g': ['A'], 'pid': [1]})
+    with pytest.raises(ValueError):
+        yb.to_yaml(df, groupby='g', merged={'pid': 'nunique'})
