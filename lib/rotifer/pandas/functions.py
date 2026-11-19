@@ -57,7 +57,8 @@ def to_color(data, colors=config['colors'], style='fg', padding=None, fillchar='
     if not isinstance(colors,dict):
         if isinstance(colors,str):
             if os.path.exists(colors):
-                colors = yaml.load(open(colors), Loader=yaml.Loader)
+                with open(colors) as fh:
+                    colors = yaml.safe_load(fh)
             else:
                 default_color = colors
                 colors = dict()

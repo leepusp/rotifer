@@ -1,5 +1,7 @@
 """Regression tests for bugs fixed in rotifer.pandas; each test names the bug it pins."""
 import pandas as pd
+import pytest
+import yaml
 import rotifer.pandas as rp
 from rotifer.pandas import functions as rpf
 from rotifer.pandas import yaml_blocks as yb
@@ -26,3 +28,15 @@ def test_pad_dataframe_string_side_applies_to_every_column():
     df = pd.DataFrame({'e': ['a', 'bb'], 'z': ['ccc', 'd']})
     expected = pd.DataFrame({c: rpf.pad(df[c], side='right') for c in df.columns})
     pd.testing.assert_frame_equal(rpf.pad(df, side='right'), expected)
+
+
+def test_to_color_loads_colors_yaml_safely(tmp_path):
+    # Bug: colors YAML was read with yaml.Loader (unsafe) from an unclosed file handle.
+    path = tmp_path / 'colors.yml'
+    path.write_text('A: 196\n')
+    assert '38;5;196' in rpf.to_color(pd.Series(['A']), colors=str(path)).iloc[0]
+
+    unsafe = tmp_path / 'unsafe.yml'
+    unsafe.write_text('A: !!python/object/apply:os.getcwd []\n')
+    with pytest.raises(yaml.YAMLError):
+        rpf.to_color(pd.Series(['A']), colors=str(unsafe))
