@@ -124,7 +124,9 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
       Additional character for filling, default is whitespace.
     """
     import yaml
-    from rotifer.core import functions as rcf
+
+    if style not in ('fg', 'foreground', 'bg', 'background'):
+        raise ValueError(f"style must be 'fg', 'foreground', 'bg' or 'background', not {style!r}")
 
     # Load colors
     default_color = "000"
@@ -138,12 +140,6 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
             else:
                 default_color = colors
                 colors = dict()
-
-    def color_res(s, cs):
-        if s in colors:
-            return cs(s, colors[s])
-        else:
-            return cs(s, default_color)
 
     def color_bg(s, color):
         if color == default_color:
@@ -163,13 +159,13 @@ def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     if padding:
         data = pad(data, side=padding, fillchar=fillchar)
 
-    # Choose the coloring function
-    color_switch = {'background':color_bg, 'bg':color_bg, 'foreground':color_fg, 'fg':color_fg}
+    if not isinstance(data, (pd.DataFrame, pd.Series)):
+        return data
 
-    # Color the data
-    if isinstance(data,pd.DataFrame):
-        data = data.map(lambda x: ''.join([color_res(y, color_switch[style]) for y in x]))
-    elif isinstance(data,pd.Series):
-        data = data.map(lambda x: ''.join([color_res(y, color_switch[style]) for y in x]))
-
-    return data
+    # One escape-coded replacement per distinct character, built once per call;
+    # characters not in colors get the default color.
+    paint = color_bg if style in ('bg', 'background') else color_fg
+    values = data.to_numpy().ravel()
+    table = {ord(ch): paint(ch, colors[ch] if ch in colors else default_color)
+             for ch in set(''.join(values))}
+    return data.map(lambda x: x.translate(table))

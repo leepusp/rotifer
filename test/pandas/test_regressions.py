@@ -64,3 +64,9 @@ def test_pad_renders_missing_values_as_empty():
     assert out['x'].tolist() == ['a', ' ']
     assert out['y'].tolist() == ['1.5', '   ']
     assert rpf.pad(pd.Series([], dtype=str)).tolist() == []
+
+
+def test_to_color_unknown_style_names_the_accepted_values():
+    # Bug: an unknown style raised KeyError from an internal dict lookup.
+    with pytest.raises(ValueError, match="style must be 'fg', 'foreground', 'bg' or 'background'"):
+        rpf.to_color(pd.Series(['A']), style='underline')
