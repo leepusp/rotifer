@@ -222,23 +222,31 @@ class TestExtendAln:
 class FakeHmmer:
     """Stand-in for the HMMER commands split_by_model runs through Popen.
 
-    hmmsearch and the hmmer2table pipeline aren't needed to test the slicing:
-    the pipeline's output file gets a fixed domain table instead. Any other
-    command (the alignment that follows) runs for real.
+    HMMER isn't needed to test the slicing: the hmmsearch report that
+    split_by_model reads with rotifer.io.hmmer.read_hmmer gets a minimal
+    report with one domain of p1, on residues 11-20. Any other command (the
+    alignment that follows) runs for real.
     """
-    table = 'ID\tdomain\tstart\tend\tevalue\np1\tmodel\t11\t20\t1e-10\n'
+    report = (
+        '# hmmsearch :: search profile(s) against a sequence database\n'
+        'Query:       model  [M=10]\n'
+        'Domain annotation for each sequence (and alignments):\n'
+        '>> p1\n'
+        '   1 !   30.0   0.1   1e-10   1e-10    1   10 []   11   20 ..   11   20 .. 0.95\n'
+        '//\n'
+    )
     real_popen = subprocess.Popen
 
     def __new__(cls, command, *args, **kwargs):
-        if not (isinstance(command, str) and re.match(r'(hmmsearch|hmmbuild|\S*hmmer2table) ', command)):
+        if not (isinstance(command, str) and re.match(r'(hmmsearch|hmmbuild) ', command)):
             return cls.real_popen(command, *args, **kwargs)
         return super().__new__(cls)
 
     def __init__(self, command, *args, **kwargs):
-        target = re.search(r'> (\S*hhsearch_table)', command)
+        target = re.search(r'> (\S*hhsearch_r)\b', command)
         if target:
             with open(target.group(1), 'w') as out:
-                out.write(self.table)
+                out.write(self.report)
 
     def communicate(self, *args, **kwargs):
         return (b'', b'')
