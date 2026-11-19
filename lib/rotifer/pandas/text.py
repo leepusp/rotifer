@@ -76,15 +76,33 @@ def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
 # pad's side is where the fill goes; pad_columns' align is where the text sits
 _PAD_ALIGN = {'left': 'right', 'right': 'left', 'both': 'center'}
 
-def _pad_series(s, side, fillchar):
+def _pad_series(s, side, fillchar, na_rep='', name=None):
+    """Pad one Series; returns (padded Series, width). With name given, the width
+    is at least len(name), so the column can be padded to fit its header."""
     import pyarrow as pa
+    import pyarrow.compute as pc
     if side not in _PAD_ALIGN:
         raise ValueError("Invalid side: side must be 'left', 'right', or 'both'")
-    arr = pa.Array.from_pandas(s, type=pa.string())
-    (padded,), _ = pad_columns([arr], align=_PAD_ALIGN[side], fillchar=fillchar)
-    return pd.Series(padded.to_pylist(), index=s.index, name=s.name, dtype=s.dtype)
+    arr = pc.fill_null(pa.Array.from_pandas(s, type=pa.string()), na_rep)
+    (padded,), (width,) = pad_columns([arr], names=None if name is None else [name],
+                                      align=_PAD_ALIGN[side], fillchar=fillchar)
+    return pd.Series(padded.to_pylist(), index=s.index, name=s.name, dtype=s.dtype), width
 
-def pad(data, side='left', fillchar=' '):
+def _justify_name(name, width, side, fillchar):
+    """Set a column name on the same side as its values: 'left' pads on the left
+    (name right-justified), 'right' on the right, 'both' centred."""
+    if side == 'left':
+        return name.rjust(width, fillchar)
+    if side == 'right':
+        return name.ljust(width, fillchar)
+    return name.center(width, fillchar)
+
+def pad(data, side='left', fillchar=' ', na_rep='', header=False):
+    """Pad strings to a common width. side is where the fill goes ('left', 'right'
+    or 'both'); on a DataFrame it may also be a dict of column -> side (missing
+    columns default to 'left'). Missing values are first replaced by na_rep.
+    With header=True (DataFrame only) the column names are padded too, each column
+    to max(value width, name width), with the name on the same side as its values."""
     data = data.astype(str)
     if isinstance(data, pd.DataFrame):
         if isinstance(side, str):
@@ -92,11 +110,17 @@ def pad(data, side='left', fillchar=' '):
         else:
             side = { x: side[x] if x in side else 'left' for x in data.columns }
         out = data.copy()
+        names = []
         for i, name in enumerate(data.columns):
-            out.isetitem(i, _pad_series(data.iloc[:, i], side[name], fillchar))
+            s, width = _pad_series(data.iloc[:, i], side[name], fillchar, na_rep,
+                                   name=str(name) if header else None)
+            out.isetitem(i, s)
+            names.append(_justify_name(str(name), width, side[name], fillchar) if header else name)
+        if header:
+            out.columns = names
         return out
     if isinstance(data, pd.Series):
-        return _pad_series(data, side, fillchar)
+        return _pad_series(data, side, fillchar, na_rep)[0]
     return data
 
 def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
