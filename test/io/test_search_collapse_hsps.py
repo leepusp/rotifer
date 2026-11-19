@@ -426,3 +426,42 @@ def test_committed_blast2table_tables_match_the_text_reports(case, tmp_path):
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
     assert done.returncode == 0, done.stderr
     assert done.stdout == (DATA / f'{case}.b2t.tsv').read_text()
+
+
+def _merge(rows, evalues, threshold=0.01, overlap=0.4, fraction=True):
+    """Run _merge_hsps on one group; rows are (hit_start, hit_end, query_start, query_end)."""
+    cols = list(zip(*rows))
+    return st._merge_hsps([range(len(rows))], *cols, evalues, threshold, overlap, fraction)
+
+
+def test_merge_hsps_widens_a_significant_region():
+    """A region below the threshold keeps its source and widens on the axes where the new HSP is longer."""
+    out = _merge([(10, 20, 1, 10), (5, 30, 3, 8)], [1e-9, 1e-20])
+    assert out == [[0, 0, 5, 30, 1, 10]]
+
+
+def test_merge_hsps_replaces_a_weak_region_with_a_better_hsp():
+    """Above the threshold, an overlapping HSP with a lower E-value replaces the region entirely."""
+    out = _merge([(10, 20, 1, 10), (12, 22, 2, 11)], [0.5, 0.2])
+    assert out == [[0, 1, 12, 22, 2, 11]]
+
+
+def test_merge_hsps_drops_a_worse_overlapping_hsp():
+    """Above the threshold, an overlapping HSP that is not better (ties included) is dropped."""
+    assert _merge([(10, 20, 1, 10), (12, 22, 2, 11)], [0.2, 0.5]) == [[0, 0, 10, 20, 1, 10]]
+    assert _merge([(10, 20, 1, 10), (12, 22, 2, 11)], [0.2, 0.2]) == [[0, 0, 10, 20, 1, 10]]
+
+
+def test_merge_hsps_fraction_versus_residues():
+    """The same pair overlaps by 3 residues: a fraction of 0.4 (of 11) rejects it, 2 residues accepts it."""
+    rows = [(1, 11, 1, 11), (9, 19, 9, 19)]
+    assert len(_merge(rows, [1e-9, 1e-9], overlap=0.4, fraction=True)) == 2
+    assert len(_merge(rows, [1e-9, 1e-9], overlap=2, fraction=False)) == 1
+    assert len(_merge(rows, [1e-9, 1e-9], overlap=3, fraction=False)) == 2
+
+
+def test_merge_hsps_sorts_regions_by_first_position_across_groups():
+    """Groups are independent and the output is ordered by the position of each region's first HSP."""
+    rows = [(1, 10, 1, 10), (1, 10, 1, 10), (50, 60, 1, 10)]
+    out = st._merge_hsps([[1], [0, 2]], *zip(*rows), [1e-9] * 3, 0.01, 0.4, True)
+    assert [region[0] for region in out] == [0, 1, 2]

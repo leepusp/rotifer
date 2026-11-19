@@ -486,6 +486,87 @@ def blast2table_evalue(evalue):
     return out
 
 
+def _merge_hsps(groups, hit_start, hit_end, query_start, query_end, evalue,
+                threshold, overlap, fraction):
+    """
+    Merge redundant HSPs the way blast2table does, on plain arrays.
+
+    This is the single implementation of blast2table's merge, used by
+    :func:`collapse_hsps` and by ``rotifer.io.blast.iter_blast_records``.
+    Each group is the HSPs of one (query, hit) pair, in report order. Each
+    HSP is compared with the regions already kept for its group, in order;
+    the first region it overlaps on both axes takes it:
+
+    * if the region's E-value is below ``threshold``, the region keeps its
+      source HSP and E-value, and each axis on which the new HSP is longer
+      (``end - start``) takes the new HSP's start and end;
+    * otherwise, if the new HSP's E-value is lower, it replaces the region
+      (source, coordinates and E-value);
+    * otherwise the new HSP is dropped.
+
+    An HSP that overlaps no region starts a new one.
+
+    Parameters
+    ----------
+    groups : iterable of sequences of int
+        Positions of the HSPs of each pair, in report order. Groups are
+        independent; their order does not matter.
+    hit_start, hit_end, query_start, query_end : sequence of int
+        Coordinates of every HSP (1-based, inclusive), indexed by position.
+    evalue : sequence of float
+        E-value of every HSP, already rounded the way blast2table prints
+        it (see :func:`blast2table_evalue`), so ties fall where they do in
+        blast2table.
+    threshold : float
+        Inclusion threshold; a region whose E-value is strictly below it is
+        widened instead of replaced.
+    overlap : float
+        If ``fraction`` is True, two spans overlap when the shared length is
+        above ``overlap`` times the length of each; otherwise when it is
+        above ``overlap`` residues. Both comparisons are strict.
+    fraction : bool
+        How ``overlap`` is read. Callers decide: :func:`collapse_hsps` uses
+        ``isinstance(overlap, float)``, ``rotifer.io.blast`` uses
+        ``rotifer.io.written_as_fraction``.
+
+    Returns
+    -------
+    list of list of int
+        One ``[first, source, hit_start, hit_end, query_start, query_end]``
+        per region, sorted by ``first``: the position of the region's first
+        HSP, the position of the HSP its E-value (and other values) come
+        from, and its final coordinates. Empty if ``groups`` is empty.
+    """
+    def same(a, b, c, d):
+        shared = min(b, d) - max(a, c) + 1
+        if fraction:
+            return shared > overlap * (b - a + 1) and shared > overlap * (d - c + 1)
+        return shared > overlap
+
+    regions = []   # [first, source, hit start, hit end, query start, query end, evalue]
+    for rows in groups:
+        kept = []
+        for i in rows:
+            i = int(i)
+            hs, he, qs, qe = int(hit_start[i]), int(hit_end[i]), int(query_start[i]), int(query_end[i])
+            for region in kept:
+                if same(region[2], region[3], hs, he) and same(region[4], region[5], qs, qe):
+                    if region[6] < threshold:
+                        if he - hs > region[3] - region[2]:
+                            region[2], region[3] = hs, he
+                        if qe - qs > region[5] - region[4]:
+                            region[4], region[5] = qs, qe
+                    elif evalue[i] < region[6]:
+                        region[1:] = [i, hs, he, qs, qe, evalue[i]]
+                    break
+            else:
+                region = [i, i, hs, he, qs, qe, evalue[i]]
+                kept.append(region)
+                regions.append(region)
+    regions.sort(key=lambda region: region[0])
+    return [region[:6] for region in regions]
+
+
 def collapse_hsps(df, threshold=0.01, overlap=0.4):
     '''
     Merge redundant HSPs the way blast2table's default mode does.
@@ -557,34 +638,8 @@ def collapse_hsps(df, threshold=0.01, overlap=0.4):
     hs, he = df['start'].to_numpy(), df['end'].to_numpy()
     qs, qe = df['qstart'].to_numpy(dtype='int64'), df['qend'].to_numpy(dtype='int64')
 
-    def same(a, b, c, d):
-        '''Do spans (a, b) and (c, d) overlap more than allowed?'''
-        shared = min(b, d) - max(a, c) + 1
-        if fraction:
-            return shared > overlap * (b - a + 1) and shared > overlap * (d - c + 1)
-        return shared > overlap
-
-    regions = []   # [first row, source row, hit start, hit end, query start, query end, evalue]
-    for rows in df.groupby(['model', 'sequence'], sort=False).indices.values():
-        kept = []
-        for i in rows:
-            i = int(i)
-            for region in kept:
-                if same(region[2], region[3], hs[i], he[i]) and same(region[4], region[5], qs[i], qe[i]):
-                    if region[6] < threshold:
-                        if he[i] - hs[i] > region[3] - region[2]:
-                            region[2], region[3] = int(hs[i]), int(he[i])
-                        if qe[i] - qs[i] > region[5] - region[4]:
-                            region[4], region[5] = int(qs[i]), int(qe[i])
-                    elif ev[i] < region[6]:
-                        region[1:] = [i, int(hs[i]), int(he[i]), int(qs[i]), int(qe[i]), ev[i]]
-                    break
-            else:
-                region = [i, i, int(hs[i]), int(he[i]), int(qs[i]), int(qe[i]), ev[i]]
-                kept.append(region)
-                regions.append(region)
-
-    regions.sort(key=lambda region: region[0])
+    groups = df.groupby(['model', 'sequence'], sort=False).indices.values()
+    regions = _merge_hsps(groups, hs, he, qs, qe, ev, threshold, overlap, fraction)
     table = np.array([region[1:] for region in regions], dtype='float64')
     out = df.iloc[table[:, 0].astype('int64')].reset_index(drop=True)
     out['start'], out['end'] = table[:, 1].astype('int64'), table[:, 2].astype('int64')

@@ -177,23 +177,6 @@ def _format_bits(text):
     value = float(text)
     return '%.0f' % value if value > 99 else '%.1f' % value
 
-def _same_hsp(a, b, overlap):
-    """
-    True if two HSPs overlap in both the query and the hit.
-    """
-    fraction = written_as_fraction(overlap)
-    overlaps = 0
-    for kind in ('hit', 'query'):
-        length = min(a[f'{kind}_end'], b[f'{kind}_end']) - max(a[f'{kind}_start'], b[f'{kind}_start']) + 1
-        if fraction:
-            limit = float(overlap)
-            if length > limit * (a[f'{kind}_end'] - a[f'{kind}_start'] + 1) and \
-               length > limit * (b[f'{kind}_end'] - b[f'{kind}_start'] + 1):
-                overlaps += 1
-        elif length > float(overlap):
-            overlaps += 1
-    return overlaps == 2
-
 def _swap(row):
     row = dict(row)
     for column in _SWAPPED:
@@ -204,10 +187,12 @@ def iter_blast_records(handle, evalue=10, threshold=0.01, overlap='0.4', nonredu
                        clean=None, rename_query=None, force_basename=None, filename='-'):
     """
     Parse a BLAST+ text report and yield one dict per HSP (see
-    ``iter_blast`` for the parameters), before any column swap.
+    ``iter_blast`` for the parameters), before any column swap. With
+    ``nonredundant`` the HSPs are merged by
+    :func:`rotifer.io.search._merge_hsps`, once the report is parsed.
     """
     cleaners = _cleaners(clean)
-    parsed, index = [], {}
+    rows, keys = [], []
     for result in parse_blast_text(handle):
         query_name, query_length = result['query_name'], result['query_length']
         if re.match(r'^Query_\d+', query_name) and result['query_description']:
@@ -251,24 +236,23 @@ def iter_blast_records(handle, evalue=10, threshold=0.01, overlap='0.4', nonredu
                 if not nonredundant:
                     yield row
                     continue
-                key = (query_name, hit_name)
-                for i in index.get(key, []):
-                    if not _same_hsp(parsed[i], row, overlap):
-                        continue
-                    if float(parsed[i]['evalue']) < float(threshold):
-                        # Already significant: keep the E-value, widen the coordinates
-                        for kind in ('hit', 'query'):
-                            if row[f'{kind}_end'] - row[f'{kind}_start'] > \
-                               parsed[i][f'{kind}_end'] - parsed[i][f'{kind}_start']:
-                                parsed[i][f'{kind}_start'] = row[f'{kind}_start']
-                                parsed[i][f'{kind}_end'] = row[f'{kind}_end']
-                    elif float(row['evalue']) < float(parsed[i]['evalue']):
-                        parsed[i] = row
-                    break
-                else:
-                    parsed.append(row)
-                    index.setdefault(key, []).append(len(parsed) - 1)
-    yield from parsed
+                rows.append(row)
+                keys.append((query_name, hit_name))
+    if not nonredundant or not rows:
+        return
+    from rotifer.io.search import _merge_hsps
+    groups = {}
+    for position, key in enumerate(keys):
+        groups.setdefault(key, []).append(position)
+    merged = _merge_hsps(
+        groups.values(),
+        [row['hit_start'] for row in rows], [row['hit_end'] for row in rows],
+        [row['query_start'] for row in rows], [row['query_end'] for row in rows],
+        [float(row['evalue']) for row in rows],
+        float(threshold), float(overlap), written_as_fraction(overlap))
+    for _, source, hit_start, hit_end, query_start, query_end in merged:
+        yield {**rows[source], 'hit_start': hit_start, 'hit_end': hit_end,
+               'query_start': query_start, 'query_end': query_end}
 
 def iter_blast(handle, columns=COLUMNS, swap=False, **kwargs):
     """

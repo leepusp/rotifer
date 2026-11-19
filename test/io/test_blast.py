@@ -56,3 +56,10 @@ def test_parse_blast_text():
 def test_unknown_cleaner_is_rejected():
     with pytest.raises(ValueError):
         blast.read_blast(os.path.join(golden.INPUTS, "psiblast.out"), clean=["nope"])
+
+
+def test_overlap_as_residues_or_fraction_gives_different_row_counts():
+    """overlap='1' is one residue and '1.0' a fraction; the psiblast report keeps 15 and 23 rows."""
+    path = os.path.join(golden.INPUTS, "psiblast.out")
+    assert len(blast.read_blast(path, overlap="1")) == 15
+    assert len(blast.read_blast(path, overlap="1.0")) == 23
