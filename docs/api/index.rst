@@ -83,6 +83,7 @@ Sequence and interval utilities
    rotifer.io.hhsuite
    rotifer.io.hmmer
    rotifer.io.phobius
+   rotifer.io.search
 
 Command line tools
 ------------------
