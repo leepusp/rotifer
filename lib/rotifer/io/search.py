@@ -359,3 +359,240 @@ def _restore_extra(out, df):
     extra = _extra(df)
     extra = extra[[ c for c in extra.columns if c not in out.columns ]]
     return pd.concat([out, extra], axis=1) if len(extra.columns) else out
+
+
+# BLAST tabular output (issue #141)
+#
+# psiblast() used to read blast2table's report of the text alignments. The
+# same information is available, in a format meant for programs, as BLAST's
+# tabular output (-outfmt 7, or -outfmt 11 reformatted with blast_formatter).
+# read_blast_tabular() reads it and collapse_hsps() merges its HSPs the way
+# blast2table's default (non-redundant) mode does.
+
+BLAST_TABULAR_FIELDS = 'qaccver saccver sstart send evalue qstart qend bitscore slen qlen'
+BLAST_OUTFMT = '7 ' + BLAST_TABULAR_FIELDS
+
+_TABULAR_NAMES = ['qaccver', 'saccver', 'sstart', 'send', 'evalue', 'qstart', 'qend',
+                  'bitscore', 'slen', 'qlen']
+
+
+def read_blast_tabular(path_or_text, source=None):
+    '''
+    Read BLAST tabular output into the standard table, one row per HSP.
+
+    Parameters
+    ----------
+    path_or_text : str or path-like or file-like
+        A file written with ``-outfmt`` :data:`BLAST_OUTFMT` (psiblast, or
+        blast_formatter on an ASN.1 archive), or its text. Text is told from a
+        path by being empty or containing a newline or a tab. ``.gz`` files are decompressed.
+    source : str, optional
+        Database searched, stored in the ``source`` column.
+
+    Rows keep the order of the report. ``iteration`` comes from the
+    ``# Iteration: N`` comment that precedes the rows (1 when there is none,
+    and restarted at each ``# PSIBLAST``/``# BLAST*`` header, so queries of
+    the same report don't inherit each other's rounds). A report without hits
+    gives an empty standard table.
+
+    ``cov`` is the fraction of the query the HSP spans, ``program`` is
+    'psiblast' and ``talilen`` is ``end - start + 1``.
+    '''
+    import os
+    import re
+
+    if hasattr(path_or_text, 'read'):
+        text = path_or_text.read()
+    elif isinstance(path_or_text, (str, bytes)) and (not path_or_text or '\n' in path_or_text or '\t' in path_or_text):
+        text = path_or_text
+    else:
+        path = os.fspath(path_or_text)
+        if path.endswith('.gz'):
+            import gzip
+            with gzip.open(path, 'rt') as handle:
+                text = handle.read()
+        else:
+            with open(path) as handle:
+                text = handle.read()
+    if isinstance(text, bytes):
+        text = text.decode()
+
+    rows, iteration = [], 1
+    for line in text.splitlines():
+        if line.startswith('#'):
+            if re.match(r'#\s*(PSI)?(BLAST|TBLAST)', line):
+                iteration = 1
+            else:
+                found = re.match(r'#\s*Iteration:\s*(\d+)', line)
+                if found:
+                    iteration = int(found.group(1))
+            continue
+        if not line.strip() or line.strip() == 'Search has CONVERGED!':
+            # psiblast writes this line among the rows when it converges
+            continue
+        fields = line.rstrip('\n').split('\t')
+        if len(fields) != len(_TABULAR_NAMES):
+            raise ValueError(f'read_blast_tabular: expected {len(_TABULAR_NAMES)} tab-separated '
+                             f'fields ({BLAST_TABULAR_FIELDS}), found {len(fields)}: {line!r}')
+        rows.append(fields + [iteration])
+    if not rows:
+        return empty()
+
+    raw = pd.DataFrame(rows, columns=_TABULAR_NAMES + ['iteration'])
+    for column in _TABULAR_NAMES[2:] + ['iteration']:
+        raw[column] = pd.to_numeric(raw[column])
+    start, end = raw['sstart'], raw['send']
+    std = pd.DataFrame({
+        'sequence':  raw['saccver'],
+        'model':     raw['qaccver'],
+        'start':     start,
+        'end':       end,
+        'evalue':    raw['evalue'],
+        'cov':       ((raw['qend'] - raw['qstart'] + 1) / raw['qlen']).clip(upper=1.0),
+        'qstart':    raw['qstart'],
+        'qend':      raw['qend'],
+        'iteration': raw['iteration'],
+        'score':     raw['bitscore'],
+        'talilen':   end - start + 1,
+        'qlen':      raw['qlen'],
+        'estart':    start,
+        'eend':      end,
+        'program':   'psiblast',
+        'tlen':      raw['slen'],
+        'source':    source,
+    })
+    return validate(std)
+
+
+def blast2table_evalue(evalue):
+    '''
+    Round E-values the way blast2table prints them: ``%.1f`` above 1, 0 for 0
+    and ``%.3e`` otherwise.
+
+    blast2table rounds *before* it compares E-values with the inclusion
+    threshold and with each other, so collapse_hsps does the same. BLAST's
+    tabular output already has three significant digits, so this only changes
+    values above 1.
+    '''
+    values = np.asarray(evalue, dtype='float64')
+    out = np.empty(values.shape, dtype='float64')
+    for i, value in enumerate(values.ravel()):
+        if value == 0 or np.isnan(value):
+            out.flat[i] = value
+        elif value > 1:
+            out.flat[i] = float(f'{value:.1f}')
+        else:
+            out.flat[i] = float(f'{value:.3e}')
+    return out
+
+
+def collapse_hsps(df, threshold=0.01, overlap=0.4):
+    '''
+    Merge redundant HSPs the way blast2table's default mode does.
+
+    A standard table with one row per HSP, in report order (what
+    :func:`read_blast_tabular` returns), becomes one with one row per region
+    of each (``model``, ``sequence``) pair. Each HSP is compared with the
+    regions already kept for its pair, in order; the first one that it
+    overlaps *on both axes* (``sequence`` and ``model`` coordinates) is the
+    one it is merged into, and later ones are not looked at:
+
+      * if the kept region's E-value is below ``threshold`` (it was already
+        significant), its coordinates are widened on each axis where the new
+        HSP is longer (``start`` and ``end`` together, ``qstart`` and
+        ``qend`` together). E-value, score and iteration stay the ones of
+        the first significant HSP;
+      * otherwise, if the new HSP has a lower E-value, it replaces the kept
+        region entirely (E-value, score, iteration and coordinates);
+      * otherwise the new HSP is dropped.
+
+    A new HSP that overlaps nothing becomes a new region. Regions come out
+    in the order in which they were first seen, even if they were replaced
+    later, which is the order of blast2table's rows.
+
+    Parameters
+    ----------
+    threshold : float
+        Inclusion threshold. blast2table's default is 0.01.
+    overlap : float or int
+        A float is a fraction: two HSPs overlap on an axis when the shared
+        length is above ``overlap`` times the length of each of them, that
+        is, above that fraction of the *longer* one. An int is a number of
+        residues: they overlap when they share more than that. blast2table's
+        default is 0.4.
+
+    Notes
+    -----
+    Which rows come out, their ``start``/``end``/``qstart``/``qend`` and their
+    order follow blast2table exactly. To get the same decisions, E-values are
+    rounded with :func:`blast2table_evalue` before they are compared with the
+    threshold and with each other, so ties fall in the same place.
+
+    The values reported are the correct ones, and differ from blast2table's:
+
+      * ``evalue`` and ``score`` are the unrounded values of the HSP the
+        region's E-value comes from (blast2table prints E-values with 1-2
+        significant digits and rounds bit scores);
+      * ``iteration`` is that HSP's true round (blast2table reports 1 with
+        BioPerl's text parser);
+      * ``cov`` is recomputed from the final ``qstart``/``qend`` and ``qlen``
+        when ``qlen`` is known (blast2table keeps the coverage of the
+        region's first HSP after widening it);
+      * ``talilen``, ``estart`` and ``eend`` follow ``start`` and ``end``.
+
+    Other columns come from the HSP that the region's E-value, score and
+    iteration come from.
+
+    Everything is computed per pair on small arrays, in pandas-version
+    independent code (no ``groupby().apply``).
+    '''
+    df = validate(df)
+    if df.empty:
+        return df.reset_index(drop=True)
+    if df['qstart'].isna().any() or df['qend'].isna().any():
+        raise ValueError('collapse_hsps needs qstart and qend in every row')
+
+    fraction = isinstance(overlap, float)
+    ev = blast2table_evalue(df['evalue'].to_numpy())
+    hs, he = df['start'].to_numpy(), df['end'].to_numpy()
+    qs, qe = df['qstart'].to_numpy(dtype='int64'), df['qend'].to_numpy(dtype='int64')
+
+    def same(a, b, c, d):
+        '''Do spans (a, b) and (c, d) overlap more than allowed?'''
+        shared = min(b, d) - max(a, c) + 1
+        if fraction:
+            return shared > overlap * (b - a + 1) and shared > overlap * (d - c + 1)
+        return shared > overlap
+
+    regions = []   # [first row, source row, hit start, hit end, query start, query end, evalue]
+    for rows in df.groupby(['model', 'sequence'], sort=False).indices.values():
+        kept = []
+        for i in rows:
+            i = int(i)
+            for region in kept:
+                if same(region[2], region[3], hs[i], he[i]) and same(region[4], region[5], qs[i], qe[i]):
+                    if region[6] < threshold:
+                        if he[i] - hs[i] > region[3] - region[2]:
+                            region[2], region[3] = int(hs[i]), int(he[i])
+                        if qe[i] - qs[i] > region[5] - region[4]:
+                            region[4], region[5] = int(qs[i]), int(qe[i])
+                    elif ev[i] < region[6]:
+                        region[1:] = [i, int(hs[i]), int(he[i]), int(qs[i]), int(qe[i]), ev[i]]
+                    break
+            else:
+                region = [i, i, int(hs[i]), int(he[i]), int(qs[i]), int(qe[i]), ev[i]]
+                kept.append(region)
+                regions.append(region)
+
+    regions.sort(key=lambda region: region[0])
+    table = np.array([region[1:] for region in regions], dtype='float64')
+    out = df.iloc[table[:, 0].astype('int64')].reset_index(drop=True)
+    out['start'], out['end'] = table[:, 1].astype('int64'), table[:, 2].astype('int64')
+    out['qstart'] = pd.array(table[:, 3].astype('int64'), dtype='Int64')
+    out['qend'] = pd.array(table[:, 4].astype('int64'), dtype='Int64')
+    out['estart'], out['eend'] = out['start'], out['end']
+    out['talilen'] = out['end'] - out['start'] + 1
+    known = out['qlen'].notna()
+    cov = (out['qend'] - out['qstart'] + 1).astype('float64') / out['qlen'].astype('float64')
+    out['cov'] = cov.clip(upper=1.0).where(known, out['cov'])
+    return validate(out)
