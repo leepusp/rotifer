@@ -46,18 +46,6 @@ def multilevel_frame():
     return df
 
 
-def genome_frame():
-    """Has every column the genome-specific defaults of to_blocks look for."""
-    return pd.DataFrame({
-        'pid': ['p1', 'p2', 'p3', 'p4'], 'c80i70': ['i1', 'i1', 'i2', 'i3'],
-        'c100i100': ['j1', 'j2', 'j3', 'j4'], 'plen': [100, 20, 300, 40],
-        'pfam': ['PF1', None, 'PF2', 'PF3'], 'aravind': ['a', 'b', 'c', 'd'],
-        'product': ['prod|1', 'prod2', 'prod3', 'prod4'],
-        'organism': ['Org B', 'Org A', 'Org C', 'Org A'],
-        'lineage': ['L2', 'L1', 'L1', 'L3'], 'classification': ['k2', 'k1', 'k3', 'k1'],
-        'block_id': [1, 1, 2, 3], 'c80e3': ['X', 'X', 'Y', 'Z']})
-
-
 def text(lines):
     return '\n'.join(lines)
 
@@ -319,28 +307,6 @@ def test_to_blocks_golden(name):
     which, kwargs, expected = TO_BLOCKS[name][0], TO_BLOCKS[name][1], TO_BLOCKS[name][2]
     df = frame() if which == 'frame' else multilevel_frame()
     assert rp.to_blocks(df, **kwargs) == text(expected)
-
-
-# pins the genome-specific defaults; moves to NeighborhoodDF.to_blocks in the refactor
-GENOME_DEFAULT_BLOCKS = [
-    '#',
-    '# c80e3=X; lineage=2; block_id=1; c80i70=1; pid=2',
-    '  : pid : c80i70 : c100i100 : plen : pfam : aravind : product : organism : lineage : classification',
-    '1 : p2  : i1     : j2       : 20   :      : b       : prod2   : Org A    : L1      : k1            ',
-    '0 : p1  : i1     : j1       : 100  : PF1  : a       : prod|1  : Org B    : L2      : k2            ',
-    '#',
-    '# c80e3=Y; lineage=1; block_id=1; c80i70=1; pid=1',
-    '  : pid : c80i70 : c100i100 : plen : pfam : aravind : product : organism : lineage : classification',
-    '2 : p3  : i2     : j3       : 300  : PF2  : c       : prod3   : Org C    : L1      : k3            ',
-    '#',
-    '# c80e3=Z; lineage=1; block_id=1; c80i70=1; pid=1',
-    '  : pid : c80i70 : c100i100 : plen : pfam : aravind : product : organism : lineage : classification',
-    '3 : p4  : i3     : j4       : 40   : PF3  : d       : prod4   : Org A    : L3      : k1            ',
-]
-
-
-def test_to_blocks_genome_defaults():
-    assert rp.to_blocks(genome_frame()) == text(GENOME_DEFAULT_BLOCKS)
 
 
 # ------------------------------------------------------------------- to_yaml

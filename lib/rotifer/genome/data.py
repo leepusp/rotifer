@@ -925,3 +925,37 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         v5 = viz.merge(v4[['vizi', 'nei_c', 'ncc']], how='left')
         return v5
 
+
+    def to_blocks(self, **kwargs):
+        """Render the neighborhood as text blocks, one per c80e3 cluster.
+
+        Applies the NEIGHBORHOOD_BLOCKS preset of rotifer.genome.blocks (groupby,
+        columns, stats and sortrows); keyword arguments replace its entries and
+        are otherwise those of rotifer.pandas.to_blocks.
+
+        Returns
+        -------
+        str or None
+            The text, or None when `buf` is given.
+        """
+        import rotifer.pandas
+        from rotifer.genome.blocks import NEIGHBORHOOD_BLOCKS
+        return rotifer.pandas.to_blocks(self, **{**NEIGHBORHOOD_BLOCKS, **kwargs})
+
+    def to_yaml(self, **kwargs):
+        """Write the neighborhood as a YAML document of markdown tables.
+
+        Applies the NEIGHBORHOOD_YAML preset of rotifer.genome.blocks (groupby,
+        columns, sorting and the annotation, stats and dist tables); keyword
+        arguments replace its entries and are otherwise those of
+        rotifer.pandas.yaml_blocks.to_yaml. Read it back with
+        rotifer.pandas.yaml_blocks.read_yaml.
+
+        Returns
+        -------
+        str or None
+            The text, or None when `buf` is given.
+        """
+        import rotifer.pandas.yaml_blocks
+        from rotifer.genome.blocks import NEIGHBORHOOD_YAML
+        return rotifer.pandas.yaml_blocks.to_yaml(self, **{**NEIGHBORHOOD_YAML, **kwargs})

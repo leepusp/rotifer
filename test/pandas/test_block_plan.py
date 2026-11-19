@@ -167,3 +167,35 @@ def test_to_blocks_apply_warns_and_runs_the_old_algorithm():
 
 def _old_apply(block, groupby, header, colsep, **kwargs):
     return pd.DataFrame({'blocks': [f'X {block.name}']})
+
+
+# ------------------------------------------------------- genome-neutral defaults
+def test_groupby_is_required():
+    with pytest.raises(TypeError):
+        rp.to_blocks(frame())
+    with pytest.raises(TypeError):
+        rp.to_yaml(frame())
+
+
+def test_defaults_show_every_column_but_the_grouping_ones_and_no_stats():
+    text = rp.to_blocks(frame()[['g', 'n', 's']], groupby='g')
+    assert text.splitlines()[:4] == ['#', '# g=B', '  : n   : s', '0 : 3   : q']
+    assert rp.to_blocks(frame(), groupby=['g', 'h'], columns=['n']).splitlines()[1] \
+        == "# ('g', 'h')=('B', 'x')"
+
+
+def test_no_sorting_by_default():
+    text = rp.to_blocks(frame(), groupby='g', columns=['n'])
+    assert [ln for ln in text.splitlines() if ln.startswith('# ')] == ['# g=B', '# g=A', '# g=C']
+    assert text.splitlines()[3:5] == ['0 : 3  ', '2 : 200']
+
+
+def test_the_package_names_no_genome_columns():
+    import pathlib
+    import rotifer.pandas
+    root = pathlib.Path(rotifer.pandas.__file__).parent
+    for path in root.glob('*.py'):
+        if path.name in ('network.py',):         # to_network is a separate concern
+            continue
+        for word in ('c80e3', 'lineage', 'c80i70'):
+            assert word not in path.read_text(), (path.name, word)

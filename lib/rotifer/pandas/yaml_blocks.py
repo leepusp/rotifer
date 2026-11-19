@@ -7,19 +7,19 @@ on every block. Every later element is one block: a `key` naming the group, plus
 any number of further keys, each holding a markdown table as a literal scalar.
 
     - parameters:
-        groupby: [c80e3]
+        groupby: [grp]
 
     # ----------------------------------------------------------------------
     - key: [A]
       stats: |
-        | lineage | pid |
-        | ------- | --- |
-        | 1       | 2   |
+        | kinds | id |
+        | ----- | -- |
+        | 1     | 2  |
       rows: |
-        | pid | plen | product       |
-        | --- | ---- | ------------- |
-        | p1  | 10   | prod one      |
-        | p2  | 200  | has \\| a pipe |
+        | id | size | product       |
+        | -- | ---- | ------------- |
+        | p1 | 10   | prod one      |
+        | p2 | 200  | has \\| a pipe |
 
 Writing formats the text directly so the comments, blank lines and column padding
 survive; reading is a safe YAML load plus a split on unescaped pipes, so no
@@ -56,31 +56,6 @@ from rotifer.core import functions as rcf
 
 config = rcf.loadConfig(__name__, defaults = {
     'indent': 4,
-    'ndf': {
-        'annotation': lambda x: pd.DataFrame({'pfam':x.pfam.mode(), 'curated':x.pfam.mode() }),
-        'stats': {
-            'superkingdom': ('superkingdom', 'nunique'),
-            'lineage': ('lineage', 'nunique'),
-            'phylum': ('phylum', 'nunique'),
-            'taxid': ('taxid', 'nunique'),
-            'c80i70': ('c80i70', 'nunique'),
-            'pid': ('pid', 'nunique'),
-        },
-        'dist': lambda x: x.groupby('pfam').c80i70.nunique().reset_index(),
-        'columns': ['pid', 'c80i70', 'c100i100', 'plen', 'pfam', 'aravind', 'product', 'organism', 'lineage', 'classification'],
-        'sortblocks': {
-            'phylum': False,
-            'c80i70': False
-        },
-        'sortrows': {
-            'qc80e3': True,
-            'superkingdom': True,
-            'phylum': True,
-            'lineage': True,
-            'classification': True,
-            'c80i70': True
-        },
-    },
 })
 SEPARATOR = '# ' + '-' * 5
 
@@ -174,7 +149,7 @@ def read_md_table(text):
 # --------------------------------------------------------------------- writing
 
 
-def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
+def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
             sortblocks=None, sample=None, name='rows', sep='\n\n',
             **tables):
     """Write `df` as the YAML block document described above.
@@ -196,20 +171,22 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
     Every remaining keyword argument defines one further table, the keyword
     naming it in the document. Two forms are accepted:
 
-      stats={'lineage': 'nunique', 'pid': 'nunique'}
+      stats={'kind': 'nunique', 'id': 'nunique'}
           A mapping of column to aggregation. Evaluated for all blocks at once
           with a single groupby.agg, producing a one-row table per block. This is
           much the cheaper form, and `stats` is the conventional name for it.
+          Named aggregation works too, {'n_kinds': ('kind', 'nunique')}, naming
+          the output column apart from its source.
 
-      lineages=lambda block: block[['lineage']].drop_duplicates()
+      kinds=lambda block: block[['kind']].drop_duplicates()
           A callable receiving each block as a DataFrame and returning the table
           to render. Flexible, but it materialises a DataFrame per block.
 
     So the whole shape of a block is caller-defined:
 
-        to_yaml(df, groupby='c80e3',
-                stats={'lineage': 'nunique'},
-                span={'plen': 'max'},
+        to_yaml(df, groupby='grp',
+                stats={'kind': 'nunique'},
+                span={'size': 'max'},
                 products=lambda b: b['product'].value_counts().reset_index())
 
     writes `stats`, `span` and `products` tables into every block, in that order,
@@ -273,7 +250,7 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
         True          the default: every table is merged on the grouping columns.
         None, False   nothing is merged.
         ['a', 'b']    only these tables are merged, on the grouping columns.
-        {'a': 'pid'}  only these tables are merged, each joined on the columns
+        {'a': 'id'}  only these tables are merged, each joined on the columns
         {'a': [...]}  given for it rather than on the grouping columns.
 
     drop   : tables to leave out entirely.
@@ -301,8 +278,8 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     table just because their columns happen to match. Same key across blocks means
     the rows are concatenated; the resulting frames are then merged on the group
     columns, and a column reaching the result from more than one table is suffixed
-    with that table's key, so aggregating `pid` under `stats` lands as `pid_stats`
-    beside the row-level `pid`. The widest table keeps the unsuffixed names.
+    with that table's key, so aggregating `id` under `stats` lands as `id_stats`
+    beside the row-level `id`. The widest table keeps the unsuffixed names.
     """
     text = _read_source(source)
 

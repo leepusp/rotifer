@@ -29,7 +29,7 @@ def _fmt_label(x):
     """Render a label or group key for the block header. Tuples are emitted as
     Python literals so a parser can recover them with ast.literal_eval; numpy
     scalars are demoted to builtins first, since repr(np.int64(1)) is not a
-    literal. Scalars stay bare, keeping the common `# c80e3=A` form readable."""
+    literal. Scalars stay bare, keeping the common `# grp=A` form readable."""
     if isinstance(x, tuple):
         return repr(tuple(_fmt_label(e) if isinstance(e, tuple) else _py(e) for e in x))
     return str(_py(x))

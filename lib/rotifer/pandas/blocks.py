@@ -79,8 +79,8 @@ def _group_agg(grouped, spec, table):
 
     spec maps an output name to one of
       * an aggregation (name or callable) of the column of the same name,
-        {'lineage': 'nunique'};
-      * a named aggregation, {'n_lineages': ('lineage', 'nunique')};
+        {'species': 'nunique'};
+      * a named aggregation, {'n_species': ('species', 'nunique')};
       * a plain value, repeated for every block, {'n': 7}.
     Returns a DataFrame indexed by group key, columns in spec order."""
     obj = grouped.obj
@@ -196,21 +196,13 @@ REMOVAL = '2026-11-30'
 # Options of text.to_string that to_blocks forwards; anything else is a mistake.
 _TO_STRING_OPTIONS = ('index', 'na_rep', 'float_format', 'align', 'insert')
 
-# Genome defaults of the old API; they move to rotifer.genome in a later change.
-_LEGACY_COLUMNS = ['pid', 'c80i70', 'c100i100', 'plen', 'pfam', 'aravind',
-                   'product', 'organism', 'lineage', 'classification']
-_LEGACY_STATS = {'lineage': 'nunique', 'block_id': 'nunique',
-                 'c80i70': 'nunique', 'pid': 'nunique'}
-_LEGACY_SORTROWS = {'lineage': True, 'classification': True, 'organism': True}
-
-
 def _deprecated(what, instead, stacklevel=2):
     # stacklevel counts from the deprecated function: 2 is its caller.
     warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL}; {instead}.',
                   FutureWarning, stacklevel=stacklevel + 1)
 
 
-def default_header(key, groupby='c80e3', stats=None, **kwargs):
+def default_header(key, groupby, stats=None, **kwargs):
     """Header of one block: ``#`` then ``# <groupby>=<key>; <stat>=<value>; ...``.
 
     key     : the block's group key, a bare value or a tuple matching `groupby`.
@@ -232,8 +224,6 @@ def default_header(key, groupby='c80e3', stats=None, **kwargs):
 
 
 def _legacy_header(df, groupby, stats):
-    if stats is None:
-        stats = {'lineage': 'nunique', 'block_id': 'nunique'}
     groupby = _as_label(groupby)
     key = _group_key(df, groupby)
     labels, scalar = _group_labels(df, groupby)
@@ -241,23 +231,16 @@ def _legacy_header(df, groupby, stats):
         # Key arity follows label arity: pandas unwraps a one-label grouping, and
         # an empty or unknown group has no key at all.
         key = key if isinstance(key, tuple) else (key,) * len(labels) if key is None else (key,)
-    statStr = "; ".join(f'{_fmt_label(c)}={v}' for c, v in _resolve_stats(df, stats).items())
-    return f'#\n# {_fmt_label(groupby)}={_fmt_label(key)}; {statStr}'
+    tail = ''.join(f'; {_fmt_label(c)}={v}' for c, v in _resolve_stats(df, stats or {}).items())
+    return f'#\n# {_fmt_label(groupby)}={_fmt_label(key)}{tail}'
 
 
-def default_block_rows(df, groupby='c80e3', header=default_header, colsep=" : ",
+def default_block_rows(df, groupby, header=default_header, colsep=" : ",
                           columns=None, sample=None, stats=None, sortrows=None, **kwargs):
     """Deprecated: the old per-block hook of to_blocks, returning a one-row
     DataFrame whose `blocks` column holds the block text."""
     _deprecated('default_block_rows', 'to_blocks builds the blocks itself now', stacklevel=2)
-    if columns is None:
-        columns = _LEGACY_COLUMNS
-    if sortrows is None:
-        sortrows = _LEGACY_SORTROWS
-    if stats is None:
-        stats = _LEGACY_STATS
-
-    statDict = _resolve_stats(df, stats)
+    statDict = _resolve_stats(df, stats or {})
     headerStr = header(df, groupby=groupby, stats=statDict, **kwargs)
 
     block = df.copy()
@@ -268,7 +251,8 @@ def default_block_rows(df, groupby='c80e3', header=default_header, colsep=" : ",
         if sortcols:
             block = block.sort_values(sortcols, ascending=[sortrows[c] for c in sortcols])
 
-    block = block.filter(columns)
+    if columns is not None:
+        block = block.filter(columns)
     block = [headerStr + "\n" + to_string(block, sep=colsep, **kwargs)]
     return pd.DataFrame({'blocks': block, **statDict})
 
@@ -304,14 +288,15 @@ def _render_rows(names, arrays, taken, sep, align):
     return header + "\n" + "\n".join(lines.to_pylist())
 
 
-def to_blocks(df, groupby='c80e3', *, columns=None, stats=None, sortrows=None,
+def to_blocks(df, groupby, *, columns=None, stats=None, sortrows=None,
               sortblocks=None, sample=None, header=default_header, colsep=' : ',
               sep='\n', buf=None, apply=None, **to_string_kwargs):
     """Write `df` as text blocks, one per group: a header, then the block's rows.
 
     groupby    : column label, or list of labels, to group by. Blocks come out in
                  order of first appearance.
-    columns    : columns shown in each block's rows.
+    columns    : columns shown in each block's rows; every column but the grouping
+                 ones when None.
     stats      : {column: aggregation} or {name: (column, aggregation)} computed
                  once per block and handed to `header`.
     sortrows   : {column: ascending} ordering the rows inside each block.
@@ -336,19 +321,13 @@ def to_blocks(df, groupby='c80e3', *, columns=None, stats=None, sortrows=None,
     if unknown:
         raise TypeError(f'to_blocks() got an unexpected keyword argument {unknown[0]!r}')
 
-    if columns is None:
-        columns = _LEGACY_COLUMNS
-    if stats is None:
-        stats = _LEGACY_STATS
-    if sortrows is None:
-        sortrows = _LEGACY_SORTROWS
-
     if apply is not None:
         _deprecated('to_blocks(apply=...)', 'to_blocks now builds the blocks itself; '
                     'customise them with header, columns and stats', stacklevel=2)
         return _to_blocks_apply(df, groupby, buf, header, apply, colsep, sortblocks, sep,
-                                dict(columns=columns, stats=stats, sortrows=sortrows,
-                                     sample=sample, **to_string_kwargs))
+                                {k: v for k, v in dict(columns=columns, stats=stats,
+                                                       sortrows=sortrows, sample=sample).items()
+                                 if v is not None} | to_string_kwargs)
 
     plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks, sample=sample,
                        tables={'stats': stats} if stats else None)
