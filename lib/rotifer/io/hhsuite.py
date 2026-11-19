@@ -136,7 +136,9 @@ def parse_result(lines):
             query_neff = float(line.split()[1])
         elif(is_alignment_section and (line.startswith("No") or line.startswith("Done!"))):
             if query_start is not None:
-                pvalue = pvalueDict[hitID-1]
+                # At 'No N', hitID already points to the next hit, N; at
+                # 'Done!' it is still the hit being closed
+                pvalue = pvalueDict[hitID if line.startswith("Done!") else hitID - 1]
                 result = hhr_alignment(query_id, query_length, query_neff,
                                        template_id, template_length, template_info, template_neff,
                                        query_seq, template_seq, (query_start, template_start),

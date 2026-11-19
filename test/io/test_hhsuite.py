@@ -17,9 +17,8 @@ What has to hold, and why:
   * bin/hhsuite2table prints what the library returns, so the command line
     and the library cannot drift apart
 
-The sample file, data/sample.hhr, holds two hits. Only the first hit's
-p-value is checked: the parser assigns the last hit of a file the p-value
-of the hit before it, which is a separate bug.
+The sample file, data/sample.hhr, holds two hits. The second, last one
+used to get the first hit's p-value; both are checked.
 
 Run under pytest, or standalone: python test/io/test_hhsuite.py
 """
@@ -74,7 +73,7 @@ def test_read_hhr_returns_hits():
     assert list(df.probability) == [99, 50]
     assert list(df.evalue) == [1.1e-20, 0.5]
     assert list(df.identity) == [0.4, 0.25]
-    assert df.pvalue[0] == 2.2e-24
+    assert list(df.pvalue) == [2.2e-24, 1e-4]
 
 def test_read_hhr_accepts_directory_and_list(tmp_path):
     for name in ('a.hhr', 'b.hhr'):
@@ -116,7 +115,7 @@ def test_hhsuite2pandas_values_are_pinned():
     df = _hhsuite().hhsuite2pandas(SAMPLE)
     assert list(df.score) == ['120.5', '20.1']
     assert list(df.probability) == [99, 50]
-    assert list(df.pvalue) == [2.2e-24, 2.2e-24]
+    assert list(df.pvalue) == [2.2e-24, 1e-4]
 
 
 if __name__ == '__main__':
