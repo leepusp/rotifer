@@ -33,7 +33,7 @@ version to fold or unfold its notes; the newest is unfolded.
 - The Perl library (`perl/`, the `Rotifer::` modules) and the
   `PERL5LIB` setting of the Lmod module are gone. Perl scripts outside
   this repository that use `Rotifer::` modules stop working ({pr}`138`).
-- 51 command line tools were removed (listed under **Removed**).
+- 52 command line tools were removed (listed under **Removed**).
   Calling one prints what to use instead and exits with status 1
   ({pr}`138`).
 - `gi2context`, `runprofiles` and `rbashpipe` were removed without a
@@ -147,8 +147,8 @@ version to fold or unfold its notes; the newest is unfolded.
   `neighborhood2svg`, `neighborhood_explorer`, `nt2aa`,
   `ontology2hierarchy`, `operon2arch`, `operon2table`,
   `operon_uniquize`, `padtable`, `pdb2seq`, `protein2dna`,
-  `rcomplement`, `rconvertseq`, `rotifer_perl`, `runionFind`,
-  `runprofiles`, `seq2taxonomy`, `seqsplit`, `seqstats`,
+  `rbashpipe`, `rcomplement`, `rconvertseq`, `rotifer_perl`,
+  `runionFind`, `runprofiles`, `seq2taxonomy`, `seqsplit`, `seqstats`,
   `table2blocks`, `taxid2taxonomy`, `taxutil`, `tfilter`, `tgroup`,
   `tjoin`, `tpivot`, `tree2distance`, `treeutil`, `ttranspose`,
   `tungroup`, `tupdate`, `txt2tsv` and `unpadtable` ({pr}`138`).

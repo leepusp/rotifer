@@ -14,7 +14,8 @@ case "$name" in
     padtable|unpadtable)  hint="use column -t" ;;
     accession2gi|gi2accession|taxid2taxonomy|taxutil|seq2taxonomy|genbank2table)
                           hint="use rotifer.db.ncbi, rotifer.taxonomy or rotifer.genome.io" ;;
-    runprofiles)          hint="use bin/scanseqs, or HMMER/BLAST directly" ;;
+    runprofiles|rbashpipe)
+                          hint="use bin/scanseqs, or HMMER/BLAST directly" ;;
     *)                    hint="it has no replacement" ;;
 esac
 echo "$name was removed from ROTIFER together with its Perl code: $hint." >&2
