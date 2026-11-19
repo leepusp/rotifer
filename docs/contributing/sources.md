@@ -23,19 +23,19 @@ The rules are adapted from other projects and from ROTIFER's own history.
 | Experimental code outside the core, see {doc}`personal-codebases` | scikit-learn-contrib; astropy affiliated packages |
 | Security reporting, see {doc}`policy` | GitHub SECURITY.md and private vulnerability reporting; OpenSSF Best Practices |
 | Policy changes need more approval than code changes, see {doc}`policy` | NumPy governance |
-| Changelog categories, newest release first, ISO dates, see {doc}`changelog` | [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) |
-| One fragment per pull request, collected at release, see {doc}`changelog` | [towncrier](https://towncrier.readthedocs.io), used by pytest, pip, attrs and Twisted; astropy and NumPy collect per-change release note files the same way |
-| "No changelog" reason in the pull request, see {doc}`changelog` | pytest and astropy "skip changelog" labels |
-| Changed results section, see {doc}`changelog` | scikit-learn release notes, "Changed models" section |
-| Upgrade notes listed first, with what to do, see {doc}`changelog` | Django release notes, "Backwards incompatible changes" |
-| Highlights and contributors in each release, see {doc}`releasing` | NumPy, SciPy and astropy release notes |
-| Tags and pre-release names, yanking instead of re-tagging, see {doc}`releasing` | [PEP 440](https://peps.python.org/pep-0440/); [PEP 592](https://peps.python.org/pep-0592/) (yanked releases) |
+| Changelog categories, newest release first, ISO dates, see [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html) | [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) |
+| One fragment per pull request, collected at release, see [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html) | [towncrier](https://towncrier.readthedocs.io), used by pytest, pip, attrs and Twisted; astropy and NumPy collect per-change release note files the same way |
+| "No changelog" reason in the pull request, see [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html) | pytest and astropy "skip changelog" labels |
+| Changed results section, see [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html) | scikit-learn release notes, "Changed models" section |
+| Upgrade notes listed first, with what to do, see [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html) | Django release notes, "Backwards incompatible changes" |
+| Highlights and contributors in each release, see [Releasing](https://leepusp.github.io/rotifer/contributing/releasing.html) | NumPy, SciPy and astropy release notes |
+| Tags and pre-release names, yanking instead of re-tagging, see [Releasing](https://leepusp.github.io/rotifer/contributing/releasing.html) | [PEP 440](https://peps.python.org/pep-0440/); [PEP 592](https://peps.python.org/pep-0592/) (yanked releases) |
 | One release deprecated, removed in the next, see {doc}`compatibility` | pandas deprecation policy (deprecate in one release, remove in a later one), shortened for a small team |
-| ADR format, numbering, immutability once accepted, see {doc}`adr` | [Michael Nygard, "Documenting Architecture Decisions"](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) (2011) |
-| Alternatives considered as a required ADR section, see {doc}`adr` | [MADR](https://adr.github.io/madr/) (Markdown Any Decision Records) |
-| ADR status lifecycle, superseding, approval by maintainers, see {doc}`adr` | Python PEP 1; Rust RFCs; Kubernetes KEPs |
-| Decision records in scientific software, see {doc}`adr` | NumPy NEPs; astropy APEs; scikit-learn SLEPs |
-| Validation section for decisions that can change results, see {doc}`adr` | ROTIFER's equivalence and benchmark checks in refactors (#144, #151) |
+| ADR format, numbering, immutability once accepted, see [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html) | [Michael Nygard, "Documenting Architecture Decisions"](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) (2011) |
+| Alternatives considered as a required ADR section, see [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html) | [MADR](https://adr.github.io/madr/) (Markdown Any Decision Records) |
+| ADR status lifecycle, superseding, approval by maintainers, see [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html) | Python PEP 1; Rust RFCs; Kubernetes KEPs |
+| Decision records in scientific software, see [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html) | NumPy NEPs; astropy APEs; scikit-learn SLEPs |
+| Validation section for decisions that can change results, see [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html) | ROTIFER's equivalence and benchmark checks in refactors (#144, #151) |
 | Conduct, see {doc}`policy` | [Contributor Covenant](https://www.contributor-covenant.org) |
 
 ## Where ROTIFER deviates on purpose

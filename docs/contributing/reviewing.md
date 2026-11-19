@@ -51,12 +51,12 @@ Dependencies
 
 Changelog
 : A user-visible change has a fragment in `changelog.d/` of the right
-  type, written for users ({doc}`changelog`). Otherwise the description
+  type, written for users ([Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html)). Otherwise the description
   gives a "No changelog" reason you agree with.
 
 ADR
 : Changes that need an architecture decision record link to one that
-  is accepted ({doc}`adr`). Do not approve the implementation before
+  is accepted ([Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html)). Do not approve the implementation before
   that.
 
 Deprecation

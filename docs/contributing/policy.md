@@ -44,10 +44,10 @@ continues, and contributors SHOULD start following it now.
     result, and substantial use is disclosed. See
     {doc}`code-standards`.
 11. Every user-visible change adds a changelog fragment in the same
-    pull request. See {doc}`changelog`.
+    pull request. See [Changelog](https://leepusp.github.io/rotifer/contributing/changelog.html).
 12. Changes to packages, persistent formats, cross-module conventions,
     central dependencies or project infrastructure need an accepted
-    architecture decision record before they merge. See {doc}`adr`.
+    architecture decision record before they merge. See [Architecture decision records](https://leepusp.github.io/rotifer/contributing/adr.html).
 
 Roles and decision making are in {doc}`governance`, and the
 precedent behind each rule is in {doc}`sources`.
