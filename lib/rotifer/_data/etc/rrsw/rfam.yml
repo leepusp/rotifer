@@ -1,0 +1,20 @@
+# Configuration files for rrsw are YAML files
+#
+# For details on the syntax see
+#  - http://www.yaml.org/
+#  - http://en.wikipedia.org/wiki/YAML
+#
+# Supported keys: include and exclude
+# Supported values: strings and (Python) regular expressions
+#
+# Exclude is processed before include therefore 
+# excluded patterns take precedence over included ones
+# 
+---
+exclude:
+ - database_files
+ - fasta_files
+ - genome_browser_hub
+ - large_family_files
+ - Rfam.seed_tree.tar.gz
+ - Rfam.tar.gz

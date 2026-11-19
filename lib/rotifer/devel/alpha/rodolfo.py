@@ -590,7 +590,17 @@ def psiblast(acc,
              slurm_kwargs={'partition':'basic', 'time':480}):
     '''
     Psiblast search of a seqobj against sequence database.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.psiblast` instead.
     '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.psiblast is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.psiblast instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     import tempfile
     import subprocess
     from subprocess import Popen, PIPE, STDOUT
@@ -637,19 +647,32 @@ def psiblast(acc,
             blast_r = f.read()
 
         # Blast2table
-        cmd = f'blast2table {out} > {out.replace(".out",".tsv")}'
-        Popen(cmd, stdout=PIPE, shell=True).communicate()
-        t = pd.read_csv(out.replace(".out",".tsv"), sep='\t', names=cols)
+        from rotifer.io.blast import read_blast
+        t = read_blast(out)
+        t.columns = cols
 
         # Cleanup
         if delete:
-            for temp in [out,out.replace(".out",".tsv")]:
+            for temp in [out]:
                 if os.path.exists(temp):
                     os.unlink(temp)
     return (t, blast_r) 
 
 
 def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None, local_database_path=config['local_database_path']):
+    '''
+    Deprecated: use rotifer.devel.beta.blast.search2aln instead.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.search2aln` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.search2aln is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.search2aln instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     import os
     import tempfile
     import subprocess
@@ -836,15 +859,28 @@ def extract_envelope(df, start='estart', end='eend', expand=10, local_database_p
     Using a hmm model to split your sequence object to match only the model region.
     If more than one match in one protein, it will split the match in two sequence.
 
-    
+    .. deprecated::
+       Use :func:`rotifer.devel.beta.blast.extract_envelope` instead.
+       This copy is no longer maintained and keeps coordinate errors
+       fixed there (issue #142): the start is widened by expand - 1,
+       envelopes closer than expand to residue 1 come back empty or
+       wrong, and the id shows the envelope instead of the region cut.
     '''
 
     import os
+    import warnings
     import pandas as pd
     import tempfile
     import subprocess
     from subprocess import Popen, PIPE, STDOUT
     from rotifer.devel.beta import sequence as rdbs
+
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.extract_envelope is deprecated and returns wrong '
+        'coordinates (issue #142); use rotifer.devel.beta.blast.extract_envelope instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     
     myDF = df.drop_duplicates()
 
@@ -884,7 +920,17 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
         architecture2table
         splishrps
         rps2arch
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.blast.split_by_model` instead.
     '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.split_by_model is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.blast.split_by_model instead',
+        FutureWarning,
+        stacklevel=2,
+    )
 
     import os
     import pandas as pd

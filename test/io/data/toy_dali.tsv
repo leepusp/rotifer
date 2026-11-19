@@ -1,0 +1,5 @@
+# SEQUENCE: ACDEFGHIK
+# DSSP: LLHHHHHLL
+query	sbjct	qstarts	sstarts	lengths	sbjct-sequence	compressed-sbjct-dssp
+q1	s1	[0, 5]	[0, 8]	[3, 4]	ACDxxxxxGHIKz	3L5E4H1L
+q1	s2	[2]	[0]	[5]	DEFGH	5H
