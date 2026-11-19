@@ -55,8 +55,6 @@ from rotifer.core import functions as rcf
 
 config = rcf.loadConfig(__name__, defaults = {
     'indent': 4,
-    'colsep': ' | ',
-    'header': True,
     'ndf': {
         'annotation': lambda x: pd.DataFrame({'pfam':x.pfam.mode(), 'curated':x.pfam.mode() }),
         'stats': {
@@ -83,7 +81,6 @@ config = rcf.loadConfig(__name__, defaults = {
         },
     },
 })
-INDENT = ' ' * config['indent']
 MERGED = 'merged'                       # read_yaml returns the joined frame here
 RESERVED = ('key', 'parameters', MERGED)
 SEPARATOR = '# ' + '-' * 5
@@ -136,11 +133,13 @@ def _escape_columns(df):
     return out
 
 
-def _md_arrow(cols, names, indent=INDENT):
+def _md_arrow(cols, names, indent=None):
     """Render pre-escaped arrow columns as a markdown table.
 
     Padding and the surrounding pipes are both applied by arrow kernels, so no
-    Python-level pass is made over the rows."""
+    Python-level pass is made over the rows. indent=None takes it from config."""
+    if indent is None:
+        indent = ' ' * config['indent']
     padded, widths = pad_columns(cols, names)
     headers = [name.ljust(w) for name, w in zip(names, widths)]
     head = f'{indent}| ' + ' | '.join(headers) + ' |'
@@ -153,7 +152,7 @@ def _md_arrow(cols, names, indent=INDENT):
     return '\n'.join([head, rule] + body.to_pylist())
 
 
-def md_table(df, indent=INDENT, index=False):
+def md_table(df, indent=None, index=False):
     """Render a DataFrame as a markdown table, indented for a YAML block scalar."""
     if index:
         df = df.reset_index()

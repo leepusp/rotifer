@@ -99,7 +99,7 @@ def pad(data, side='left', fillchar=' '):
         return _pad_series(data, side, fillchar)
     return data
 
-def to_color(data, colors=config['colors'], style='fg', padding=None, fillchar=' '):
+def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     """
     Convert a DataFrame or Series to DType str and add
     ASCII color codes to each character.
@@ -128,7 +128,7 @@ def to_color(data, colors=config['colors'], style='fg', padding=None, fillchar='
 
     # Load colors
     default_color = "000"
-    if colors == None or colors == False:
+    if colors is None or colors is False:
         colors = config["colors"]
     if not isinstance(colors,dict):
         if isinstance(colors,str):
