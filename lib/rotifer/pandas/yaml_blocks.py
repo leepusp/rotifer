@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Block output as hand-editable YAML carrying markdown tables.
+"""Block reports as hand-editable YAML documents holding markdown tables.
+
+:func:`to_yaml` writes the same blocks as :func:`rotifer.pandas.to_blocks`, which
+are planned by :func:`rotifer.pandas.blocks.plan_blocks`, but in a format that can
+be edited by hand and read back with :func:`read_yaml`. :func:`md_table` and
+:func:`read_md_table` convert a single DataFrame to and from one markdown table.
 
 A document is a YAML sequence. The first element holds the file-level parameters,
-notably the grouping columns, which are therefore stored once rather than repeated
-on every block. Every later element is one block: a `key` naming the group, plus
-any number of further keys, each holding a markdown table as a literal scalar.
+notably the grouping columns, which are stored once and not repeated on every
+block. Each later element is one block: a ``key`` listing the group's values, one
+per grouping column, plus any number of further entries, each a markdown table
+stored as a literal block scalar. The names ``key``, ``parameters`` and ``merged``
+are reserved and cannot name a table.
 
     - parameters:
         groupby: [grp]
 
-    # ----------------------------------------------------------------------
+    # -----
     - key: [A]
       stats: |
         | kinds | id |
@@ -21,21 +28,20 @@ any number of further keys, each holding a markdown table as a literal scalar.
         | p1 | 10   | prod one      |
         | p2 | 200  | has \\| a pipe |
 
-Writing formats the text directly so the comments, blank lines and column padding
-survive; reading is a safe YAML load plus a split on unescaped pipes, so no
-structure is parsed by hand. Padding is cosmetic: surrounding whitespace is
-stripped, so a hand-edited table with ragged pipes still parses.
+A literal pipe inside a cell is written ``\\|``. Padding is cosmetic: whitespace
+around cells is stripped when reading, so a hand-edited table with ragged pipes
+still parses. Writing formats the text directly, which keeps the comments, blank
+lines and column padding. Reading is a safe YAML load followed by a split on
+unescaped pipes.
 
-Writing does not go through to_blocks. Escaping and string conversion happen once
-for the whole frame, statistics are aggregated for every block in a single pass,
-and each block is cut with an arrow `take`, so no per-block DataFrame is built and
-no Python-level pass is made over the rows. That is worth roughly 3.5x on a frame
-of 100k rows in 500 groups, rising to about 6x at 5000 groups, where the per-block
-overhead had dominated. pyarrow is required here rather than optional.
+Writing does not go through :func:`rotifer.pandas.to_blocks`. Text is escaped and
+converted once for the whole frame, aggregations are computed for all blocks in
+one pass and each block is cut out with an arrow ``take``, so no DataFrame is
+built per block. This needs pyarrow.
 
-Reading combines the tables by the key they are stored under: the same key across
-blocks has its rows concatenated, and the resulting frames are merged on the group
-columns.
+Reading combines the tables by the name they are stored under: the rows of a table
+of the same name are concatenated across blocks, and the resulting tables are
+merged on the grouping columns.
 """
 
 import re
@@ -72,8 +78,7 @@ _CHUNK = 1 << 15
 
 # --------------------------------------------------------------------- helpers
 def _flow(value):
-    """Render a scalar or sequence as a compact YAML flow scalar, letting PyYAML
-    handle quoting so values containing commas or brackets stay valid."""
+    """Render a scalar or sequence as a one-line YAML flow value, quoted by PyYAML when needed."""
     if isinstance(value, tuple):
         value = list(value)
     if isinstance(value, list):
@@ -85,12 +90,11 @@ def _flow(value):
 
 
 def _escape_columns(df):
-    """DataFrame -> one arrow string array per column, escaped and ready to pad.
+    """Convert each column of `df` to an arrow string array, escaping pipes and flattening newlines.
 
-    Pipes are escaped and newlines flattened *before* padding: escaping afterwards
-    would leave every affected column one character short, and an embedded newline
-    would terminate the YAML block scalar. Doing this once for a whole frame, then
-    slicing blocks out of the result, avoids repeating it for every block."""
+    This happens before padding, so column widths include the escape characters,
+    and once for the whole frame, so blocks can be cut from the result.
+    """
     out = []
     for c in df.columns:
         arr = pa.Array.from_pandas(df[c].astype('string').fillna(''), type=pa.string())
@@ -100,10 +104,10 @@ def _escape_columns(df):
 
 
 def _md_arrow(cols, names, indent=None):
-    """Render pre-escaped arrow columns as a markdown table.
+    """Render pre-escaped arrow columns as an indented markdown table, using arrow kernels.
 
-    Padding and the surrounding pipes are both applied by arrow kernels, so no
-    Python-level pass is made over the rows. indent=None takes it from config."""
+    `indent` is a string; None takes the width from the ``indent`` setting.
+    """
     if indent is None:
         indent = ' ' * config['indent']
     padded, widths = pad_columns(cols, names)
@@ -119,14 +123,87 @@ def _md_arrow(cols, names, indent=None):
 
 
 def md_table(df, indent=None, index=False):
-    """Render a DataFrame as a markdown table, indented for a YAML block scalar."""
+    """Render a DataFrame as a padded markdown table.
+
+    The table has a header line, a rule line and one line per row. Missing values
+    become empty cells, a pipe inside a cell is written ``\\|`` and a newline is
+    replaced by a space.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Table to render.
+    indent : str, optional
+        Prefix of every line, for embedding the table in a YAML block scalar. Four
+        spaces (the ``indent`` setting) when None.
+    index : bool, default False
+        Write the index as the first column.
+
+    Returns
+    -------
+    str
+        The table, without a trailing newline.
+
+    See Also
+    --------
+    read_md_table : Parse such a table back into a DataFrame.
+    rotifer.pandas.to_string : Aligned plain text instead of markdown.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> print(md_table(pd.DataFrame({'id': ['p1', 'p2'], 'kb': [10, 200]}), indent=''))
+    | id | kb  |
+    | -- | --- |
+    | p1 | 10  |
+    | p2 | 200 |
+    """
     if index:
         df = df.reset_index()
     return _md_arrow(_escape_columns(df), [str(c) for c in df.columns], indent=indent)
 
 
 def read_md_table(text):
-    """Parse one markdown table, cutting and typing cells exactly as read_yaml does."""
+    """Parse one markdown table into a DataFrame.
+
+    Lines that do not start with a pipe and the rule line under the header are
+    ignored. Cells are stripped of surrounding whitespace and ``\\|`` is read as a
+    pipe. Empty cells become missing values. A column is converted to numbers only
+    when every non-empty cell in it parses as one. A row with fewer cells than the
+    header is padded with missing values.
+
+    Parameters
+    ----------
+    text : str
+        The table, indented or not.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One column per header cell. An empty frame when `text` holds no table.
+
+    Raises
+    ------
+    ValueError
+        A row has more cells than the header.
+
+    See Also
+    --------
+    md_table : Write a DataFrame as such a table.
+    read_yaml : Read a whole YAML document of tables.
+
+    Examples
+    --------
+    >>> read_md_table('''
+    ... | id | kb  |
+    ... | -- | --- |
+    ... | p1 | 10  |
+    ... | p2 | 200 |
+    ... ''')
+       id   kb
+    0  p1   10
+    1  p2  200
+    """
     rows = [ln for ln in text.split('\n') if ln.strip().startswith('|')]
     rows = [ln for ln in rows if not _RULE_RE.match(ln)]
     if not rows:
@@ -142,59 +219,114 @@ def read_md_table(text):
 def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
             sortblocks=None, sample=None, random_state=None, name='rows', sep='\n\n',
             **tables):
-    """Write `df` as the YAML block document described above.
+    """Write `df` as a YAML document of blocks holding markdown tables.
 
-    Column text is escaped and converted once for the whole frame, per-block
-    aggregations are evaluated in a single pass, and each block is cut with an
-    arrow `take`, so the default path builds no per-block DataFrame.
+    The document format is described in the module docstring. Each block holds
+    one table per extra keyword (aggregations or callables, in the order given),
+    followed by the main table of the block's rows.
 
-    columns    : columns of the main table. Defaults to everything but the
-                 grouping columns, which the reader restores from the block key.
-    name       : name of that main table, `rows` by default.
-    sortrows   : {column: ascending} ordering rows within a block. Applied per
-                 block, so it never changes the order of the blocks themselves.
-    sortblocks : {column: ascending} ordering the blocks, addressing a grouping
-                 column or any column produced by an aggregation table below.
-    sample     : rows per block, sampled without replacement when a block is
-                 larger.
-    random_state: seed for `sample`: an int, a numpy Generator or None (fresh).
-                 Rows whose group key is NaN belong to no block.
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Table to write.
+    groupby : label or list of labels
+        Column(s) defining the blocks. They are stored once, in the document
+        parameters, and as the key of each block.
+    buf : str, path or file-like, optional
+        Where to write. The text is returned when None.
+    columns : list, optional
+        Columns of the main table. All but the grouping columns when None.
+    sortrows : dict, optional
+        ``{column: ascending}``. Orders the rows inside each block.
+    sortblocks : dict, optional
+        ``{column: ascending}``. Orders the blocks. It may name a grouping column
+        or a column produced by an aggregation table.
+    sample : int, optional
+        Keep at most this many rows per block, chosen at random.
+    random_state : int or numpy.random.Generator, optional
+        Seed for `sample`. A fresh generator is used when None.
+    name : str, default 'rows'
+        Name of the main table in each block.
+    sep : str, default '\\n\\n'
+        Text between the parameters and the first block and between blocks.
+    **tables
+        One further table per keyword, named by the keyword. Two forms are
+        accepted. A mapping, ``stats={'kind': 'nunique'}`` or the named form
+        ``stats={'n_kinds': ('kind', 'nunique')}``, is aggregated for all blocks
+        in one pass and gives a one-row table per block; a 2-tuple value is always
+        read as ``(column, aggregation)``. A callable,
+        ``kinds=lambda block: block[['kind']].drop_duplicates()``, receives each
+        block as a DataFrame and returns the table to render.
 
-    Every remaining keyword argument defines one further table, the keyword
-    naming it in the document. Two forms are accepted:
+    Returns
+    -------
+    str or None
+        The document, or None when `buf` is given.
 
-      stats={'kind': 'nunique', 'id': 'nunique'}
-          A mapping of column to aggregation. Evaluated for all blocks at once
-          with a single groupby.agg, producing a one-row table per block. This is
-          much the cheaper form, and `stats` is the conventional name for it.
-          Named aggregation works too, {'n_kinds': ('kind', 'nunique')}, naming
-          the output column apart from its source. A 2-tuple value is always read
-          as (column, aggregation).
+    Raises
+    ------
+    KeyError
+        A grouping column or a column named by an aggregation is missing.
+    ValueError
+        A table uses a reserved name, or an aggregation fails.
+    TypeError
+        A table is neither a mapping nor a callable.
 
-      kinds=lambda block: block[['kind']].drop_duplicates()
-          A callable receiving each block as a DataFrame and returning the table
-          to render. Flexible, but it materialises a DataFrame per block.
+    See Also
+    --------
+    read_yaml : Read the document back.
+    rotifer.pandas.to_blocks : The same blocks as aligned plain text.
+    rotifer.pandas.blocks.plan_blocks : Ordering, sampling and aggregation rules.
 
-    So the whole shape of a block is caller-defined:
+    Notes
+    -----
+    Pipes inside cells are escaped as ``\\|`` and newlines are replaced by a space,
+    so a cell cannot break the table or the YAML block. Missing values become empty
+    cells. Aggregated values are written with ``str``.
 
-        to_yaml(df, groupby='grp',
-                stats={'kind': 'nunique'},
-                span={'size': 'max'},
-                products=lambda b: b['product'].value_counts().reset_index())
+    Blocks appear in order of first appearance of their key unless `sortblocks` is
+    given. `sortrows` never moves blocks. `sample` is drawn per block before
+    `sortrows` is applied. Columns named in either that do not exist are ignored.
+    Rows whose group key is missing (NaN or None) are not written.
 
-    writes `stats`, `span` and `products` tables into every block, in that order,
-    followed by the main table. The tables need have nothing in common: they are
-    never joined to one another here. Columns produced by any aggregation table
-    are visible to sortblocks, so blocks can be ordered by a statistic, and if two
-    tables define the same column name the one named first decides. Names are
-    yours to choose except `key` and `parameters`, which carry block metadata,
-    and `merged`, where read_yaml returns the joined frame.
+    The names ``key`` and ``parameters`` carry block metadata and ``merged`` is where
+    :func:`read_yaml` returns the joined frame, so none of them can name a table.
+    Tables are not joined to each other here; :func:`read_yaml` recombines them on
+    the grouping columns. A callable table builds a DataFrame for every block and is
+    much slower than a mapping.
 
-    Rows are brought back together by read_yaml, not here -- it keys them on the
-    grouping columns, which it restores into every table from the block key.
-
-    Columns named in sortrows or sortblocks that are not present are ignored, so a
-    single ordering can be reused across frames that differ in shape.
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({'g': ['A', 'A', 'B'], 'id': ['p1', 'p2', 'p3'],
+    ...                    'kb': [10, 20, 30]})
+    >>> print(to_yaml(df, 'g', stats={'n': ('id', 'nunique')}))
+    - parameters:
+        groupby: [g]
+    <BLANKLINE>
+    # -----
+    - key: [A]
+      stats: |
+        | n |
+        | - |
+        | 2 |
+      rows: |
+        | id | kb |
+        | -- | -- |
+        | p1 | 10 |
+        | p2 | 20 |
+    <BLANKLINE>
+    # -----
+    - key: [B]
+      stats: |
+        | n |
+        | - |
+        | 1 |
+      rows: |
+        | id | kb |
+        | -- | -- |
+        | p3 | 30 |
+    <BLANKLINE>
     """
     plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks,
                        sample=sample, tables=tables, rng=np.random.default_rng(random_state))
@@ -233,8 +365,7 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
 
 # --------------------------------------------------------------------- reading
 class _Table:
-    """One table being collected: cells accumulate column by column, packed into
-    arrow string arrays every _CHUNK rows so no list of row lists ever exists."""
+    """Cells of one table being collected, kept column by column and packed into arrow arrays every _CHUNK rows."""
     __slots__ = ('header', 'nstored', 'buffer', 'chunks', 'extras', 'escaped', 'nrows')
 
     def __init__(self, stored, extra_names):
@@ -248,12 +379,12 @@ class _Table:
 
 
 def _header_cells(line):
-    """Column names of a markdown header line, outer pipes dropped."""
+    """Column names of a markdown header line."""
     return [c.strip() for c in line.split('|')][1:-1]
 
 
 def _flush(table):
-    """Pack the buffered cells of every stored column into arrow arrays."""
+    """Pack the cells buffered for each stored column into arrow arrays."""
     for buf, chunks in zip(table.buffer, table.chunks):
         if buf:
             chunks.append(pa.array(buf, type=pa.string()))
@@ -261,14 +392,15 @@ def _flush(table):
 
 
 def _open_table(stored, groupcols):
-    """A collector for a table stored with these columns; group columns missing from
-    it are carried as extra columns."""
+    """Start collecting a table with these stored columns; grouping columns it lacks become extra columns."""
     return _Table(stored, [c for c in groupcols if c not in stored])
 
 
 def _add_rows(table, lines, extra):
-    """Cut `lines` into cells and append them column-wise; `extra` holds one value
-    per extra column, repeated on every row."""
+    """Split `lines` into cells and append them column-wise, repeating the `extra` values on every row.
+
+    Short rows are padded with empty cells; a row with too many cells raises ValueError.
+    """
     width = table.nstored
     escaped = any(r'\|' in ln for ln in lines)       # rare, so only then pay for the regex
     table.escaped |= escaped
@@ -295,7 +427,7 @@ def _add_rows(table, lines, extra):
 
 
 def _load_document(source):
-    """Source (text, path or file-like) -> the YAML sequence it holds."""
+    """Load the YAML sequence from text, a path or a file-like object; ValueError if it is not a sequence."""
     doc = yaml.load(_read_source(source), Loader=LOADER)
     if not isinstance(doc, list):
         raise ValueError('not a to_yaml document: top level is not a YAML sequence')
@@ -303,7 +435,7 @@ def _load_document(source):
 
 
 def _parameters(doc):
-    """The grouping columns the document's parameters element names."""
+    """Grouping columns named by the parameters element of the document, as a list."""
     params = {}
     for element in doc:
         if isinstance(element, dict) and 'parameters' in element:
@@ -313,8 +445,10 @@ def _parameters(doc):
 
 
 def _collect_rows(doc, groupcols, dropped):
-    """Document -> {name: _Table} with every block's rows gathered under the key
-    they are stored under; one header is kept and later blocks add data rows only."""
+    """Gather the rows of every block into one _Table per table name, skipping the `dropped` names.
+
+    The header comes from the first block that holds the table; later blocks add rows only.
+    """
     tables = {}
     for element in doc:
         if not isinstance(element, dict) or 'parameters' in element:
@@ -334,7 +468,7 @@ def _collect_rows(doc, groupcols, dropped):
 
 
 def _numeric(column):
-    """Arrow string column -> Series, numeric only if every present value parses."""
+    """Convert an arrow string column to a Series, numeric only if every present value parses."""
     try:
         return pd.Series(pc.cast(column, pa.int64()).to_numpy())
     except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
@@ -347,7 +481,7 @@ def _numeric(column):
 
 
 def _text_column(table, j):
-    """Stored column j of a table -> typed Series (unescaped, numeric if it can be)."""
+    """Stored column `j` of a table as a Series, with pipes unescaped and numbers converted where possible."""
     _flush(table)
     if not table.nrows:
         return pd.Series([], dtype='int64')     # what to_numeric made of an empty column
@@ -360,7 +494,7 @@ def _text_column(table, j):
 
 
 def _to_frames(collected, groupcols):
-    """{name: _Table} -> {name: DataFrame}, group columns first, typed per column."""
+    """Build a DataFrame per collected table, with the grouping columns first."""
     frames = {}
     for name, table in collected.items():
         cols = [_text_column(table, j) for j in range(table.nstored)]
@@ -374,7 +508,7 @@ def _to_frames(collected, groupcols):
 
 
 def _check_tables(names, frames):
-    """KeyError naming the first of `names` the document does not hold."""
+    """Raise KeyError naming the first of `names` that is not a table in `frames`."""
     unknown = [name for name in names if name not in frames]
     if unknown:
         raise KeyError(f'no table named {unknown[0]!r} in the document '
@@ -382,7 +516,7 @@ def _check_tables(names, frames):
 
 
 def _merge_plan(merge, frames, groupcols):
-    """merge argument -> ordered {table: [join columns]}; {} means no merge."""
+    """Turn the `merge` argument of read_yaml into an ordered {table: [join columns]}; {} means no merge."""
     if merge is None or merge is False:
         return {}
     if merge is True:
@@ -401,8 +535,11 @@ def _merge_plan(merge, frames, groupcols):
 
 
 def _merge(frames, plan, how):
-    """Join the planned tables in order onto the first, suffixing later columns with
-    the name of the table they came from."""
+    """Merge the planned tables in order onto the first.
+
+    Columns that collide get the suffix ``_<table>``. Raises ValueError if a table
+    shares no join column with those before it.
+    """
     names = list(plan)
     merged = frames[names[0]]
     for name in names[1:]:
@@ -416,8 +553,10 @@ def _merge(frames, plan, how):
 
 
 def _assemble(merged, frames, plan, keep):
-    """The merged frame, whatever the plan left out and any original asked for by
-    keep; a lone merged frame comes back bare. No merge returns every table."""
+    """Choose what read_yaml returns: the merged frame, tables left out of the plan and those in `keep`.
+
+    A lone merged frame is returned bare; with no merge every table is returned.
+    """
     if merged is None:
         return frames
     result = {MERGED: merged}
@@ -427,45 +566,83 @@ def _assemble(merged, frames, plan, keep):
 
 
 def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
-    """Read a document written by to_yaml.
+    """Read a YAML document written by :func:`to_yaml` into DataFrames.
 
-    source : YAML text, a path, or a file-like object.
-    how    : join used when merging tables held under different keys.
-    merge  : what to fold together, and on what.
+    Parameters
+    ----------
+    source : str, path or file-like
+        YAML text, a path to a file, or an open file.
+    merge : bool, list, str or dict, default True
+        Which tables to merge, and on what:
 
-        True          the default: every table is merged on the grouping columns.
-        None, False   nothing is merged.
-        ['a', 'b']    only these tables are merged, on the grouping columns.
-        {'a': 'id'}  only these tables are merged, each joined on the columns
-        {'a': [...]}  given for it rather than on the grouping columns.
+        * ``True``: merge every table on the grouping columns.
+        * ``None`` or ``False``: merge nothing.
+        * ``['a', 'b']`` or ``'a'``: merge only these tables, on the grouping columns.
+        * ``{'a': 'id'}`` or ``{'a': ['id', ...]}``: merge only these tables, each
+          on the columns given for it.
+    drop : str or list, optional
+        Tables to leave out entirely.
+    keep : str or list, optional
+        Tables to return as stored, without merging, in addition to any merged
+        frame. If a table is in both `drop` and `keep`, `keep` wins.
+    how : str, default 'outer'
+        Join type used by :meth:`pandas.DataFrame.merge`.
 
-    drop   : tables to leave out entirely.
-    keep   : tables to return in their original, unmerged form.
+    Returns
+    -------
+    pandas.DataFrame or dict
+        A single DataFrame when it is the only result, which is the usual case with
+        ``merge=True``. Otherwise a ``{name: DataFrame}`` mapping: the merged frame
+        under the key ``'merged'``, the tables left out of a partial merge, and
+        those requested with `keep`. With no merge, every table not dropped.
+        Each frame has the grouping columns first.
 
-    drop and keep each take one table name or an array-like of them, and **keep
-    wins over drop**: a table named in both is returned. keep is also independent
-    of merging, so a table can be folded into the merged frame and handed back
-    untouched at the same time.
+    Raises
+    ------
+    ValueError
+        The document is not a YAML sequence, holds no tables, a row has more cells
+        than its header, `merge` names no tables, or a merged table shares no
+        join column with the ones before it.
+    KeyError
+        `merge` or `keep` names a table the document does not hold.
 
-    Everything the document holds comes back unless it was dropped: tables left
-    out of a partial merge are returned as they are, alongside the merged frame,
-    which is keyed 'merged'. The return is that bare DataFrame when it is the only
-    thing to return -- the usual case under the default merge=True -- and a
-    {name: DataFrame} mapping otherwise. Naming a table that the document does not
-    hold raises KeyError rather than passing unnoticed.
+    See Also
+    --------
+    to_yaml : Write such a document.
+    read_md_table : Read one markdown table.
 
-    The grouping columns come from the document's parameters element, so a
-    document always describes itself. Their values are injected into each table
-    from the block `key`, which is why they are not repeated on every row, and
-    they are what the tables are keyed on when recombined.
+    Notes
+    -----
+    The grouping columns are listed in the document parameters. Their values are
+    taken from each block's key and added to every table, so they need not appear
+    in the stored tables.
 
-    Tables are recombined by the key they are stored under, which is what makes
-    two of them equivalent -- a `stats` table is never concatenated onto a `span`
-    table just because their columns happen to match. Same key across blocks means
-    the rows are concatenated; the resulting frames are then merged on the group
-    columns, and a column reaching the result from more than one table is suffixed
-    with that table's key, so aggregating `id` under `stats` lands as `id_stats`
-    beside the row-level `id`. The widest table keeps the unsuffixed names.
+    Tables are recombined by the name they are stored under: tables of the same
+    name are concatenated across blocks, so a ``stats`` table is never joined to
+    a ``rows`` table by accident of matching columns. The resulting tables are then
+    merged on the grouping columns, or on the columns given in `merge`. When a
+    column other than a join column exists in more than one table, those from later
+    tables get the suffix ``_<table>``, so ``id`` aggregated in ``stats`` becomes
+    ``id_stats``. With ``merge=True`` the tables are merged in reverse document
+    order, so the main table comes first and keeps its column names.
+
+    Each column is converted to numbers only if every non-empty cell parses as a
+    number, otherwise it stays text. Empty cells become missing values.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({'g': ['A', 'A', 'B'], 'id': ['p1', 'p2', 'p3'],
+    ...                    'kb': [10, 20, 30]})
+    >>> text = to_yaml(df, 'g', stats={'n': ('id', 'nunique')})
+    >>> read_yaml(text)
+       g  id  kb  n
+    0  A  p1  10  2
+    1  A  p2  20  2
+    2  B  p3  30  1
+    >>> tables = read_yaml(text, merge=False)
+    >>> sorted(tables)
+    ['rows', 'stats']
     """
     doc = _load_document(source)
     groupcols = _parameters(doc)
