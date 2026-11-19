@@ -28,6 +28,11 @@ This file is a summary. Where it and the site disagree, the site wins.
   in the pull request template.
 - Add tests and NumPy-style docstrings for new public code, and run the
   tests locally.
+- Add a changelog fragment to `changelog.d/` for any user-visible change
+  (see [changelog.d/README.md](changelog.d/README.md)).
+- Changes to packages, persistent formats, cross-module conventions,
+  central dependencies or project infrastructure need an accepted
+  architecture decision record in `docs/adr/` before they merge.
 - AI tools are allowed, but you must have read, understood and tested
   everything you submit, and you must say in the pull request if a
   substantial part was AI-assisted.

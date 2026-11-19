@@ -28,6 +28,8 @@ Closes #
 - [ ] For non-trivial changes, an issue is linked above.
 - [ ] Tests are added or updated, and I ran them locally.
 - [ ] Docstrings and docs are updated.
+- [ ] A changelog fragment is in `changelog.d/`, or the description says "No changelog: <reason>".
+- [ ] If this needs an ADR (new or removed package, persistent format, cross-module convention, central dependency, infrastructure), it is linked and accepted.
 - [ ] No new code under `lib/rotifer/devel/`.
 - [ ] No secrets, no files over 5 MB, and no notebook outputs.
 - [ ] I have read and understood every line of this change.

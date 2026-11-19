@@ -35,13 +35,19 @@ continues, and contributors SHOULD start following it now.
 7. New behaviour comes with tests, and changes that touch
    coordinates, indexing or numerical results say how correctness
    was checked. See {doc}`code-standards`.
-8. Moving or removing public code goes through a deprecation cycle.
+8. Moving or removing public code goes through a deprecation cycle:
+   one release deprecated, removed in the next.
    See {doc}`compatibility`.
 9. Personal modules in `lib/rotifer/devel/alpha` are frozen on the
    effective date. See {doc}`personal-codebases`.
 10. AI tools are allowed, the author is fully responsible for the
     result, and substantial use is disclosed. See
     {doc}`code-standards`.
+11. Every user-visible change adds a changelog fragment in the same
+    pull request. See {doc}`changelog`.
+12. Changes to packages, persistent formats, cross-module conventions,
+    central dependencies or project infrastructure need an accepted
+    architecture decision record before they merge. See {doc}`adr`.
 
 Roles and decision making are in {doc}`governance`, and the
 precedent behind each rule is in {doc}`sources`.

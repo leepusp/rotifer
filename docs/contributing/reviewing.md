@@ -49,6 +49,16 @@ Dependencies
 : A new runtime dependency is justified in the description and approved by a
   maintainer. Do not approve it on your own.
 
+Changelog
+: A user-visible change has a fragment in `changelog.d/` of the right
+  type, written for users ({doc}`changelog`). Otherwise the description
+  gives a "No changelog" reason you agree with.
+
+ADR
+: Changes that need an architecture decision record link to one that
+  is accepted ({doc}`adr`). Do not approve the implementation before
+  that.
+
 Deprecation
 : Moving or renaming a public module or function leaves a deprecated alias
   behind, and a removal follows the cycle in {doc}`compatibility`. Moves
