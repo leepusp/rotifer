@@ -16,6 +16,8 @@ Documentation <overview>
 install
 db/index
 api/index
+changelog
+adr/index
 contributing/index
 licensing/index
 ```
