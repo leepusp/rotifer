@@ -39,7 +39,6 @@ columns.
 """
 
 import io
-import os
 import re
 from collections.abc import Mapping
 
@@ -49,7 +48,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from ._labels import _py
+from ._labels import _py, _as_list
+from ._io import _read_source, _write_sink
 from rotifer.core import functions as rcf
 
 config = rcf.loadConfig(__name__, defaults = {
@@ -276,7 +276,7 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
     Columns named in sortrows or sortblocks that are not present are ignored, so a
     single ordering can be reused across frames that differ in shape.
     """
-    labels = list(groupby) if isinstance(groupby, (list, tuple)) else [groupby]
+    labels = _as_list(groupby)
     head = f'- parameters:\n    groupby: {_flow(labels)}'
 
     grouped = df.groupby(groupby, sort=False)
@@ -319,7 +319,7 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
             idx = np.sort(rng.choice(idx, sample, replace=False))
         taken = pa.array(idx)
 
-        keylist = list(key) if isinstance(key, tuple) else [key]
+        keylist = _as_list(key)
         block = [SEPARATOR, f'- key: {_flow(keylist)}']
         for table in tables:                      # in the order the caller named them
             if table in aggregated:
@@ -334,14 +334,7 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
 
     text = sep.join(parts) + '\n'
 
-    if buf is None:
-        return text
-    if isinstance(buf, (str, os.PathLike)):
-        with open(buf, 'w') as fh:
-            fh.write(text)
-        return None
-    buf.write(text)
-    return None
+    return _write_sink(text, buf)
 
 
 # --------------------------------------------------------------------- reading
@@ -386,13 +379,7 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     with that table's key, so aggregating `pid` under `stats` lands as `pid_stats`
     beside the row-level `pid`. The widest table keeps the unsuffixed names.
     """
-    if hasattr(source, 'read'):
-        text = source.read()
-    elif isinstance(source, (str, os.PathLike)) and '\n' not in str(source) and os.path.exists(source):
-        with open(source) as fh:
-            text = fh.read()
-    else:
-        text = source
+    text = _read_source(source)
 
     doc = yaml.load(text, Loader=LOADER)
     if not isinstance(doc, list):
@@ -404,11 +391,11 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
             params = element['parameters'] or {}
             break
     groupcols = params.get('groupby', [])
-    groupcols = list(groupcols) if isinstance(groupcols, (list, tuple)) else [groupcols]
+    groupcols = _as_list(groupcols)
 
     # keep wins over drop, so a table named in both survives to be returned.
-    keep = [keep] if isinstance(keep, str) else list(keep or ())
-    dropped = set([drop] if isinstance(drop, str) else list(drop or ())) - set(keep)
+    keep = _as_list(keep)
+    dropped = set(_as_list(drop)) - set(keep)
 
     # Gather each table's text as one string. The key a table is stored under is
     # what makes two of them equivalent, not their columns: a `stats` table and a
@@ -426,7 +413,7 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
         if not isinstance(element, dict) or 'parameters' in element:
             continue
         key = element.get('key', [])
-        key = list(key) if isinstance(key, (list, tuple)) else [key]
+        key = _as_list(key)
         values = dict(zip(groupcols, key))
         for name, table in element.items():
             if name in RESERVED or name in dropped or not isinstance(table, str):
@@ -484,9 +471,9 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
         # keeps its column names and sets the row granularity.
         joins = {name: groupcols for name in reversed(frames)}
     elif isinstance(merge, Mapping):
-        joins = {name: [c] if isinstance(c, str) else list(c) for name, c in merge.items()}
+        joins = {name: _as_list(c) for name, c in merge.items()}
     else:
-        joins = {name: groupcols for name in ([merge] if isinstance(merge, str) else merge)}
+        joins = {name: groupcols for name in _as_list(merge)}
 
     unknown = [name for name in joins if name not in frames]
     if unknown:

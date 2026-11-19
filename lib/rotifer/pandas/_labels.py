@@ -33,3 +33,11 @@ def _fmt_label(x):
     if isinstance(x, tuple):
         return repr(tuple(_fmt_label(e) if isinstance(e, tuple) else _py(e) for e in x))
     return str(_py(x))
+
+def _as_list(x):
+    """None -> [], a string or non-iterable scalar -> [x], any other iterable -> list(x)."""
+    if x is None:
+        return []
+    if isinstance(x, str) or not hasattr(x, '__iter__'):
+        return [x]
+    return list(x)

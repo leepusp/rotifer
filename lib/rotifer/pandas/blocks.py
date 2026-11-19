@@ -1,11 +1,11 @@
 """Block output: default_header, default_block_rows and to_blocks."""
 
-import os
 import types
 import pandas as pd
 from collections.abc import Mapping
 
 from ._labels import _as_label, _fmt_label, _group_key
+from ._io import _write_sink
 from .text import to_string
 
 def _resolve_stats(df, stats: Mapping):
@@ -147,11 +147,4 @@ def to_blocks(df, groupby='c80e3', buf=None, header=default_header,
 
     blocks = sep.join(blocks.blocks)
 
-    if buf is None:
-        return blocks
-    if isinstance(buf, (str, os.PathLike)):
-        with open(buf, "w") as f:
-            f.write(blocks)
-        return None
-    buf.write(blocks) # file-like object; caller closes it
-    return None
+    return _write_sink(blocks, buf)
