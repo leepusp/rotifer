@@ -193,60 +193,8 @@ def cluster_Co_occurrence(
     return xxxx.query('query_freq >= @freq_cutoff')
 
 
-def count_series(
-        series,
-        normalize=False,
-        cut_off=False,
-        count='domain',
-        as_list=False
-        ):
-    '''
-    Function to flatten a pd.Series.value_counts
-    and count the number of domains recognized in
-    the whole proteins set of proteins
-    Mind that by default, it count domain not architecture.
-    If one wants to count architecture, it should change the count
-    option to 'architecture'.
-    The normalize options is to write the results as frequency.
-    The cut_off options is to print results only above a given threashold.
-    If the normalize function is True, you should give the cutoff value as pct.
-    Usage:
-    in: count_series(df.pfam, normalize=True, cut_off=10)
-    out:'T6SS_HCP(15.15%), SP(11.36%)'
-    in: df.groupby('c80e3').agg({'pfam':count_series})
-                                                 pfam
-    c80e3
-    AAN66278.1
-    ABO22067.1                           SP(1), TM(1)
-    ABU79335.1  Gal_mutarotas_2(1), Glyco_hydro_31(1)
-    ABV15410.1                           SP(1), TM(1)
-    ABV15414.1                                  TM(1)
-
-    '''
-    flattened_list = []
-    if count == 'architecture':
-        s = series.dropna().value_counts(normalize=normalize)
-    else:
-        s = series.str.split('+').explode().dropna().value_counts(
-                normalize=normalize
-                )
-
-    if cut_off:
-        #cut_off = cut_off/100
-        s = s.where(lambda x: x >= cut_off).dropna()
-    for y, z in s.items():
-        if normalize:
-            flattened_list.append(f'{y}({100 * z:.2f}%)')
-        else:
-            flattened_list.append(f'{y}({z})')
-    
-    if as_list:
-        if len(flattened_list) ==0:
-            return list([''])
-        else:
-            return flattened_list
-
-    return ', '.join(flattened_list)
+# count_series moved to rotifer.graph.network (issue #150); imported so existing callers keep working
+from rotifer.graph.network import count_series  # noqa: E402
 
 
 def fetch_seq(seqs):
@@ -820,20 +768,46 @@ def full_annotate(seqobj,
     return seqobj
 
 def padding_df(df, how='right'):
-    cdf = df.copy()
-    c = df.columns
-    pad_col_name=[]
-    for x in c:
-        cdf[x] = cdf[x].fillna('').astype(str)
-        w = cdf[x].str.len().max()
-        cdf[x] = cdf[x].str.pad(width =w, side=how)
-        if how == 'left':
-            pad_col_name.append(x.rjust(w))
-        else:
-            pad_col_name.append(x.ljust(w))
+    """
+    Pad every column of a DataFrame to a common width, names included.
 
-    cdf.columns = pad_col_name    
-    return cdf
+    .. deprecated::
+       Will be removed on 2026-11-30. Use :func:`rotifer.pandas.pad` instead.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Frame to pad. Missing values are written as empty strings.
+    how : {'right', 'left'}, default 'right'
+        Side of the fill: 'right' left-justifies values and names, 'left'
+        right-justifies them. Passed as ``side`` to
+        :func:`rotifer.pandas.pad`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of ``df`` with padded values and padded column names. Same
+        result as ``rotifer.pandas.pad(df, side=how, header=True)``.
+
+    Warns
+    -----
+    FutureWarning
+        Always, on every call.
+
+    See Also
+    --------
+    rotifer.pandas.pad : Replacement.
+    """
+    import warnings
+    from rotifer.pandas import pad
+
+    warnings.warn(
+        "rotifer.devel.alpha.gian_func.padding_df is deprecated and will be removed on 2026-11-30 (issue #160); "
+        f"use rotifer.pandas.pad(df, side={how!r}, header=True) instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return pad(df, side=how, na_rep='', header=True)
 
 
 def alnxaln(seqobj, clustercol = 'c50i0', minseq=10, aln_method='famsa'):
@@ -953,7 +927,9 @@ def trim_unk_neigh(df, ann='profiledb'):
         imin = idf.query(f'{ann} != "?"').index[0]
         imax = idf.query(f'{ann} != "?"').index[-1]
         return idf.loc[imin:imax]
-    int_df = df.groupby(['block_id']).apply(xxx).reset_index(drop=True)
+    # Iterate instead of groupby().apply(): pandas 3 drops the 'block_id'
+    # grouping column from the frames apply() returns.
+    int_df = pd.concat([xxx(g) for _, g in df.groupby(['block_id'])]).reset_index(drop=True)
 
 
     return int_df
@@ -3501,7 +3477,8 @@ def to_html2(seqobj, output, background = 'black', columns =[], consensus=(50,60
         columns = ['id','html']
     else:
         columns = columns.append(['id','html'] )
-    my_text = gf.padding_df(s.df[columns]).to_csv(sep="\t", index=None, header = None)
+    from rotifer.pandas import pad
+    my_text = pad(s.df[columns], side='right', na_rep='', header=False).to_csv(sep="\t", index=None, header = None)
     """
     Save the MSA as HTML file
     

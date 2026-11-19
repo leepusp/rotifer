@@ -15,6 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+pandas/blocks
 api/index
 contributing/index
 licensing/index
