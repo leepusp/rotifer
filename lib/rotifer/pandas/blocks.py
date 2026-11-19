@@ -1,14 +1,15 @@
-"""Block output: default_header, default_block_rows and to_blocks."""
+"""Block output: the shared block engine (plan_blocks), default_header and to_blocks."""
 
 import types
+import warnings
 import numpy as np
 import pandas as pd
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from ._labels import _as_label, _fmt_label, _group_key, _group_labels
+from ._labels import _as_label, _fmt_label, _group_key, _group_labels, _py
 from ._io import _write_sink
-from .text import to_string
+from .text import to_string, pad_columns
 
 def _resolve_stats(df, stats: Mapping):
     """{col: aggfunc_name} -> {col: value}. `stats` is any dictionary-like object
@@ -190,92 +191,71 @@ def plan_blocks(df, groupby, *, sortrows=None, sortblocks=None, sample=None,
                      tables=aggregated, callbacks=callbacks)
 
 
-def _to_string_arrow(columns, sep, align, just):
-    """Pad and join with pyarrow kernels. ~1.7x faster than the pandas path."""
-    import pyarrow as pa
-    import pyarrow.compute as pc
+REMOVAL = '2026-11-30'
 
-    pad = pc.utf8_lpad if align == "right" else pc.utf8_rpad
+# Options of text.to_string that to_blocks forwards; anything else is a mistake.
+_TO_STRING_OPTIONS = ('index', 'na_rep', 'float_format', 'align', 'insert')
 
-    padded, headers = [], []
-    for name, body in columns:
-        arr = pa.Array.from_pandas(body, type=pa.string())
-        width = max(pc.max(pc.utf8_length(arr)).as_py() or 0, len(name))
-        padded.append(pad(arr, width, padding=" "))
-        headers.append(just(name, width))
+# Genome defaults of the old API; they move to rotifer.genome in a later change.
+_LEGACY_COLUMNS = ['pid', 'c80i70', 'c100i100', 'plen', 'pfam', 'aravind',
+                   'product', 'organism', 'lineage', 'classification']
+_LEGACY_STATS = {'lineage': 'nunique', 'block_id': 'nunique',
+                 'c80i70': 'nunique', 'pid': 'nunique'}
+_LEGACY_SORTROWS = {'lineage': True, 'classification': True, 'organism': True}
 
-    header = sep.join(headers)
-    if not padded:
-        return header
-    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
-    return header + "\n" + "\n".join(lines.to_pylist())
 
-def _to_string_pandas(columns, sep, align, just):
-    """Fallback for environments without pyarrow."""
-    acc = "rjust" if align == "right" else "ljust"
+def _deprecated(what, instead, stacklevel=2):
+    # stacklevel counts from the deprecated function: 2 is its caller.
+    warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL}; {instead}.',
+                  FutureWarning, stacklevel=stacklevel + 1)
 
-    padded, headers = [], []
-    for name, body in columns:
-        w = body.str.len().max()
-        width = max(int(w) if pd.notna(w) else 0, len(name))
-        padded.append(getattr(body.str, acc)(width).to_numpy().tolist())
-        headers.append(just(name, width))
 
-    header = sep.join(headers)
-    if not padded:
-        return header
-    return header + "\n" + "\n".join([sep.join(row) for row in zip(*padded)])
+def default_header(key, groupby='c80e3', stats=None, **kwargs):
+    """Header of one block: ``#`` then ``# <groupby>=<key>; <stat>=<value>; ...``.
 
-def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
-                      float_format=None, align="left", **kwargs):
-    just = str.rjust if align == "right" else str.ljust
+    key     : the block's group key, a bare value or a tuple matching `groupby`.
+    groupby : the grouping label, or the tuple of labels.
+    stats   : {name: value} for this block, or None for none.
 
-    if insert:
-        df = df.copy()
-        for data in insert:
-            if len(data) != 3:
-                raise ValueError(f"insert entries must be (loc, column, value) tuples, got {data!r}")
-            df.insert(loc=data[0], column=data[1], value=data[2])
+    to_blocks calls ``header(key, groupby, stats)``; a replacement header takes
+    the same three arguments and returns the text above the block's rows.
 
-    columns = []
-    if index:
-        columns.append((str(df.index.name or ""), df.index.to_series().astype("string")))
-    for c in df.columns:
-        s = df[c]
-        if float_format is not None and pd.api.types.is_float_dtype(s.dtype):
-            body = s.map(lambda v: na_rep if pd.isna(v) else float_format % v).astype("string")
-        else:
-            body = s.astype("string")
-        columns.append((str(c), body.fillna(na_rep)))
+    Calling it the old way, ``default_header(df, groupby=..., stats=...)`` with the
+    block's DataFrame, still works but is deprecated."""
+    if isinstance(key, pd.DataFrame):
+        _deprecated('default_header(df, ...) with a DataFrame',
+                    'pass the group key and a {name: value} dict: '
+                    'default_header(key, groupby, stats)', stacklevel=2)
+        return _legacy_header(key, groupby, stats)
+    tail = ''.join(f'; {_fmt_label(c)}={v}' for c, v in (stats or {}).items())
+    return f'#\n# {_fmt_label(groupby)}={_fmt_label(key)}{tail}'
 
-    try:
-        return _to_string_arrow(columns, sep, align, just)
-    except ImportError:
-        return _to_string_pandas(columns, sep, align, just)
 
-def default_header(df, groupby='c80e3', stats=None, **kwargs):
+def _legacy_header(df, groupby, stats):
     if stats is None:
         stats = {'lineage': 'nunique', 'block_id': 'nunique'}
     groupby = _as_label(groupby)
     key = _group_key(df, groupby)
-    # A tuple groupby that is not itself a column label is a *sequence* of labels,
-    # so pad the key back to matching arity (_group_key unwraps 1-tuples to match
-    # pandas) and a parser can zip the two tuples together.
-    if isinstance(groupby, tuple) and groupby not in df.columns and not isinstance(key, tuple):
-        key = (key,)
-    statStr = _resolve_stats(df, stats) # idempotent
-    statStr = "; ".join(f'{_fmt_label(c)}={v}' for c, v in statStr.items())
+    labels, scalar = _group_labels(df, groupby)
+    if not scalar:
+        # Key arity follows label arity: pandas unwraps a one-label grouping, and
+        # an empty or unknown group has no key at all.
+        key = key if isinstance(key, tuple) else (key,) * len(labels) if key is None else (key,)
+    statStr = "; ".join(f'{_fmt_label(c)}={v}' for c, v in _resolve_stats(df, stats).items())
     return f'#\n# {_fmt_label(groupby)}={_fmt_label(key)}; {statStr}'
+
 
 def default_block_rows(df, groupby='c80e3', header=default_header, colsep=" : ",
                           columns=None, sample=None, stats=None, sortrows=None, **kwargs):
+    """Deprecated: the old per-block hook of to_blocks, returning a one-row
+    DataFrame whose `blocks` column holds the block text."""
+    _deprecated('default_block_rows', 'to_blocks builds the blocks itself now', stacklevel=2)
     if columns is None:
-        columns = ['pid', 'c80i70', 'c100i100', 'plen', 'pfam', 'aravind',
-                    'product', 'organism', 'lineage', 'classification']
+        columns = _LEGACY_COLUMNS
     if sortrows is None:
-        sortrows = {'lineage': True, 'classification': True, 'organism': True}
+        sortrows = _LEGACY_SORTROWS
     if stats is None:
-        stats = {'lineage':'nunique', 'block_id':'nunique', 'c80i70':'nunique', 'pid':'nunique'}
+        stats = _LEGACY_STATS
 
     statDict = _resolve_stats(df, stats)
     headerStr = header(df, groupby=groupby, stats=statDict, **kwargs)
@@ -292,17 +272,127 @@ def default_block_rows(df, groupby='c80e3', header=default_header, colsep=" : ",
     block = [headerStr + "\n" + to_string(block, sep=colsep, **kwargs)]
     return pd.DataFrame({'blocks': block, **statDict})
 
-def to_blocks(df, groupby='c80e3', buf=None, header=default_header,
-              apply=default_block_rows, colsep=" : ",
-              sortblocks=None, sep="\n", **kwargs):
-    blocks = df.groupby(groupby, sort=False)
-    blocks = blocks.apply(apply, groupby=groupby, header=header, colsep=colsep,
-                          include_groups=False, **kwargs)
+
+def _string_columns(body, na_rep, float_format, index):
+    """Text of every cell of `body`, converted once for the whole frame so a block
+    is later cut out with an arrow `take`. Mirrors text.to_string cell for cell."""
+    import pyarrow as pa
+    columns = []
+    if index:
+        columns.append((str(body.index.name or ""), body.index.to_series().astype("string")))
+    for c in body.columns:
+        s = body[c]
+        if float_format is not None and pd.api.types.is_float_dtype(s.dtype):
+            text = s.map(lambda v: na_rep if pd.isna(v) else float_format % v).astype("string")
+        else:
+            text = s.astype("string")
+        columns.append((str(c), text.fillna(na_rep)))
+    names = [name for name, _ in columns]
+    return names, [pa.Array.from_pandas(text, type=pa.string()) for _, text in columns]
+
+
+def _render_rows(names, arrays, taken, sep, align):
+    """The rows `taken` of pre-converted columns, padded and joined like to_string."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    just = str.rjust if align == "right" else str.ljust
+    padded, widths = pad_columns([a.take(taken) for a in arrays], names, align=align)
+    header = sep.join(just(name, w) for name, w in zip(names, widths))
+    if not padded:
+        return header
+    lines = pc.binary_join_element_wise(*padded, pa.scalar(sep))
+    return header + "\n" + "\n".join(lines.to_pylist())
+
+
+def to_blocks(df, groupby='c80e3', *, columns=None, stats=None, sortrows=None,
+              sortblocks=None, sample=None, header=default_header, colsep=' : ',
+              sep='\n', buf=None, apply=None, **to_string_kwargs):
+    """Write `df` as text blocks, one per group: a header, then the block's rows.
+
+    groupby    : column label, or list of labels, to group by. Blocks come out in
+                 order of first appearance.
+    columns    : columns shown in each block's rows.
+    stats      : {column: aggregation} or {name: (column, aggregation)} computed
+                 once per block and handed to `header`.
+    sortrows   : {column: ascending} ordering the rows inside each block.
+    sortblocks : {column: ascending} ordering the blocks; it may name a grouping
+                 column or a stats column.
+    sample     : rows per block, drawn at random when a block is larger.
+    header     : callable ``header(key, groupby, stats) -> str``, where stats is a
+                 {name: value} dict for the block. This replaces the old
+                 ``header(df, groupby=..., stats=...)`` signature, and a header
+                 written for it must be changed.
+    colsep, sep: between columns in a row; between blocks.
+    buf        : path or file-like to write to; the text is returned when None.
+    apply      : deprecated, see below.
+
+    Any other keyword must be one of the to_string options: index, na_rep,
+    float_format, align, insert. Anything else raises TypeError.
+
+    apply, the old hook returning a DataFrame with a `blocks` column, is
+    deprecated and runs the previous group-by-group algorithm."""
+    import pyarrow as pa
+    unknown = [k for k in to_string_kwargs if k not in _TO_STRING_OPTIONS]
+    if unknown:
+        raise TypeError(f'to_blocks() got an unexpected keyword argument {unknown[0]!r}')
+
+    if columns is None:
+        columns = _LEGACY_COLUMNS
+    if stats is None:
+        stats = _LEGACY_STATS
+    if sortrows is None:
+        sortrows = _LEGACY_SORTROWS
+
+    if apply is not None:
+        _deprecated('to_blocks(apply=...)', 'to_blocks now builds the blocks itself; '
+                    'customise them with header, columns and stats', stacklevel=2)
+        return _to_blocks_apply(df, groupby, buf, header, apply, colsep, sortblocks, sep,
+                                dict(columns=columns, stats=stats, sortrows=sortrows,
+                                     sample=sample, **to_string_kwargs))
+
+    plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks, sample=sample,
+                       tables={'stats': stats} if stats else None)
+    label = _as_label(groupby)
+
+    body = df if columns is None else df.filter(columns)
+    body = body.drop(columns=plan.groupby, errors='ignore')
+    opts = {k: to_string_kwargs[k] for k in _TO_STRING_OPTIONS if k in to_string_kwargs}
+    fast = 'insert' not in opts or not opts['insert']
+    if fast:
+        names, arrays = _string_columns(body, opts.get('na_rep', ' '), opts.get('float_format'),
+                                        opts.get('index', True))
+
+    stat_table = plan.tables.get('stats')
+    if stat_table is not None:
+        stat_names = list(stat_table.columns)
+        stat_values = [stat_table.iloc[:, j].to_numpy() for j in range(stat_table.shape[1])]
+
+    blocks = []
+    for i, key in enumerate(plan.keys):
+        idx = plan.positions[key]
+        values = {} if stat_table is None else {
+            c: _py(v[i]) for c, v in zip(stat_names, stat_values)}
+        if fast:
+            rows = _render_rows(names, arrays, pa.array(idx), colsep, opts.get('align', 'left'))
+        else:
+            rows = to_string(body.take(idx), sep=colsep, **opts)
+        blocks.append(header(key, label, values) + "\n" + rows)
+
+    return _write_sink(sep.join(blocks), buf)
+
+
+def _to_blocks_apply(df, groupby, buf, header, apply, colsep, sortblocks, sep, kwargs):
+    """The old algorithm for a user-supplied `apply`: one call per group."""
+    labels, scalar = _group_labels(df, groupby)
+    results = []
+    for key, block in df.groupby(labels[0] if scalar else labels, sort=False):
+        block = block.drop(columns=labels)
+        object.__setattr__(block, 'name', key)
+        results.append(apply(block, groupby=groupby, header=header, colsep=colsep, **kwargs))
+    blocks = pd.concat(results, ignore_index=True) if results else pd.DataFrame({'blocks': []})
 
     if sortblocks:
         sortcols = [c for c in sortblocks if c in blocks]
         blocks = blocks.sort_values(sortcols, ascending=[sortblocks[c] for c in sortcols])
 
-    blocks = sep.join(blocks.blocks)
-
-    return _write_sink(blocks, buf)
+    return _write_sink(sep.join(blocks.blocks), buf)

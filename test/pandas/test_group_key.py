@@ -6,8 +6,9 @@ part under test here, observed only through the public to_blocks and
 default_header output. It follows what pandas hands to GroupBy.apply as `.name`,
 including the shapes that are easy to get wrong:
 
-  * a single-element list groupby, which pandas unwraps to a scalar, is rendered
-    as a 1-tuple so that label and key keep matching arity
+  * a single-element list groupby is rendered with a 1-tuple key so that label and
+    key keep matching arity; one multi-level column label is a single label with a
+    scalar key
   * a list of labels renders a tuple key, scalars stay bare
   * a list groupby is unhashable and must not reach a column-membership test
 
@@ -54,14 +55,12 @@ def keys_in_headers(frame_name, groupby):
     ('flat', ['g', 'h'], ["('A', 'x')", "('B', 'y')"]),
     ('flat', ['g', 'h', 'n'], ["('A', 'x', 1)", "('A', 'x', 2)", "('B', 'y', 3)"]),
     ('flat', 'n', ['1', '2', '3']),                      # numpy ints render bare
-    # One multi-level column label: within to_blocks the grouping column is gone
-    # from the frame, so the key is padded to a 1-tuple (default_header called
-    # directly on a frame that still holds the column keeps it scalar; see
-    # test_to_blocks.test_multilevel_column_label_keeps_a_scalar_key).
-    ('mi', ('meta', 'g'), ["('A',)", "('B',)"]),
+    # changed: one multi-level column label is ONE label, so its key is a scalar
+    # (it used to render ('A',) because the grouping column was gone from the frame).
+    ('mi', ('meta', 'g'), ['A', 'B']),
     ('mi', [('meta', 'g')], ["('A',)", "('B',)"]),
     ('mi', [('meta', 'g'), ('meta', 'h')], ["('A', 'x')", "('B', 'y')"]),
-    ('mi_int', ('m', 'g'), ['(1,)', '(2,)']),
+    ('mi_int', ('m', 'g'), ['1', '2']),   # changed: scalar key, see above
     ('mi_int', [('m', 'g')], ['(1,)', '(2,)']),
 ])
 def test_key_rendered_in_block_headers(frame_name, groupby, expected):
@@ -87,6 +86,13 @@ def test_empty_frame_renders_a_none_key():
     assert rp.default_header(flat.iloc[:0], groupby='g', stats={'v': 'sum'}) == '#\n# g=None; v=0'
     assert rp.default_header(flat.iloc[:0], groupby=['g'], stats={'v': 'sum'}) \
         == "#\n# ('g',)=(None,); v=0"
+
+
+def test_empty_frame_key_arity_matches_the_labels():
+    """changed: an empty frame with two labels used to render a 1-tuple key."""
+    flat = frames()[0]
+    assert rp.default_header(flat.iloc[:0], groupby=['g', 'h'], stats={'v': 'sum'}) \
+        == "#\n# ('g', 'h')=(None, None); v=0"
 
 
 def test_list_groupby_is_not_hashed():

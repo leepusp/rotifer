@@ -164,9 +164,9 @@ def test_to_string_golden(name):
 
 
 # ------------------------------------------------------------------ to_blocks
-# QUIRK: 'multilevel_column_labels' renders the key as a 1-tuple ('B',) although
-# ('m', 'grp') is one column label, because the grouping column is gone from the
-# group frame by the time the header is built. Pinned as emitted.
+# changed: 'multilevel_column_labels' used to render the key as a 1-tuple ('B',)
+# although ('m', 'grp') is one column label; the key is now the scalar, as in
+# default_header called on the column.
 TO_BLOCKS = {
     'sum_nunique_unsorted_blocks': ('frame', {'groupby': 'grp', 'stats': {'n': 'sum', 'name': 'nunique'}, 'sortrows': {'n': False}, 'columns': ['name', 'score', 'n']},
      [
@@ -296,18 +296,18 @@ TO_BLOCKS = {
     'multilevel_column_labels': ('mi', {'groupby': ('m', 'grp'), 'stats': {('d', 'n'): 'sum'}, 'sortrows': {}, 'columns': [('d', 'name'), ('d', 'n')]},
      [
         '#',
-        "# ('m', 'grp')=('B',); ('d', 'n')=203",
+        "# ('m', 'grp')=B; ('d', 'n')=203",
         "  : ('d', 'name') : ('d', 'n')",
         '0 : alpha|x       : 3         ',
         '2 : delta         : 200       ',
         '#',
-        "# ('m', 'grp')=('A',); ('d', 'n')=15",
+        "# ('m', 'grp')=A; ('d', 'n')=15",
         "  : ('d', 'name') : ('d', 'n')",
         '1 : beta',
         'gamma    : 10        ',
         '4 :               : 5         ',
         '#',
-        "# ('m', 'grp')=('C',); ('d', 'n')=4",
+        "# ('m', 'grp')=C; ('d', 'n')=4",
         "  : ('d', 'name') : ('d', 'n')",
         '3 : eps           : 4         ',
     ]),
