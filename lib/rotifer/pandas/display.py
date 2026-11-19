@@ -19,33 +19,23 @@ def optimize_memory_usage(df):
       df : a Pandas DataFrame
     '''
 
-    # Make a copy of the input DataFrame
     df = df.copy()
+    if df.empty:
+        return df
 
-    # int optimization
-    converted_int = df.select_dtypes(include=['int'])
-    converted_int = converted_int.apply(pd.to_numeric, downcast = "integer")
+    def convert(s):
+        if pd.api.types.is_integer_dtype(s.dtype):   # numpy and nullable Int*
+            return pd.to_numeric(s, downcast='integer')
+        if pd.api.types.is_float_dtype(s.dtype):
+            return pd.to_numeric(s, downcast='float')
+        # object or pandas' 'str' dtype
+        if pd.api.types.is_string_dtype(s.dtype) and s.nunique(dropna=False) / len(s) <= 0.5:
+            return s.astype('category')
+        return s
 
-    # Float
-    converted_float = df.select_dtypes(include=['float'])
-    converted_float = converted_float.apply(pd.to_numeric,downcast='float')
-
-    # Object
-    df_obj = df.select_dtypes(include=['object'])
-    converted_obj = pd.DataFrame()
-
-    for col in df_obj.columns:
-        num_unique_values = len(df_obj[col].unique())
-        num_total_values = len(df_obj[col])
-        if num_unique_values / num_total_values <= 0.5:
-            converted_obj.loc[:,col] = df_obj[col].astype('category')
-        else:
-            converted_obj.loc[:,col] = df_obj[col]
-
-    # Adding converted objects to a better df
-    df[converted_int.columns] = converted_int
-    df[converted_float.columns] = converted_float
-    df[converted_obj.columns] = converted_obj
+    # Positional, so duplicate or non-string column labels work too
+    for i in range(df.shape[1]):
+        df.isetitem(i, convert(df.iloc[:, i]))
     return df
 
 def print_everything(max_rows=10000000000, max_columns=1000000000, max_colwidth=1000000000, width=100000, verbose=False):
