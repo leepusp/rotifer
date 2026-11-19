@@ -4,7 +4,8 @@ Build, view and analyse networks of protein domains found together.
 Two domains are related when they occur in the same conserved gene
 neighbourhood (a "block"): either fused in one protein, or in different
 genes of the block. :func:`get_relations` turns a table of domain hits
-into such relations, :func:`network_annotation` makes a styled networkx
+into such relations (:func:`adjacency_edges` does the same for adjacent
+features only), :func:`network_annotation` makes a styled networkx
 graph from them, :func:`calculate_positions` lays the graph out for
 :func:`rotifer.view.network.network_dash`, the interactive viewer, and
 :func:`get_network_community`, :func:`community_stability`,
@@ -1224,6 +1225,8 @@ def get_relations(domdf,
     See Also
     --------
     network_annotation : Builds a graph from the returned DataFrame.
+    adjacency_edges : Edges between adjacent features only, from a table
+        already in genome order.
 
     Notes
     -----
@@ -1325,3 +1328,171 @@ def get_relations(domdf,
         to_net = to_net.rename({'block_id':'edge_count'},axis=1)
         to_net = to_net.query('edge_total >= @min_connections')
         return(to_net)
+
+
+def adjacency_edges(df,
+                    target='pfam',
+                    *,
+                    ftype='CDS',
+                    interaction=True,
+                    ignore=None,
+                    separator='+',
+                    separator_regex=False,
+                    replace=None,
+                    replace_regex=False,
+                    orient=False,
+                    stats=None):
+    """
+    List the edges between features that are adjacent in a block.
+
+    Each feature is labelled by one of its annotation columns, and each
+    label is joined to the next one in the same block. A protein with
+    several domains, written ``'A+B'``, contributes one label per domain,
+    so its domains are joined to each other (a fusion) and its last domain
+    to the first label of the next protein (a neighbour). Identical edges
+    are then counted.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        One row per feature, already in genome order within each block (the
+        function does not sort). Needs the columns ``block_id``, ``pid``
+        and ``type``, and the column or columns named by ``target``. It is
+        not modified.
+    target : str or list of str, default 'pfam'
+        Column holding the label of each feature. With a list, the label is
+        the first value that is not missing, going through the columns in
+        the order given. A feature with no label in any of them is labelled
+        ``'?'``.
+    ftype : str or list of str, default 'CDS'
+        Values of the ``type`` column to keep. Other rows are dropped
+        before the edges are made.
+    interaction : bool, default True
+        Add an ``interaction`` column that tells fusions from neighbours,
+        and count each kind separately. With False, both are counted
+        together.
+    ignore : iterable of str, optional
+        Labels to remove, after ``replace`` is applied and before the
+        edges are made. The labels around a removed one become adjacent.
+    separator : str or None, default '+'
+        Splits each label into several, one per domain, in order. None
+        keeps each label whole.
+    separator_regex : bool, default False
+        Read ``separator`` as a regular expression.
+    replace : mapping, optional
+        Renames labels, after splitting. Keys are the old labels and values
+        the new ones. None renames nothing.
+    replace_regex : bool, default False
+        Read the keys of ``replace`` as regular expressions.
+    orient : bool, default False
+        Make neighbour edges undirected by writing each pair with the
+        smaller label first, so that A to B and B to A become one edge.
+        Fusion edges are not reordered, since the order of domains in a
+        protein is meaningful.
+    stats : dict, optional
+        Named aggregations passed to ``groupby(...).agg``, as
+        ``{name: (column, function)}``, over the columns ``block_id``
+        and ``pid`` (the protein of ``source``), and the ``source``,
+        ``target`` and ``interaction`` columns.
+        Defaults to ``{'weight': ('block_id', 'count'), 'blocks':
+        ('block_id', 'nunique')}``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per distinct edge, sorted by ``source``, ``target`` and
+        ``interaction``, with the columns:
+
+        - ``source``, ``target``: the two labels, ``target`` being the one
+          that follows ``source`` in the block.
+        - ``interaction``: ``'fusion'`` when both labels come from the same
+          protein, ``'neighbor'`` otherwise. Only with ``interaction``.
+        - one column per entry of ``stats``; by default ``weight``, the
+          number of rows with this edge, and ``blocks``, the number of
+          blocks with it.
+
+        The frame is empty, with these columns, when no edge is found.
+
+    Raises
+    ------
+    KeyError
+        If ``block_id``, ``pid``, ``type`` or a ``target`` column is
+        missing from ``df``.
+
+    See Also
+    --------
+    get_relations : Relates every pair of domains in a block, typed by
+        relative position.
+    network_annotation : Builds a graph from relations.
+
+    Notes
+    -----
+    Unlike :func:`get_relations`, which relates every pair of domains found
+    in a block and types them as ``Cterminal``, ``Nterminal``,
+    ``Upstream`` or ``Downstream``, this function relates only features
+    that are next to each other, and types them as ``fusion`` or
+    ``neighbor``. Its edges go from a label to the next one, so each pair
+    is listed once, not from both ends.
+
+    ``weight`` counts rows of the edge table, so a block in which the edge
+    occurs twice adds 2; ``blocks`` counts each block once.
+
+    Two labels are a fusion when the two rows they come from have the
+    same ``pid``. Labels of one protein are always consecutive, because
+    the split keeps them in place, unless ``ignore`` removes the ones
+    between them.
+
+    The edges follow the order of the rows, so sort ``df`` into the order
+    in which you want the block read (for example by strand-aware genome
+    position) before calling this function.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({
+    ...     'block_id': ['b1', 'b1', 'b1', 'b2', 'b2'],
+    ...     'pid': ['p1', 'p2', 'p3', 'p4', 'p5'],
+    ...     'type': ['CDS'] * 5,
+    ...     'pfam': ['A', 'B+C', 'D', 'A', 'B+C']})
+    >>> adjacency_edges(df)
+      source target interaction  weight  blocks
+    0      A      B    neighbor       2       2
+    1      B      C      fusion       2       2
+    2      C      D    neighbor       1       1
+    """
+    cols = [target] if isinstance(target, str) else list(target)
+    missing = [c for c in ['block_id', 'pid', 'type'] + cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"columns missing from df: {missing}")
+    if isinstance(ftype, str):
+        ftype = [ftype]
+    if stats is None:
+        stats = {'weight': ('block_id', 'count'), 'blocks': ('block_id', 'nunique')}
+
+    w = df.loc[df['type'].isin(ftype), ['block_id', 'pid'] + cols].reset_index(drop=True)
+    label = w[cols[0]]
+    for col in cols[1:]:
+        label = label.where(label.notna(), w[col])
+    w = w[['block_id', 'pid']].assign(source=label.fillna('?'))
+
+    if separator is not None:
+        w['source'] = w['source'].astype(str).str.split(separator, regex=separator_regex)
+        w = w.explode('source').reset_index(drop=True)
+    if replace is not None:
+        w['source'] = w['source'].replace(replace, regex=replace_regex)
+    if ignore is not None:
+        w = w[~w['source'].isin(list(ignore))].reset_index(drop=True)
+
+    nxt = w.shift(-1)
+    w = w.assign(target=nxt['source'])
+    same_block = (w['block_id'] == nxt['block_id']).to_numpy()
+    fusion = same_block & (w['pid'] == nxt['pid']).to_numpy()
+    w = w.loc[same_block, ['block_id', 'pid', 'source', 'target']].assign(
+        interaction=np.where(fusion[same_block], 'fusion', 'neighbor'))
+
+    if orient:
+        swap = ((w['interaction'] == 'neighbor') & (w['source'] > w['target'])).to_numpy()
+        w.loc[swap, ['source', 'target']] = w.loc[swap, ['target', 'source']].to_numpy()
+
+    keys = ['source', 'target'] + (['interaction'] if interaction else [])
+    edges = w.groupby(keys).agg(**stats).reset_index()
+    return edges.sort_values(keys).reset_index(drop=True)
