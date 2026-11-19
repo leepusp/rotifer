@@ -2028,22 +2028,19 @@ class sequence(rotifer.pipeline.Annotatable):
         end_position =  nongaps[-1]
 
         if adjust_coordinates:
-            def add_cordinates_to_aln(seqobj):
-                from rotifer.devel.beta.sequence import sequence
-                c = seqobj.copy()
-                cx = sequence(c.df.id.tolist())
-                cx. df = cx.df.rename({'sequence':'full_sequence', 'length':'full_length'}, axis=1)
-                c.df = c.df.merge(cx.df[['id','full_sequence','full_length']], how='left')
-                c.df.full_sequence = c.df.full_sequence.fillna(c.df.sequence)
-                c.df.full_length = c.df.full_length.fillna(c.df['length'])
-                c.df['start'] = c.df.apply(lambda x : 1 + x.full_sequence.find(x.sequence.replace('-','')), axis=1)
-                c.df['end'] = c.df.start + c.df['length']
-                c.df['C_term'] = c.df['full_length'] - c.df['end']
-                c.df =  c.df.drop(['full_sequence'], axis=1)
-                #c.df = c.df.fillna(0)
-                c.df = c.df.query('type =="sequence"')
-                return c
-            cord = add_cordinates_to_aln(self).df[['start', 'end', 'C_term']]
+            # Coordinates of each sequence in its full-length sequence.
+            # Without a full-length sequence, or when the fragment isn't
+            # found in it, the sequence is numbered on its own (1 to length)
+            seqs = self.df.query('type == "sequence"')
+            ungapped = seqs.sequence.str.replace('-', '', regex=False)
+            full = sequence(seqs.id.tolist()).df.drop_duplicates('id').set_index('id').sequence
+            full = seqs.id.map(full).astype(object).fillna(ungapped)
+            cord = fragment_coordinates(
+                seqs.sequence.set_axis(seqs.id),
+                full.set_axis(seqs.id),
+            ).set_axis(seqs.index)
+            cord['start'] = cord.start.fillna(1).astype(int)
+            cord['end'] = cord.end.fillna(ungapped.str.len()).astype(int)
             #num_gaps[nongaps[-1] + 1] = cord.C_term.mask(cord.C_term < 0,0 )
             if end_position not in num_gaps.columns:  # Adding column to have the trailling number with the amminoacids counts.
                 num_gaps[end_position +1] = 0 
@@ -2388,6 +2385,51 @@ def concat(alignments, axis=0, by='id'):
             aln.df.drop([ x + f"_{y.name}" for x in y._reserved_columns if x != "id" ], axis=1, inplace=True)
     aln._reset()
     return aln
+
+def fragment_coordinates(fragments, full_sequences):
+    """
+    Locate sequence fragments in their full-length sequences.
+
+    Coordinates follow ROTIFER's convention: 1-based and inclusive,
+    so the fragment is ``full[start - 1:end]``.
+
+    Parameters
+    ----------
+    fragments : pandas.Series
+      Fragments to locate. Gaps ('-') are removed before searching,
+      so rows of an alignment can be passed as they are.
+    full_sequences : pandas.Series
+      Full-length sequences, with the same index as ``fragments``.
+
+    Returns
+    -------
+    pandas.DataFrame
+      Columns ``start`` and ``end`` (nullable integers), indexed like
+      ``fragments``. Both are missing when the full-length sequence is
+      missing or does not contain the fragment, and a warning lists
+      the index labels of those rows.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> fragment_coordinates(pd.Series(['C-DE']), pd.Series(['ABCDEFG']))
+       start  end
+    0      3    5
+    """
+    fragments = fragments.astype(str).str.replace('-', '', regex=False)
+    starts = []
+    for fragment, full in zip(fragments, full_sequences):
+        offset = full.find(fragment) if isinstance(full, str) else -1
+        starts.append(offset + 1 if offset >= 0 else pd.NA)
+    coordinates = pd.DataFrame({'start': pd.array(starts, dtype='Int64')}, index=fragments.index)
+    coordinates['end'] = coordinates.start + fragments.str.len().astype('Int64') - 1
+    missing = coordinates.start.isna()
+    if missing.any():
+        logger.warning(
+            f'{missing.sum()} fragment(s) not found in their full-length sequence: '
+            + ', '.join(map(str, coordinates.index[missing]))
+        )
+    return coordinates
 
 __doc__ = """
 ========================

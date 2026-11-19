@@ -580,6 +580,42 @@ def annotate_seqobj(seqobj,
     return seqobj
 
 
+def _run_checked(cmd, what):
+    '''Run an argument list without a shell and return its stdout; raise RuntimeError on failure.'''
+    import subprocess
+    p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f'{what} failed with exit code {p.returncode}: {p.stderr.strip()}')
+    return p.stdout
+
+
+def _blast_formatters(archive, outfmts, num_aln):
+    '''Run one blast_formatter per entry of outfmts, in parallel, and return their stdouts.
+
+    Each stdout and stderr is drained by communicate() in its own thread,
+    so large outputs cannot fill a pipe and block the other process.
+    '''
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    procs = []
+    for fmt in outfmts:
+        cmd = ['blast_formatter', '-archive', archive, '-num_alignments', str(num_aln)]
+        if fmt is None:
+            cmd += ['-num_descriptions', str(num_aln)]
+        else:
+            cmd += ['-outfmt', fmt]
+        procs.append((cmd, subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)))
+    with ThreadPoolExecutor(max_workers=len(procs)) as ex:
+        results = list(ex.map(lambda cp: cp[1].communicate(), procs))
+    outs = []
+    for (cmd, p), (out, err) in zip(procs, results):
+        if p.returncode != 0:
+            raise RuntimeError(f'blast_formatter failed with exit code {p.returncode}: {err.strip()}')
+        outs.append(out)
+    return outs
+
+
 def psiblast(acc,
              db=config['blastdb'],
              cpu=54,
@@ -587,66 +623,131 @@ def psiblast(acc,
              num_aln = 1000,
              slurm = False,
              delete=True,
-             slurm_kwargs={'partition':'basic', 'time':480}):
+             slurm_kwargs={'partition':'basic', 'time':480},
+             iterations=None,
+             inclusion_ethresh=0.01,
+             report=True,
+             evalue=None):
     '''
     Psiblast search of a seqobj against sequence database.
+
+    The search is run once, with ``-outfmt 11`` (ASN.1 archive), in a temporary
+    directory. The archive is then formatted twice, in parallel, by
+    ``blast_formatter``: as tabular output (parsed with
+    ``rotifer.io.search.read_blast_tabular`` and collapsed with
+    ``rotifer.io.search.collapse_hsps``) and as the pairwise text report. The table
+    no longer goes through ``blast2table``, so evalue, bitscore,
+    querycoverage and iteration are the correct values of each hit, not the
+    coarse ones recovered from the text report.
+
+    Parameters
+    ----------
+    acc : rotifer.devel.beta.sequence.sequence
+        Query sequence, or alignment if ``aln`` is True.
+    db : str or list of str
+        BLAST database(s). A list is joined with spaces (BLAST accepts
+        several databases). Default: config['blastdb'].
+    cpu : int
+        Number of threads (and cpus requested from slurm).
+    aln : bool
+        If True, the input is given as ``-in_msa``, else as ``-query``.
+    num_aln : int
+        Maximum number of alignments (and descriptions) reported.
+    slurm : bool
+        Run psiblast (only) through srun; formatting is always local.
+    delete : bool
+        Remove temporary files. If False they are kept in a directory
+        whose path is logged.
+    slurm_kwargs : dict
+        'partition' and 'time' used by srun.
+    iterations : int, optional
+        ``-num_iterations``; not passed if None (BLAST default).
+    inclusion_ethresh : float
+        Inclusion threshold, given to psiblast and to ``collapse_hsps``.
+    report : bool
+        If True, also return the pairwise text report. If False, psiblast
+        writes the tabular output directly (no archive, no formatter).
+    evalue : float, optional
+        ``-evalue``; not passed if None.
+
+    Returns
+    -------
+    tuple or None
+        ``(table, text_report)``: table is a DataFrame with
+        ``rotifer.io.search.BLAST_COLUMNS`` (empty if there are no hits; before,
+        None was returned when psiblast produced no output); text_report is
+        a string, or None if ``report`` is False. None if ``acc`` is not a
+        sequence object.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the database cannot be read (checked with ``blastdbcmd -info``).
+    RuntimeError
+        If psiblast or blast_formatter fail.
     '''
     import tempfile
-    import subprocess
-    from subprocess import Popen, PIPE, STDOUT
-    from rotifer.devel.beta import sequence as rdbs
     import os
-    import pandas as pd
+    from rotifer.devel.beta import sequence as rdbs
+    import rotifer.io.search as st
 
-    cols =[
-            'hit',
-            'query',
-            'hitstart',
-            'hitend',
-            'evalue',
-            'querycoverage',
-            'querystart',
-            'queryend',
-            'iteration',
-            'bitscore',
-            'length'
-            ]
+    if not isinstance(acc, rdbs.sequence):
+        return None
 
-    cwd = os.getcwd()
+    if isinstance(db, (list, tuple)):
+        db = ' '.join(str(d) for d in db)
+    db = str(db)
 
-    slurmcmd = f'srun --wait 0 --time {slurm_kwargs["time"]} -N1 -c {cpu} -p {slurm_kwargs["partition"]} '
-    with tempfile.NamedTemporaryFile(mode='w+t', suffix='.fa', prefix='rotifer.', dir='.', delete=delete) as seqfile:
-        # save fasta sequence to a temporary file
-        if not isinstance (acc, rdbs.sequence):
-            return None
-        print(acc.to_string().strip(), file=seqfile)
-        seqfile.file.flush()
+    try:
+        _run_checked(['blastdbcmd', '-db', db, '-info'], f'blastdbcmd -info on database {db!r}')
+    except RuntimeError as e:
+        raise FileNotFoundError(f'BLAST database not usable: {db!r}. {e}') from e
 
-        # PSI-BLAST
-        out = seqfile.name.replace(".fa",".psiblast.out")
-        if aln:
-            cmd = f'psiblast -num_threads {cpu} -num_alignments {num_aln} -in_msa {seqfile.name} -db {db} -out {out}'
+    if delete:
+        tmp = tempfile.TemporaryDirectory(prefix='rotifer.')
+        tmpdir = tmp.name
+    else:
+        tmp = None
+        tmpdir = tempfile.mkdtemp(prefix='rotifer.')
+        logger.info(f'psiblast: keeping temporary files in {tmpdir}')
+    try:
+        seqfile = os.path.join(tmpdir, 'query.fa')
+        with open(seqfile, 'w') as f:
+            print(acc.to_string().strip(), file=f)
+
+        cmd = ['psiblast', '-num_threads', str(cpu), '-num_alignments', str(num_aln),
+               '-in_msa' if aln else '-query', seqfile, '-db', db,
+               '-inclusion_ethresh', str(inclusion_ethresh)]
+        if iterations is not None:
+            cmd += ['-num_iterations', str(iterations)]
+        if evalue is not None:
+            cmd += ['-evalue', str(evalue)]
+        if report:
+            archive = os.path.join(tmpdir, 'psiblast.asn')
+            cmd += ['-outfmt', '11', '-out', archive]
         else:
-            cmd = f'psiblast -num_threads {cpu} -num_alignments {num_aln} -query {seqfile.name} -db {db} -out {out}'
+            out = os.path.join(tmpdir, 'psiblast.tsv')
+            cmd += ['-outfmt', st.BLAST_OUTFMT, '-out', out]
         if slurm:
-            cmd = f'{slurmcmd} {cmd}'
-        Popen(cmd, stdout=PIPE, shell=True).communicate()
-        if not os.path.exists(out) or os.path.getsize(out) == 0:
-            return None
-        with open(out) as f:
-            blast_r = f.read()
+            cmd = ['srun', '--wait', '0', '--time', str(slurm_kwargs['time']), '-N1',
+                   '-c', str(cpu), '-p', str(slurm_kwargs['partition'])] + cmd
+        _run_checked(cmd, 'psiblast')
 
-        # Blast2table
-        from rotifer.io.blast import read_blast
-        t = read_blast(out)
-        t.columns = cols
+        if report:
+            tabular, blast_r = _blast_formatters(archive, [st.BLAST_OUTFMT, None], num_aln)
+        else:
+            with open(out) as f:
+                tabular = f.read()
+            blast_r = None
+    finally:
+        if tmp is not None:
+            tmp.cleanup()
 
-        # Cleanup
-        if delete:
-            for temp in [out]:
-                if os.path.exists(temp):
-                    os.unlink(temp)
-    return (t, blast_r) 
+    raw = st.read_blast_tabular(tabular)
+    if len(raw) == 0:
+        return (st.to_blast(st.empty()), blast_r)
+    t = st.to_blast(st.collapse_hsps(raw, threshold=inclusion_ethresh))
+    return (t, blast_r)
 
 
 def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None, local_database_path=config['local_database_path']):
@@ -672,7 +773,7 @@ def search2aln(df, coverage=50, evalue=1e-3, id_with_coord = False, arch=None, l
             archdf = pd.read_csv(f'{tmpdirname}/arch',sep="\t", names=['id', 'arch', 'position'])
 
     seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
-    seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x.hitstart:x.hitend], axis=1)
+    seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.hitstart)-1:int(x.hitend)], axis=1)
     seqobj.df.id = seqobj.df.apply(lambda x: f'{x.id}/{x.hitstart}-{x.hitend}', axis=1)
     evalues = seqobj.df.copy()[['id', 'evalue']]
     seqobj = seqobj.align()
@@ -851,11 +952,17 @@ def extract_envelope(df, start='estart', end='eend', expand=10, local_database_p
     if len(df.sequence.drop_duplicates().tolist()) > 0:
         seqobj = rdbs.sequence(df.sequence.drop_duplicates().to_list(), local_database_path=local_database_path)
         seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
-        seqobj.df.end = seqobj.df[end].fillna(seqobj.df.length)
-        seqobj.df.start = seqobj.df[start].fillna(1)
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x[start])-expand:int(x[end])+expand], axis=1)
+        seqobj.df['end'] = seqobj.df[end].fillna(seqobj.df.length).astype(int)
+        seqobj.df['start'] = seqobj.df[start].fillna(1).astype(int)
+        # Coordinates are 1-based and inclusive: expand both sides by the
+        # same margin, within the protein
+        if expand:
+            seqobj.df['start'] = (seqobj.df.start - expand).clip(lower=1)
+            seqobj.df['end'] = (seqobj.df.end + expand).clip(upper=seqobj.df.length)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x['start'] - 1:x['end']], axis=1)
+        # The id names the region actually cut, margin included
         seqobj.df['pid'] = seqobj.df['id']
-        seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df[start].astype(str) + '-' + seqobj.df[end].astype(str)
+        seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['start'].astype(str) + '-' + seqobj.df['end'].astype(str)
     else:
         print(f'No sequences were left after filtering')
         seqobj = rdbs.sequence()
@@ -914,12 +1021,12 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
         seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
         seqobj.df.end = seqobj.df.eend.fillna(seqobj.df.length)
         seqobj.df.start = seqobj.df.estart.fillna(1)
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.estart):int(x.eend)], axis=1)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.estart)-1:int(x.eend)], axis=1)
         seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['estart'].astype(str) + '-' + seqobj.df['eend'].astype(str)
 
     else:
 
-        if df:
+        if df is not False and df is not None:
             df = df.query(f'evalue <= {evalue} and querycoverage > {coverage}')
             seqobj = seqobj.filter(keep=df.hit.drop_duplicates().to_list())
         if arch == 'profiledb':
@@ -931,7 +1038,7 @@ def split_by_model(seqobj=None, df=False, evalue=1e-3, arch=None, coverage=50, m
                 archdf = pd.read_csv(f'{tmpdirname}/arch',sep="\t", names=['id', 'arch', 'position'])
 
         seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
-        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[x.hitstart:x.hitend], axis=1)
+        seqobj.df.sequence = seqobj.df.apply(lambda x: x.sequence[int(x.hitstart)-1:int(x.hitend)], axis=1)
         seqobj = seqobj.align()
         seqobj.df = seqobj.df.merge(df[['hit','evalue','hitstart','hitend']].rename({'hit':'id'},axis=1), how='left')
         seqobj = seqobj.sort(['evalue'])
