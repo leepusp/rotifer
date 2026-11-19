@@ -24,10 +24,16 @@ and two sequences with regions and a length column.
 Run under pytest: PYTHONPATH=lib pytest test/interval/test_utils.py
 """
 
+import warnings
+
 import pandas as pd
 import pytest
 
 import rotifer.interval.utils as riu
+
+# The old behaviour is pinned below; only the tests that check the
+# deprecation look at the warning.
+pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
 
 def _hmmer():
     """
@@ -81,12 +87,14 @@ def test_filter_does_not_modify_input():
 
 def test_filter_index():
     """
-    The result has a fresh 0..n-1 index from an internal sort, not the
-    input index: Y and Z are input rows 1 and 2.
+    The result keeps the input index labels: Y and Z are input rows 1 and 2.
+
+    Changed: the old code returned a fresh index from an internal sort
+    (labels 0 and 2, which matched no input row).
     """
     out = riu.filter_nonoverlapping_regions(_hhsuite())
     assert out['hit'].tolist() == ['Y', 'Z']
-    assert out.index.tolist() == [0, 2]
+    assert out.index.tolist() == [1, 2]
 
 def test_architecture_hmmer_preset():
     """Kept regions are joined with '+' in coordinate order, one row per sequence."""
@@ -119,3 +127,78 @@ def test_complement_with_length():
     out = riu.complement(regions)
     assert out.to_dict('list') == {'ID': ['s1', 's1', 's1'], 'start': [1, 31, 81],
                                    'end': [9, 49, 100], 'length': [9, 19, 20]}
+
+def _caught(func, *args, **kwargs):
+    """Call ``func`` and return its FutureWarnings (it is called from this file)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        func(*args, **kwargs)
+    return [w for w in caught if issubclass(w.category, FutureWarning)]
+
+def test_filter_warns_at_caller():
+    """One FutureWarning, naming the replacement and pointing at this file."""
+    caught = _caught(riu.filter_nonoverlapping_regions, _hmmer(), **riu.config['hmmer'])
+    assert len(caught) == 1
+    assert 'select_regions' in str(caught[0].message)
+    assert caught[0].filename == __file__
+
+def test_architecture_warns_once_at_caller():
+    """architecture warns once (not also for the filter) and points at this file."""
+    caught = _caught(riu.architecture, _hmmer(), **riu.config['hmmer'])
+    assert len(caught) == 1
+    assert 'domain2architecture' in str(caught[0].message)
+    assert caught[0].filename == __file__
+
+def test_fractional_overlap_without_region_length():
+    """
+    A fractional overlap works when criteria has no 'region_length'.
+
+    Changed: the old code raised AttributeError, because it read the
+    region_length column that it only created when ranking by it.
+    """
+    out = riu.filter_nonoverlapping_regions(_hmmer(), **{**riu.config['hmmer'], 'criteria': {'evalue': True}})
+    assert out['model'].tolist() == ['A', 'B', 'C', 'E']
+
+@pytest.mark.parametrize('order', [[0, 1], [1, 0]])
+def test_tie_broken_by_smallest_start(order):
+    """
+    Two equally good overlapping regions: the one with the smaller start
+    wins, whatever the row order.
+
+    Changed: the old code kept the first row in input order.
+    """
+    df = pd.DataFrame({'sequence': ['p', 'p'], 'model': ['late', 'early'],
+                       'estart': [20, 1], 'eend': [60, 41], 'evalue': [1e-5, 1e-5]}).iloc[order]
+    out = riu.filter_nonoverlapping_regions(df, **{**riu.config['hmmer'], 'maximum_overlap': 0})
+    assert out['model'].tolist() == ['early']
+
+def test_overlap_one_and_fraction_are_different_units():
+    """
+    maximum_overlap=1 is one residue (A and B share 11), not 100%.
+    """
+    out = riu.filter_nonoverlapping_regions(_hmmer(), **{**riu.config['hmmer'], 'maximum_overlap': 1})
+    assert out['model'].tolist() == ['A', 'C', 'E']
+
+def test_overlap_non_integer_is_rounded_down():
+    """5.7 residues means 5: an overlap of 11 is too much, one of 5 is not."""
+    df = pd.DataFrame({'sequence': ['p', 'p'], 'model': ['A', 'B'],
+                       'estart': [1, 6], 'eend': [10, 40], 'evalue': [1e-9, 1e-5]})
+    assert riu.filter_nonoverlapping_regions(df, **{**riu.config['hmmer'], 'maximum_overlap': 5.7})['model'].tolist() == ['A', 'B']
+    assert riu.filter_nonoverlapping_regions(df, **{**riu.config['hmmer'], 'maximum_overlap': 4.9})['model'].tolist() == ['A']
+
+def test_default_criteria_not_mutated():
+    """Calling with the default criteria leaves config['default']['criteria'] as it was."""
+    before = dict(riu.config['default']['criteria'])
+    riu.filter_nonoverlapping_regions(_hhsuite())
+    riu.architecture(_hhsuite())
+    assert dict(riu.config['default']['criteria']) == before
+    assert list(riu.config['default']['criteria']) == list(before)
+
+def test_preset_with_collapse_key_unpacks():
+    """A whole preset, including its 'collapse' key, unpacks into the filter."""
+    for name in ('default', 'archtsv', 'hhsuite', 'hmmer'):
+        preset = riu.config[name]
+        df = pd.DataFrame({k: [1] for k in preset['reference'] + [preset['start'], preset['end'], preset['collapse']]
+                                         + list(preset['criteria']) if k != 'region_length'})
+        out = riu.filter_nonoverlapping_regions(df, **preset)
+        assert len(out) == 1
