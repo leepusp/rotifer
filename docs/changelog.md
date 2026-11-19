@@ -124,6 +124,20 @@ version to fold or unfold its notes; the newest is unfolded.
   {py:mod}`rotifer.io.hhsuite` ({pr}`131`).
 - ROTIFER's log handler is attached once, to the `rotifer` logger, and
   writes to standard error ({pr}`134`).
+- {py:func}`rotifer.io.hhsuite.hhsuite2pandas` and `read_hhr` return
+  `score` and `probability` as numbers (`120.5`, `99.9`), not as text
+  and a truncated integer; `hhsuite2table` prints them as before
+  ({pr}`172`).
+- `read_hhr` and `parse_hhr` read the files of a directory in name
+  order ({pr}`172`).
+- `rotifer.io.blast` merges redundant HSPs with
+  `rotifer.io.search._merge_hsps`, shared with
+  {py:func}`rotifer.io.search.collapse_hsps`; `blast2table`'s output is
+  unchanged ({pr}`172`).
+- Importing {py:mod}`rotifer.io.dali` no longer imports
+  `rotifer.devel` ({issue}`150`, {pr}`172`).
+- `read_hmmer` and `parse_hmmer` raise `ValueError` when `clean` has
+  two cleaners for one target, instead of ignoring one ({pr}`172`).
 
 ```{rubric} Deprecated
 ```
@@ -168,6 +182,8 @@ version to fold or unfold its notes; the newest is unfolded.
   `--mode orthomcl`, input formats other than BLAST+ text, `-i`,
   `--type` and `-sq` ({pr}`138`).
 - `rotifer.core.loadpath` ({pr}`131`).
+- `rotifer.io.base` and `rotifer.io.fileinput`, which nothing used
+  ({pr}`172`).
 
 ```{rubric} Fixed
 ```
@@ -193,4 +209,11 @@ version to fold or unfold its notes; the newest is unfolded.
   files; it now logs the error and the file ({pr}`134`).
 - `rotifer.genome.data` passed an invalid `file=` argument to the
   logger ({pr}`134`).
+- The last hit of every HH-suite report got the p-value of the hit
+  before it ({pr}`172`).
+- `parse_hhr("one.hhr")` looped over the characters of the name;
+  unknown `columns` in `hhsuite2pandas` failed with an unrelated error
+  ({pr}`172`).
+- `rotifer.io.each_source` accepts `pathlib.Path` objects, and an empty
+  `read_blast` table has float columns ({pr}`172`).
 :::
