@@ -122,7 +122,7 @@ def seqrecords_to_dataframe(seqrecs=None, exclude_type=[], autopid=False, assemb
         if assemblyID == None:
             if hasattr(seqrecs,"stream"): # Bio.SeqIO.Interfaces.SequenceIterator!
                 if hasattr(seqrecs.stream,"filename") and callable(seqrecs.stream.filename):
-                    assemblyID = seqrecs.stream.filename() # rotifer.io.fileinput.FileInput
+                    assemblyID = seqrecs.stream.filename() # fileinput.FileInput
                 elif hasattr(seqrecs.stream,"name"):
                     assemblyID = seqrecs.stream.name # Another _io class
                 if assemblyID != None:

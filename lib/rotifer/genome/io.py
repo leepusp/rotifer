@@ -18,16 +18,10 @@ def _get_basename(path):
     """
     Parse basename from path-like or file-like object
     """
-    from rotifer.io.fileinput import FileInput
     from io import TextIOWrapper
     bn = path
     if path == sys.stdin:
         return "__stdin__"
-    elif isinstance(path,FileInput):
-        if path.lineno() == 0:
-            bn = path.files[0]
-        else:
-            bn = path.filename()
     elif isinstance(path,TextIOWrapper):
         bn = path.name
     else:

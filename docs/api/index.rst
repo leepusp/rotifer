@@ -75,11 +75,9 @@ Sequence and interval utilities
    rotifer.interval.architecture
    rotifer.interval.utils
    rotifer.io
-   rotifer.io.base
    rotifer.io.blast
    rotifer.io.dali
    rotifer.io.dalidat
-   rotifer.io.fileinput
    rotifer.io.hhsuite
    rotifer.io.hmmer
    rotifer.io.phobius
