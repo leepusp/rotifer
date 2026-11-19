@@ -61,9 +61,6 @@ Genomes and annotation
 
    rotifer.genome
    rotifer.genome.data
-   rotifer.genome.database
-   rotifer.genome.db.clickhouse
-   rotifer.genome.db.postgres
    rotifer.genome.io
    rotifer.genome.utils
 
@@ -96,9 +93,6 @@ Other subpackages
 .. autosummary::
    :toctree: generated
 
-   rotifer.alchemy
-   rotifer.alchemy.connect
-   rotifer.alchemy.db_classes
    rotifer.cluster
    rotifer.cluster.cluster
    rotifer.pipeline
