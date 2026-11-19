@@ -14,6 +14,11 @@ What has to hold, and why:
     ``# DSSP:`` line
   * an invalid ``unaligned`` and a table left empty by ``max_hits`` raise
     ValueError
+  * importing rotifer.io.dali loads no rotifer.devel or rotifer.db module and
+    prints nothing; rotifer.devel.beta.sequence is imported when dali_tsv runs
+  * _make_star_row writes aligned residues uppercase in the query's columns,
+    uncovered query positions as '-', and insertions formatted per mode and
+    padded to insert_sizes, so the row is query_len + sum(insert_sizes) long
 
 data/toy_dali.tsv is a hand-written table: a 9-residue query, a hit s1
 with two blocks and a 5-residue insertion between them plus one trailing
@@ -24,12 +29,15 @@ Run under pytest: PYTHONPATH=lib pytest test/io/test_dali.py
 """
 
 import os
+import subprocess
+import sys
 
 import pandas as pd
 import pytest
 
 DATA = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 TOY = os.path.join(DATA, 'toy_dali.tsv')
+LIB = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'lib'))
 COLUMNS = ['id', 'sequence', 'type', 'description']
 
 
@@ -69,3 +77,45 @@ def test_invalid_mode_and_empty_table_raise():
         dali.dali_tsv(TOY, unaligned='bogus')
     with pytest.raises(ValueError):
         dali.dali_tsv(TOY, max_hits=0)
+
+
+def test_import_loads_no_devel_or_db_module(tmp_path):
+    """Importing rotifer.io.dali pulls in no rotifer.devel or rotifer.db module and prints nothing."""
+    environ = {k: v for k, v in os.environ.items() if not k.startswith('ROTIFER_')}
+    environ['PYTHONPATH'] = LIB
+    environ['ROTIFER_USER'] = os.path.join(str(tmp_path), 'user')
+    # Rotifer logs to stdout: create what it would announce creating
+    os.makedirs(os.path.join(environ['ROTIFER_USER'], 'etc'), exist_ok=True)
+    code = (
+        'import sys, rotifer.io.dali\n'
+        'print(sorted(m for m in sys.modules if m.startswith(("rotifer.devel", "rotifer.db"))))'
+    )
+    out = subprocess.run(
+        [sys.executable, '-c', code],
+        env=environ, capture_output=True, text=True, cwd=str(tmp_path),
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == '[]'
+    assert out.stderr == ''
+
+
+def test_make_star_row_on_a_hand_built_row():
+    """Blocks go in uppercase, gaps where no block covers, insertions per mode and padded."""
+    dali = _dali()
+    # query of 6; blocks q2-3 <- s2-3 and q5-6 <- s6-7 (0-based starts 1,4 / 1,5);
+    # the hit has 'a' before the first block, 'XY' between the blocks and 'FGz' after
+    row = pd.Series({'qstarts': '1,4', 'sstarts': '1,5', 'lengths': '2,2'})
+    residues = 'aBcXYdeFGz'
+    sizes = [0, 1, 0, 0, 3, 0, 4]
+    expected = {
+        'keep': '-aBC-XY-DEFGz-',
+        'lower': '-aBC-xy-DEfgz-',
+        'gap': '--BC----DE----',
+    }
+    for mode, want in expected.items():
+        got = dali._make_star_row(row, residues, 6, sizes, unaligned=mode)
+        assert got == want
+        assert len(got) == 6 + sum(sizes)
+    assert dali._make_star_row(row, residues, 6, [0] * 7, unaligned='remove') == '-BC-DE'
+    with pytest.raises(ValueError):
+        dali._make_star_row(row, residues, 6, sizes, unaligned='bogus')
