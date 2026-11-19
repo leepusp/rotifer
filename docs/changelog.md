@@ -99,7 +99,7 @@ version to fold or unfold its notes; the newest is unfolded.
   with any column names and ranking columns;
   {py:func}`rotifer.interval.architecture.read_regions` loads domain
   tables into a DataFrame, and `PRESETS` holds the arguments for
-  HMMER, HH-suite and architecture tables ({pr}`NNN`).
+  HMMER, HH-suite and architecture tables ({pr}`174`).
 
 ```{rubric} Changed
 ```
@@ -134,10 +134,10 @@ version to fold or unfold its notes; the newest is unfolded.
   with the same code, in whole-table passes. On a million regions,
   `filter_nonoverlapping_regions` takes 1 s instead of 7.7 s (0.12 s
   instead of 24 s when one sequence has a thousand domains), and
-  `domain2architecture` 6.7 s instead of 19 s ({pr}`NNN`).
+  `domain2architecture` 6.7 s instead of 19 s ({pr}`174`).
 - `rotifer.interval.utils.filter_nonoverlapping_regions` keeps the
   input index, and breaks ties by the smallest start instead of by
-  row order ({pr}`NNN`).
+  row order ({pr}`174`).
 
 ```{rubric} Deprecated
 ```
@@ -149,7 +149,7 @@ version to fold or unfold its notes; the newest is unfolded.
   `rotifer.interval.utils.architecture`: use
   {py:func}`rotifer.interval.architecture.select_regions` and
   {py:func}`rotifer.interval.architecture.domain2architecture`. They
-  will be removed on 2026-11-30 ({issue}`173`, {pr}`NNN`).
+  will be removed on 2026-11-30 ({issue}`173`, {pr}`174`).
 
 ```{rubric} Removed
 ```
@@ -215,7 +215,7 @@ version to fold or unfold its notes; the newest is unfolded.
 - `rotifer.interval.utils.complement` raised `NameError` with `add=`
   (which broke `devel.alpha.draw.arch_2_svg`), ignored its column
   arguments, and returned negative gaps for nested regions
-  ({pr}`NNN`).
+  ({pr}`174`).
 - `filter_nonoverlapping_regions` raised `AttributeError` when the
-  criteria did not include `region_length` ({pr}`NNN`).
+  criteria did not include `region_length` ({pr}`174`).
 :::
