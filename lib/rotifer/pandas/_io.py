@@ -1,4 +1,4 @@
-"""Read text from, and write text to, a path, a file-like object or a string."""
+"""Private helpers to read text from, and write text to, a path, a file-like object or a string."""
 
 import os
 

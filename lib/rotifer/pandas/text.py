@@ -1,4 +1,14 @@
-"""Plain-text rendering of DataFrames: to_string, pad and to_color."""
+"""
+Plain-text rendering of DataFrames and Series.
+
+:func:`to_string` writes a frame as aligned text with a separator between
+columns, :func:`pad` pads strings to a common width and :func:`to_color`
+adds terminal colour codes to each character. :func:`pad_columns` is the
+padding routine they share. :func:`rotifer.pandas.blocks.to_blocks` builds on
+the same column conversion. The module reads its configuration under the key
+``rotifer.pandas.functions``, which holds the default colour map of
+:func:`to_color`.
+"""
 
 import os
 from itertools import chain
@@ -14,13 +24,48 @@ config = rcf.loadConfig('rotifer.pandas.functions', defaults = {
 # rotifer.pandas.functions), so it must not follow this module's name.
 
 def pad_columns(arrays, names=None, align='left', fillchar=' '):
-    """Pad pyarrow string arrays to one common width per column.
+    """
+    Pad pyarrow string arrays to one common width per column.
 
-    align is where the text sits: 'left' pads on the right, 'right' on the left,
-    'center' on both sides (extra fill goes where str.center puts it). The width
-    of a column is its longest string, at least len(name) when names are given;
-    an empty or all-null column has width 0. Nulls are padded as empty strings.
-    Returns (padded arrays, widths)."""
+    Parameters
+    ----------
+    arrays : list of pyarrow.Array
+        One string array per column. Nulls are padded as empty strings.
+    names : list of str, optional
+        Column names. When given, the width of a column is at least the length
+        of its name, so a header fits above the values.
+    align : {'left', 'right', 'center'}, default 'left'
+        Where the text sits in the field: 'left' pads on the right, 'right'
+        pads on the left and 'center' pads on both sides (an odd amount of
+        fill goes where :meth:`str.center` puts it).
+    fillchar : str, default ' '
+        Single character used for padding.
+
+    Returns
+    -------
+    padded : list of pyarrow.Array
+        The padded arrays, in the order given.
+    widths : list of int
+        Width of each column: its longest string, or the length of its name
+        when that is longer. An empty or all-null column without a name has
+        width 0.
+
+    Raises
+    ------
+    ValueError
+        If ``align`` is not one of the three values above.
+
+    Examples
+    --------
+    >>> import pyarrow as pa
+    >>> from rotifer.pandas.text import pad_columns
+    >>> padded, widths = pad_columns([pa.array(['a', 'bbb', None])],
+    ...                              names=['name'], align='right')
+    >>> padded[0].to_pylist()
+    ['   a', ' bbb', '    ']
+    >>> widths
+    [4]
+    """
     import pyarrow as pa
     import pyarrow.compute as pc
 
@@ -43,6 +88,7 @@ def pad_columns(arrays, names=None, align='left', fillchar=' '):
 _ALIGNS = ('left', 'right', 'center')
 
 def _check_align(align):
+    """Raise ValueError unless align is 'left', 'right' or 'center'."""
     if align not in _ALIGNS:
         raise ValueError(f"align must be 'left', 'right' or 'center', not {align!r}")
 
@@ -86,6 +132,69 @@ def _join_rows(names, arrays, sep, align, taken=None):
 
 def to_string(df, sep=" : ", index=True, na_rep=" ", insert=None,
                       float_format=None, align="left"):
+    """
+    Render a DataFrame as aligned plain text.
+
+    The first line holds the column names and each following line one row.
+    Cells are padded to the width of their column and joined with ``sep``.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Frame to render. It is not modified.
+    sep : str, default ' : '
+        Text placed between columns.
+    index : bool, default True
+        Whether to write the index as the first column. Its header is the
+        name of the index, or empty when it has none.
+    na_rep : str, default ' '
+        Text written for missing values.
+    insert : list of tuple, optional
+        Columns to add before rendering, as ``(loc, column, value)`` tuples
+        with the meaning of :meth:`pandas.DataFrame.insert`. They are added in
+        order to a copy of ``df``, so later entries see the earlier ones.
+    float_format : str, optional
+        A printf-style format such as ``'%.2f'``, applied to the values of
+        float columns. By default floats are written with their usual text.
+    align : {'left', 'right', 'center'}, default 'left'
+        Alignment of headers and values within each column.
+
+    Returns
+    -------
+    str
+        The text, without a final newline. A frame with no columns and no
+        index yields the empty header line only.
+
+    Raises
+    ------
+    ValueError
+        If ``align`` is not one of the three values above, or an ``insert``
+        entry does not have exactly three items.
+
+    See Also
+    --------
+    pad : Pad the strings of a frame or series to a common width.
+    rotifer.pandas.md_table : Write a frame as a Markdown table.
+    rotifer.pandas.to_blocks : Write one text block per group of rows.
+
+    Notes
+    -----
+    Headers are aligned like the values of their column, and a column is as
+    wide as its longest value or its name. Missing values become ``na_rep``
+    in every column. With ``float_format``, missing values in float columns are
+    not formatted but replaced by ``na_rep``, so ``na_rep`` need not be a
+    number. Columns are handled by position, so repeated column names work.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from rotifer.pandas import to_string
+    >>> df = pd.DataFrame({'gene': ['a', 'bb'], 'score': [1.5, None]})
+    >>> print(to_string(df, float_format='%.2f', na_rep='NA', align='right'))
+      : gene : score
+    0 :    a :  1.50
+    1 :   bb :    NA
+    """
     _check_align(align)
 
     if insert:
@@ -123,11 +232,63 @@ def _justify_name(name, width, side, fillchar):
     return name.center(width, fillchar)
 
 def pad(data, side='left', fillchar=' ', na_rep='', header=False):
-    """Pad strings to a common width. side is where the fill goes ('left', 'right'
-    or 'both'); on a DataFrame it may also be a dict of column -> side (missing
-    columns default to 'left'). Missing values are first replaced by na_rep.
-    With header=True (DataFrame only) the column names are padded too, each column
-    to max(value width, name width), with the name on the same side as its values."""
+    """
+    Pad strings to a common width.
+
+    Every value is converted to text first. Padding the left side of a value
+    right-justifies it, and padding the right side left-justifies it.
+
+    Parameters
+    ----------
+    data : pandas.Series or pandas.DataFrame
+        Values to pad. Each column of a frame is padded to its own width.
+    side : {'left', 'right', 'both'} or dict, default 'left'
+        Where the fill goes. ``'left'`` puts the fill on the left, so the text
+        is right-justified (``'  a'``), ``'right'`` puts it on the right, so
+        the text is left-justified (``'a  '``), and ``'both'`` centres the
+        text. For a DataFrame, a dict maps column names to one of these
+        values, and columns missing from it use ``'left'``.
+    fillchar : str, default ' '
+        Single character used for padding.
+    na_rep : str, default ''
+        Text that replaces missing values before padding.
+    header : bool, default False
+        For a DataFrame, also pad the column names. Each column is then as wide
+        as its longest value or its name, and the name sits on the same side
+        as the values. Ignored for a Series.
+
+    Returns
+    -------
+    pandas.Series or pandas.DataFrame
+        Same type and index as ``data``, with string values. A DataFrame
+        keeps its columns, relabelled with the padded names when
+        ``header=True``.
+
+    Raises
+    ------
+    TypeError
+        If ``data`` is neither a DataFrame nor a Series.
+    ValueError
+        If a side is not ``'left'``, ``'right'`` or ``'both'``.
+
+    See Also
+    --------
+    to_string : Render a whole frame as aligned text.
+    rotifer.pandas.md_table : Write a frame as a Markdown table.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from rotifer.pandas import pad
+    >>> pad(pd.Series(['a', 'bbb'])).tolist()
+    ['  a', 'bbb']
+    >>> pad(pd.Series(['a', 'bbb']), side='right', fillchar='.').tolist()
+    ['a..', 'bbb']
+    >>> pad(pd.DataFrame({'id': [1, 22]}), header=True)
+       id
+    0   1
+    1  22
+    """
     if not isinstance(data, (pd.DataFrame, pd.Series)):
         raise TypeError(f'pad expects a DataFrame or Series, not {type(data).__name__}')
     data = data.astype(str)
@@ -150,27 +311,64 @@ def pad(data, side='left', fillchar=' ', na_rep='', header=False):
 
 def to_color(data, colors=None, style='fg', padding=None, fillchar=' '):
     """
-    Convert a DataFrame or Series to DType str and add
-    ASCII color codes to each character.
+    Add terminal colour codes to each character of a frame or series.
 
-    Usage
-    -----
-    >>> from rotifer.core import functions as rcf
-    >>> colored = rcf.to_color(pd.Series("ACGT"))
+    Every value becomes a string in which each character is wrapped in an
+    ANSI escape sequence. Foreground colours use ``\\x1b[38;5;Nm`` and
+    background colours use ``\\x1b[48;5;Nm``, where N is a colour of the
+    256-colour palette, and the character is followed by a reset sequence.
 
     Parameters
     ----------
-    colors: str, os.PathLike or dict, default None
-      A YAML file or a dictionary, mapping characters to
-      color codes.
-    style: str, default 'fg'
-      Whether apply colors to the background ('bg') or toi
-      characters ('fg').
-    padding: {'left', 'right', 'both'}, default None
-      If set, data will be padded with whitespaces to make
-      sure all columns have the same length.
-    fillchar: str, default ' '
-      Additional character for filling, default is whitespace.
+    data : pandas.DataFrame or pandas.Series
+        Strings to colour. Anything else is returned unchanged (after
+        padding, which also needs a frame or series).
+    colors : dict, str or path-like, optional
+        Colour of each character. It can be a dict from character to colour
+        code, the path of a YAML file holding such a mapping, or a string that
+        is not an existing path, taken as a single colour code used for every
+        character. By default (None or False) the map in the ``colors`` entry
+        of the configuration is used, which is the data file
+        ``colors/aminoacids.yml`` and colours amino acid letters.
+    style : {'fg', 'foreground', 'bg', 'background'}, default 'fg'
+        Colour the characters (``'fg'``) or their background (``'bg'``).
+    padding : {'left', 'right', 'both'}, optional
+        If given, pad the values with :func:`pad` first so that all values of
+        a column have the same width.
+    fillchar : str, default ' '
+        Character used for padding.
+
+    Returns
+    -------
+    pandas.DataFrame or pandas.Series
+        Same shape and index as ``data``, holding the coloured strings.
+
+    Raises
+    ------
+    ValueError
+        If ``style`` is not one of the four values above.
+
+    See Also
+    --------
+    pad : Pad strings to a common width.
+
+    Notes
+    -----
+    Characters missing from the colour map get the default colour code
+    ``000``. The default colour is written with the sequence ``39;5;000`` (or
+    ``49;5;000`` for a background) instead of ``38;5;`` or ``48;5;``, so a
+    terminal shows it in its own default colour or ignores it. With a single
+    colour code as ``colors``, all characters are written this way, with the
+    given code in place of ``000``.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from rotifer.pandas import to_color
+    >>> print(repr(to_color(pd.Series(['A']), colors={'A': '196'}).iloc[0]))
+    '\\x1b[38;5;196mA\\x1b[m'
+    >>> print(repr(to_color(pd.Series(['A']), colors={'A': '196'}, style='bg').iloc[0]))
+    '\\x1b[48;5;196mA\\x1b[0m'
     """
     import yaml
 

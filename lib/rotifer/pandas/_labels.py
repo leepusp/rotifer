@@ -1,4 +1,4 @@
-"""Helpers that normalise column labels and group keys."""
+"""Private helpers that normalise column labels and group keys for block output."""
 
 def _group_key(df, groupby):
     """Group key inside a GroupBy.apply callback (df.name), or derived from the
