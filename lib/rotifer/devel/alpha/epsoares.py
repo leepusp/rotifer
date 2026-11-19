@@ -77,7 +77,47 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     return seqobj
 
 def to_network(df, target=['pfam'], ftype=['CDS'], interaction=True, ignore = [], strand = True):
-    """Deprecated: use NeighborhoodDF.to_network (removed on 2026-11-30, issue #TBD)."""
+    """
+    List the edges between adjacent features of a neighborhood table.
+
+    .. deprecated::
+       Will be removed on 2026-11-30. Use
+       :meth:`rotifer.genome.data.NeighborhoodDF.to_network` instead.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Neighborhood table. A plain frame is converted to
+        :class:`rotifer.genome.data.NeighborhoodDF` first.
+    target : str or list of str, default ['pfam']
+        Column or columns that label each feature.
+    ftype : str or list of str, default ['CDS']
+        Values of the ``type`` column to keep.
+    interaction : bool, default True
+        Tell fusions from neighbours and count each kind separately.
+    ignore : list of str, default []
+        Labels to remove. An empty list removes nothing.
+    strand : bool, default True
+        Keep only same-strand features and read every block in the
+        direction of the query. With False, the frame is used in its
+        current row order and neighbor edges are made undirected (the
+        smaller label is ``source``); fusion edges keep the N to C order.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per distinct edge, as returned by
+        :meth:`rotifer.genome.data.NeighborhoodDF.to_network`.
+
+    Warns
+    -----
+    FutureWarning
+        Always, on every call.
+
+    See Also
+    --------
+    rotifer.genome.data.NeighborhoodDF.to_network : Replacement.
+    """
     import warnings
     from rotifer.genome.data import NeighborhoodDF
 

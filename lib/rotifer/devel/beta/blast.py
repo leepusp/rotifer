@@ -780,12 +780,11 @@ def full_annotate(seqobj,
     return seqobj
 
 def padding_df(df):
-    """Pad every column of a DataFrame to a common width, names included.
+    """
+    Pad every column of a DataFrame to a common width, names included.
 
     .. deprecated::
-       Use :func:`rotifer.pandas.pad` with ``side='left'`` and ``header=True``
-       instead. ``rotifer.devel.beta.blast.padding_df`` will be removed on 2026-11-30
-       (issue #TBD).
+       Will be removed on 2026-11-30. Use :func:`rotifer.pandas.pad` instead.
 
     Parameters
     ----------
@@ -795,7 +794,18 @@ def padding_df(df):
     Returns
     -------
     pandas.DataFrame
-        Copy of ``df`` with padded values and padded column names.
+        Copy of ``df`` with padded values and padded column names, each
+        column left-padded to its widest entry. Same result as
+        ``rotifer.pandas.pad(df, side='left', header=True)``.
+
+    Warns
+    -----
+    FutureWarning
+        Always, on every call.
+
+    See Also
+    --------
+    rotifer.pandas.pad : Replacement.
     """
     import warnings
     from rotifer.pandas import pad

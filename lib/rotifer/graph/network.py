@@ -1373,7 +1373,8 @@ def adjacency_edges(df,
         together.
     ignore : iterable of str, optional
         Labels to remove, after ``replace`` is applied and before the
-        edges are made. The labels around a removed one become adjacent.
+        edges are made. The labels around a removed one become adjacent. A
+        single string is one label, not a list of characters.
     separator : str or None, default '+'
         Splits each label into several, one per domain, in order. None
         keeps each label whole.
@@ -1424,6 +1425,8 @@ def adjacency_edges(df,
     get_relations : Relates every pair of domains in a block, typed by
         relative position.
     network_annotation : Builds a graph from relations.
+    rotifer.genome.data.NeighborhoodDF.to_network : Applies this function to a
+        neighborhood table, ordering each block along the query.
 
     Notes
     -----
@@ -1435,7 +1438,10 @@ def adjacency_edges(df,
     is listed once, not from both ends.
 
     ``weight`` counts rows of the edge table, so a block in which the edge
-    occurs twice adds 2; ``blocks`` counts each block once.
+    occurs twice adds 2; ``blocks`` counts each block once. ``orient``
+    changes neighbour edges only, so it can merge two neighbour edges but
+    never a fusion with a neighbour. Labels that are integers stay
+    integers in ``source`` and ``target``.
 
     Two labels are a fusion when the two rows they come from have the
     same ``pid``. Labels of one protein are always consecutive, because
