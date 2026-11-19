@@ -216,6 +216,42 @@ def read_md_table(text):
 # --------------------------------------------------------------------- writing
 
 
+_PLAIN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\Z')
+_RESOLVED = frozenset('yes no true false on off null'.split())
+
+
+def _flow_keys(keylist):
+    """`_flow` for a key list, skipping PyYAML when every part is a plain word."""
+    for v in keylist:
+        if not (type(v) is str and _PLAIN.match(v) and v.lower() not in _RESOLVED):
+            return _flow(keylist)
+    return '[' + ', '.join(keylist) + ']'
+
+
+def _one_row_table(indent, names, cells):
+    """A header, rule and one padded row, from names and ready-made cell strings."""
+    widths = [max(len(n), len(c)) for n, c in zip(names, cells)]
+    head = [n.ljust(w) for n, w in zip(names, widths)]
+    return (f'{indent}| ' + ' | '.join(head) + ' |\n'
+            + f'{indent}| ' + ' | '.join('-' * w for w in widths) + ' |\n'
+            + f'{indent}| ' + ' | '.join(c.ljust(w) for c, w in zip(cells, widths)) + ' |')
+
+
+def _rows_table(indent, names, name_widths, rows, lengths, pos):
+    """The main table of one block: the rows at `pos`, padded to the block's widths."""
+    pos = pos.tolist()
+    widths = [max(nw, int(ln[pos].max())) if pos else nw
+              for nw, ln in zip(name_widths, lengths)]
+    lead = f'{indent}| '
+    lines = [lead + ' | '.join(n.ljust(w) for n, w in zip(names, widths)) + ' |',
+             lead + ' | '.join('-' * w for w in widths) + ' |']
+    if names and pos:
+        line = lead + ' | '.join(f'%-{w}s' for w in widths) + ' |'
+        cols = [[r[p] for p in pos] for r in rows]
+        lines += [line % cells for cells in zip(*cols)]
+    return '\n'.join(lines)
+
+
 def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
             sortblocks=None, sample=None, random_state=None, name='rows', sep='\n\n',
             **tables):
@@ -337,25 +373,33 @@ def to_yaml(df, groupby, buf=None, columns=None, sortrows=None,
     names = [str(c) for c in body.columns]
 
     # Aggregate values are read column by column so each keeps its own dtype: a
-    # row taken across columns would upcast an int next to a float.
+    # row taken across columns would upcast an int next to a float. Each is turned
+    # into its text once, for all blocks.
+    indent = ' ' * config['indent']
     agg = {table: ([str(c) for c in frame.columns],
-                   [frame.iloc[:, j].tolist() for j in range(frame.shape[1])])
+                   [[str(_py(v)) for v in frame.iloc[:, j].tolist()]
+                    for j in range(frame.shape[1])])
            for table, frame in plan.tables.items()}
+
+    # The main table is cut from Python strings, converted once.
+    rows = [c.to_pylist() for c in cols]
+    heads = [len(n) for n in names]
+    lengths = [np.fromiter(map(len, r), dtype=np.int64, count=len(r)) for r in rows]
 
     parts = [head]
     for i, key in enumerate(plan.keys):
-        taken = pa.array(plan.positions[key])
+        pos = plan.positions[key]
 
         keylist = list(key) if isinstance(key, tuple) else [key]
-        block = [SEPARATOR, f'- key: {_flow(keylist)}']
+        block = [SEPARATOR, f'- key: {_flow_keys(keylist)}']
         for table in tables:                      # in the order the caller named them
             if table in agg:
-                heads, values = agg[table]
-                rendered = _md_arrow([pa.array([str(_py(v[i]))]) for v in values], heads)
+                heads_t, values = agg[table]
+                rendered = _one_row_table(indent, heads_t, [v[i] for v in values])
             else:
-                rendered = md_table(plan.callbacks[table](df.take(plan.positions[key])))
+                rendered = md_table(plan.callbacks[table](df.take(pos)))
             block.append(f'  {table}: |\n' + rendered)
-        block.append(f'  {name}: |\n' + _md_arrow([c.take(taken) for c in cols], names))
+        block.append(f'  {name}: |\n' + _rows_table(indent, names, heads, rows, lengths, pos))
         parts.append('\n'.join(block))
 
     text = sep.join(parts) + '\n'
