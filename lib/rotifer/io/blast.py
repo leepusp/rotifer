@@ -64,14 +64,32 @@ _ALIGNMENT = re.compile(r'^(Query|Sbjct)\s+(\d+)\s+\S+\s+(\d+)\s*$')
 
 def parse_blast_text(handle):
     """
-    Parse a BLAST+ pairwise text report.
+    Read a BLAST+ pairwise text report into nested dicts.
 
-    Yields one dict per result (one per query, and one per round for
-    PSI-BLAST) with keys ``query_name``, ``query_description``,
-    ``query_length`` and ``hits``. Hits are dicts with ``name``,
-    ``description``, ``length`` and ``hsps``; HSPs are dicts with
-    ``bits``, ``evalue`` (strings, as in the report), ``query_start``,
-    ``query_end``, ``hit_start`` and ``hit_end`` (integers).
+    Parameters
+    ----------
+    handle : iterable of str
+        Lines of a report from blastp, psiblast, rpsblast or another BLAST+
+        program, in the default pairwise format (``-outfmt 0``).
+
+    Yields
+    ------
+    dict
+        One per result: one per query, and one per round for PSI-BLAST.
+        Keys: ``query_name``, ``query_description``, ``query_length`` (int
+        or None) and ``hits``, a list of dicts with ``name``,
+        ``description``, ``length`` and ``hsps``. HSPs are dicts with
+        ``bits`` and ``evalue`` (strings, as printed) and ``query_start``,
+        ``query_end``, ``hit_start``, ``hit_end`` (ints, 1-based, start
+        at most end on both strands).
+
+    Examples
+    --------
+    >>> from rotifer.io.blast import parse_blast_text
+    >>> with open("test/data/golden/inputs/psiblast.out") as handle:
+    ...     result = next(parse_blast_text(handle))
+    >>> result["query_name"], result["query_length"], result["hits"][0]["hsps"][0]["hit_end"]
+    ('NP_414555.1', 638, 638)
     """
     result = hit = hsp = None
     reading = None  # 'query' or 'hit' while reading a multi-line description
@@ -130,19 +148,23 @@ def parse_blast_text(handle):
 # Identifier cleaners: (name, 'query' or 'hit', hit dict) -> new name
 
 def _genbank2gi(name, kind=None, hit=None):
+    """Return the GI number of a ``gi|...`` identifier; other names as they are."""
     if not re.match(r'^gi\|[^|]+\|\w+\|+[^|]+', name):
         return name
     return re.split(r'\|+', name)[1]
 
 def _genbank2acc(name, kind=None, hit=None):
+    """Return the unversioned accession of a ``gi|...|ref|ACC.1|`` identifier; other names as they are."""
     if not re.match(r'^gi\|[^|]+\|\w+\|+[^|]+', name):
         return name
     return re.sub(r'\.\d+$', '', re.split(r'\|+', name)[3])
 
 def _profiledb(name, kind=None, hit=None):
+    """Drop a trailing version (``.1``) from hit names; query names as they are."""
     return re.sub(r'\.\d+$', '', name) if kind == 'hit' else name
 
 def _cdd(name, kind=None, hit=None):
+    """Take hit names from the second field of CDD descriptions, and GI numbers for queries."""
     if kind == 'query':
         return _genbank2gi(name)
     fields = hit['description'].split(', ')
@@ -152,6 +174,24 @@ CLEANERS = {'cdd': _cdd, 'genbank2gi': _genbank2gi, 'genbank2acc': _genbank2acc,
 """Pre-defined identifier cleaners, selected by name in ``clean``."""
 
 def _cleaners(clean):
+    """
+    Resolve ``clean`` into a list of cleaner functions.
+
+    Parameters
+    ----------
+    clean : list or None
+        Names from :data:`CLEANERS`, functions ``f(name, kind, hit)``, or
+        ``none``/``0`` to turn cleaning off (an empty list is returned).
+
+    Returns
+    -------
+    list of callable
+
+    Raises
+    ------
+    ValueError
+        If a name is not in :data:`CLEANERS`.
+    """
     functions = []
     for cleaner in clean or []:
         if callable(cleaner):
@@ -167,6 +207,7 @@ def _cleaners(clean):
 # Table building
 
 def _format_evalue(text):
+    """Write an E-value as blast2table does: ``%.1f`` above 1, ``0`` for 0, ``%.3e`` otherwise."""
     text = text.rstrip(',')
     if text.startswith('e'):
         text = '1' + text
@@ -174,10 +215,12 @@ def _format_evalue(text):
     return '%.1f' % value if value > 1 else '0' if value == 0 else '%.3e' % value
 
 def _format_bits(text):
+    """Write a bit score as blast2table does: no decimals above 99, one otherwise."""
     value = float(text)
     return '%.0f' % value if value > 99 else '%.1f' % value
 
 def _swap(row):
+    """Return a copy of a row with its query and hit columns exchanged."""
     row = dict(row)
     for column in _SWAPPED:
         row[f'query_{column}'], row[f'hit_{column}'] = row.get(f'hit_{column}'), row.get(f'query_{column}')
@@ -186,10 +229,46 @@ def _swap(row):
 def iter_blast_records(handle, evalue=10, threshold=0.01, overlap='0.4', nonredundant=True,
                        clean=None, rename_query=None, force_basename=None, filename='-'):
     """
-    Parse a BLAST+ text report and yield one dict per HSP (see
-    ``iter_blast`` for the parameters), before any column swap. With
-    ``nonredundant`` the HSPs are merged by
-    :func:`rotifer.io.search._merge_hsps`, once the report is parsed.
+    Parse a BLAST+ text report and yield one dict per HSP.
+
+    This is the table :func:`iter_blast` writes, before columns are chosen
+    or swapped. Names are cleaned and renamed, HSPs above ``evalue`` are
+    dropped, and, with ``nonredundant``, overlapping HSPs of the same query
+    and hit are merged by :func:`rotifer.io.search._merge_hsps` once the
+    whole report is read. PSI-BLAST rounds are separate results of the
+    report, and HSPs of different rounds are merged like any others; every
+    row has ``iteration`` 1, as in the former Perl tool.
+
+    Parameters
+    ----------
+    handle : iterable of str
+        Lines of a BLAST+ pairwise text report.
+    evalue, threshold, overlap, nonredundant, clean, rename_query, force_basename, filename
+        See :func:`iter_blast`.
+
+    Yields
+    ------
+    dict
+        Keys ``query_name``, ``query_length``, ``iteration``, ``hit_name``,
+        ``hit_length``, ``evalue`` and ``bits`` (strings formatted as
+        blast2table prints them), ``query_start``, ``query_end``,
+        ``hit_start``, ``hit_end`` (ints) and ``query_coverage``,
+        ``hit_coverage`` (strings with three decimals, or ``NA``). Merged
+        regions come in the order they were first seen, and keep the
+        coverages of the HSP their E-value comes from.
+
+    Raises
+    ------
+    ValueError
+        If ``clean`` names an unknown cleaner.
+
+    Examples
+    --------
+    >>> from rotifer.io.blast import iter_blast_records
+    >>> with open("test/data/golden/inputs/psiblast.out") as handle:
+    ...     row = next(iter_blast_records(handle))
+    >>> row["hit_name"], row["evalue"], row["bits"], row["query_coverage"]
+    ('NP_414555.1', '0', '1290', '1.000')
     """
     cleaners = _cleaners(clean)
     rows, keys = [], []
@@ -256,37 +335,63 @@ def iter_blast_records(handle, evalue=10, threshold=0.01, overlap='0.4', nonredu
 
 def iter_blast(handle, columns=COLUMNS, swap=False, **kwargs):
     """
-    Parse a BLAST+ text report and yield one row (a list of strings) per
-    HSP, with the given ``columns``.
+    Parse a BLAST+ text report and yield one row of strings per HSP.
+
+    The rows are what the ``blast2table`` command writes.
 
     Parameters
     ----------
     handle : iterable of str
         Lines of a BLAST+ pairwise text report.
-    columns : list of str
-        Output columns (see ``AVAILABLE_COLUMNS``).
+    columns : list of str, default ``COLUMNS``
+        Output columns, from :data:`AVAILABLE_COLUMNS`.
     swap : bool, default False
-        Exchange query and hit columns.
+        Exchange the query and hit columns (names, starts, ends, coverages
+        and lengths). RPS-BLAST reports (proteins searched against domain
+        models) then give a domain table with the protein in ``hit_name``.
     evalue : float, default 10
-        Maximum HSP E-value.
+        Drop HSPs whose E-value, rounded as printed, is above this value.
+        None keeps them all.
     threshold : float, default 0.01
-        Inclusion threshold used by PSI-BLAST (see the module docstring).
+        Inclusion threshold of the merge: a kept region with a lower
+        E-value is widened by overlapping HSPs instead of replaced.
     overlap : str or number, default '0.4'
-        Overlap above which HSPs are redundant: a fraction if written with
-        a decimal point, else a number of residues.
+        How much two HSPs must share, on both the query and the hit, to be
+        merged: a fraction of each HSP's length if written with a decimal
+        point (``'0.4'``, ``0.4``, ``'1.0'``), else a number of residues
+        (``'1'``, ``10``); see :func:`rotifer.io.written_as_fraction`.
     nonredundant : bool, default True
-        Merge redundant HSPs.
-    clean : list
-        Identifier cleaners, applied in order: names of pre-defined
-        cleaners (see ``CLEANERS``; ``cdd`` takes domain names from
-        RPS-BLAST hit descriptions) or functions ``f(name, kind, hit)``
-        where ``kind`` is ``'query'`` or ``'hit'``.
-    rename_query : str or function, optional
-        New query name, or function ``f(name, filename)``.
+        Merge redundant HSPs. False yields every HSP.
+    clean : list, optional
+        Identifier cleaners, applied in order: names from :data:`CLEANERS`
+        (``cdd`` takes domain names from RPS-BLAST hit descriptions;
+        ``none`` or ``0`` turns cleaning off) or functions
+        ``f(name, kind, hit)`` with ``kind`` ``'query'`` or ``'hit'``.
+    rename_query : str or callable, optional
+        New query name, or a function ``f(name, filename)`` returning it.
     force_basename : list of str, optional
-        Use the report's file name, without these suffixes, as query name.
-    filename : str
-        Name of the report.
+        Use the report's file name, without the first of these suffixes
+        (regular expressions) that matches, as the query name.
+    filename : str, default '-'
+        Name of the report, for ``force_basename``, ``rename_query`` and
+        warnings.
+
+    Yields
+    ------
+    list of str
+        One HSP, in ``columns`` order; missing values are empty strings.
+
+    Raises
+    ------
+    ValueError
+        If ``clean`` names an unknown cleaner.
+
+    Examples
+    --------
+    >>> from rotifer.io.blast import iter_blast
+    >>> with open("test/data/golden/inputs/psiblast.out") as handle:
+    ...     next(iter_blast(handle))
+    ['NP_414555.1', 'NP_414555.1', '1', '638', '0', '1.000', '1', '638', '1', '1290', '638']
     """
     for row in iter_blast_records(handle, **kwargs):
         if swap:
@@ -295,23 +400,49 @@ def iter_blast(handle, columns=COLUMNS, swap=False, **kwargs):
 
 def read_blast(source, columns=COLUMNS, swap=False, **kwargs):
     """
-    Load BLAST+ text reports into a table.
+    Load BLAST+ text reports into a table, one row per (merged) HSP.
 
     Parameters
     ----------
-    source : str, list of str or file object
-        Report file name(s) or an open report.
-    columns, swap, **kwargs
-        See ``iter_blast``.
+    source : str, os.PathLike, list of them, or file object
+        Report file name(s) (``-`` is standard input; ``.gz`` and ``.bz2``
+        are decompressed) or an open report. A single string is one file.
+    columns : list of str, default ``COLUMNS``
+        Output columns, from :data:`AVAILABLE_COLUMNS`.
+    swap : bool, default False
+        Exchange query and hit columns (see :func:`iter_blast`).
+    **kwargs
+        ``evalue``, ``threshold``, ``overlap``, ``nonredundant``, ``clean``,
+        ``rename_query`` and ``force_basename``, as in :func:`iter_blast`.
 
     Returns
     -------
     pandas.DataFrame
+        The rows :func:`iter_blast` yields for every report, in order, with
+        ``columns``. Columns in :data:`DTYPES` are numeric (``NA`` becomes
+        NaN): coordinates, lengths and ``iteration`` int64, ``evalue``,
+        ``bits`` and the coverages float64, also when the table is empty.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a report does not exist.
+    ValueError
+        If ``clean`` names an unknown cleaner.
+
+    See Also
+    --------
+    rotifer.io.search.read_blast_tabular : the same merge on BLAST's
+        tabular output, into the standard search table.
 
     Examples
     --------
     >>> from rotifer.io.blast import read_blast
-    >>> domains = read_blast("seqs.rpsblast.out", swap=True, clean=['cdd'])
+    >>> domains = read_blast("test/data/golden/inputs/rpsblast.out", swap=True, clean=["cdd"])
+    >>> domains.loc[:1, ["hit_name", "query_name", "hit_start", "hit_end", "evalue"]]
+          hit_name                      query_name  hit_start  hit_end  evalue
+    0  NP_414543.1                            thrA          1      820     0.0
+    1  NP_414543.1  Aspartokinase_Aspartate_kinase          3      461     0.0
     """
     import pandas as pd
     from rotifer.io import each_source
