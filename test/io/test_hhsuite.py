@@ -14,8 +14,13 @@ What has to hold, and why:
     beside it, under a path containing "rotifer" more than once
   * read_hhr and parse_hhr return the hits of an .hhr file, from a file,
     a list of files or a directory
-  * bin/hhsuite2table prints what the library returns, so the command line
-    and the library cannot drift apart
+  * bin/hhsuite2table prints the library's table, with score to one decimal
+    and probability as an integer, as it always has; the library itself
+    returns both as float64
+  * hhsuite2pandas gives the documented dtypes, on empty reports too, and
+    rejects an unknown column before reading any file
+  * a single path is one file, and a directory is read in name order
+  * query_ali and template_ali are str for every hit
 
 The sample file, data/sample.hhr, holds two hits. The second, last one
 used to get the first hit's p-value; both are checked.
@@ -29,6 +34,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 LIB = os.path.join(REPO, 'lib')
@@ -70,7 +77,7 @@ def test_read_hhr_returns_hits():
     assert list(df.qstart) == [3, 10] and list(df.qend) == [47, 29]
     assert list(df.hstart) == [1, 5] and list(df.hend) == [45, 24]
     assert list(df.hlen) == [60, 30]
-    assert list(df.probability) == [99, 50]
+    assert list(df.probability) == [99.9, 50.0]
     assert list(df.evalue) == [1.1e-20, 0.5]
     assert list(df.identity) == [0.4, 0.25]
     assert list(df.pvalue) == [2.2e-24, 1e-4]
@@ -89,14 +96,25 @@ def test_parse_hhr_yields_one_table_per_file(tmp_path):
     tables = list(_hhsuite().parse_hhr(str(tmp_path)))
     assert [len(t) for t in tables] == [2, 2]
 
-def test_cli_prints_library_output(tmp_path):
+def test_cli_prints_formatted_library_output(tmp_path):
+    """The command line equals the library table once score and probability are formatted.
+
+    The library returns them as float64; the script prints the score with
+    one decimal and the probability as an integer. Replaces a test that
+    compared the CLI to a plain to_csv of the library, which no longer
+    holds by design.
+    """
     out = subprocess.run(
         [sys.executable, os.path.join(REPO, 'bin', 'hhsuite2table'), SAMPLE],
         env=_environ(LIB, tmp_path), capture_output=True, text=True, cwd=str(tmp_path),
+        stdin=subprocess.DEVNULL,
     )
     assert out.returncode == 0, out.stderr
+    df = _hhsuite().hhsuite2pandas(SAMPLE)
+    df['score'] = df['score'].map(lambda x: '%-.1f' % x)
+    df['probability'] = df['probability'].astype(int)
     expected = io.StringIO()
-    _hhsuite().hhsuite2pandas(SAMPLE).to_csv(expected, sep="\t", index=None, float_format='%-.3g')
+    df.to_csv(expected, sep="\t", index=None, float_format='%-.3g')
     assert out.stdout == expected.getvalue()
 
 def test_cli_output_is_pinned(tmp_path):
@@ -111,11 +129,62 @@ def test_cli_output_is_pinned(tmp_path):
         assert out.stdout == handle.read()
 
 def test_hhsuite2pandas_values_are_pinned():
-    """The library's score, probability and pvalue columns, as they are today."""
+    """The library's score, probability and pvalue columns, now as floats.
+
+    Changed on purpose: up to version 0.002 score was a string ('120.5')
+    and probability an int (99); both are float64 now. bin/hhsuite2table
+    keeps printing the old form.
+    """
     df = _hhsuite().hhsuite2pandas(SAMPLE)
-    assert list(df.score) == ['120.5', '20.1']
-    assert list(df.probability) == [99, 50]
+    assert list(df.score) == [120.5, 20.1]
+    assert list(df.probability) == [99.9, 50.0]
+    assert str(df.score.dtype) == 'float64' and str(df.probability.dtype) == 'float64'
     assert list(df.pvalue) == [2.2e-24, 1e-4]
+
+def test_parse_hhr_single_path_is_one_table():
+    """A single file name is one report, not a list of characters."""
+    tables = list(_hhsuite().parse_hhr(SAMPLE))
+    assert len(tables) == 1 and len(tables[0]) == 2
+
+def test_unknown_column_raises_before_reading():
+    """An unknown column raises ValueError naming it, even if the file does not exist."""
+    with pytest.raises(ValueError, match='nonsense'):
+        _hhsuite().hhsuite2pandas('/no/such/file.hhr', columns=['hit', 'nonsense'])
+
+def test_empty_report_gives_typed_empty_frame(tmp_path):
+    """A report with a header and no hits gives zero rows and the documented dtypes."""
+    with open(SAMPLE) as handle:
+        header = handle.read().split(' No Hit')[0]
+    path = os.path.join(str(tmp_path), 'empty.hhr')
+    with open(path, 'w') as handle:
+        handle.write(header)
+    df = _hhsuite().hhsuite2pandas(path)
+    assert len(df) == 0
+    assert list(df.columns) == _hhsuite().default_columns
+    expected = {'query': 'str', 'hit': 'str', 'qstart': 'int64', 'qend': 'int64', 'hstart': 'int64',
+                'hend': 'int64', 'qalilen': 'int64', 'qlen': 'int64', 'hlen': 'int64',
+                'aligned_cols': 'int64', 'qcov': 'float64', 'hcov': 'float64',
+                'probability': 'float64', 'evalue': 'float64', 'pvalue': 'float64',
+                'score': 'float64', 'similarity': 'float64', 'sum_probs': 'float64',
+                'identity': 'float64'}
+    assert {c: str(df[c].dtype) for c in df.columns} == expected
+
+def test_alignments_are_str():
+    """query_ali and template_ali are str for every hit, the last one included."""
+    df = _hhsuite().hhsuite2pandas(SAMPLE, columns=['hit', 'query_ali', 'template_ali'])
+    assert len(df) == 2
+    assert all(isinstance(v, str) for v in df.query_ali)
+    assert all(isinstance(v, str) for v in df.template_ali)
+
+def test_read_hhr_directory_is_in_name_order(tmp_path):
+    """Files of a directory are read in name order, whatever order they were written in."""
+    with open(SAMPLE) as handle:
+        text = handle.read()
+    for name, query in (('b.hhr', 'QUERY_B'), ('a.hhr', 'QUERY_A')):
+        with open(os.path.join(str(tmp_path), name), 'w') as handle:
+            handle.write(text.replace('sp|P00001|TEST_HUMAN', query))
+    df = _hhsuite().read_hhr(str(tmp_path))
+    assert list(df['query']) == ['QUERY_A', 'QUERY_A', 'QUERY_B', 'QUERY_B']
 
 
 if __name__ == '__main__':

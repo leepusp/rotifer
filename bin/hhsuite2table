@@ -33,5 +33,12 @@ def parse_cli():
 
 if __name__ == '__main__':
     args = parse_cli()
-    hhsuite2pandas(args.file, columns=args.columns).to_csv(sys.stdout, sep="\t", index=None, float_format='%-.3g')
+    df = hhsuite2pandas(args.file, columns=args.columns)
+    # The library returns score and probability as floats; the table has
+    # always printed the score with one decimal and the probability as int
+    if 'score' in df.columns:
+        df['score'] = df['score'].map(lambda x: '%-.1f' % x)
+    if 'probability' in df.columns:
+        df['probability'] = df['probability'].astype(int)
+    df.to_csv(sys.stdout, sep="\t", index=None, float_format='%-.3g')
     exit(0)

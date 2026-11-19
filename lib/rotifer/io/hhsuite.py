@@ -14,54 +14,156 @@ from collections import namedtuple
 default_columns = ['query','hit','qstart','qend','evalue','qcov','hstart','hend','aligned_cols','score',
                 'qalilen','qlen','hlen','probability','identity','similarity','sum_probs','hcov','pvalue']
 
+# Column name to hhr_alignment attribute or function of the record
+_COL2ATTR = {
+    'query':   'query_id',
+    'hit':     'template_id',
+    'qstart':  lambda x: x.start[0],
+    'qend':    lambda x: x.end[0],
+    'qcov':    lambda x: (x.end[0] - x.start[0] + 1) / x.query_length,
+    'hstart':  lambda x: x.start[1],
+    'hend':    lambda x: x.end[1],
+    'qlen':    'query_length',
+    'qalilen': lambda x: x.end[0] - x.start[0] + 1,
+    'hlen':    'template_length',
+    'hcov':    lambda x: (x.end[1] - x.start[1] + 1) / x.template_length if x.template_length > 0 else 0,
+}
+_RECORD_FIELDS = ['query_id', 'query_length', 'query_neff', 'template_id', 'template_length',
+                  'template_info', 'template_neff', 'query_ali', 'template_ali', 'start', 'end']
+_ALLOWED = list(default_columns) + _RECORD_FIELDS
+# Documented dtypes; the other fields keep what parse_result gives
+_COLUMN_TYPES = {}
+_COLUMN_TYPES.update({c: 'str' for c in ('query', 'hit')})
+_COLUMN_TYPES.update({c: 'int64' for c in ('qstart', 'qend', 'hstart', 'hend', 'qalilen', 'qlen', 'hlen', 'aligned_cols')})
+_COLUMN_TYPES.update({c: 'float64' for c in ('qcov', 'hcov', 'probability', 'evalue', 'pvalue', 'score',
+                                             'similarity', 'sum_probs', 'identity')})
+
 # HH-suite output parser
 def hhsuite2pandas(infile, columns=default_columns):
-    '''
-    Parse a list of HH-suite output files.
-    '''
-    import types
-    if not isinstance(infile,list):
-        infile = [infile]
+    """
+    Load the hits of HH-suite reports into a table, one row per hit.
 
-    # Initialize hash for dataframe
-    data = {}
-    for c in columns: data[c] = []
+    Each ``.hhr`` report (written by hhblits, hhsearch or hhalign with
+    ``-o``) lists the hits of one query; every hit becomes a row, in the
+    order of the files and, within a file, of the report.
 
-    # Column name to hhr_alignment attribute or lambda function
-    col2attr = { 
-            'query':  'query_id',
-            'hit':    'template_id',
-            'qstart': lambda x: x.start[0],
-            'qend':   lambda x: x.end[0],
-            'qcov':   lambda x: (x.end[0] - x.start[0] + 1) / x.query_length,
-            'hstart': lambda x: x.start[1],
-            'hend':   lambda x: x.end[1],
-            'qlen':   'query_length',
-            'qalilen': lambda x: x.end[0] - x.start[0] + 1,
-            'hlen':   'template_length',
-            'hcov':   lambda x: (x.end[1] - x.start[1] + 1) / x.template_length if x.template_length > 0 else 0
-            }
+    Parameters
+    ----------
+    infile : str, os.PathLike or list of them
+        One report, or a list of reports. A single string is one file name,
+        not a list of characters.
+    columns : list of str, default ``default_columns``
+        Columns of the table, in this order. Allowed: every name in
+        ``default_columns`` (``query``, ``hit``, ``qstart``, ``qend``,
+        ``evalue``, ``qcov``, ``hstart``, ``hend``, ``aligned_cols``,
+        ``score``, ``qalilen``, ``qlen``, ``hlen``, ``probability``,
+        ``identity``, ``similarity``, ``sum_probs``, ``hcov``, ``pvalue``)
+        and the fields of the records :func:`parse_result` returns
+        (``query_id``, ``query_length``, ``query_neff``, ``template_id``,
+        ``template_length``, ``template_info``, ``template_neff``,
+        ``query_ali``, ``template_ali``, ``start``, ``end``). A name given
+        twice gives one column. The list is not modified.
 
-    # Transfer data from hhr_alignment's list of tuples to a dictionary of lists
-    for f in infile:
+    Returns
+    -------
+    pandas.DataFrame
+        One row per hit, with a default RangeIndex and these columns when
+        requested:
+
+        * ``query``, ``hit`` (str): query and hit (template) identifiers.
+        * ``qstart``, ``qend``, ``hstart``, ``hend`` (int64): first and last
+          aligned columns of the query and of the hit, 1-based, inclusive.
+        * ``qalilen`` (int64): ``qend - qstart + 1``.
+        * ``qlen``, ``hlen`` (int64): query and hit lengths (match columns).
+        * ``qcov`` (float64): ``qalilen / qlen``.
+        * ``hcov`` (float64): ``(hend - hstart + 1) / hlen``, 0 when ``hlen``
+          is 0.
+        * ``probability`` (float64): HH-suite's probability, in percent
+          (99.9, not 0.999).
+        * ``evalue``, ``pvalue``, ``score``, ``similarity``, ``sum_probs``
+          (float64): as printed in the report.
+        * ``identity`` (float64): fraction of identical residues, 0 to 1
+          (the report prints a percentage).
+        * ``aligned_cols`` (int64): number of aligned columns.
+
+        Other fields keep the type :func:`parse_result` gives them
+        (``query_ali`` and ``template_ali`` are str). The frame is empty,
+        with the requested columns and these dtypes, when the reports have
+        no hits.
+
+    Raises
+    ------
+    ValueError
+        If ``columns`` names a column that is not listed above. Nothing is
+        read in that case.
+    FileNotFoundError
+        If a report does not exist.
+    HHRFormatError
+        If a report's alignment coordinates cannot be read.
+
+    See Also
+    --------
+    read_hhr : the same table from a directory of reports.
+
+    Notes
+    -----
+    Earlier versions returned ``score`` as text (``'120.5'``) and
+    ``probability`` truncated to an integer. ``bin/hhsuite2table`` still
+    prints them that way.
+
+    Examples
+    --------
+    >>> from rotifer.io.hhsuite import hhsuite2pandas
+    >>> df = hhsuite2pandas("test/io/data/sample.hhr", columns=["hit", "probability", "score", "pvalue"])
+    >>> df
+             hit  probability  score        pvalue
+    0  PF00001.1         99.9  120.5  2.200000e-24
+    1  PF00002.2         50.0   20.1  1.000000e-04
+    """
+    unknown = [c for c in columns if c not in _ALLOWED]
+    if unknown:
+        raise ValueError("Unknown column(s) %s; allowed: %s"
+                         % (", ".join(map(str, unknown)), ", ".join(_ALLOWED)))
+    columns = list(columns)
+    data = {c: [] for c in columns}
+    for f in _expand(infile):
         for x in read_result(f):
             for c in columns:
-                if c in col2attr:
-                    if type(col2attr[c]) is types.LambdaType:
-                        data[c].append(col2attr[c](x))
-                    elif hasattr(x,col2attr[c]):
-                        data[c].append(getattr(x,col2attr[c]))
-                    else:
-                        sys.stderr.write("Column "+c+" is not a function or hhr_alignment attribute!\n")
-                elif hasattr(x,c):
-                    data[c].append(getattr(x,c))
-                else:
-                    sys.stderr.write("Column "+c+" is unknown\n")
-
-    df = pd.DataFrame(data=data)
-    df.probability = df.probability.astype(int)
-    df.score = df['score'].map(lambda x: '%-.1f' % x)
+                attr = _COL2ATTR.get(c, c)
+                data[c].append(attr(x) if callable(attr) else getattr(x, attr))
+    dtypes = {c: _COLUMN_TYPES[c] for c in columns if c in _COLUMN_TYPES}
+    if any(data.values()):
+        df = pd.DataFrame(data=data)
+        return df.astype(dtypes)
+    df = pd.DataFrame({c: pd.Series([], dtype=dtypes.get(c, object)) for c in columns})
     return df
+
+def _expand(source, suffix=".hhr"):
+    """
+    Turn a report, a list of reports or a directory into a list of files.
+
+    Parameters
+    ----------
+    source : str, os.PathLike, list or tuple
+        A directory, a single report, or a list of reports. A single string
+        is one path, not a list of characters.
+    suffix : str, default ".hhr"
+        Only used for a directory: its files whose names end with
+        ``suffix`` are listed.
+
+    Returns
+    -------
+    list of str
+        A list or tuple is returned as a list, in its order; a directory
+        gives its matching files sorted by name; any other path gives a
+        one-element list (it is not checked for existence).
+    """
+    if isinstance(source, (list, tuple)):
+        return [os.fspath(f) for f in source]
+    source = os.fspath(source)
+    if os.path.isdir(source):
+        return [os.path.join(source, f) for f in sorted(os.listdir(source)) if f.endswith(suffix)]
+    return [source]
 
 """
 Parser for hhr result files created with hhblits|hhsearch|hhalign -o <hhr_file>
@@ -71,6 +173,14 @@ Parser for hhr result files created with hhblits|hhsearch|hhalign -o <hhr_file>
 # __license__ = "GPL-3"
 
 class HHRFormatError(Exception):
+    """
+    Raised when the alignment coordinates of an HH-suite report are not numbers.
+
+    Parameters
+    ----------
+    value : str
+        What could not be converted; the message is prefixed with ``ERROR: ``.
+    """
     def __init__(self, value):
         self.value = "ERROR: "+value
 
@@ -78,6 +188,30 @@ class HHRFormatError(Exception):
         return repr(self.value)
 
 def parse_result(lines):
+    """
+    Parse the lines of one HH-suite report into one record per hit.
+
+    Parameters
+    ----------
+    lines : iterable of str
+        Lines of an ``.hhr`` report, with their line endings.
+
+    Returns
+    -------
+    list of collections.namedtuple
+        One ``hhr_alignment`` per hit, in report order, with the fields
+        ``query_id``, ``query_length``, ``query_neff``, ``template_id``,
+        ``template_length``, ``template_info``, ``template_neff``,
+        ``query_ali`` and ``template_ali`` (str), ``start`` and ``end``
+        (tuples of query and template coordinates), ``probability``,
+        ``evalue``, ``score``, ``aligned_cols``, ``identity``,
+        ``similarity``, ``sum_probs`` and ``pvalue``.
+
+    Raises
+    ------
+    HHRFormatError
+        If an alignment coordinate cannot be converted to an integer.
+    """
     results = []
     hhr_alignment = namedtuple('hhr_alignment', ['query_id', 'query_length', 'query_neff',
                                                  'template_id', 'template_length', 'template_info',
@@ -141,7 +275,7 @@ def parse_result(lines):
                 pvalue = pvalueDict[hitID if line.startswith("Done!") else hitID - 1]
                 result = hhr_alignment(query_id, query_length, query_neff,
                                        template_id, template_length, template_info, template_neff,
-                                       query_seq, template_seq, (query_start, template_start),
+                                       "".join(query_seq), "".join(template_seq), (query_start, template_start),
                                        (query_end, template_end), probability, evalue, score,
                                        aligned_cols, identity, similarity, sum_probs, pvalue)
                 results.append(result)
@@ -181,9 +315,9 @@ def parse_result(lines):
             try:
                 token_2 = tokens[2].replace("(", "").replace(")", "")
                 token_2 = int(token_2)
-            except:
+            except ValueError as e:
                 raise HHRFormatError(("Converting failure of start index ({}) "
-                                      "of query alignment").format(tokens[2]))
+                                      "of query alignment").format(tokens[2])) from e
 
             if query_start is None:
                 query_start = token_2
@@ -192,9 +326,9 @@ def parse_result(lines):
             try:
                 token_4 = tokens[4].replace("(", "").replace(")", "")
                 token_4 = int(token_4)
-            except:
+            except ValueError as e:
                 raise HHRFormatError(("Converting failure of end index ({}) "
-                                      "of query alignment").format(tokens[4]))
+                                      "of query alignment").format(tokens[4])) from e
 
             if query_end is None:
                 query_end = token_4
@@ -211,9 +345,9 @@ def parse_result(lines):
             try:
                 token_2 = tokens[2].replace("(", "").replace(")", "")
                 token_2 = int(token_2)
-            except:
+            except ValueError as e:
                 raise HHRFormatError(("Converting failure of start index ({}) "
-                                      "of template alignment").format(tokens[2]))
+                                      "of template alignment").format(tokens[2])) from e
 
             if template_start is None:
                 template_start = token_2
@@ -222,9 +356,9 @@ def parse_result(lines):
             try:
                 token_4 = tokens[4].replace("(", "").replace(")", "")
                 token_4 = int(token_4)
-            except:
+            except ValueError as e:
                 raise HHRFormatError(("Converting failure of end index ({}) "
-                                      "of template alignment").format(tokens[4]))
+                                      "of template alignment").format(tokens[4])) from e
 
             if template_end is None:
                 template_end = token_4
@@ -233,9 +367,9 @@ def parse_result(lines):
             try:
                 token_5 = tokens[5].replace("(", "").replace(")", "")
                 token_5 = int(token_5)
-            except:
+            except ValueError as e:
                 raise HHRFormatError(("Converting failure of template length ({}) "
-                                      "in template alignment").format(tokens[5]))
+                                      "in template alignment").format(tokens[5])) from e
             template_length = token_5
 
     if(template_id is not None and query_start is not None):
@@ -250,66 +384,97 @@ def parse_result(lines):
     return results
 
 def read_result(input_file):
+    """
+    Read one HH-suite report file and parse it.
+
+    Parameters
+    ----------
+    input_file : str or os.PathLike
+        Path of an ``.hhr`` report. Undecodable bytes are ignored.
+
+    Returns
+    -------
+    list of collections.namedtuple
+        The records :func:`parse_result` returns.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
+    HHRFormatError
+        If an alignment coordinate cannot be read.
+    """
     with open(input_file, errors='ignore') as fh:
         lines = fh.readlines()
         return parse_result(lines)
 
 # Parse output tables
 def read_hhr(indir, suffix=".hhr"):
-    '''
-    Parse **all** HH-suite (``*.hhr``) output files located in a
-    directory or, alternatively, a list of .hhr files
+    """
+    Load HH-suite reports into one table: a report, a list or a directory.
 
     Parameters
     ----------
-    indir : string
-      A HH-suite results file, a list of files or a directory with results
-    suffix: string, default .hhr
-      The suffix, a.k.a extension, for the HH-suite results in indir
+    indir : str, os.PathLike, list or tuple
+        A report, a list of reports, or a directory. For a directory, every
+        file whose name ends with ``suffix`` is read, in name order.
+    suffix : str, default ".hhr"
+        File name ending of the reports in a directory.
 
     Returns
     -------
-      A Pandas dataframe
+    pandas.DataFrame
+        The table :func:`hhsuite2pandas` returns with ``default_columns``,
+        for all the reports together.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a report does not exist.
+
+    See Also
+    --------
+    parse_hhr : one table per report.
 
     Examples
     --------
-    Parsing all ``*.hhr`` files at once
-
     >>> from rotifer.io import hhsuite
-    >>> df = hhsuite.read_hhr(hhrdir)
-    '''
-    if not isinstance(indir,list):
-        if os.path.exists(indir) and os.path.isdir(indir):
-            indir = os.path.realpath(indir)
-            indir = glob(f'{indir}/*{suffix}')
-    return hhsuite2pandas(indir)
+    >>> hhsuite.read_hhr("test/io/data/sample.hhr")[["hit", "qstart", "qend", "probability"]]
+             hit  qstart  qend  probability
+    0  PF00001.1       3    47         99.9
+    1  PF00002.2      10    29         50.0
+    """
+    return hhsuite2pandas(_expand(indir, suffix))
 
 def parse_hhr(indir, suffix=".hhr"):
-    '''
-    Parse HH-suite (``*.hhr``) output files.
+    """
+    Yield one table per HH-suite report: a report, a list or a directory.
 
     Parameters
     ----------
-    indir : string
-      A HH-suite results file, a list of files or a directory with results
-    suffix: string, default .hhr
-      The suffix, a.k.a extension, for the HH-suite results in indir
+    indir : str, os.PathLike, list or tuple
+        A report, a list of reports, or a directory. For a directory, every
+        file whose name ends with ``suffix`` is read, in name order. A single
+        report gives a single table.
+    suffix : str, default ".hhr"
+        File name ending of the reports in a directory.
 
-    Returns
-    -------
-      A generator of Pandas dataframes
+    Yields
+    ------
+    pandas.DataFrame
+        For each report, the table :func:`hhsuite2pandas` returns with
+        ``default_columns``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a report does not exist (raised when that report is reached).
 
     Examples
     --------
-    Iterating over each file
-
     >>> from rotifer.io import hhsuite
-    >>> for hhr in hhsuite.parse_hhr(hhrdir):
-    ...     hhr.to_csv("hhr.tsv", sep="\\t", index=False)
-    '''
-    if not isinstance(indir,list):
-        if os.path.exists(indir) and os.path.isdir(indir):
-            indir = os.path.realpath(indir)
-            indir = glob(f'{indir}/*{suffix}')
-    for infile in indir:
+    >>> [len(table) for table in hhsuite.parse_hhr("test/io/data/sample.hhr")]
+    [2]
+    """
+    for infile in _expand(indir, suffix):
         yield hhsuite2pandas(infile)
