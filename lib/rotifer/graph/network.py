@@ -1430,12 +1430,11 @@ def adjacency_edges(df,
 
     Notes
     -----
-    Unlike :func:`get_relations`, which relates every pair of domains found
-    in a block and types them as ``Cterminal``, ``Nterminal``,
-    ``Upstream`` or ``Downstream``, this function relates only features
-    that are next to each other, and types them as ``fusion`` or
-    ``neighbor``. Its edges go from a label to the next one, so each pair
-    is listed once, not from both ends.
+    :func:`get_relations` relates every pair of domains found in a block and types
+    them as ``Cterminal``, ``Nterminal``, ``Upstream`` or ``Downstream``. This
+    function relates only features that are next to each other and types them as
+    ``fusion`` or ``neighbor``. Edges run from a label to the next one, so each
+    adjacent pair is listed once.
 
     ``weight`` counts rows of the edge table, so a block in which the edge
     occurs twice adds 2; ``blocks`` counts each block once. ``orient``

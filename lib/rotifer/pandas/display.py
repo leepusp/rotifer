@@ -85,10 +85,10 @@ def print_everything(max_rows=10000000000, max_columns=1000000000, max_colwidth=
     max_columns : int, default 1000000000
         Maximum number of DataFrame columns to show.
     max_colwidth : int, default 1000000000
-        Maximum length of columns. All columns wider than
-        this will be truncated.
+        Maximum width of a column. Wider columns are
+        truncated.
     width : int, default 100000
-        Maximum length for rows.
+        Maximum width of a row.
     verbose : bool, default False
         Warn on STDERR when changing options.
 

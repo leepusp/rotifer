@@ -252,8 +252,8 @@ def plan_blocks(df, groupby, *, sortrows=None, sortblocks=None, sample=None,
     in every block. All aggregation tables are computed with one groupby pass.
 
     A callable table receives each block as a DataFrame and returns that block's
-    table. It is more flexible, but a DataFrame is built for every block, so it
-    costs time proportional to the number of blocks.
+    table. It is more flexible, but it builds a DataFrame for every block, so its
+    cost grows with the number of blocks.
 
     The names ``key`` and ``parameters`` (block metadata in YAML documents) and
     ``merged`` (where :func:`rotifer.pandas.yaml_blocks.read_yaml` returns the

@@ -17,8 +17,8 @@ either format.
   you can correct values, delete rows or add notes. {func}`rotifer.pandas.yaml_blocks.read_yaml`
   turns it back into DataFrames.
 
-Pick the text format to look at a result. Pick the YAML format when you want to
-change the report by hand, or when you want to load the edited report into Python.
+Use the text format to look at a result. Use the YAML format to change the report
+by hand or to load the edited report into Python.
 
 The examples on this page use this table of four proteins:
 

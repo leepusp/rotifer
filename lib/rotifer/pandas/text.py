@@ -99,7 +99,7 @@ def _justify(name, width, align):
 def _text_columns(df, na_rep, float_format, index):
     """Text of every cell of `df` as (names, pyarrow string arrays), one pair per
     column, the index first when asked. Columns are walked by position, so
-    duplicate labels are fine. The one conversion shared by to_string and to_blocks."""
+    duplicate labels work. This conversion is shared by to_string and to_blocks."""
     import pyarrow as pa
     columns = []
     if index:

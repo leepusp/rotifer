@@ -65,8 +65,8 @@ config = rcf.loadConfig(__name__, defaults = {
 SEPARATOR = '# ' + '-' * 5
 
 # libyaml where it was built, which reads these documents about 13x faster than
-# the pure-Python scanner -- with block scalars this large, that is most of the
-# cost of reading. Both loaders produce the same object.
+# the pure-Python scanner (with block scalars this large, that is most of the
+# cost of reading). Both loaders produce the same object.
 LOADER = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
 
 # A pipe that is not backslash-escaped, for splitting rows into cells.
@@ -662,8 +662,8 @@ def read_yaml(source, merge=True, drop=None, keep=None, how='outer'):
     in the stored tables.
 
     Tables are recombined by the name they are stored under: tables of the same
-    name are concatenated across blocks, so a ``stats`` table is never joined to
-    a ``rows`` table by accident of matching columns. The resulting tables are then
+    name are concatenated across blocks, so a ``stats`` table is not joined to
+    a ``rows`` table just because their columns match. The resulting tables are then
     merged on the grouping columns, or on the columns given in `merge`. When a
     column other than a join column exists in more than one table, those from later
     tables get the suffix ``_<table>``, so ``id`` aggregated in ``stats`` becomes
