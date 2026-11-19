@@ -351,9 +351,9 @@ YAML_DOC = [
     '# -----',
     '- key: [C]',
     '  stats: |',
-    '    | score | n   |',
-    '    | ----- | --- |',
-    '    | 3.0   | 4.0 |',
+    '    | score | n |',
+    '    | ----- | - |',
+    '    | 3.0   | 4 |',  # changed: an int aggregate keeps its dtype (was 4.0)
     '  names: |',
     '    | name |',
     '    | ---- |',
@@ -366,9 +366,9 @@ YAML_DOC = [
     '# -----',
     '- key: [A]',
     '  stats: |',
-    '    | score  | n    |',
-    '    | ------ | ---- |',
-    '    | 10.125 | 15.0 |',
+    '    | score  | n  |',
+    '    | ------ | -- |',
+    '    | 10.125 | 15 |',  # changed: was 15.0, int sum no longer upcast
     '  names: |',
     '    | name       |',
     '    | ---------- |',
@@ -383,9 +383,9 @@ YAML_DOC = [
     '# -----',
     '- key: [B]',
     '  stats: |',
-    '    | score | n     |',
-    '    | ----- | ----- |',
-    '    | 2.25  | 203.0 |',
+    '    | score | n   |',
+    '    | ----- | --- |',
+    '    | 2.25  | 203 |',  # changed: was 203.0, int sum no longer upcast
     '  names: |',
     '    | name     |',
     '    | -------- |',
@@ -404,8 +404,7 @@ YAML_KWARGS = dict(groupby='grp', columns=['name', 'n'], stats={'score': 'max', 
 
 
 def test_to_yaml_golden():
-    """A stats mapping (sum is rendered as a float, 15.0, since the one-row
-    aggregate is upcast), a callable table, sortrows, sortblocks and columns."""
+    """A stats mapping (an int sum stays an int), a callable table, sortrows, sortblocks and columns."""
     assert yb.to_yaml(frame(), **YAML_KWARGS) == text(YAML_DOC) + '\n'
 
 
@@ -450,10 +449,12 @@ def test_to_yaml_minimal_golden():
 
 
 # ------------------------------------------------------------------ read_yaml
+# changed: the document read here (YAML_DOC) now writes the int sum as 4/15/203, so the
+# 'n' / 'n_stats' columns it feeds are int64 rather than float64.
 READ_YAML = {
     'merge_true': ({},
      {'columns': ['grp', 'name', 'n', 'name_names', 'score', 'n_stats'],
-      'dtypes': ['str', 'str', 'int64', 'str', 'float64', 'float64'],
+      'dtypes': ['str', 'str', 'int64', 'str', 'float64', 'int64'],
       'data': {'grp': ['A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'C'],
                'name': ['beta gamma',
                         'beta gamma',
@@ -475,13 +476,13 @@ READ_YAML = {
                               'alpha|x',
                               'eps'],
                'score': [10.125, 10.125, 10.125, 10.125, 2.25, 2.25, 2.25, 2.25, 3.0],
-               'n_stats': [15.0, 15.0, 15.0, 15.0, 203.0, 203.0, 203.0, 203.0, 4.0]}}),
+               'n_stats': [15, 15, 15, 15, 203, 203, 203, 203, 4]}}),
     'merge_false': ({'merge': False},
      {'stats': {'columns': ['grp', 'score', 'n'],
-                'dtypes': ['str', 'float64', 'float64'],
+                'dtypes': ['str', 'float64', 'int64'],
                 'data': {'grp': ['C', 'A', 'B'],
                          'score': [3.0, 10.125, 2.25],
-                         'n': [4.0, 15.0, 203.0]}},
+                         'n': [4, 15, 203]}},
       'names': {'columns': ['grp', 'name'],
                 'dtypes': ['str', 'str'],
                 'data': {'grp': ['C', 'A', 'A', 'B', 'B'],
@@ -493,10 +494,10 @@ READ_YAML = {
                         'n': [4, 10, 5, 200, 3]}}}),
     'merge_list': ({'merge': ['stats']},
      {'merged': {'columns': ['grp', 'score', 'n'],
-                 'dtypes': ['str', 'float64', 'float64'],
+                 'dtypes': ['str', 'float64', 'int64'],
                  'data': {'grp': ['C', 'A', 'B'],
                           'score': [3.0, 10.125, 2.25],
-                          'n': [4.0, 15.0, 203.0]}},
+                          'n': [4, 15, 203]}},
       'names': {'columns': ['grp', 'name'],
                 'dtypes': ['str', 'str'],
                 'data': {'grp': ['C', 'A', 'A', 'B', 'B'],
@@ -508,10 +509,10 @@ READ_YAML = {
                         'n': [4, 10, 5, 200, 3]}}}),
     'merge_mapping': ({'merge': {'stats': 'n'}},
      {'merged': {'columns': ['grp', 'score', 'n'],
-                 'dtypes': ['str', 'float64', 'float64'],
+                 'dtypes': ['str', 'float64', 'int64'],
                  'data': {'grp': ['C', 'A', 'B'],
                           'score': [3.0, 10.125, 2.25],
-                          'n': [4.0, 15.0, 203.0]}},
+                          'n': [4, 15, 203]}},
       'names': {'columns': ['grp', 'name'],
                 'dtypes': ['str', 'str'],
                 'data': {'grp': ['C', 'A', 'A', 'B', 'B'],
@@ -523,17 +524,17 @@ READ_YAML = {
                         'n': [4, 10, 5, 200, 3]}}}),
     'keep_with_drop': ({'keep': 'stats', 'drop': ['names']},
      {'merged': {'columns': ['grp', 'name', 'n', 'score', 'n_stats'],
-                 'dtypes': ['str', 'str', 'int64', 'float64', 'float64'],
+                 'dtypes': ['str', 'str', 'int64', 'float64', 'int64'],
                  'data': {'grp': ['A', 'A', 'B', 'B', 'C'],
                           'name': ['beta gamma', None, 'delta', 'alpha|x', 'eps'],
                           'n': [10, 5, 200, 3, 4],
                           'score': [10.125, 10.125, 2.25, 2.25, 3.0],
-                          'n_stats': [15.0, 15.0, 203.0, 203.0, 4.0]}},
+                          'n_stats': [15, 15, 203, 203, 4]}},
       'stats': {'columns': ['grp', 'score', 'n'],
-                'dtypes': ['str', 'float64', 'float64'],
+                'dtypes': ['str', 'float64', 'int64'],
                 'data': {'grp': ['C', 'A', 'B'],
                          'score': [3.0, 10.125, 2.25],
-                         'n': [4.0, 15.0, 203.0]}}}),
+                         'n': [4, 15, 203]}}}),
     'drop': ({'drop': ['stats', 'names']},
      {'columns': ['grp', 'name', 'n'],
       'dtypes': ['str', 'str', 'int64'],

@@ -49,6 +49,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._labels import _py, _as_list
+from .blocks import plan_blocks, MERGED, RESERVED
 from .text import pad_columns
 from ._io import _read_source, _write_sink
 from rotifer.core import functions as rcf
@@ -81,8 +82,6 @@ config = rcf.loadConfig(__name__, defaults = {
         },
     },
 })
-MERGED = 'merged'                       # read_yaml returns the joined frame here
-RESERVED = ('key', 'parameters', MERGED)
 SEPARATOR = '# ' + '-' * 5
 
 # libyaml where it was built, which reads these documents about 13x faster than
@@ -175,52 +174,6 @@ def read_md_table(text):
 # --------------------------------------------------------------------- writing
 
 
-def _row_rank(df, sortrows):
-    """Positions ranked by the sort columns. Ranking once and reordering each
-    block's positions keeps rows sorted *within* a block without disturbing the
-    order the blocks themselves appear in."""
-    cols = [c for c in sortrows if c in df]
-    if not cols:
-        return None
-    order = (df.reset_index(drop=True)
-               .sort_values(cols, ascending=[sortrows[c] for c in cols], kind='stable')
-               .index.to_numpy())
-    rank = np.empty(len(df), dtype=np.int64)
-    rank[order] = np.arange(len(df))
-    return rank
-
-
-def _group_agg(grouped, spec, table):
-    """Aggregate one table's spec for every block in a single pass."""
-    missing = [c for c in spec if c not in grouped.obj.columns]
-    if missing:
-        raise KeyError(f'{table} column {missing[0]!r} is not in the DataFrame')
-    return grouped.agg(**{str(c): (c, f) for c, f in spec.items()})
-
-
-def _split_tables(grouped, tables):
-    """Sort each table spec into the two ways a table can be produced.
-
-    A mapping is an aggregation, {column: aggregation}, evaluated once for every
-    block; a callable receives each block as a DataFrame and returns its table.
-    Aggregations are much the cheaper of the two, since they never materialise a
-    per-block DataFrame."""
-    aggregated, callbacks = {}, {}
-    for table, spec in tables.items():
-        if table in RESERVED:
-            raise ValueError(f'table name {table!r} is reserved: {RESERVED[0]!r} and '
-                             f'{RESERVED[1]!r} carry block metadata, and {MERGED!r} is '
-                             f'where read_yaml returns the joined frame')
-        if isinstance(spec, Mapping):
-            aggregated[table] = _group_agg(grouped, spec, table)
-        elif callable(spec):
-            callbacks[table] = spec
-        else:
-            raise TypeError(f'table {table!r} must be a mapping of column to '
-                            f'aggregation, or a callable, not {type(spec).__name__}')
-    return aggregated, callbacks
-
-
 def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
             sortblocks=None, sample=None, name='rows', sep='\n\n',
             **tables):
@@ -273,58 +226,33 @@ def to_yaml(df, groupby='c80e3', buf=None, columns=None, sortrows=None,
     Columns named in sortrows or sortblocks that are not present are ignored, so a
     single ordering can be reused across frames that differ in shape.
     """
-    labels = _as_list(groupby)
-    head = f'- parameters:\n    groupby: {_flow(labels)}'
+    rng = np.random.default_rng() if sample else None
+    plan = plan_blocks(df, groupby, sortrows=sortrows, sortblocks=sortblocks,
+                       sample=sample, tables=tables, rng=rng)
+    head = f'- parameters:\n    groupby: {_flow(plan.groupby)}'
 
-    grouped = df.groupby(groupby, sort=False)
-    aggregated, callbacks = _split_tables(grouped, tables)
-    rank = _row_rank(df, sortrows) if sortrows else None
-
-    body = df.filter(columns) if columns else df.drop(columns=labels, errors='ignore')
+    body = df.filter(columns) if columns else df.drop(columns=plan.groupby, errors='ignore')
     cols = _escape_columns(body)                  # once, not per block
     names = [str(c) for c in body.columns]
-    positions = {k: np.asarray(v) for k, v in grouped.indices.items()}
 
-    # Group keys in first-appearance order. sortblocks may name a grouping column
-    # or a column of any aggregation table; those are collected one column at a
-    # time rather than by joining the tables, which are free to share nothing with
-    # each other. Where two tables define the same column, the one named first
-    # wins. All the frames come from the same grouping, so they align positionally.
-    index = next(iter(aggregated.values())).index if aggregated else grouped.size().index
-    keys = list(index)
-    if sortblocks:
-        frame = pd.DataFrame(index=index).reset_index()
-        for col in sortblocks:
-            if col in frame.columns:
-                continue
-            for table in aggregated.values():
-                if col in table.columns:
-                    frame[col] = table[col].to_numpy()
-                    break
-        by = [c for c in sortblocks if c in frame.columns]
-        if by:
-            frame = frame.sort_values(by, ascending=[sortblocks[c] for c in by], kind='stable')
-            keys = [keys[i] for i in frame.index]
+    # Aggregate values are read column by column so each keeps its own dtype: a
+    # row taken across columns would upcast an int next to a float.
+    agg = {table: ([str(c) for c in frame.columns],
+                   [frame.iloc[:, j].to_numpy() for j in range(frame.shape[1])])
+           for table, frame in plan.tables.items()}
 
-    rng = np.random.default_rng() if sample else None
     parts = [head]
-    for key in keys:
-        idx = positions[key]
-        if rank is not None:
-            idx = idx[np.argsort(rank[idx], kind='stable')]
-        if sample and sample < len(idx):
-            idx = np.sort(rng.choice(idx, sample, replace=False))
-        taken = pa.array(idx)
+    for i, key in enumerate(plan.keys):
+        taken = pa.array(plan.positions[key])
 
-        keylist = _as_list(key)
+        keylist = list(key) if isinstance(key, tuple) else [key]
         block = [SEPARATOR, f'- key: {_flow(keylist)}']
         for table in tables:                      # in the order the caller named them
-            if table in aggregated:
-                row = aggregated[table].loc[key]
-                rendered = _md_arrow([pa.array([str(_py(v))]) for v in row],
-                                     [str(c) for c in aggregated[table].columns])
+            if table in agg:
+                heads, values = agg[table]
+                rendered = _md_arrow([pa.array([str(_py(v[i]))]) for v in values], heads)
             else:
-                rendered = md_table(callbacks[table](df.take(idx)))
+                rendered = md_table(plan.callbacks[table](df.take(plan.positions[key])))
             block.append(f'  {table}: |\n' + rendered)
         block.append(f'  {name}: |\n' + _md_arrow([c.take(taken) for c in cols], names))
         parts.append('\n'.join(block))

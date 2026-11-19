@@ -41,3 +41,21 @@ def _as_list(x):
     if isinstance(x, str) or not hasattr(x, '__iter__'):
         return [x]
     return list(x)
+
+
+def _group_labels(df, groupby):
+    """Normalise a groupby argument to ``(labels, scalar)``.
+
+    ``labels`` is the list of grouping column labels. ``scalar`` says the caller
+    named ONE column, so block keys are bare values rather than tuples: a plain
+    label, or a tuple that is itself a column of ``df`` (multi-level columns). A
+    list, or a tuple that is not a column, is a sequence of labels and always
+    yields tuple keys of matching arity, even for one label."""
+    groupby = _as_label(groupby) if isinstance(groupby, tuple) else groupby
+    if isinstance(groupby, tuple):
+        if groupby in df.columns:
+            return [groupby], True
+        return list(groupby), False
+    if isinstance(groupby, list):
+        return [_as_label(c) for c in groupby], False
+    return [_as_label(groupby)], True
