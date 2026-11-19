@@ -14,7 +14,10 @@ config = rcf.loadConfig(__name__, defaults = {
 def pad(data, side='left', fillchar=' '):
     data = data.astype(str)
     if isinstance(data,pd.DataFrame):
-        side = { x: side[x] if x in side else 'left' for x in data.columns }
+        if isinstance(side, str):
+            side = { x: side for x in data.columns }
+        else:
+            side = { x: side[x] if x in side else 'left' for x in data.columns }
         data = data.apply(lambda x: x.str.pad(x.str.len().max(), side=side[x.name], fillchar=fillchar))
     elif isinstance(data,pd.Series):
         data = data.str.pad(data.str.len().max(), side=side, fillchar=fillchar)
