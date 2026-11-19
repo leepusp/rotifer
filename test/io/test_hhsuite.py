@@ -100,6 +100,24 @@ def test_cli_prints_library_output(tmp_path):
     _hhsuite().hhsuite2pandas(SAMPLE).to_csv(expected, sep="\t", index=None, float_format='%-.3g')
     assert out.stdout == expected.getvalue()
 
+def test_cli_output_is_pinned(tmp_path):
+    """bin/hhsuite2table prints the bytes in data/sample.hhsuite2table.tsv."""
+    out = subprocess.run(
+        [sys.executable, os.path.join(REPO, 'bin', 'hhsuite2table'), SAMPLE],
+        env=_environ(LIB, tmp_path), capture_output=True, text=True, cwd=str(tmp_path),
+        stdin=subprocess.DEVNULL,
+    )
+    assert out.returncode == 0, out.stderr
+    with open(os.path.join(REPO, 'test', 'io', 'data', 'sample.hhsuite2table.tsv')) as handle:
+        assert out.stdout == handle.read()
+
+def test_hhsuite2pandas_values_are_pinned():
+    """The library's score, probability and pvalue columns, as they are today."""
+    df = _hhsuite().hhsuite2pandas(SAMPLE)
+    assert list(df.score) == ['120.5', '20.1']
+    assert list(df.probability) == [99, 50]
+    assert list(df.pvalue) == [2.2e-24, 2.2e-24]
+
 
 if __name__ == '__main__':
     failures = 0

@@ -1,0 +1,7 @@
+id	sequence	type	description
+ss_from:q1	LLHHHHHLL	residue_annotation	q1
+ss_from:s1	LLL--HHHH	residue_annotation	s1
+ss_from:s2	--HHHHH--	residue_annotation	s2
+q1	ACDEFGHIK	sequence	q1
+s1	ACD--GHIK	sequence	s1
+s2	--DEFGH--	sequence	s2

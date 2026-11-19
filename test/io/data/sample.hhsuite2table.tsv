@@ -1,0 +1,3 @@
+query	hit	qstart	qend	evalue	qcov	hstart	hend	aligned_cols	score	qalilen	qlen	hlen	probability	identity	similarity	sum_probs	hcov	pvalue
+sp|P00001|TEST_HUMAN	PF00001.1	3	47	1.1e-20	0.9	1	45	45	120.5	45	50	60	99	0.4	0.6	40.5	0.75	2.2e-24
+sp|P00001|TEST_HUMAN	PF00002.2	10	29	0.5	0.4	5	24	20	20.1	20	50	30	50	0.25	0.3	18	0.667	2.2e-24
