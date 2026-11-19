@@ -122,7 +122,7 @@ def to_network(df, target=['pfam'], ftype=['CDS'], interaction=True, ignore = []
     from rotifer.genome.data import NeighborhoodDF
 
     warnings.warn(
-        "rotifer.devel.alpha.epsoares.to_network is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        "rotifer.devel.alpha.epsoares.to_network is deprecated and will be removed on 2026-11-30 (issue #160); "
         "use NeighborhoodDF.to_network instead",
         FutureWarning,
         stacklevel=2,

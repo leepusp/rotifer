@@ -802,7 +802,7 @@ def padding_df(df, how='right'):
     from rotifer.pandas import pad
 
     warnings.warn(
-        "rotifer.devel.alpha.gian_func.padding_df is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        "rotifer.devel.alpha.gian_func.padding_df is deprecated and will be removed on 2026-11-30 (issue #160); "
         f"use rotifer.pandas.pad(df, side={how!r}, header=True) instead",
         FutureWarning,
         stacklevel=2,

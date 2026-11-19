@@ -318,7 +318,7 @@ _TO_STRING_OPTIONS = ('index', 'na_rep', 'float_format', 'align', 'insert')
 def _deprecated(what, instead, stacklevel=2):
     """Warn with a FutureWarning that `what` goes away on REMOVAL; `instead` says what to use."""
     # stacklevel counts from the deprecated function: 2 is its caller.
-    warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL} (issue #TBD); {instead}.',
+    warnings.warn(f'{what} is deprecated and will be removed on {REMOVAL} (issue #160); {instead}.',
                   FutureWarning, stacklevel=stacklevel + 1)
 
 

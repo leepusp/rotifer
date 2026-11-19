@@ -811,7 +811,7 @@ def padding_df(df):
     from rotifer.pandas import pad
 
     warnings.warn(
-        "rotifer.devel.alpha.rodolfo.padding_df is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+        "rotifer.devel.alpha.rodolfo.padding_df is deprecated and will be removed on 2026-11-30 (issue #160); "
         "use rotifer.pandas.pad(df, side='left', header=True) instead",
         FutureWarning,
         stacklevel=2,

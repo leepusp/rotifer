@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for the deprecated devel copies of padding_df (issue #TBD).
+"""Tests for the deprecated devel copies of padding_df (issue #160).
 
 Three devel modules each held a copy of padding_df. Each is now a thin shim over
 rotifer.pandas.pad(df, side=..., na_rep='', header=True), which reproduces the

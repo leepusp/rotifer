@@ -111,7 +111,7 @@ def __getattr__(name):
     if name == 'to_network':
         import warnings
         warnings.warn(
-            "rotifer.pandas.to_network is deprecated and will be removed on 2026-11-30 (issue #TBD); "
+            "rotifer.pandas.to_network is deprecated and will be removed on 2026-11-30 (issue #160); "
             "use NeighborhoodDF.to_network or rotifer.graph.network.adjacency_edges instead",
             FutureWarning,
             stacklevel=2,

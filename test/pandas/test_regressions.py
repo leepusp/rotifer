@@ -113,7 +113,7 @@ def test_default_block_rows_warns_once_at_the_caller():
     warns = [w for w in caught if issubclass(w.category, FutureWarning)]
     assert len(warns) == 1
     assert warns[0].filename == __file__
-    assert '2026-11-30 (issue #TBD)' in str(warns[0].message)
+    assert '2026-11-30 (issue #160)' in str(warns[0].message)
 
 
 def test_to_blocks_buf_path_round_trips_non_ascii_as_utf8(tmp_path):
