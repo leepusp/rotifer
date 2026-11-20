@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A standard table for sequence search results.
+Define a standard table for sequence search results.
 
 PSI-BLAST, PyHMMER and HMMER's text reports describe the same thing (a
 region of a sequence matched by a query) with different column names,
@@ -8,8 +8,8 @@ coordinate fields and scores. The search functions keep returning their own
 layouts; this module converts between those layouts and one standard table,
 so downstream code can handle all of them in the same way.
 
-The standard table
-------------------
+Notes
+-----
 One row per matched region. The columns follow ``bin/hmmer2table``:
 
   sequence   identifier of the matched sequence (the BLAST hit, the HMMER target)
@@ -43,11 +43,17 @@ Differences from hmmer2table:
     :func:`to_hmmer2table` writes hmmer2table's value back.
   * ``tlen`` and ``source`` are new.
 
-Converting
-----------
 Every ``from_*`` function returns the standard columns first, followed by the
 input's columns that have no standard equivalent, so ``to_*`` can restore
 them: a native table converted to the standard table and back is unchanged.
+
+Examples
+--------
+>>> table = empty()
+>>> table.empty
+True
+>>> table.columns[:4].tolist()
+['sequence', 'model', 'start', 'end']
 """
 
 import numpy as np
@@ -101,23 +107,71 @@ PYHMMER_PROGRAMS = ('hmmscan', 'hmmsearch')
 
 
 def empty():
-    '''An empty standard table with the standard column types.'''
+    '''
+    Return an empty standard table with the standard column types.
+
+    Returns
+    -------
+    pandas.DataFrame
+        An empty table whose columns are in ``COLUMNS`` order and whose
+        numeric columns have the dtypes required by the standard.
+
+    See Also
+    --------
+    validate : Check and normalize a standard table.
+
+    Examples
+    --------
+    >>> table = empty()
+    >>> table.empty
+    True
+    >>> table.columns[:4].tolist()
+    ['sequence', 'model', 'start', 'end']
+    >>> str(table['start'].dtype), str(table['qstart'].dtype)
+    ('int64', 'Int64')
+    '''
     return validate(pd.DataFrame({ c: [] for c in COLUMNS }))
 
 
 def validate(df):
     '''
-    Check that a table follows the standard and return it with the standard
-    column types.
+    Check a table against the standard and return it with standard column types.
 
-    Columns outside the standard are kept, after the standard ones.
+    Columns outside the standard are kept after the standard ones. The input
+    table is not modified.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Search results containing every column in ``COLUMNS``. Numeric
+        columns are converted to the dtypes required by the standard.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy of ``df`` with the standard columns first and their standard
+        dtypes, followed by any additional columns.
 
     Raises
     ------
     ValueError
-        if a standard column is missing, a column can't take its type, or a
-        coordinate is below 1, a start is after its end, or ``cov`` is
-        outside 0-1.
+        If a standard column is missing, a column cannot take its required
+        type, a coordinate is below 1, a start is after its end, or ``cov``
+        is outside 0-1.
+
+    See Also
+    --------
+    empty : Return an empty standard table.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> table = empty()
+    >>> table['note'] = pd.Series(dtype='object')
+    >>> shuffled = table[['note'] + COLUMNS[::-1]]
+    >>> validated = validate(shuffled)
+    >>> validated.columns.tolist() == COLUMNS + ['note']
+    True
     '''
     missing = [ c for c in COLUMNS if c not in df.columns ]
     if missing:
@@ -144,10 +198,58 @@ def validate(df):
 
 def from_blast(df, program='psiblast', source=None):
     '''
-    Convert psiblast()'s table (blast2table's columns) to the standard table.
+    Convert psiblast()'s table to the standard table.
 
-    blast2table doesn't keep the query's full length, so ``qlen`` is
-    missing. The envelope is the aligned region.
+    The input uses blast2table's columns, listed in ``BLAST_COLUMNS``.
+    Additional input columns are kept after the standard columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Search results with blast2table's columns.
+    program : str, default 'psiblast'
+        Value stored in the standard ``program`` column.
+    source : str or None, default None
+        Database searched, stored in the ``source`` column. ``None`` marks
+        the source as missing.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Search results in the standard format, followed by any additional
+        input columns.
+
+    Raises
+    ------
+    ValueError
+        If a required blast2table column is missing or the converted table
+        violates the standard.
+
+    See Also
+    --------
+    to_blast : The inverse conversion.
+    read_blast_tabular : Read BLAST tabular output into the standard table.
+    validate : Check and normalize a standard table.
+
+    Notes
+    -----
+    blast2table doesn't keep the query's full length, so ``qlen`` is missing.
+    The envelope is the aligned region, so ``estart`` equals ``start`` and
+    ``eend`` equals ``end``.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'hit': ['WP_1'], 'query': ['Q'],
+    ...     'hitstart': [5], 'hitend': [14],
+    ...     'evalue': [1e-5], 'querycoverage': [0.5],
+    ...     'querystart': [1], 'queryend': [10],
+    ...     'iteration': [1], 'bitscore': [40.0], 'length': [100],
+    ... })
+    >>> table = from_blast(native, source='db')
+    >>> table[['sequence', 'model', 'talilen', 'tlen']].to_dict('records')
+    [{'sequence': 'WP_1', 'model': 'Q', 'talilen': 10, 'tlen': 100}]
     '''
     _require(df, BLAST_COLUMNS, 'from_blast')
     std = pd.DataFrame({
@@ -173,7 +275,49 @@ def from_blast(df, program='psiblast', source=None):
 
 
 def to_blast(df):
-    '''Convert a standard table to psiblast()'s columns (blast2table's).'''
+    '''
+    Convert a standard table to psiblast()'s columns.
+
+    The output uses blast2table's columns and order. Additional columns in
+    the standard table are restored after the blast2table columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Search results in the standard format (see :func:`validate`).
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per hit, with blast2table's columns followed by any
+        additional input columns.
+
+    Raises
+    ------
+    ValueError
+        If ``df`` does not satisfy the standard.
+
+    See Also
+    --------
+    from_blast : The inverse conversion.
+    validate : Check and normalize a standard table.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'hit': ['WP_1'], 'query': ['Q'],
+    ...     'hitstart': [5], 'hitend': [14],
+    ...     'evalue': [1e-5], 'querycoverage': [0.5],
+    ...     'querystart': [1], 'queryend': [10],
+    ...     'iteration': [1], 'bitscore': [40.0], 'length': [100],
+    ... })
+    >>> restored = to_blast(from_blast(native))
+    >>> restored.columns.tolist() == native.columns.tolist()
+    True
+    >>> restored[['hit', 'hitstart', 'hitend']].to_dict('records')
+    [{'hit': 'WP_1', 'hitstart': 5, 'hitend': 14}]
+    '''
     df = validate(df)
     out = pd.DataFrame({
         'hit':           df['sequence'],
@@ -193,23 +337,69 @@ def to_blast(df):
 
 def from_pyhmmer(df, program, source=None):
     '''
-    Convert hmmscan/hmmscan_linear/hmmsearch output to the standard table.
+    Convert PyHMMER hmmscan or hmmsearch output to the standard table.
+
+    The input can use pyhmmer_to_df's original column names or the names
+    produced by ``rename=True`` in ``hmm.py``. Output from hmmscan_linear is
+    handled like hmmscan output. Additional input columns are kept after the
+    standard columns.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        pyhmmer_to_df's columns, renamed (rename=True) or not.
+        A table with pyhmmer_to_df's columns, renamed or not.
     program : {'hmmscan', 'hmmsearch'}
-        Which search made the table. It decides which side is the search
-        query, so what ``cov`` and ``qlen`` measure: the sequence for
-        hmmscan, the model for hmmsearch.
-    source : str, optional
-        Model file searched. Defaults to the table's ``source`` column,
-        which hmmscan and hmmsearch add.
+        Search that made the table. This decides which side is the search
+        query and therefore what ``cov`` and ``qlen`` measure: the sequence
+        for hmmscan and the model for hmmsearch.
+    source : str or None, default None
+        Model file searched, stored in the ``source`` column. If ``None``,
+        use the table's ``source`` column, which hmmscan and hmmsearch add.
 
+    Returns
+    -------
+    pandas.DataFrame
+        Search results in the standard format, followed by any additional
+        input columns.
+
+    Raises
+    ------
+    ValueError
+        If ``program`` is not ``'hmmscan'`` or ``'hmmsearch'``, a required
+        PyHMMER column is missing, or the converted table violates the
+        standard.
+
+    See Also
+    --------
+    to_pyhmmer : The inverse conversion.
+    validate : Check and normalize a standard table.
+
+    Notes
+    -----
     Columns that pyhmmer_to_df only writes on request are left missing when
-    absent: ``qstart``/``qend`` need aln_hmm_from/aln_hmm_to (see
-    PYHMMER_COLUMNS), and so does ``cov`` for hmmsearch.
+    absent: ``qstart`` and ``qend`` need ``aln_hmm_from`` and ``aln_hmm_to``
+    (see ``PYHMMER_COLUMNS``), and so does ``cov`` for hmmsearch. For
+    hmmscan, ``cov`` is calculated from the target coordinates and length.
+
+    The input's naming convention is recorded in the output's
+    ``attrs['pyhmmer_renamed']`` so :func:`to_pyhmmer` can restore it.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'aln_target_name': ['p1'], 'aln_hmm_name': ['PF1'],
+    ...     'i_evalue': [1e-10], 'score': [50.0],
+    ...     'aln_target_from': [11], 'aln_target_to': [50],
+    ...     'aln_target_length': [100], 'aln_hmm_length': [45],
+    ...     'env_from': [10], 'env_to': [52],
+    ...     'aln_hmm_from': [3], 'aln_hmm_to': [42],
+    ... })
+    >>> table = from_pyhmmer(native, 'hmmscan', source='models.hmm')
+    >>> table[['sequence', 'model', 'cov', 'qlen']].to_dict('records')
+    [{'sequence': 'p1', 'model': 'PF1', 'cov': 0.4, 'qlen': 100}]
+    >>> table.loc[0, 'source']
+    'models.hmm'
     '''
     if program not in PYHMMER_PROGRAMS:
         raise ValueError(f'program must be one of {", ".join(PYHMMER_PROGRAMS)}, not {program!r}')
@@ -262,12 +452,59 @@ def to_pyhmmer(df, rename=None):
     '''
     Convert a standard table to pyhmmer_to_df's columns.
 
+    Additional columns retained by :func:`from_pyhmmer` are restored after
+    the columns constructed from the standard fields.
+
     Parameters
     ----------
-    rename : bool, optional
-        Apply hmm.py's rename (sequence, model, evalue, estart, eend). By
-        default, whatever the table had when :func:`from_pyhmmer` read it,
-        and False for other tables.
+    df : pandas.DataFrame
+        Search results in the standard format (see :func:`validate`).
+    rename : bool or None, default None
+        Apply ``hmm.py``'s renaming to ``sequence``, ``model``, ``evalue``,
+        ``estart`` and ``eend``. If ``None``, use the naming convention the
+        table had when :func:`from_pyhmmer` read it, or ``False`` for other
+        tables.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A table with pyhmmer_to_df's columns, followed by any additional
+        input columns.
+
+    Raises
+    ------
+    ValueError
+        If ``df`` does not satisfy the standard.
+
+    See Also
+    --------
+    from_pyhmmer : The inverse conversion.
+    validate : Check and normalize a standard table.
+
+    Notes
+    -----
+    If ``aln_hmm_length`` was not retained as an additional column, it is
+    filled from ``qlen`` for hmmsearch rows and left missing for other rows.
+    The model coordinate columns are omitted when both are entirely missing.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'aln_target_name': ['p1'], 'aln_hmm_name': ['PF1'],
+    ...     'i_evalue': [1e-10], 'score': [50.0],
+    ...     'aln_target_from': [11], 'aln_target_to': [50],
+    ...     'aln_target_length': [100],
+    ...     'env_from': [10], 'env_to': [52],
+    ...     'aln_hmm_from': [3], 'aln_hmm_to': [42],
+    ...     'aln_hmm_length': [45],
+    ... })
+    >>> back = to_pyhmmer(from_pyhmmer(native, 'hmmscan'))
+    >>> back.columns.tolist() == native.columns.tolist()
+    True
+    >>> renamed = to_pyhmmer(from_pyhmmer(native, 'hmmscan'), rename=True)
+    >>> renamed.columns[:3].tolist()
+    ['sequence', 'model', 'evalue']
     '''
     if rename is None:
         rename = df.attrs.get('pyhmmer_renamed', False)
@@ -303,8 +540,54 @@ def from_hmmer2table(df, source=None):
     '''
     Convert hmmer2table's table to the standard table.
 
+    Additional input columns are kept after the standard columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Search results with the columns in ``HMMER2TABLE_COLUMNS``.
+    source : str or None, default None
+        Database or model file searched, stored in the ``source`` column.
+        ``None`` marks the source as missing.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Search results in the standard format, followed by any additional
+        input columns.
+
+    Raises
+    ------
+    ValueError
+        If a required hmmer2table column is missing or the converted table
+        violates the standard.
+
+    See Also
+    --------
+    to_hmmer2table : The inverse conversion.
+    validate : Check and normalize a standard table.
+
+    Notes
+    -----
     ``talilen`` is corrected to ``end - start + 1``. hmmer2table doesn't keep
-    the target's full length, so ``tlen`` is missing.
+    the target's full length, so ``tlen`` is missing. Missing ``iteration``
+    values are set to 1.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'sequence': ['p1'], 'model': ['PF1'],
+    ...     'start': [11], 'end': [50], 'evalue': [1e-10], 'cov': [0.4],
+    ...     'qstart': [3], 'qend': [42], 'iteration': [1], 'score': [50.0],
+    ...     'talilen': [39], 'qlen': [100],
+    ...     'estart': [10], 'eend': [52], 'program': ['hmmscan'],
+    ... })
+    >>> table = from_hmmer2table(native, source='models.hmm')
+    >>> int(table.loc[0, 'talilen'])
+    40
+    >>> bool(table['tlen'].isna().all())
+    True
     '''
     _require(df, HMMER2TABLE_COLUMNS, 'from_hmmer2table')
     std = df[HMMER2TABLE_COLUMNS].copy()
@@ -317,8 +600,47 @@ def from_hmmer2table(df, source=None):
 
 def to_hmmer2table(df):
     '''
-    Convert a standard table to hmmer2table's columns, with hmmer2table's
-    ``talilen`` (``end - start``).
+    Convert a standard table to hmmer2table's columns.
+
+    Additional columns in the standard table are restored after the
+    hmmer2table columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Search results in the standard format (see :func:`validate`).
+
+    Returns
+    -------
+    pandas.DataFrame
+        Search results with hmmer2table's columns and ``talilen`` calculated
+        as ``end - start``, followed by any additional input columns.
+
+    Raises
+    ------
+    ValueError
+        If ``df`` does not satisfy the standard.
+
+    See Also
+    --------
+    from_hmmer2table : The inverse conversion.
+    validate : Check and normalize a standard table.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> native = pd.DataFrame({
+    ...     'sequence': ['p1'], 'model': ['PF1'],
+    ...     'start': [11], 'end': [50], 'evalue': [1e-10], 'cov': [0.4],
+    ...     'qstart': [3], 'qend': [42], 'iteration': [1], 'score': [50.0],
+    ...     'talilen': [39], 'qlen': [100],
+    ...     'estart': [10], 'eend': [52], 'program': ['hmmscan'],
+    ... })
+    >>> back = to_hmmer2table(from_hmmer2table(native))
+    >>> int(back.loc[0, 'talilen'])
+    39
+    >>> back.columns.tolist() == native.columns.tolist()
+    True
     '''
     df = validate(df)
     out = df[HMMER2TABLE_COLUMNS].copy()
@@ -377,26 +699,62 @@ _TABULAR_NAMES = ['qaccver', 'saccver', 'sstart', 'send', 'evalue', 'qstart', 'q
 
 
 def read_blast_tabular(path_or_text, source=None):
-    '''
+    r'''
     Read BLAST tabular output into the standard table, one row per HSP.
 
     Parameters
     ----------
     path_or_text : str or path-like or file-like
         A file written with ``-outfmt`` :data:`BLAST_OUTFMT` (psiblast, or
-        blast_formatter on an ASN.1 archive), or its text. Text is told from a
-        path by being empty or containing a newline or a tab. ``.gz`` files are decompressed.
-    source : str, optional
-        Database searched, stored in the ``source`` column.
+        blast_formatter on an ASN.1 archive), an open handle for one, or its
+        text. Text is told from a path by being empty or containing a newline
+        or a tab. ``.gz`` files are decompressed.
+    source : str or None, default None
+        Database searched, stored in the ``source`` column. ``None`` marks
+        the source as missing.
 
-    Rows keep the order of the report. ``iteration`` comes from the
-    ``# Iteration: N`` comment that precedes the rows (1 when there is none,
-    and restarted at each ``# PSIBLAST``/``# BLAST*`` header, so queries of
-    the same report don't inherit each other's rounds). A report without hits
-    gives an empty standard table.
+    Returns
+    -------
+    pandas.DataFrame
+        One standard row per HSP, in report order. A report without hits
+        gives an empty standard table.
 
-    ``cov`` is the fraction of the query the HSP spans, ``program`` is
-    'psiblast' and ``talilen`` is ``end - start + 1``.
+    Raises
+    ------
+    ValueError
+        If a data row does not have the ten tab-separated fields in
+        ``BLAST_TABULAR_FIELDS`` or the resulting table violates the
+        standard.
+
+    See Also
+    --------
+    collapse_hsps : Merge redundant HSPs as blast2table does.
+    from_blast : Convert blast2table's table to the standard table.
+
+    Notes
+    -----
+    ``iteration`` comes from the ``# Iteration: N`` comment that precedes the
+    rows. It is 1 when there is no such comment and restarts at each
+    ``# PSIBLAST`` or ``# BLAST*`` header, so queries of the same report don't
+    inherit each other's rounds.
+
+    ``cov`` is the fraction of the query the HSP spans, clipped at 1,
+    ``program`` is ``'psiblast'``, and ``talilen`` is ``end - start + 1``.
+
+    Examples
+    --------
+    >>> import io
+    >>> report = io.StringIO(
+    ...     '# PSIBLAST 2.17.0+\n'
+    ...     '# Iteration: 2\n'
+    ...     'Q1\tA\t1\t50\t1e-10\t1\t50\t80.5\t300\t100\n'
+    ...     'Q1\tB\t5\t40\t0.003\t10\t45\t30.1\t200\t100\n'
+    ... )
+    >>> table = read_blast_tabular(report, source='db')
+    >>> table[['sequence', 'iteration']].to_dict('records')
+    [{'sequence': 'A', 'iteration': 2}, {'sequence': 'B', 'iteration': 2}]
+    >>> table['cov'].tolist()
+    [0.5, 0.36]
     '''
     import os
     import re
@@ -466,13 +824,37 @@ def read_blast_tabular(path_or_text, source=None):
 
 def blast2table_evalue(evalue):
     '''
-    Round E-values the way blast2table prints them: ``%.1f`` above 1, 0 for 0
-    and ``%.3e`` otherwise.
+    Round E-values the way blast2table prints them.
 
+    Values above 1 use ``%.1f`` formatting, 0 stays 0, and all other values
+    use ``%.3e`` formatting. NaN is left unchanged.
+
+    Parameters
+    ----------
+    evalue : float or array-like of float
+        E-value or E-values to round.
+
+    Returns
+    -------
+    numpy.ndarray
+        A float64 array with the same shape as the input. A scalar input
+        gives a zero-dimensional array.
+
+    See Also
+    --------
+    collapse_hsps : Merge HSPs using these rounded E-values for comparisons.
+
+    Notes
+    -----
     blast2table rounds *before* it compares E-values with the inclusion
-    threshold and with each other, so collapse_hsps does the same. BLAST's
-    tabular output already has three significant digits, so this only changes
-    values above 1.
+    threshold and with each other, so :func:`collapse_hsps` does the same.
+    BLAST's tabular output already has three significant digits, so this only
+    changes values above 1.
+
+    Examples
+    --------
+    >>> blast2table_evalue([0, 12.34, 0.0099996, 1.0]).tolist()
+    [0.0, 12.3, 0.01, 1.0]
     '''
     values = np.asarray(evalue, dtype='float64')
     out = np.empty(values.shape, dtype='float64')
@@ -568,7 +950,7 @@ def _merge_hsps(groups, hit_start, hit_end, query_start, query_end, evalue,
 
 
 def collapse_hsps(df, threshold=0.01, overlap=0.4):
-    '''
+    r'''
     Merge redundant HSPs the way blast2table's default mode does.
 
     A standard table with one row per HSP, in report order (what
@@ -593,14 +975,37 @@ def collapse_hsps(df, threshold=0.01, overlap=0.4):
 
     Parameters
     ----------
-    threshold : float
-        Inclusion threshold. blast2table's default is 0.01.
-    overlap : float or int
+    df : pandas.DataFrame
+        Standard search results with one row per HSP, in report order, and
+        with ``qstart`` and ``qend`` present in every row.
+    threshold : float, default 0.01
+        Inclusion threshold. A region whose rounded E-value is strictly below
+        this value is widened instead of replaced. blast2table's default is
+        0.01.
+    overlap : float or int, default 0.4
         A float is a fraction: two HSPs overlap on an axis when the shared
         length is above ``overlap`` times the length of each of them, that
         is, above that fraction of the *longer* one. An int is a number of
-        residues: they overlap when they share more than that. blast2table's
-        default is 0.4.
+        residues: they overlap when they share more than that. Both
+        comparisons are strict. blast2table's default is 0.4.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One standard row per merged region, ordered by each region's first
+        HSP and indexed from zero.
+
+    Raises
+    ------
+    ValueError
+        If ``df`` does not satisfy the standard or any row lacks ``qstart``
+        or ``qend``.
+
+    See Also
+    --------
+    read_blast_tabular : Read BLAST tabular output into the per-HSP table.
+    blast2table_evalue : Round E-values before comparing them.
+    validate : Check and normalize a standard table.
 
     Notes
     -----
@@ -626,6 +1031,20 @@ def collapse_hsps(df, threshold=0.01, overlap=0.4):
 
     Everything is computed per pair on small arrays, in pandas-version
     independent code (no ``groupby().apply``).
+
+    Examples
+    --------
+    >>> report = (
+    ...     'Q\tS\t10\t50\t1e-5\t1\t60\t40.0\t500\t100\n'
+    ...     'Q\tS\t5\t60\t1e-9\t5\t50\t60.0\t500\t100\n'
+    ... )
+    >>> merged = collapse_hsps(read_blast_tabular(report))
+    >>> len(merged)
+    1
+    >>> merged[['start', 'end', 'qstart', 'qend']].to_dict('records')
+    [{'start': 5, 'end': 60, 'qstart': 1, 'qend': 60}]
+    >>> float(merged.loc[0, 'evalue']), float(merged.loc[0, 'score'])
+    (1e-05, 40.0)
     '''
     df = validate(df)
     if df.empty:
