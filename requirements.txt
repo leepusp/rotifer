@@ -14,10 +14,13 @@ seaborn
 pygraphviz
 bcbio-gff
 dash-bio
+dash
+dash-cytoscape
 gspread
 leidenalg
 igraph
 networkx
+scipy
 oauth2client
 sqlalchemy
 clickhouse-connect
