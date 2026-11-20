@@ -18,14 +18,20 @@ setup(
     },
     packages=find_packages("lib"),  # Finds packages in the "lib" folder
     package_dir={"": "lib"},  # Root directory for the packages
-    python_requires=">=3.6",  # Specify minimum Python version
+    python_requires=">=3.11",  # pandas 3 needs Python >= 3.11
     install_requires=[
         "numpy",
-        "pandas",
+        "pandas>=3",
         "pyarrow",             # rotifer.db.uniprot.mirror, rotifer.pandas
         "tqdm",                # progress bars in rotifer.db
         "clickhouse-connect",  # rotifer.db.clickhouse
     ],
+    extras_require={
+        # rotifer.graph.network: domain networks, layouts, communities, statistics
+        "graph": ["networkx", "scipy", "igraph", "leidenalg", "seaborn", "PyYAML"],
+        # rotifer.view.network: the network_dash viewer, with the graph dependencies it uses
+        "view": ["networkx", "scipy", "igraph", "leidenalg", "seaborn", "PyYAML", "dash", "dash-cytoscape"],
+    },
     license="BSD-3-Clause",
     classifiers=[
         "Programming Language :: Python :: 3",

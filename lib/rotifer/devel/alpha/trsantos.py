@@ -398,7 +398,7 @@ def flag_best_id(group):
     Priority: pick a random row with id_type 'RefSeq', else 'EMBL-CDS'.
     Returns the same group DataFrame with a new integer 'flag' column (0/1).
     Example:
-        radsamorg = radsamorg.groupby('qid', group_keys=False).apply(flag_best_id)
+        radsamorg = pd.concat([flag_best_id(g) for _, g in radsamorg.groupby('qid')])
     """
     n = len(group)
     flags = np.zeros(n, dtype=int)
