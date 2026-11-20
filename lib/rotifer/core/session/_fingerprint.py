@@ -49,7 +49,23 @@ def _numpy_fingerprint(obj) -> str:
 
 
 def pickle_bytes_fingerprint(data: bytes) -> str:
-    """The "pickle:" fingerprint of already pickled bytes."""
+    """
+    Return the "pickle:" fingerprint of already pickled bytes.
+
+    Parameters
+    ----------
+    data : bytes
+        Pickle bytes.
+
+    Returns
+    -------
+    str
+        The string "pickle:" followed by the hex digest of `data`.
+
+    See Also
+    --------
+    fingerprint : Fingerprint a value, choosing the method by type.
+    """
     h = _new_hash()
     h.update(data)
     return "pickle:" + h.hexdigest()
@@ -72,11 +88,26 @@ def _children(obj):
 
 
 def hash_order_dependent(obj) -> bool:
-    """True if the pickle of obj may change between processes.
+    """
+    Return True if the pickle of obj may change between processes.
 
     Sets and frozensets pickle in an order that depends on hash randomization
     of their members. Checks obj, its items, and the items of those items.
     Other containers (custom classes, deeper nesting) are not inspected.
+
+    Parameters
+    ----------
+    obj : object
+        The value to check.
+
+    Returns
+    -------
+    bool
+        True if `obj`, or an item or item of an item, is a set or frozenset.
+
+    See Also
+    --------
+    fingerprint : Fingerprint a value, choosing the method by type.
     """
     if _has_set(obj):
         return True
@@ -89,13 +120,36 @@ def hash_order_dependent(obj) -> bool:
 
 
 def fingerprint(obj, codec: "Codec | None" = None) -> str | None:
-    """Return a fingerprint string for obj, or None if it cannot be hashed.
+    """
+    Return a fingerprint string for obj, or None if it cannot be hashed.
 
     Order of methods: the codec's own fingerprint function, then pandas
     hashing for DataFrame and Series, then raw bytes for numpy arrays, then
-    a hash of the stdlib pickle bytes. A "pickle:" fingerprint of a value that
-    contains sets is not comparable across processes (hash randomization);
-    Session.diff reports such variables as unknown.
+    a hash of the stdlib pickle bytes.
+
+    Parameters
+    ----------
+    obj : object
+        The value to fingerprint.
+    codec : Codec or None, default None
+        If given and it has a fingerprint function, that function is tried
+        first.
+
+    Returns
+    -------
+    str or None
+        A string "<method>:<hex digest>", or None if every method failed.
+
+    See Also
+    --------
+    pickle_bytes_fingerprint : Fingerprint of already pickled bytes.
+    hash_order_dependent : Tell whether a pickle may differ between processes.
+
+    Notes
+    -----
+    A "pickle:" fingerprint of a value that contains sets is not comparable
+    across processes (hash randomization); Session.diff reports such
+    variables as unknown.
     """
     if codec is not None and codec.fingerprint is not None:
         try:

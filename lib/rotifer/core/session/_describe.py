@@ -1,4 +1,4 @@
-"""describe(): a cheap summary of an in-memory object.
+"""Cheap summaries of in-memory objects, through describe().
 
 Reads only attributes of objects already in memory (shape, columns, len).
 It never reads files and never converts data.
@@ -68,11 +68,33 @@ def _builtin_summary(obj):
 
 def describe(obj):
     """
-    Return a summary dict of `obj`: kind, and when they apply length, shape,
-    columns (at most 50), dtypes and preview (at most 200 characters).
+    Return a summary dict of `obj`.
 
     For types without a built-in summary, a codec registered for the type may
     supply its own describe function; it is found without pickling `obj`.
+
+    Parameters
+    ----------
+    obj : object
+        The in-memory value to summarise.
+
+    Returns
+    -------
+    dict
+        Has "kind" and, when they apply, "length", "shape", "columns" (at
+        most 50), "dtypes" and "preview" (at most 200 characters). For
+        other objects it has "kind" "object", "type" and "preview".
+
+    Examples
+    --------
+    >>> info = describe([1, 2, 3])
+    >>> info["kind"], info["length"], info["preview"]
+    ('sequence', 3, '[1, 2, 3]')
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
+    >>> info = describe(df)
+    >>> info["kind"], info["shape"], info["columns"]
+    ('dataframe', [2, 2], ['a', 'b'])
     """
     info = _builtin_summary(obj)
     if info is not None:

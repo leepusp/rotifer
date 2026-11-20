@@ -1,4 +1,5 @@
-"""Session: save and load the variables of a working session.
+"""
+Save and load the variables of a working session.
 
 A session is a directory with a `manifest.json` and an `objects/` folder that
 holds one set of files per variable. `Session` is the only entry point. It
@@ -55,12 +56,50 @@ def _now():
 
 @dataclass
 class Report:
-    """What a Session call did.
+    """
+    Record what a `Session` call did.
 
-    saved, loaded and removed are lists of names. skipped maps a name to the
-    reason it was left out; failed maps a name to "ExcType: message".
-    converted_from is the old shelve path if this session was converted from
-    one.
+    `Session.save`, `Session.load` and `Session.remove` return one, and a
+    conversion from an old shelve session stores one in
+    `Session.conversion_report`. `to_dict` gives a plain dict that can be
+    written as JSON.
+
+    Parameters
+    ----------
+    action : str
+        What the call did: "save", "load", "remove" or "convert".
+    path : str
+        Path of the session directory.
+    saved : list of str, optional
+        Names of the variables this call saved.
+    loaded : list of str, optional
+        Names of the variables this call loaded.
+    skipped : dict of str to str, optional
+        Names this call left out, mapped to the reason they were left out.
+    failed : dict of str to str, optional
+        Names that could not be saved or loaded, mapped to
+        "ExcType: message".
+    removed : list of str, optional
+        Names of the variables this call removed.
+    warnings : list of str, optional
+        Messages produced by the call, such as a saved environment that
+        differs from the running one.
+    converted_from : str or None, optional
+        Path of the old shelve session this session was converted from, or
+        None if it was not converted.
+
+    See Also
+    --------
+    DiffResult : What `Session.diff` returns instead.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from rotifer.core.session import Session
+    >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+    >>> report = session.save(ns={"x": 1, "y": 2})
+    >>> report.action, sorted(report.saved), report.failed
+    ('save', ['x', 'y'], {})
     """
 
     action: str
@@ -74,6 +113,25 @@ class Report:
     converted_from: str | None = None
 
     def to_dict(self):
+        """
+        Return the report as a JSON-serializable dict.
+
+        Returns
+        -------
+        dict
+            One key per field: "action", "path", "saved", "loaded",
+            "skipped", "failed", "removed", "warnings" and
+            "converted_from".
+
+        Examples
+        --------
+        >>> from rotifer.core.session import Report
+        >>> report = Report(action="save", path="s", saved=["x"])
+        >>> report.to_dict()["saved"]
+        ['x']
+        >>> report.to_dict()["converted_from"] is None
+        True
+        """
         return {
             "action": self.action,
             "path": self.path,
@@ -89,15 +147,41 @@ class Report:
 
 @dataclass
 class DiffResult:
-    """Result of Session.diff.
+    """
+    Record the result of `Session.diff`.
 
-    added: in the namespace, not in the session.
-    removed: in the session, not in the namespace.
-    changed: in both, and different at the chosen level.
-    unchanged: in both, and no difference found at the chosen level. At level
+    Parameters
+    ----------
+    level : str
+        Comparison level: "names", "summary" or "content".
+    path : str
+        Path of the session directory.
+    added : list of str, optional
+        Names in the namespace but not in the session.
+    removed : list of str, optional
+        Names in the session but not in the namespace.
+    changed : list of str, optional
+        Names in both, different at the chosen level.
+    unchanged : list of str, optional
+        Names in both with no difference found at the chosen level. At level
         "names" it means only "present in both".
-    unknown: in both, but it could not be compared (too big for max_bytes, or
-        it cannot be fingerprinted).
+    unknown : list of str, optional
+        Names in both that could not be compared: the live object is larger
+        than `max_bytes`, or it cannot be fingerprinted.
+
+    See Also
+    --------
+    Session.diff : The method that returns it.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from rotifer.core.session import Session
+    >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+    >>> _ = session.save(ns={"x": 1, "y": 2})
+    >>> result = session.diff(ns={"x": 1, "z": 3})
+    >>> result.added, result.removed, result.unchanged
+    (['z'], ['y'], ['x'])
     """
 
     level: str
@@ -109,6 +193,24 @@ class DiffResult:
     unknown: list = field(default_factory=list)
 
     def to_dict(self):
+        """
+        Return the result as a JSON-serializable dict.
+
+        Returns
+        -------
+        dict
+            One key per field: "level", "path", "added", "removed",
+            "changed", "unchanged" and "unknown".
+
+        Examples
+        --------
+        >>> from rotifer.core.session import DiffResult
+        >>> result = DiffResult(level="names", path="s", added=["y"])
+        >>> result.to_dict()["added"]
+        ['y']
+        >>> result.to_dict()["level"]
+        'names'
+        """
         return {
             "level": self.level,
             "path": self.path,
@@ -200,14 +302,73 @@ def _comparable_summary(summary):
 
 
 class Session:
-    """A session directory.
+    """
+    Open a session directory.
 
-    Session(path) opens the session at `path`, creating it if `create` is
-    true. If `path` is an old shelve session, it is converted to
-    `<path>.session/` and that directory is used; the old files are never
-    changed. `converted_from` then holds the old path.
+    A session holds the variables of a working session as one set of files
+    per variable, described by a manifest. The session never prints and never
+    asks questions: results come back as reports.
 
-    `lock_timeout` is how many seconds a writer waits for the session lock.
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path of the session directory. If it is an old shelve session, it is
+        converted to `<path>.session/` and that directory is used.
+    create : bool, default True
+        Create the session at `path` if it does not exist. If False, opening
+        a path without a session raises `FileNotFoundError`.
+    lock_timeout : float, default 10.0
+        Seconds a writer waits for the session lock before giving up.
+
+    Attributes
+    ----------
+    path : pathlib.Path
+        Directory of the session. For a converted legacy session this is
+        `<path>.session`.
+    lock_timeout : float
+        Seconds a writer waits for the session lock before giving up.
+    converted_from : str or None
+        Path of the old shelve session this session was converted from, or
+        None if it was not converted.
+    conversion_report : Report or None
+        Report of the conversion (`action` is "convert"), or None if this
+        session was not converted.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `create` is False and there is no session at `path`.
+    ValueError
+        If `path` exists and is not a session directory.
+
+    See Also
+    --------
+    open_session : Open an existing session without creating it.
+
+    Notes
+    -----
+    Only writers (`save`, `remove`, and the conversion done by the
+    constructor) take the session lock; readers (`load`, `get`, `info`, `ls`,
+    `diff`) only read the manifest, which is always replaced atomically. A
+    writer raises `rotifer.core.session._files.SessionLocked` if the lock is
+    not free within `lock_timeout` seconds.
+
+    When `path` is an old shelve session, the old files are never changed:
+    the conversion is written to a temporary directory and renamed to
+    `<path>.session` when it is complete. `converted_from` then holds the old
+    path and `conversion_report` records what was converted.
+
+    Examples
+    --------
+    >>> import os
+    >>> import tempfile
+    >>> from rotifer.core.session import Session
+    >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+    >>> report = session.save({"x": 1})
+    >>> report.saved
+    ['x']
+    >>> session.get("x")
+    1
     """
 
     def __init__(self, path, create=True, lock_timeout=10.0):
@@ -236,11 +397,59 @@ class Session:
 
     @classmethod
     def convert(cls, old, new=None, lock_timeout=10.0):
-        """Convert the old shelve session `old` into the session directory `new`.
+        """
+        Convert an old shelve session into a session directory.
 
-        `new` defaults to `legacy_target(old)`. The old files are not
-        changed. Returns the new Session; its `conversion_report` says what
-        was converted.
+        The old files are read, never changed.
+
+        Parameters
+        ----------
+        old : str or pathlib.Path
+            Path of the old shelve session.
+        new : str or pathlib.Path, optional
+            Directory to write. Default `<old>.session`, the target `Session`
+            uses when it converts a legacy session.
+        lock_timeout : float, default 10.0
+            Seconds a writer waits for the session lock before giving up.
+
+        Returns
+        -------
+        Session
+            The new session. Its `conversion_report` records what was
+            converted.
+
+        Raises
+        ------
+        ValueError
+            If `new` is already a session or exists and is not a session
+            directory, or if `old` is not a shelve session.
+        FileNotFoundError
+            If there is no shelve file at `old`.
+
+        Warns
+        -----
+        FutureWarning
+            If the old shelve files are read. The legacy reader is removed on
+            2026-11-30.
+
+        See Also
+        --------
+        Session : Opening a legacy session converts it automatically.
+
+        Examples
+        --------
+        >>> import os
+        >>> import shelve
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> old = os.path.join(tempfile.mkdtemp(), "old")
+        >>> with shelve.open(old) as db:
+        ...     db["n"] = 5
+        >>> session = Session.convert(old)
+        >>> session.path.name
+        'old.session'
+        >>> session.get("n")
+        5
         """
         from rotifer.core.session import _legacy
         old = Path(old)
@@ -403,20 +612,72 @@ class Session:
     # ------------------------------------------------------------------ API
 
     def save(self, ns=None, names=None, exclude=None, prune=False, compress=None):
-        """Save variables of `ns` (default: the user namespace) into the session.
+        """
+        Save variables from a namespace into the session.
 
-        `names` and `exclude` are names or glob patterns. By default a call
-        only adds and updates; with `prune=True` every saved variable inside
-        `names` (all of them if `names` is None) that this call does not save
-        is removed: gone from `ns`, or excluded by `exclude` or by the
-        default filters.
+        Parameters
+        ----------
+        ns : dict-like, optional
+            Namespace mapping names to values. Default: the user namespace,
+            IPython's `user_ns` inside IPython and `__main__.__dict__`
+            otherwise.
+        names : str or sequence of str, optional
+            Names or glob patterns of the variables to save. Default: all
+            names, subject to the default filters.
+        exclude : str or sequence of str, optional
+            Names or glob patterns to leave out. Applied after `names`.
+        prune : bool, default False
+            Remove every saved variable inside the selection that this call
+            does not save: gone from `ns`, or excluded by `exclude` or by the
+            default filters. The selection is `names`, or every saved
+            variable if `names` is None. Default: only add and update.
+        compress : str or None, optional
+            Compression for the pickle codecs: None (default) writes plain
+            files, "gzip" writes gzipped files. Other codecs ignore it. Any
+            other value puts the variables saved with pickle in `failed`.
 
+        Returns
+        -------
+        Report
+            The report: `saved` lists the names written, `skipped` gives the
+            reason for each name in `names` that was left out (names dropped
+            by the default filters or `exclude` when `names` is None are not
+            listed), `failed` gives the error for each name that could not
+            be written, and `removed` lists the names removed by `prune`.
+
+        Raises
+        ------
+        SessionLocked
+            If another process holds the session lock for longer than
+            `lock_timeout`.
+
+        See Also
+        --------
+        load : Put saved variables back into a namespace.
+
+        Notes
+        -----
         New files are written under names unique to this save and the
         manifest is replaced atomically; only then are the files it no longer
-        lists deleted, so an interrupted save leaves the old session intact. Default filters
-        skip names that start with "_", the IPython names (In, Out, exit,
-        quit, get_ipython, open), modules, and functions or classes not
-        defined in `__main__`. Returns a Report.
+        lists deleted, so an interrupted save leaves the old session intact.
+
+        The default filters skip names that start with "_", the IPython names
+        (`In`, `Out`, `exit`, `quit`, `get_ipython`, `open`), modules, and
+        functions or classes not defined in `__main__`.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1, "y": 2})
+        >>> sorted(report.saved)
+        ['x', 'y']
+        >>> target = {}
+        >>> report = session.load(names="x", ns=target)
+        >>> target
+        {'x': 1}
         """
         return self._save(ns, names, exclude, prune, compress)
 
@@ -505,12 +766,54 @@ class Session:
         return report
 
     def load(self, names=None, ns=None):
-        """Load saved variables into `ns` (default: the user namespace).
+        """
+        Load saved variables into a namespace.
 
-        `names` is a name or glob patterns. Warns, in the log and in the
-        report, if the saved environment differs from the current one. A
-        variable that cannot be read goes to `report.failed`; the others
-        are still loaded. Returns a Report.
+        A variable that cannot be read goes to `failed`; the other variables
+        are still loaded.
+
+        Parameters
+        ----------
+        names : str or sequence of str, optional
+            Name or glob patterns of the variables to load. Default: all
+            saved variables.
+        ns : dict-like, optional
+            Namespace that receives the values. Default: the user namespace,
+            IPython's `user_ns` inside IPython and `__main__.__dict__`
+            otherwise.
+
+        Returns
+        -------
+        Report
+            The report: `loaded` lists the names loaded, `skipped` gives the
+            reason for each requested name that is not in the session,
+            `failed` gives the error for each name that could not be read,
+            and `warnings` holds any environment differences.
+
+        See Also
+        --------
+        save : Write the variables of a namespace into the session.
+        get : Read one variable without touching a namespace.
+
+        Notes
+        -----
+        If the environment recorded in the manifest differs from the running
+        one (Python, ROTIFER or the versions of the main packages), the
+        difference is reported in the log and in `warnings`.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1, "y": 2})
+        >>> target = {}
+        >>> report = session.load(names="x", ns=target)
+        >>> target
+        {'x': 1}
+        >>> report.loaded
+        ['x']
         """
         if ns is None:
             ns = _context.default_namespace()
@@ -550,11 +853,80 @@ class Session:
         return codecs.decode(entry.codec, prefix, meta)
 
     def get(self, name):
-        """Return the saved value of `name` without touching any namespace."""
+        """
+        Read one saved value without touching a namespace.
+
+        Parameters
+        ----------
+        name : str
+            Name of the variable.
+
+        Returns
+        -------
+        object
+            The value, decoded from the files of the session.
+
+        Raises
+        ------
+        KeyError
+            If there is no variable `name` in the session.
+        ValueError
+            If the stored files do not match the sha256 recorded in the
+            manifest.
+
+        See Also
+        --------
+        load : Load several variables into a namespace.
+        info : The manifest entry of one variable.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": [1, 2]})
+        >>> session.get("x")
+        [1, 2]
+        """
         entry = self.info_entry(name)
         return self._decode(name, entry)
 
     def info_entry(self, name):
+        """
+        Return the manifest entry of one variable.
+
+        Parameters
+        ----------
+        name : str
+            Name of the variable.
+
+        Returns
+        -------
+        VariableEntry
+            What the manifest records for `name`: type, codec, files, size,
+            checksum, fingerprint and summary. Reading it unpickles nothing.
+
+        Raises
+        ------
+        KeyError
+            If there is no variable `name` in the session.
+
+        See Also
+        --------
+        info : The same entry as a dict.
+        get : The value of the variable.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1})
+        >>> session.info_entry("x").codec
+        'pickle'
+        """
         manifest = self._manifest()
         try:
             return manifest.variables[name]
@@ -562,11 +934,72 @@ class Session:
             raise KeyError(f"no variable {name!r} in session {self.path}") from None
 
     def info(self, name):
-        """Return the manifest entry of `name` as a dict."""
+        """
+        Return the manifest entry of one variable as a dict.
+
+        Parameters
+        ----------
+        name : str
+            Name of the variable.
+
+        Returns
+        -------
+        dict
+            The manifest entry with the keys "type", "codec",
+            "codec_version", "files", "bytes", "sha256", "fingerprint",
+            "saved", "version_bound", "summary" and "meta".
+
+        Raises
+        ------
+        KeyError
+            If there is no variable `name` in the session.
+
+        See Also
+        --------
+        info_entry : The same entry as a `VariableEntry`.
+        ls : The entries of all variables as a DataFrame.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1})
+        >>> session.info("x")["codec"]
+        'pickle'
+        """
         return self.info_entry(name).to_dict()
 
     def ls(self):
-        """List the saved variables as a DataFrame, from the manifest only."""
+        """
+        List the saved variables as a DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per variable, with the columns "name", "type", "codec",
+            "bytes", "saved", "version_bound", "kind", "length" and "shape".
+            Empty if the session has no variables.
+
+        See Also
+        --------
+        info : The complete manifest entry of one variable.
+
+        Notes
+        -----
+        The table comes from the manifest alone: no object file is read.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1, "y": 2})
+        >>> sorted(session.ls()["name"])
+        ['x', 'y']
+        """
         import pandas as pd
         columns = ["name", "type", "codec", "bytes", "saved", "version_bound",
                    "kind", "length", "shape"]
@@ -579,7 +1012,45 @@ class Session:
         return pd.DataFrame(rows, columns=columns)
 
     def remove(self, name):
-        """Delete `name` and its files from the session. Returns a Report."""
+        """
+        Delete one variable and its files from the session.
+
+        Parameters
+        ----------
+        name : str
+            Name of the variable.
+
+        Returns
+        -------
+        Report
+            The report, with `name` in `removed`.
+
+        Raises
+        ------
+        KeyError
+            If there is no variable `name` in the session.
+        SessionLocked
+            If another process holds the session lock for longer than
+            `lock_timeout`.
+
+        See Also
+        --------
+        save : Add or update variables.
+        ls : List the variables that are still in the session.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1})
+        >>> report = session.remove("x")
+        >>> report.removed
+        ['x']
+        >>> session.ls().empty
+        True
+        """
         report = self._report("remove")
         with session_lock(self.path, self.lock_timeout):
             manifest = self._manifest()
@@ -599,19 +1070,64 @@ class Session:
         return report
 
     def diff(self, ns=None, level="names", max_bytes=None):
-        """Compare the namespace with the saved session.
+        """
+        Compare a namespace with the saved session.
 
-        level "names": only added and removed; names in both go to
-            `unchanged`, meaning just "present in both".
-        level "summary": also compares the type and the summary (length,
-            shape, columns, dtypes).
-        level "content": also compares fingerprints. A live object larger
-            than `max_bytes` (estimated) goes to `unknown` and is not hashed.
-            Values saved by pickle whose pickle depends on hash randomization
-            (a set or frozenset, alone or directly inside a list, tuple or
-            dict, or one level deeper) cannot be compared across processes
-            and go to `unknown`, never `changed`.
-        The same default filters as `save` apply to the namespace.
+        Parameters
+        ----------
+        ns : dict-like, optional
+            Namespace to compare. Default: the user namespace, IPython's
+            `user_ns` inside IPython and `__main__.__dict__` otherwise.
+        level : str, default "names"
+            Comparison level. "names" only compares which names exist:
+            `added` and `removed` are filled, and a name in both goes to
+            `unchanged`, meaning only "present in both". "summary" also
+            compares the type and the summary (length, shape, columns,
+            dtypes). "content" also compares fingerprints.
+        max_bytes : int or None, optional
+            Largest live object, in estimated bytes, that "content" hashes.
+            A larger object goes to `unknown` and is not hashed. Default:
+            None, no limit.
+
+        Returns
+        -------
+        DiffResult
+            The names in `added`, `removed`, `changed`, `unchanged` and
+            `unknown`, as described by the level.
+
+        Raises
+        ------
+        ValueError
+            If `level` is not "names", "summary" or "content".
+
+        See Also
+        --------
+        DiffResult : The result of the comparison.
+        save : Write the variables of a namespace into the session.
+
+        Notes
+        -----
+        The same default filters as `save` apply to `ns`.
+
+        Values saved by pickle whose pickle depends on hash randomization (a
+        set or frozenset, alone or directly inside a list, tuple or dict, or
+        one level deeper) cannot be compared across processes: they go to
+        `unknown`, never `changed`.
+
+        Examples
+        --------
+        >>> import os
+        >>> import tempfile
+        >>> from rotifer.core.session import Session
+        >>> session = Session(os.path.join(tempfile.mkdtemp(), "s"))
+        >>> report = session.save({"x": 1})
+        >>> result = session.diff({"x": 1, "y": 2})
+        >>> result.added, result.removed
+        (['y'], [])
+        >>> result.unchanged
+        ['x']
+        >>> session.diff({"x": 2}, level="content").changed
+        ['x']
         """
         if level not in DIFF_LEVELS:
             raise ValueError(f"level must be one of {DIFF_LEVELS}, not {level!r}")
@@ -661,5 +1177,43 @@ class Session:
 
 
 def open_session(path, create=False, lock_timeout=10.0):
-    """Open the session at `path`. Unlike Session(), it does not create it by default."""
+    """
+    Open an existing session directory.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path of the session directory.
+    create : bool, default False
+        Create the session at `path` if it does not exist. Unlike `Session`,
+        it is not created by default.
+    lock_timeout : float, default 10.0
+        Seconds a writer waits for the session lock before giving up.
+
+    Returns
+    -------
+    Session
+        The open session.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `create` is False and there is no session at `path`.
+    ValueError
+        If `path` exists and is not a session directory.
+
+    See Also
+    --------
+    Session : The class this function calls.
+
+    Examples
+    --------
+    >>> import os
+    >>> import tempfile
+    >>> from rotifer.core.session import Session, open_session
+    >>> path = os.path.join(tempfile.mkdtemp(), "s")
+    >>> report = Session(path).save({"x": 1})
+    >>> open_session(path).get("x")
+    1
+    """
     return Session(path, create=create, lock_timeout=lock_timeout)

@@ -38,12 +38,38 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class Codec:
-    """A way of saving one family of values.
+    """
+    A way of saving one family of values.
 
     write(obj, prefix) creates files named prefix + suffix and returns a
     metadata dict with "files". read(prefix, meta) returns the object.
     Lookup is by exact type; only a codec with subclasses=True also handles
     subclasses of its types.
+
+    Parameters
+    ----------
+    name : str
+        Name the codec is registered and looked up under.
+    version : int
+        Version of the codec, recorded in the manifest.
+    types : tuple
+        Exact types the codec handles. Empty for the pickle codecs, which
+        are chosen as fallbacks rather than by type.
+    write : callable
+        ``write(obj, prefix)`` creates files named prefix + suffix and
+        returns a metadata dict with "files". It may also accept a
+        "compress" keyword.
+    read : callable
+        ``read(prefix, meta)`` returns the object, given the prefix and the
+        metadata dict that write() returned.
+    subclasses : bool, default False
+        If True, the codec also handles subclasses of `types`.
+    describe : callable or None, default None
+        Optional ``describe(obj)`` returning a summary dict, used by
+        describe() for types without a built-in summary.
+    fingerprint : callable or None, default None
+        Optional ``fingerprint(obj)`` returning a fingerprint string, used
+        by fingerprint() before its generic methods.
     """
     name: str
     version: int
@@ -63,10 +89,27 @@ _aliases: dict[str, str] = {}
 # ---------------------------------------------------------------- registry
 
 def register_codec(codec: Codec, *, replace: bool = False) -> None:
-    """Add codec to the registry.
+    """
+    Add codec to the registry.
 
-    Raises ValueError if the name, or one of its exact types, belongs to
-    another codec, unless replace=True (then the new codec takes them over).
+    Parameters
+    ----------
+    codec : Codec
+        The codec to register.
+    replace : bool, default False
+        If True, the new codec takes over its name and types from any codec
+        that already has them.
+
+    Raises
+    ------
+    ValueError
+        If the name, or one of its exact types, belongs to another codec and
+        `replace` is False.
+
+    See Also
+    --------
+    get_codec : Return a registered codec by name.
+    register_codec_provider : Name the module that registers a codec.
     """
     if codec.name in _codecs and not replace:
         raise ValueError("codec %r is already registered" % codec.name)
@@ -88,19 +131,55 @@ _providers: dict[str, str] = {"rotifer.sequence": "rotifer.devel.beta.sequence"}
 
 
 def register_codec_provider(codec_name: str, module_name: str) -> None:
-    """Say which module registers codec_name when imported.
+    """
+    Say which module registers codec_name when imported.
 
     get_codec() imports that module the first time the codec is missing, so a
     session can be read in a process that never imported the module.
+
+    Parameters
+    ----------
+    codec_name : str
+        Name of the codec.
+    module_name : str
+        Name of the module whose import registers the codec.
+
+    See Also
+    --------
+    register_codec : Add a codec to the registry.
+    get_codec : Return a registered codec by name.
     """
     _providers[codec_name] = module_name
 
 
 def get_codec(name: str) -> Codec:
-    """Return the codec registered under name (used when reading).
+    """
+    Return the codec registered under name (used when reading).
 
     If the codec is unknown but a provider module is known for it, the module
     is imported and the lookup retried.
+
+    Parameters
+    ----------
+    name : str
+        Name of the codec.
+
+    Returns
+    -------
+    Codec
+        The registered codec.
+
+    Raises
+    ------
+    KeyError
+        If no codec with that name is registered, even after trying its
+        provider module. An ImportError from the provider module is logged
+        as a warning, not raised; other errors from that import propagate.
+
+    See Also
+    --------
+    register_codec : Add a codec to the registry.
+    register_codec_provider : Name the module that registers a codec.
     """
     if name not in _codecs and name in _providers:
         try:
@@ -116,9 +195,17 @@ def get_codec(name: str) -> Codec:
 
 
 def register_alias(old: str, new: str) -> None:
-    """Make pickles that mention class path old load class path new.
+    """
+    Make pickles that mention class path old load class path new.
 
     Both are "module.QualName" strings. Used when a class moves.
+
+    Parameters
+    ----------
+    old : str
+        Class path recorded in existing pickles.
+    new : str
+        Class path to load instead.
     """
     _aliases[old] = new
 
@@ -310,10 +397,25 @@ for _c in _builtin_codecs():
 # -------------------------------------------------------------- selection
 
 def find_typed_codec(obj) -> Codec | None:
-    """Return the typed codec for obj, or None. Never pickles obj.
+    """
+    Return the typed codec for obj, or None. Never pickles obj.
 
     Exact type match first; then codecs with subclasses=True, following the
     type's MRO.
+
+    Parameters
+    ----------
+    obj : object
+        The value to find a codec for.
+
+    Returns
+    -------
+    Codec or None
+        The typed codec, or None if no typed codec handles the type of obj.
+
+    See Also
+    --------
+    lookup : Also return the pickle fallback when there is no typed codec.
     """
     name = _by_type.get(type(obj))
     if name is not None:
@@ -326,11 +428,30 @@ def find_typed_codec(obj) -> Codec | None:
 
 
 def lookup(obj) -> Codec:
-    """Return the codec that would be tried first for obj. Never fails.
+    """
+    Return the codec that would be tried first for obj. Never fails.
 
     The typed codec if there is one (see find_typed_codec); otherwise the
-    fallback ("cloudpickle" if obj depends on __main__, else "pickle"). The
-    fallback check pickles obj, so use find_typed_codec where that is too slow.
+    fallback ("cloudpickle" if obj depends on __main__, else "pickle").
+
+    Parameters
+    ----------
+    obj : object
+        The value to find a codec for.
+
+    Returns
+    -------
+    Codec
+        The typed codec, or the "pickle" or "cloudpickle" codec.
+
+    See Also
+    --------
+    find_typed_codec : Return only a typed codec, without pickling.
+
+    Notes
+    -----
+    The fallback check pickles obj, so use find_typed_codec where that is
+    too slow.
     """
     codec = find_typed_codec(obj)
     if codec is not None:
@@ -352,12 +473,40 @@ def _call_write(codec: Codec, obj, prefix: Path, compress, std_data=None) -> dic
 
 
 def encode(obj, prefix, *, compress=None) -> tuple[Codec, dict]:
-    """Write obj under prefix with the best codec; return (codec, metadata).
+    """
+    Write obj under prefix with the best codec; return (codec, metadata).
 
-    compress=None or "gzip" applies to the pickle codecs. If the chosen
-    typed codec fails (an exception, or its read-back check), its files are
-    removed and obj is saved with pickle or cloudpickle instead; the
-    metadata then has "fallback_from" and "fallback_reason".
+    If the chosen typed codec fails (an exception, or its read-back check),
+    obj is saved with pickle or cloudpickle instead (removing the failed
+    codec's files is that codec's job; the parquet codec does it); the metadata then has "fallback_from" and "fallback_reason".
+
+    Parameters
+    ----------
+    obj : object
+        The value to save.
+    prefix : str or pathlib.Path
+        Path of the files to create, without extension.
+    compress : {None, "gzip"}, default None
+        Compression for the pickle codecs; codecs that do not accept it
+        ignore it.
+
+    Returns
+    -------
+    codec : Codec
+        The codec that wrote the files.
+    meta : dict
+        Metadata returned by the codec, including "files" and
+        "version_bound".
+
+    Raises
+    ------
+    ValueError
+        If `compress` is not None or "gzip" (for the pickle codecs), or if
+        a codec does not report its "files".
+
+    See Also
+    --------
+    decode : Read back a value written by encode().
     """
     prefix = Path(prefix)
     codec = find_typed_codec(obj)
@@ -392,5 +541,31 @@ def encode(obj, prefix, *, compress=None) -> tuple[Codec, dict]:
 
 
 def decode(codec_name: str, prefix, meta: dict):
-    """Read back a value written by encode()."""
+    """
+    Read back a value written by encode().
+
+    Parameters
+    ----------
+    codec_name : str
+        Name of the codec that wrote the value.
+    prefix : str or pathlib.Path
+        The prefix given to encode().
+    meta : dict
+        The metadata dict that encode() returned.
+
+    Returns
+    -------
+    object
+        The saved value.
+
+    Raises
+    ------
+    KeyError
+        If no codec named `codec_name` is registered.
+
+    See Also
+    --------
+    encode : Write a value with the best codec.
+    get_codec : Return a registered codec by name.
+    """
     return get_codec(codec_name).read(Path(prefix), meta)

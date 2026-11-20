@@ -24,7 +24,22 @@ def _ipython():
 
 
 def default_namespace():
-    """The user namespace: IPython's `user_ns` if inside IPython, else `__main__.__dict__`."""
+    """
+    Return the user namespace.
+
+    This is IPython's `user_ns` if inside IPython, else `__main__.__dict__`.
+
+    Returns
+    -------
+    dict
+        The namespace dict, not a copy.
+
+    Examples
+    --------
+    >>> ns = default_namespace()
+    >>> type(ns).__name__
+    'dict'
+    """
     shell = _ipython()
     if shell is not None:
         return shell.user_ns
@@ -39,7 +54,21 @@ def _version(distribution):
 
 
 def environment():
-    """Versions of Python, ROTIFER and the key packages; `tools` is reserved."""
+    """
+    Return the versions of Python, ROTIFER and the key packages.
+
+    Returns
+    -------
+    dict
+        Keys "python" and "rotifer" (version strings; "rotifer" is None if
+        it is not installed), "packages" (maps each key package to its
+        version, or None if not installed) and "tools" (always empty;
+        reserved).
+
+    See Also
+    --------
+    compare_environment : Compare two environment dicts.
+    """
     return {
         "python": platform.python_version(),
         "rotifer": _version("rotifer"),
@@ -52,8 +81,12 @@ def notebook_context():
     """
     Information about the IPython session, or {} outside IPython.
 
-    Keys appear only when they can be found: `history_session`, `kernel_id`,
-    `connection_file`, `notebook`.
+    Returns
+    -------
+    dict
+        Empty outside IPython. Otherwise "shell" (the shell class name) plus
+        the keys `history_session`, `kernel_id`, `connection_file` and
+        `notebook`, each present only when it can be found.
     """
     shell = _ipython()
     if shell is None:
@@ -80,8 +113,23 @@ def notebook_context():
 
 def compare_environment(saved, current):
     """
-    Compare two `environment()` dicts and return a list of messages, one per
-    difference. The list is empty when nothing differs.
+    Compare two `environment()` dicts and return one message per difference.
+
+    Parameters
+    ----------
+    saved : dict
+        Environment recorded when the session was saved.
+    current : dict
+        Environment of the running process.
+
+    Returns
+    -------
+    list of str
+        One message per difference. The list is empty when nothing differs.
+
+    See Also
+    --------
+    environment : Return the versions of Python, ROTIFER and key packages.
     """
     messages = []
     for key, label in (("python", "Python"), ("rotifer", "ROTIFER")):

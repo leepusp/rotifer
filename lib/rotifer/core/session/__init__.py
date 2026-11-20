@@ -1,5 +1,5 @@
 """
-rotifer.core.session: save and restore the variables of a working session.
+Save and restore the variables of a working session.
 
 A session is a directory with one or more files per variable and a JSON manifest
 (`manifest.json`) that records what each file holds, how it was written and
