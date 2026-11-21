@@ -69,6 +69,8 @@ Genomes and annotation
 Sequence and interval utilities
 -------------------------------
 
+The :doc:`search results page </io/search>` describes the standard table of ``rotifer.io.search``.
+
 .. autosummary::
    :toctree: generated
 
