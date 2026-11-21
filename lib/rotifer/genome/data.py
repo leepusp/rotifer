@@ -161,33 +161,22 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         strand = not_kwargs(kwargs, 'strand', False)
         stats = not_kwargs(kwargs, 'stats', False)
 
-        query_df = self[self[column] == value].copy()
-        full_query_df = \
-                self[self.block_id.isin(query_df.block_id)].copy()
-        min_max = full_query_df.reset_index().groupby(
-            'block_id'
-        ).agg({'index': ['min', 'max']})
-        min_max.columns = min_max.columns.droplevel()
-        query_min_max = \
-                query_df.reset_index()[['block_id', 'index']].set_index('block_id')
-        query_min_max = query_min_max.join(min_max)
-        query_min_max['before_limit'] = 1 + (
-            np.where(query_min_max['index'] + before >= query_min_max['max'],
-                     query_min_max['max'],
-                     query_min_max['index'] + before)
-        )
-        query_min_max['after_limit'] = np.where(
-            query_min_max['index'] -after <= query_min_max['min'],
-            query_min_max['min'],
-            query_min_max['index'] - after
-        )
-        query_min_max['Diference'] = \
-                query_min_max.before_limit - query_min_max.after_limit
-        index_list = list(
-            itertools.chain.from_iterable(
-                [list(range(x[0], x[1])) for x in list(
-                    zip(query_min_max.after_limit, query_min_max.before_limit))]))
-        selected_df = self.iloc[index_list].copy()
+        # Work on row positions, not index labels, so any index will do.
+        # The window of a query runs from `after` rows above to `before`
+        # rows below it, clipped at the first and last row of its block.
+        # Windows are merged, so every row is selected at most once.
+        n = len(self)
+        position = np.arange(n)
+        is_query = (self[column] == value).to_numpy()
+        codes = pd.factorize(self.block_id, use_na_sentinel=False)[0]
+        first = pd.Series(position).groupby(codes).transform('min').to_numpy()
+        last = pd.Series(position).groupby(codes).transform('max').to_numpy()
+        lo = np.maximum(position - after, first)[is_query]
+        hi = np.minimum(position + before, last)[is_query]
+        edges = np.zeros(n + 1, dtype=int)
+        np.add.at(edges, lo, 1)
+        np.add.at(edges, hi + 1, -1)
+        selected_df = self.iloc[np.flatnonzero(np.cumsum(edges)[:n] > 0)].copy()
         selected_df.loc[:, 'new_query'] = 0
         selected_df.loc[selected_df[column] == value, 'new_query'] = 1
         if strand:
