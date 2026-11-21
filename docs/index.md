@@ -16,7 +16,7 @@ Documentation <overview>
 install
 db/index
 graph/index
-pandas/blocks
+pandas/index
 api/index
 contributing/index
 licensing/index

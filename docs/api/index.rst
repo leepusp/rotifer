@@ -96,6 +96,8 @@ The :doc:`graphs section </graph/index>` is the curated entry point for
 Data manipulation and taxonomy
 ------------------------------
 
+The :doc:`pandas section </pandas/index>` is the curated entry point for ``rotifer.pandas``.
+
 .. autosummary::
    :toctree: generated
 

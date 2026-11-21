@@ -131,6 +131,11 @@ print("Normalized, cutoff 0.5:", gn.count_series(s, normalize=True, cut_off=0.5)
   - DataFrame with block_id, pid, dom, plus gene_pos and feature_pos columns
   - DataFrame: source, target, edge_type, edge_count, edge_total
   - graph extra
+* - {py:func}`rotifer.graph.network.adjacency_edges`
+  - rotifer.graph.network
+  - DataFrame with block_id, pid, type and a label column (pfam by default), in genome order
+  - DataFrame: source, target, interaction (fusion or neighbor), weight, blocks
+  - pandas only
 * - {py:func}`rotifer.graph.network.network_annotation`
   - rotifer.graph.network
   - Relations DataFrame from get_relations
@@ -260,6 +265,30 @@ print(comp)
 # Louvain_0    A(1), B(1), C(1)
 # Name: architecture, dtype: str
 ```
+
+`get_relations` relates every pair of domains in a block. To join only
+features that sit next to each other, use `adjacency_edges`. It splits
+multidomain labels on `+`, so domains of one protein become fusion edges and
+the last domain of a protein joins the first label of the next one:
+
+```python
+import pandas as pd
+from rotifer.graph import network as gn
+
+df = pd.DataFrame({
+    "block_id": ["b1", "b1", "b1", "b2", "b2"],
+    "pid": ["p1", "p2", "p3", "p4", "p5"],
+    "type": ["CDS"] * 5,
+    "pfam": ["A", "B+C", "D", "A", "B+C"],
+})
+print(gn.adjacency_edges(df))
+#   source target interaction  weight  blocks
+# 0      A      B    neighbor       2       2
+# 1      B      C      fusion       2       2
+# 2      C      D    neighbor       1       1
+```
+
+The function does not sort, so put the rows in genome order first.
 
 ## Migrating
 
