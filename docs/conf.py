@@ -222,6 +222,8 @@ nitpick_ignore = NITPICK_IGNORES
 
 extlinks = {
     "ghsrc": (GITHUB_URL + "/blob/master/%s", "%s"),
+    "pr": (GITHUB_URL + "/pull/%s", "#%s"),
+    "issue": (GITHUB_URL + "/issues/%s", "#%s"),
 }
 
 # -- Doctests ----------------------------------------------------------------
@@ -306,8 +308,10 @@ html_theme_options = {
     "nav_links": [
         {"title": "Install", "url": "install"},
         {"title": "Data access", "url": "db/index"},
+        {"title": "Command line", "url": "cli/index"},
         {"title": "API", "url": "api/index"},
         {"title": "Contributing", "url": "contributing/index"},
+        {"title": "Changelog", "url": "changelog"},
         {"title": "License", "url": "licensing/index"},
     ],
 }

@@ -61,17 +61,26 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     else:
         seqobj = seqobj.copy()
 
-    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
+    # Only proteins with a hit: the others have no envelope to extract
+    nohit = ~seqobj.df.id.isin(df.sequence)
+    if nohit.any():
+        dropped = seqobj.df.id[nohit].drop_duplicates().astype(str)
+        logger.warning(f'{len(dropped)} protein(s) had no hit and were dropped: ' + ', '.join(dropped))
+        seqobj.df = seqobj.df[~nohit]
+    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='inner')
     seqobj.df['end'] = seqobj.df[end].fillna(seqobj.df.length).astype(int)
     seqobj.df['start'] = seqobj.df[start].fillna(1).astype(int)
 
+    # Coordinates are 1-based and inclusive: expand both sides by the
+    # same margin, within the protein
     if expand:
-        seqobj.df['start'] = np.where(seqobj.df.start<=expand,1,seqobj.df.start-expand+1)
-        seqobj.df['end'] = np.where(seqobj.df.end+expand > seqobj.df.length, seqobj.df.length, seqobj.df.end+expand)
+        seqobj.df['start'] = (seqobj.df.start - expand).clip(lower=1)
+        seqobj.df['end'] = (seqobj.df.end + expand).clip(upper=seqobj.df.length)
 
     seqobj.df.sequence = seqobj.df.apply(lambda row: row['sequence'][row['start'] - 1:row['end']], axis=1)
+    # The id names the region actually cut, margin included
     seqobj.df['pid'] = seqobj.df['id']
-    seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df[start].astype(str) + '-' + seqobj.df[end].astype(str)
+    seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['start'].astype(str) + '-' + seqobj.df['end'].astype(str)
     seqobj._reset()
 
     return seqobj
@@ -340,7 +349,24 @@ _HMMER_DTYPES = {
     'aln_target_from': int, 'aln_target_to': int, 'aln_target_length': int,
 }
 
-def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
+def pyhmmer_to_df(*args, **kwargs):
+    '''
+    Deprecated: use rotifer.devel.beta.hmmer.pyhmmer_to_df instead.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.hmmer.pyhmmer_to_df` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.epsoares.pyhmmer_to_df is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.hmmer.pyhmmer_to_df instead',
+        FutureWarning,
+        stacklevel=2,
+    )
+    return _pyhmmer_to_df(*args, **kwargs)
+
+
+def _pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
 
     # Creation of the list to store the results
     r = []
@@ -399,7 +425,41 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
 
     return df
 
-def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
+def hmmscan_linear(*args, **kwargs):
+    '''
+    Perform an hmmscan of protein sequences against a Pfam HMM database.
+    This function accepts an sequence object or a FASTA file path, and 
+    returns a pandas DataFrame summarizing domain hits and alignment attributes.
+    ----------
+    Parameters
+    ----------
+    sequences: sequence object
+    file: str, optional
+        Path to a FASTA file containing the query sequences. If provided, `sequences`
+        is ignored and sequences are read from this file directly.
+    pfam_database_path : str, optional
+        Filesystem path to the Pfam-A HMM database file.
+    cpus: int, optional
+        Number of CPU threads to allocate for the hmmscan search. A value of 0
+        lets HMMER autodetect available cores.
+    columns: list of str, optional
+        Subset of result column names to include in the output DataFrame.
+        Default columns include basic domain and alignment metrics.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.hmmer.hmmscan_linear` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.epsoares.hmmscan_linear is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.hmmer.hmmscan_linear instead',
+        FutureWarning,
+        stacklevel=2,
+    )
+    return _hmmscan_linear(*args, **kwargs)
+
+
+def _hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hmm'], cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
     
     '''
     Perform an hmmscan of protein sequences against a Pfam HMM database.
@@ -454,7 +514,7 @@ def hmmscan_linear(sequences, file=None, models_path=['/databases/pfam/Pfam-A.hm
         
         #Hmmscan run and file processment
         h = list(ph.hmmer.hmmscan(seqs, hmms, cpus=cpus, callback=callback))
-        df = pyhmmer_to_df(h, columns=columns, rename=rename)
+        df = _pyhmmer_to_df(h, columns=columns, rename=rename)
         df['source'] = model 
         results.append(df)
         
@@ -581,7 +641,7 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
         column_coord_name = f'{column_arch_name}_coord'
 
     if run_hmmscan:
-        h = hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
+        h = _hmmscan(df[column].dropna().tolist(), workers=workers, cpus_per_worker=cpus_per_worker, file=file, models_path=models_path)
 
     else:
         h = df
@@ -623,7 +683,24 @@ def add_arch_to_df(df, column='pid', file=None, column_arch_name='pfam', evalue_
             df[column_coord_name] = df[column].map(_arch_with_coordinates(h))
         return None if inplace else df
       
-def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
+def hmmsearch(*args, **kwargs):
+    '''
+    Deprecated: use rotifer.devel.beta.hmmer.hmmsearch instead.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.hmmer.hmmsearch` instead.
+    '''
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.epsoares.hmmsearch is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.hmmer.hmmsearch instead',
+        FutureWarning,
+        stacklevel=2,
+    )
+    return _hmmsearch(*args, **kwargs)
+
+
+def _hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to', 'aln_target_length', 'aln_hmm_length', 'env_from', 'env_to'], rename=True):
     
     if isinstance(models_path, str):
         models_path = [models_path]
@@ -639,7 +716,7 @@ def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hm
 
         db = ph.easel.SequenceFile(query_db, digital=True, alphabet=ph.easel.Alphabet.amino())
         out = list(ph.hmmer.hmmsearch(hmms, db, cpus=cpus))
-        df = pyhmmer_to_df(out, columns=columns, rename=rename)
+        df = _pyhmmer_to_df(out, columns=columns, rename=rename)
         df['source'] = model
         if df.empty:
             logger.warning(f'hmmsearch: no hits for any model of {model} in {query_db}')
@@ -647,7 +724,7 @@ def hmmsearch(models_path, query_db, cpus=0, columns=['aln_target_name', 'aln_hm
 
     if not results:
         logger.error(f'hmmsearch: no HMM files given, nothing searched in {query_db}')
-        return pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
+        return _pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
 
     dfs = pd.concat(results, ignore_index=True)
 
@@ -793,7 +870,7 @@ def _hmmscan_worker(args):
         )
     )
 
-    df = pyhmmer_to_df(
+    df = _pyhmmer_to_df(
         hits,
         columns=columns,
         rename=rename
@@ -804,7 +881,74 @@ def _hmmscan_worker(args):
     # return both dataframe and number of sequences processed
     return df, len(seq_chunk)
 
-def hmmscan(
+def hmmscan(*args, **kwargs):
+    """
+    Perform hmmscan searches against one or more HMM databases.
+
+    This implementation supports high-performance parallel execution
+    suitable for very large datasets (hundreds of thousands to millions
+    of sequences).
+
+    Key features
+    ------------
+    • Shared HMM memory across workers
+    • Parallel sequence chunk processing
+    • Configurable CPU usage per worker
+    • Compatible with both sequence objects and FASTA input
+    • Efficient scaling on multi-core systems
+
+    Parameters
+    ----------
+    sequences : sequence object or list, optional
+        Sequence container to scan. Ignored if `file` is provided.
+
+    file : str, optional
+        Path to FASTA file containing protein sequences.
+
+    models_path : str or list[str], optional
+        Path(s) to HMM database files.
+
+    workers : int, optional
+        Number of parallel worker processes.
+        Default: 4.
+
+    cpus_per_worker : int, optional
+        Number of CPU threads used internally by hmmscan
+        within each worker process.
+        Default = 8
+        Total CPU usage ≈ workers × cpus_per_worker
+
+    chunk_size : int, optional
+        Number of sequences processed per job.
+        Larger chunks:
+        • lower scheduling overhead
+        • higher memory usage
+
+    columns : list[str], optional
+        Columns retained from hmmer output.
+
+    rename : bool, optional
+        Whether to apply column renaming in the parser.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Combined hmmscan results for all sequences and models.
+
+    .. deprecated::
+       Will be removed on November 30, 2026. Use :func:`rotifer.devel.beta.hmmer.hmmscan` instead.
+    """
+    import warnings
+    warnings.warn(
+        'rotifer.devel.alpha.epsoares.hmmscan is deprecated and will be removed on '
+        'November 30, 2026; use rotifer.devel.beta.hmmer.hmmscan instead',
+        FutureWarning,
+        stacklevel=2,
+    )
+    return _hmmscan(*args, **kwargs)
+
+
+def _hmmscan(
     sequences=None,
     file=None,
     models_path=['/databases/pfam/Pfam-A.hmm'],
@@ -952,7 +1096,7 @@ def hmmscan(
         # No sequences and/or no models: return the expected, empty table
         # instead of letting pd.concat() raise on an empty list.
         logger.error(f'hmmscan: nothing to search ({len(seqs)} sequences, {len(models_path)} model file(s))')
-        return pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
+        return _pyhmmer_to_df([], columns=columns, rename=rename).assign(source=pd.Series(dtype=str))
 
     dfs = pd.concat(results, ignore_index=True)
 
@@ -2039,12 +2183,12 @@ def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=No
                                   f'(motifs: {meme_file}, spacing {repeat_min_spacing}-{repeat_max_spacing} bp, '
                                   f'at least {min_repeats} copies, gene within {repeat_max_distance} bp)')
 
-        hscan = hmmscan(file=genome_protein_fasta, models_path=models_path)
+        hscan = _hmmscan(file=genome_protein_fasta, models_path=models_path)
         if hscan.empty:
             _report_empty('hmmscan', f'hmmscan: no domain found in {genome_protein_fasta} using {models_path}: '
                                      'every architecture will be empty')
 
-        hsearch = hmmsearch(search_models, genome_protein_fasta)
+        hsearch = _hmmsearch(search_models, genome_protein_fasta)
         hsearch_hits = riu.filter_nonoverlapping_regions(hsearch, **riu.config['hmmer']).query(f'score >= {hmmsearch_score_filter} and evalue <= {hmmsearch_evalue_filter}')
         if hsearch_hits.empty:
             rejected = '' if hsearch.empty else f' ({len(hsearch)} raw hit(s) rejected by these cutoffs)'
@@ -2135,3 +2279,12 @@ def igem_pipeline(genome_annotation, genome_format=None, genome_protein_fasta=No
         for path in derived:
             if os.path.exists(path):
                 os.unlink(path)
+
+
+# The deprecated wrappers above take *args/**kwargs; show the real signatures
+# in help() and tab completion.
+import inspect as _inspect
+for _public, _private in [(pyhmmer_to_df, _pyhmmer_to_df), (hmmscan_linear, _hmmscan_linear),
+                          (hmmsearch, _hmmsearch), (hmmscan, _hmmscan)]:
+    _public.__signature__ = _inspect.signature(_private)
+del _inspect, _public, _private

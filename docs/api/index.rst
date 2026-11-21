@@ -47,7 +47,6 @@ Core infrastructure
    rotifer.core.cli
    rotifer.core.functions
    rotifer.core.io.ftp
-   rotifer.core.loadpath
    rotifer.core.log
    rotifer.core.logger
    rotifer.core.methods
@@ -71,11 +70,31 @@ Sequence and interval utilities
 .. autosummary::
    :toctree: generated
 
+   rotifer.interval.architecture
    rotifer.interval.utils
-   rotifer.io.base
+   rotifer.io
+   rotifer.io.blast
    rotifer.io.dali
-   rotifer.io.fileinput
+   rotifer.io.dalidat
    rotifer.io.hhsuite
+   rotifer.io.hmmer
+   rotifer.io.phobius
+   rotifer.io.search
+
+Command line tools
+------------------
+
+Each command in ``bin/`` is a thin wrapper (``rotifer.cli.<command>``)
+around a library function documented here or above.
+
+.. autosummary::
+   :toctree: generated
+
+   rotifer.cli
+   rotifer.tools.alignments
+   rotifer.tools.domains
+   rotifer.tools.rrsw
+   rotifer.tools.tables
 
 Graphs and networks
 -------------------

@@ -1,0 +1,67 @@
+tags:
+  acc2operon:
+    - neighborhood
+    - fetch
+    - search
+  aln2logo:
+    - consensus
+    - image
+  aln_clean:
+    - sequence
+    - alignemnt
+  architecture2table:
+    - miscellaneous
+  blast2table:
+    - miscellaneous
+  conseq:
+    - miscellaneous
+  domain2architecture:
+    - miscellaneous
+  fasta2slice:
+    - miscellaneous
+  gunionfind:
+    - miscellaneous
+  hmmer2table:
+    - miscellaneous
+  locus2fasta:
+    - miscellaneous
+  paperblast:
+    - miscellaneous
+  pfetch:
+    - miscellaneous
+  phobius2table:
+    - miscellaneous
+  prepare_data_to_ccmpred:
+    - miscellaneous
+  pymol_rmsd_comparer:
+    - miscellaneous
+  raln2color:
+    - miscellaneous
+  rconfig:
+    - miscellaneous
+  rconsensus:
+    - miscellaneous
+  rdocmodel:
+    - miscellaneous
+  rlineage:
+    - miscellaneous
+  rmsd_comparer:
+    - miscellaneous
+  rneighbors2:
+    - miscellaneous
+  rnexplorer:
+    - miscellaneous
+  rotifer:
+    - miscellaneous
+  rpdbdistance:
+    - miscellaneous
+  rprograms:
+    - miscellaneous
+  rrsw:
+    - miscellaneous
+  sequence_parser:
+    - miscellaneous
+  trimal2msa:
+    - miscellaneous
+  uniprot2gi:
+    - miscellaneous

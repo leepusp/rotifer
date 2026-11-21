@@ -1,1 +1,0 @@
-distinct_dom_per_prot.sh

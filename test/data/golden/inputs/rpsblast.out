@@ -1,0 +1,4037 @@
+RPSBLAST 2.16.0+
+
+
+Reference: Stephen F. Altschul, Thomas L. Madden, Alejandro A.
+Schaffer, Jinghui Zhang, Zheng Zhang, Webb Miller, and David J.
+Lipman (1997), "Gapped BLAST and PSI-BLAST: a new generation of
+protein database search programs", Nucleic Acids Res. 25:3389-3402.
+
+
+
+Database: All CDD models 3.21
+           62,456 sequences; 14,100,151 total letters
+
+
+
+Query= NP_414542.1
+
+Length=21
+
+
+***** No hits found *****
+
+
+
+Lambda      K        H        a         alpha
+   0.311    0.123    0.322    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0621    0.140     1.90     42.6     43.6 
+
+Effective search space used: 296103171
+
+
+Query= NP_414543.1
+
+Length=820
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:181856 PRK09436, thrA, bifunctional aspartokinase I/homoserin...  1610    0.0   
+CDD:273201 TIGR00657, Aspartokinase_Aspartate_kinase, aspartate k...  552     0.0   
+CDD:440293 COG0527, MetL1, Aspartate kinase [Amino acid transport...  524     1e-180
+CDD:236530 PRK09466, metL, bifunctional aspartate kinase II/homos...  483     3e-159
+CDD:239790 cd04257, AAK_AK-HSDH, AAK_AK-HSDH: Amino Acid Kinase S...  445     1e-151
+CDD:239776 cd04243, AAK_AK-HSDH-like, AAK_AK-HSDH-like: Amino Aci...  418     6e-141
+
+
+>CDD:181856 PRK09436, thrA, bifunctional aspartokinase I/homoserine dehydrogenase 
+I; Provisional.
+Length=819
+
+ Score = 1610 bits (4172),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 680/820 (83%), Positives = 732/820 (89%), Gaps = 1/820 (0%)
+
+Query  1    MRVLKFGGTSVANAERFLRVADILESNARQGQVATVLSAPAKITNHLVAMIEKTISGQDA  60
+            MRVLKFGGTSVANAERFLRVADI+ESNARQ QVA VLSAPAK+TNHLVAMIEK   G DA
+Sbjct  1    MRVLKFGGTSVANAERFLRVADIIESNARQEQVAVVLSAPAKVTNHLVAMIEKAAKGDDA  60
+
+Query  61   LPNISDAERIFAELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLLGQCPDSINA  120
+             P I DAERIF ELL GLAAA PGF LAQLK  VDQEFAQ+K +LHGISLLG+CPDS+NA
+Sbjct  61   YPEILDAERIFHELLDGLAAALPGFDLAQLKAKVDQEFAQLKDILHGISLLGECPDSVNA  120
+
+Query  121  ALICRGEKMSIAIMAGVLEARGHNVTVIDPVEKLLAVGHYLESTVDIAESTRRIAASRIP  180
+            A+I RGE++SIAIMA VLEARGH+VTVIDP E LLA GHYLESTVDIAESTRRIAAS IP
+Sbjct  121  AIISRGERLSIAIMAAVLEARGHDVTVIDPRELLLADGHYLESTVDIAESTRRIAASFIP  180
+
+Query  181  ADHMVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTCDPRQV  240
+            ADH++LM GFTAGNEKGELV LGRNGSDYSAA+LAACL ADCCEIWTDVDGVYT DPR V
+Sbjct  181  ADHVILMPGFTAGNEKGELVTLGRNGSDYSAAILAACLDADCCEIWTDVDGVYTADPRVV  240
+
+Query  241  PDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLIGASRD  300
+            PDARLLKS+SYQEAMELSYFGAKVLHPRTI PIAQFQIPCLIKNT NPQAPGTLIGA  D
+Sbjct  241  PDARLLKSLSYQEAMELSYFGAKVLHPRTIAPIAQFQIPCLIKNTFNPQAPGTLIGAESD  300
+
+Query  301  EDELPVKGISNLNNMAMFSVSGPGMKGMVGMAARVFAAMSRARISVVLITQSSSEYSISF  360
+            ED LPVKGISNLNNMAMF+VSGPGMKGMVGMA+RVFAA+SRA ISVVLITQSSSEYSISF
+Sbjct  301  EDSLPVKGISNLNNMAMFNVSGPGMKGMVGMASRVFAALSRAGISVVLITQSSSEYSISF  360
+
+Query  361  CVPQSDCVRAERAMQEEFYLELKEGLLEPLAVTERLAIISVVGDGMRTLRGISAKFFAAL  420
+            CVPQSD  +A+RA++EEF LELKEGLLEPL V E LAIISVVGDGMRT  GI+AKFF+AL
+Sbjct  361  CVPQSDAAKAKRALEEEFALELKEGLLEPLEVEENLAIISVVGDGMRTHPGIAAKFFSAL  420
+
+Query  421  ARANINIVAIAQGSSERSISVVVNNDDATTGVRVTHQMLFNTDQVIEVFVIGVGGVGGAL  480
+             RANINIVAIAQGSSERSISVV++NDDAT  +R  HQ  F +DQV++VFVIGVGGVGGAL
+Sbjct  421  GRANINIVAIAQGSSERSISVVIDNDDATKALRACHQSFFLSDQVLDVFVIGVGGVGGAL  480
+
+Query  481  LEQLKRQQSWLKNKHIDLRVCGVANSKALLTNVHGLNLENWQEELAQAKEPFNLGRLIRL  540
+            LEQ+KRQQ WLK K+IDLRVCG+ANS+ +L + HG++L+NW+EELA+A EPF+L RLIRL
+Sbjct  481  LEQIKRQQPWLKKKNIDLRVCGIANSRKMLLDEHGIDLDNWREELAEAGEPFDLDRLIRL  540
+
+Query  541  VKEYHLLNPVIVDCTSSQAVADQYADFLREGFHVVTPNKKANTSSMDYYHQLRYAAEKSR  600
+            VKEYHLLNPVIVDCTSSQAVADQYADFL  GFHVVTPNKKANTSS  YYHQLR AA KSR
+Sbjct  541  VKEYHLLNPVIVDCTSSQAVADQYADFLAAGFHVVTPNKKANTSSYAYYHQLREAARKSR  600
+
+Query  601  RKFLYDTNVGAGLPVIENLQNLLNAGDELMKFSGILSGSLSYIFGKLDEGMSFSEATTLA  660
+            RKFLY+TNVGAGLPVIE LQNLLNAGDEL+KF GILSGSLS+IFGKLDEGMSFSEAT LA
+Sbjct  601  RKFLYETNVGAGLPVIETLQNLLNAGDELLKFEGILSGSLSFIFGKLDEGMSFSEATRLA  660
+
+Query  661  REMGYTEPDPRDDLSGMDVARKLLILARETGRELELADIEIEPVLPAEFNAEGDVAAFMA  720
+            +E GYTEPDPRDDLSGMDVARKLLILARE G ELEL DIE+E VLP EF+A G V  FMA
+Sbjct  661  KEKGYTEPDPRDDLSGMDVARKLLILAREAGYELELEDIEVESVLPEEFDASGSVDEFMA  720
+
+Query  721  NLSQLDDLFAARVAKARDEGKVLRYVGNIDEDGVCRVKIAEVDGNDPLFKVKNGENALAF  780
+             L +LD  FAARVAKAR EGKVLRYVG I EDG CRV IAEVD N PL+KVK GENALAF
+Sbjct  721  RLPELDAEFAARVAKARAEGKVLRYVGQI-EDGKCRVGIAEVDANHPLYKVKGGENALAF  779
+
+Query  781  YSHYYQPLPLVLRGYGAGNDVTAAGVFADLLRTLSWKLGV  820
+            Y+ YYQP+PLVLRGYGAGN+VTAAGVFADLLRTLSWKLGV
+Sbjct  780  YTRYYQPIPLVLRGYGAGNEVTAAGVFADLLRTLSWKLGV  819
+
+
+>CDD:273201 TIGR00657, Aspartokinase_Aspartate_kinase, aspartate kinase. 
+ Aspartate kinase catalyzes a first step in the biosynthesis 
+from Asp of Lys (and its precursor diaminopimelate), Met, and 
+Thr. In E. coli, a distinct isozyme is inhibited by each 
+of the three amino acid products. The Met-sensitive (I) and 
+Thr-sensitive (II) forms are bifunctional enzymes fused to homoserine 
+dehydrogenases and form homotetramers, while the Lys-sensitive 
+form (III) is a monofunctional homodimer.The Lys-sensitive 
+enzyme of Bacillus subtilis resembles the E. coli 
+form but is an alpha 2/beta 2 heterotetramer, where the beta 
+subunit is translated from an in-phase alternative initiator 
+at Met-246. This may be a feature of a number of closely 
+related forms, including a paralog from B. subtilis. [Amino 
+acid biosynthesis, Aspartate family].
+Length=441
+
+ Score = 552 bits (1425),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 192/462 (42%), Positives = 266/462 (58%), Gaps = 27/462 (6%)
+
+Query  3    VLKFGGTSVANAERFLRVADILESNARQG-QVATVLSAPAKITNHLVAMIEKTISGQDAL  61
+            V KFGGTSV NAER  RVA I+    ++G QV  V+SA A +T+ LV + E+   G    
+Sbjct  4    VQKFGGTSVGNAERIRRVAKIVLKEKKKGNQVVVVVSAMAGVTDALVELAEQASPGPS--  61
+
+Query  62   PNISDAERIFAELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLLGQCPDSINAA  121
+                  E+I  + +  L    P     +LK  +D E    +                   
+Sbjct  62   --KDFLEKIREKHIEILERLIPQAIAEELKRLLDAELVLEEK------------PREMDR  107
+
+Query  122  LICRGEKMSIAIMAGVLEARG-HNVTVIDPVEKLLAVGHYLESTVDIAESTRRIAASRIP  180
+            ++  GE++S A+++  LE  G   V+++     +L   ++  + V I   T R+      
+Sbjct  108  ILSFGERLSAALLSAALEELGVKAVSLLGGEAGILTDSNFGRARVIIEILTERLEPLLE-  166
+
+Query  181  ADHMVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTCDPRQV  240
+               + ++AGF    EKGE   LGR GSDY+AA+LAA L+AD CEI+TDVDG+YT DPR V
+Sbjct  167  EGIIPVVAGFQGATEKGETTTLGRGGSDYTAALLAAALKADECEIYTDVDGIYTTDPRIV  226
+
+Query  241  PDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLIGASRD  300
+            PDAR +  +SY+E +EL+ FGAKVLHPRT+ P  + +IP ++K+T NP+APGTLI AS  
+Sbjct  227  PDARRIDEISYEEMLELASFGAKVLHPRTLEPAMRAKIPIVVKSTFNPEAPGTLIVASTK  286
+
+Query  301  EDELP-VKGISNLNNMAMFSVSGPGMKGMVGMAARVFAAMSRARISVVLITQSSSEYSIS  359
+            E E P VKG+S   N A  +VSG GMKG  G  ARVF A++ A I+V LI+QSSSE SIS
+Sbjct  287  EMEEPIVKGLSLDRNQARVTVSGLGMKG-PGFLARVFGALAEAGINVDLISQSSSETSIS  345
+
+Query  360  FCVPQSDCVRAERAMQEEFYLELKEGLLEPLAVTERLAIISVVGDGMRTLRGISAKFFAA  419
+            F V + D  +A+  ++     EL    L  + V + LA +S+VG GM++  G+++K F A
+Sbjct  346  FTVDKEDADQAKELLK----SELNLSALSRVEVEKGLAKVSLVGAGMKSAPGVASKIFEA  401
+
+Query  420  LARANINIVAIAQGSSERSISVVVNNDDATTGVRVTHQMLFN  461
+            LA+  INI  I+   SE +IS VV+  DA   VR+ H  LF 
+Sbjct  402  LAQNGINIEMISS--SEINISFVVDEKDAEKAVRLLHNALFE  441
+
+
+>CDD:440293 COG0527, MetL1, Aspartate kinase [Amino acid transport and metabolism]. 
+ Aspartate kinase is part of the Pathway/BioSystem: 
+Lysine biosynthesis.
+Length=407
+
+ Score = 524 bits (1352),  Expect = 1e-180, Method: Composition-based stats.
+ Identities = 187/462 (40%), Positives = 263/462 (57%), Gaps = 63/462 (14%)
+
+Query  1    MRVLKFGGTSVANAERFLRVADILESNARQG-QVATVLSAPAKITNHLVAMIEKTISGQD  59
+            + V KFGGTSVA+AER  RVADI++     G +V  V+SA   +T+ L+A+ E       
+Sbjct  3    LIVQKFGGTSVADAERIKRVADIVKKAKEAGNRVVVVVSAMGGVTDLLIALAE-------  55
+
+Query  60   ALPNISDAERIFAELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLLGQCPDSIN  119
+                                                              LLG+      
+Sbjct  56   -------------------------------------------------ELLGEPSPREL  66
+
+Query  120  AALICRGEKMSIAIMAGVLEARGHNVTVIDPVE-KLLAVGHYLESTVDIAESTRRIAASR  178
+              L+  GE++S A++A  L+  G     +D  +  ++   ++ ++ +D+ E+  RI    
+Sbjct  67   DMLLSTGEQLSAALLAMALQELGVPAVSLDGRQAGIITDDNHGKARIDLIETPERIRE-L  125
+
+Query  179  IPADHMVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTCDPR  238
+            +    +V++AGF    E GE+  LGR GSD +A  LAA L+AD CEIWTDVDGVYT DPR
+Sbjct  126  LEEGKVVVVAGFQGVTEDGEITTLGRGGSDTTAVALAAALKADECEIWTDVDGVYTADPR  185
+
+Query  239  QVPDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLIGAS  298
+             VPDAR L  +SY+E +EL+Y GAKVLHPR + P  ++ IP  +++T NP APGTLI A 
+Sbjct  186  IVPDARKLPEISYEEMLELAYLGAKVLHPRAVEPAMKYNIPLRVRSTFNPDAPGTLITAE  245
+
+Query  299  RDEDELPVKGISNLNNMAMFSVSGPGMKGMVGMAARVFAAMSRARISVVLITQSSSEYSI  358
+             + +   VKGI++  ++A+ +VSG  M    G AAR+F+A++ A I+V +I+QSSSE SI
+Sbjct  246  DEMEGPVVKGIASDKDIALITVSGVPMVDEPGFAARIFSALAEAGINVDMISQSSSETSI  305
+
+Query  359  SFCVPQSDCVRAERAMQEEFYLELKEGLLEPLAVTERLAIISVVGDGMRTLRGISAKFFA  418
+            SF VP+SD  +A  A++EE     K   LE + V E LA +S+VG GMR+  G++A+ F+
+Sbjct  306  SFTVPKSDLEKALEALEEEL----KLEGLEEVEVEEDLAKVSIVGAGMRSHPGVAARMFS  361
+
+Query  419  ALARANINIVAIAQGSSERSISVVVNNDDATTGVRVTHQMLF  460
+            ALA A INI  I+QGSSE SISVVV+ +DA   VR  H+  F
+Sbjct  362  ALAEAGINIRMISQGSSEISISVVVDEEDAEKAVRALHEAFF  403
+
+
+>CDD:236530 PRK09466, metL, bifunctional aspartate kinase II/homoserine dehydrogenase 
+II; Provisional.
+Length=810
+
+ Score = 483 bits (1246),  Expect = 3e-159, Method: Composition-based stats.
+ Identities = 250/826 (30%), Positives = 412/826 (50%), Gaps = 54/826 (7%)
+
+Query  5    KFGGTSVANAERFLRVADILESNARQGQVATVLSAPAKITNHLVAMIEKTISGQDALPNI  64
+            KFGG+S+A+A+ + RVA IL   ++   +  V+SA  K TN L++ ++ + + + +   +
+Sbjct  16   KFGGSSLADAKCYRRVAGILAEYSQPDDL-VVVSAAGKTTNQLISWLKLSQTDRLSAHQV  74
+
+Query  65   SDAERIF-AELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLL-GQCPDSINAAL  122
+                R +  +L+ GL  A+       L + +  +  ++       +LL G   D+  A +
+Sbjct  75   QQTLRRYQQDLIEGLLPAEQA---RSLLSRLISDLERL------AALLDGGINDAQYAEV  125
+
+Query  123  ICRGEKMSIAIMAGVLEARGHNVTVIDPVEKLLAVGHYLESTVDIAESTRRIAASRIPAD  182
+            +  GE  S  +MA +L  +G     +D    L A     +  VD   S   +    + A 
+Sbjct  126  VGHGEVWSARLMAALLNQQGLPAAWLDARSFLRA-ERAAQPQVDEGLSYPLLQQ--LLAQ  182
+
+Query  183  H---MVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTCDPRQ  239
+            H    +++ GF + NE GE V+LGRNGSDYSA ++ A    +   IW+DV GVY+ DPR+
+Sbjct  183  HPGKRLVVTGFISRNEAGETVLLGRNGSDYSATLIGALAGVERVTIWSDVAGVYSADPRK  242
+
+Query  240  VPDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLIGASR  299
+            V DA LL  +   EA EL+   A VLH RT+ P++   I   ++ +  P+   T I    
+Sbjct  243  VKDACLLPLLRLDEASELARLAAPVLHARTLQPVSGSDIDLQLRCSYQPEQGSTRIE---  299
+
+Query  300  DEDELPVKG-------ISNLNNMAMFSVSGPGMKGMVGMAARVFAAMSRARISVVLITQS  352
+                  V         +++L+++ +  +  P           +   + RA++  + +   
+Sbjct  300  -----RVLASGTGARIVTSLDDVCLIELQVPASHDFKLAQKELDQLLKRAQLRPLAVGVH  354
+
+Query  353  SSEYSISFCVPQSDCVRAERAMQE---EFYLELKEGLLEPLAVTERLAIISVVGDGMRTL  409
+                 +           A + + +      L+L+EGL          A++++VG G+   
+Sbjct  355  PDRQLLQLAYTSEVADSALKLLDDAALPGELKLREGL----------ALVALVGAGVTRN  404
+
+Query  410  RGISAKFFAALARANINIVAIAQGSSERSISVVVNNDDATTG--VRVTHQMLFNTDQVIE  467
+                 +F+  L    +  +  ++      +S+V       T   ++  HQ LF  ++ I 
+Sbjct  405  PLHCHRFYQQLKDQPVEFIWQSEDG----LSLVAVLRQGPTESLIQGLHQSLFRAEKRIG  460
+
+Query  468  VFVIGVGGVGGALLEQLKRQQSWLKNKH-IDLRVCGVANSKALLTNVHGLNLENWQEELA  526
+            + + G G +G   LE   R+QS L  +   +  + GV +S+  L N  GL+         
+Sbjct  461  LVLFGKGNIGSRWLELFAREQSTLSARTGFEFVLVGVVDSRRSLLNYDGLDASRALAFFD  520
+
+Query  527  QAKEPFNLGRLIRLVKEYHLLNPVIVDCTSSQAVADQYADFLREGFHVVTPNKKANTSSM  586
+                 ++   L   ++ +     V++D T+S+ +A QY DF   GFHV++ NK A +S  
+Sbjct  521  DEAVEWDEESLFLWLRAHPYDELVVLDVTASEQLALQYPDFASHGFHVISANKLAGSSPS  580
+
+Query  587  DYYHQLRYAAEKSRRKFLYDTNVGAGLPVIENLQNLLNAGDELMKFSGILSGSLSYIFGK  646
+            ++Y Q++ A  K+ R +LY+  VGAGLP+   +++L N+GD ++  SGI SG+LS++F +
+Sbjct  581  NFYRQIKDAFAKTGRHWLYNATVGAGLPINHTVRDLRNSGDSILAISGIFSGTLSWLFLQ  640
+
+Query  647  LDEGMSFSEATTLAREMGYTEPDPRDDLSGMDVARKLLILARETGRELELADIEIEPVLP  706
+             D  + FSE    A + G TEPDPRDDLSG DV RKL+ILARE G E+E  D+ +E ++P
+Sbjct  641  FDGSVPFSELVDQAWQQGLTEPDPRDDLSGRDVMRKLVILAREAGYEIEPDDVRVESLVP  700
+
+Query  707  AEFNAEGDVAAFMANLSQLDDLFAARVAKARDEGKVLRYVGNIDEDGVCRVKIAEVDGND  766
+            A    +G +  F  N  +LD+    R+  A ++GKVLRYV   D +G  RV +  V  + 
+Sbjct  701  AHL-EDGSLDQFFENGDELDEQMLQRLEAAAEQGKVLRYVARFDANGKARVGVEAVRPDH  759
+
+Query  767  PLFKVKNGENALAFYSHYYQPLPLVLRGYGAGNDVTAAGVFADLLR  812
+            PL  +   +N  A  S +Y+  PLV+RG GAG +VTA  + +DL R
+Sbjct  760  PLANLLPCDNVFAIESRWYRDNPLVIRGPGAGREVTAGAIQSDLNR  805
+
+
+>CDD:239790 cd04257, AAK_AK-HSDH, AAK_AK-HSDH: Amino Acid Kinase Superfamily 
+(AAK), AK-HSDH; this CD includes the N-terminal catalytic 
+domain of aspartokinase (AK) of the bifunctional enzyme AK 
+- homoserine dehydrogenase (HSDH). These aspartokinases are 
+found in bacteria (E. coli AKI-HSDHI, ThrA  and E. coli AKII-HSDHII, 
+MetL) and higher plants (Z. mays AK-HSDH). AK and 
+HSDH are the first and third enzymes in the biosynthetic pathway 
+of the aspartate family of amino acids. AK catalyzes the 
+phosphorylation of Asp to P-aspartyl phosphate. HSDH catalyzes 
+the NADPH-dependent conversion of Asp 3-semialdehyde to 
+homoserine. ThrA and MetL are involved in threonine and methionine 
+biosynthesis, respectively. In E. coli, ThrA is subject 
+to allosteric regulation by the end product L-threonine 
+and the native enzyme is reported to be tetrameric. As with 
+bacteria, plant AK and HSDH are feedback inhibited by pathway 
+end products. Maize AK-HSDH is a Thr-sensitive 180-kD enzyme. 
+Arabidopsis AK-HSDH is an alanine-activated, threonine-sensitive 
+enzyme whose ACT domains, located C-terminal to the 
+AK catalytic domain, were shown to be involved in allosteric 
+activation.
+Length=294
+
+ Score = 445 bits (1146),  Expect = 1e-151, Method: Composition-based stats.
+ Identities = 155/301 (51%), Positives = 201/301 (67%), Gaps = 12/301 (4%)
+
+Query  1    MRVLKFGGTSVANAERFLRVADILESNARQGQVATVLSAPAKITNHLVAMIEKTISGQDA  60
+            M+VLKFGGTS+ANAER  RVADI+ + A+Q QVA V+SAP K+T+ L+ + E   SG DA
+Sbjct  1    MKVLKFGGTSLANAERIRRVADIILNAAKQEQVAVVVSAPGKVTDLLLELAELASSGDDA  60
+
+Query  61   -----LPNISDAERIFAELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLLGQCP  115
+                     S    +  ELL+G AAA+       L + +  +  ++K +L GI LLG+ P
+Sbjct  61   YEDILQELESKHLDLITELLSGDAAAE-------LLSALGNDLEELKDLLEGIYLLGELP  113
+
+Query  116  DSINAALICRGEKMSIAIMAGVLEARGHNVTVIDPVEKLLAVGHYLESTVDIAESTRRIA  175
+            DSI A ++  GE++S  +++ +L  +G +   ID  E ++  G YL + VDI  S  RI 
+Sbjct  114  DSIRAKVLSFGERLSARLLSALLNQQGLDAAWIDARELIVTDGGYLNAVVDIELSKERIK  173
+
+Query  176  ASRIPADHMVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTC  235
+            A       ++++ GF A N +GE   LGRNGSDYSAA+LAA L AD  EIWTDVDGVY+ 
+Sbjct  174  AWFSSNGKVIVVTGFIASNPQGETTTLGRNGSDYSAAILAALLDADQVEIWTDVDGVYSA  233
+
+Query  236  DPRQVPDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLI  295
+            DPR+V DARLL S+SYQEAMELSYFGAKVLHP+TI P+A+  IP LIKNT NP+APGTLI
+Sbjct  234  DPRKVKDARLLPSLSYQEAMELSYFGAKVLHPKTIQPVAKKNIPILIKNTFNPEAPGTLI  293
+
+Query  296  G  296
+             
+Sbjct  294  S  294
+
+
+>CDD:239776 cd04243, AAK_AK-HSDH-like, AAK_AK-HSDH-like: Amino Acid Kinase 
+Superfamily (AAK), AK-HSDH-like; this family includes the 
+N-terminal catalytic domain of aspartokinase (AK) of the bifunctional 
+enzyme AK- homoserine dehydrogenase (HSDH). These 
+aspartokinases are found in such bacteria as E. coli (AKI-HSDHI, 
+ThrA  and  AKII-HSDHII, MetL) and in higher plants (Z. 
+mays AK-HSDH). AK and HSDH are the first and third enzymes in 
+the biosynthetic pathway of the aspartate family of amino 
+acids. AK catalyzes the phosphorylation of Asp to P-aspartyl 
+phosphate. HSDH catalyzes the NADPH-dependent conversion of 
+Asp 3-semialdehyde to homoserine. ThrA and MetL are involved 
+in threonine and methionine biosynthesis, respectively. In 
+E. coli, ThrA is subject to allosteric regulation by the end 
+product L-threonine and the native enzyme is reported to be 
+tetrameric. As with bacteria, plant AK and HSDH are feedback 
+inhibited by pathway end products. Maize AK-HSDH is a Thr-sensitive 
+180-kD enzyme. Arabidopsis AK-HSDH is an alanine-activated, 
+threonine-sensitive enzyme whose ACT domains, located 
+C-terminal to the AK catalytic domain, were shown to be 
+involved in allosteric activation. Also included in this CD 
+is the catalytic domain of the aspartokinase (AK) of the lysine-sensitive 
+aspartokinase isoenzyme AKIII, a monofunctional 
+class enzyme (LysC) found in some bacteria such as E. coli. 
+In E. coli, LysC is reported to be a homodimer of 50 kD subunits. 
+Also included in this CD is  the catalytic domain of 
+aspartokinase (AK) of the bifunctional enzyme AK - DAP decarboxylase 
+(DapDC) found in some bacteria. DapDC, which is the 
+lysA gene product, catalyzes the decarboxylation of DAP to 
+lysine.
+Length=293
+
+ Score = 418 bits (1076),  Expect = 6e-141, Method: Composition-based stats.
+ Identities = 146/297 (49%), Positives = 183/297 (62%), Gaps = 5/297 (2%)
+
+Query  1    MRVLKFGGTSVANAERFLRVADILESNARQGQVATVLSAPAKITNHLVAMIEKTISGQDA  60
+            M+VLKFGGTSVA+AER  RVADI++S A    V  V+SA   +TN LVA+ E   SG DA
+Sbjct  1    MKVLKFGGTSVASAERIRRVADIIKSRA-SSPVLVVVSALGGVTNRLVALAELAASGDDA  59
+
+Query  61   LPNISDAER-IFAELLTGLAAAQPGFPLAQLKTFVDQEFAQIKHVLHGISLLGQCPDSIN  119
+               +    R    +L+  L     G   A+L   +D    ++K +L GI LLG+  D   
+Sbjct  60   QAIVLQEIRERHLDLIKELL---SGESAAELLAALDSLLERLKDLLEGIRLLGELSDKTR  116
+
+Query  120  AALICRGEKMSIAIMAGVLEARGHNVTVIDPVEKLLAVGHYLESTVDIAESTRRIAASRI  179
+            A ++  GE +S  +M+  L+ +G     +D  E LL    +L + VD+  S  R+A    
+Sbjct  117  AEVLSFGELLSSRLMSAYLQEQGLPAAWLDARELLLTDDGFLNAVVDLKLSKERLAQLLA  176
+
+Query  180  PADHMVLMAGFTAGNEKGELVVLGRNGSDYSAAVLAACLRADCCEIWTDVDGVYTCDPRQ  239
+                +V+  GF A NE GE   LGR GSDYSAA+LAA L A+  EIWTDVDGVYT DPR+
+Sbjct  177  EHGKVVVTQGFIASNEDGETTTLGRGGSDYSAALLAALLDAEEVEIWTDVDGVYTADPRK  236
+
+Query  240  VPDARLLKSMSYQEAMELSYFGAKVLHPRTITPIAQFQIPCLIKNTGNPQAPGTLIG  296
+            VPDARLLK +SY EAMEL+YFGAKVLHPRTI P  +  IP  IKNT NP+APGTLI 
+Sbjct  237  VPDARLLKELSYDEAMELAYFGAKVLHPRTIQPAIRKNIPIFIKNTFNPEAPGTLIS  293
+
+
+
+Lambda      K        H        a         alpha
+   0.319    0.135    0.384    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 5340587910
+
+
+Query= NP_414544.1
+
+Length=310
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:129295 TIGR00191, Homoserine_kinase, homoserine kinase. Homos...  469     2e-168
+CDD:234920 PRK01212, PRK01212, homoserine kinase; Provisional         457     9e-164
+CDD:439853 COG0083, ThrB, Homoserine kinase [Amino acid transport...  383     2e-134
+CDD:215248 PLN02451, PLN02451, homoserine kinase                      154     4e-44 
+CDD:441550 COG1947, IspE, 4-diphosphocytidyl-2C-methyl-D-erythrit...  127     1e-34 
+CDD:140320 PTZ00299, PTZ00299, homoserine kinase; Provisional         91.9    4e-21 
+
+
+>CDD:129295 TIGR00191, Homoserine_kinase, homoserine kinase.  Homoserine 
+kinase is part of the threonine biosynthetic pathway.Homoserine 
+kinase is a member of the GHMP kinases (Galactokinase, Homoserine 
+kinase, Mevalonate kinase, Phosphomevalonate kinase) 
+and shares with them an amino-terminal domain probably related 
+to ATP binding.P.aeruginosa homoserine kinase seems not 
+to be homologous (see PROSITE:PDOC0054) [Amino acid biosynthesis, 
+Aspartate family].
+Length=302
+
+ Score = 469 bits (1209),  Expect = 2e-168, Method: Composition-based stats.
+ Identities = 148/309 (48%), Positives = 196/309 (63%), Gaps = 9/309 (3%)
+
+Query  2    VKVYAPASSANMSVGFDVLGAAVTPVDGALLGDVVTVEAAETFSLNNLGRFADKLPSEPR  61
+             +V  PASSAN+  GFDVLGAA++   G  + DVV  E+ +T  +   G   +K+P+EP 
+Sbjct  1    FRVKVPASSANLGPGFDVLGAALSLYLGLTVTDVVAQESDDT-EIEAEGEGVEKIPTEPT  59
+
+Query  62   ENIVYQCWERFCQELGKQI-PVAMTLEKNMPIGSGLGSSACSVVAALMAMNEHCGKPLND  120
+            +N++YQ  +RF  +LG ++ PV +TLEKN+P+G GLGSSA ++VAAL A NE CG PL+ 
+Sbjct  60   DNLIYQVAKRFLDQLGIRMPPVKVTLEKNIPLGRGLGSSAAAIVAALAAANELCGLPLSK  119
+
+Query  121  TRLLALMGELEGRISGSIHYDNVAPCFLGGMQLMIEEND-IISQQVPGFDEWLWVLAYPG  179
+             RLL    ELEG      H DNVAP  LGG QL   E+D +   ++P F +  WVLA P 
+Sbjct  120  ERLLDYASELEG------HPDNVAPALLGGFQLAFVEDDKLEVLKIPIFSKLDWVLAIPN  173
+
+Query  180  IKVSTAEARAILPAQYRRQDCIAHGRHLAGFIHACYSRQPELAAKLMKDVIAEPYRERLL  239
+            I+VSTAEARA+LP  Y RQD + +  HLAG +HA Y ++P+L A +MKD I +PYRE L+
+Sbjct  174  IEVSTAEARAVLPKAYPRQDLVFNLSHLAGLVHAIYQKKPDLGAIMMKDRIHQPYRESLI  233
+
+Query  240  PGFRQARQAVAEIGAVASGISGSGPTLFALCDKPETAQRVADWLGKNYLQNQEGFVHICR  299
+            P   + +QA  E GA    ISGSGPT+ A+ D+    Q+  D L   + Q  EG VH+  
+Sbjct  234  PNLFKIKQAALEKGAYGITISGSGPTILAMADEEFAEQKEQDLLEVLHKQGIEGTVHVLD  293
+
+Query  300  LDTAGARVL  308
+             D  GARV 
+Sbjct  294  FDNDGARVE  302
+
+
+>CDD:234920 PRK01212, PRK01212, homoserine kinase; Provisional.
+Length=301
+
+ Score = 457 bits (1179),  Expect = 9e-164, Method: Composition-based stats.
+ Identities = 163/308 (53%), Positives = 213/308 (69%), Gaps = 9/308 (3%)
+
+Query  1    MVKVYAPASSANMSVGFDVLGAAVTPVDGALLGDVVTVEAAETFSLNNLGRFADKLPSEP  60
+            MVKV  PA+SAN+  GFD LG A++  D  L+GDVV+VE    FS+  +G  ADKLP +P
+Sbjct  3    MVKVRVPATSANLGPGFDSLGLALSLYDEVLVGDVVSVE--AEFSIEVIGEGADKLPLDP  60
+
+Query  61   RENIVYQCWERFCQELGKQIPVAMTLEKNMPIGSGLGSSACSVVAALMAMNEHCGKPLND  120
+             +N+VYQ   +F ++LGK   + + LEKN+P+G GLGSSA S+VA L+A NE  G PL+ 
+Sbjct  61   EKNLVYQAALKFLEKLGKPPGLRIELEKNIPLGRGLGSSAASIVAGLVAANELAGLPLSK  120
+
+Query  121  TRLLALMGELEGRISGSIHYDNVAPCFLGGMQLMIEENDIISQQVPGFDEWLWVLAYPGI  180
+              LL L  E EG      H DNVAP  LGG+ L +EEN +IS ++P FD+  WV+A P I
+Sbjct  121  EELLQLATEGEG------HPDNVAPALLGGLVLALEENGVISVKIPVFDDLKWVVAIPNI  174
+
+Query  181  KVSTAEARAILPAQYRRQDCIAHGRHLAGFIHACYSRQPELAAKLMKDVIAEPYRERLLP  240
+            ++STAEARA+LP QY  +D + +    A  + A Y+   ELA + MKDV+ EPYR +L+P
+Sbjct  175  ELSTAEARAVLPKQYSLKDAVFNSSRAALLVAALYTGDYELAGRAMKDVLHEPYRAKLIP  234
+
+Query  241  GFRQARQAVAEIGAVASGISGSGPTLFALCDKPETAQRVADWLGKNYLQNQEGFVHICRL  300
+            GF + RQA  E GA+ +GISG+GPT+FALCDK + A++VAD L K +LQ  EGFVH+ RL
+Sbjct  235  GFAEVRQAALEAGALGAGISGAGPTVFALCDKED-AEKVADALQKAFLQGIEGFVHVLRL  293
+
+Query  301  DTAGARVL  308
+            DTAGARVL
+Sbjct  294  DTAGARVL  301
+
+
+>CDD:439853 COG0083, ThrB, Homoserine kinase [Amino acid transport and metabolism]. 
+ Homoserine kinase is part of the Pathway/BioSystem: 
+Threonine biosynthesis.
+Length=302
+
+ Score = 383 bits (986),  Expect = 2e-134, Method: Composition-based stats.
+ Identities = 119/314 (38%), Positives = 179/314 (57%), Gaps = 19/314 (6%)
+
+Query  1    MVKVYAPASSANMSVGFDVLGAAVTPVDGALLGDVVTVEAAET--FSLNNLGRFADKLPS  58
+             VKV  PA+SAN+  GFD LG A++      L D V VE ++     +   G  AD+LP+
+Sbjct  2    SVKVRVPATSANLGPGFDSLGLALS------LYDEVEVERSDEPGLEIEIEGEGADELPT  55
+
+Query  59   EPRENIVYQCWERFCQELGKQIP-VAMTLEKNMPIGSGLGSSACSVVAALMAMNEHCGKP  117
+            +  +N+VYQ      ++LGK+ P + + +EK +P+G GLGSSA ++VA L+A N   G P
+Sbjct  56   DE-DNLVYQAALALLEKLGKEPPGLRIEIEKGIPLGRGLGSSAAAIVAGLVAANALLGLP  114
+
+Query  118  LNDTRLLALMGELEGRISGSIHYDNVAPCFLGGMQLMI-EENDIISQQVPGFDEWLWVLA  176
+            L+   LL L  E EG      H DNVAP  LGG+ L   +   +   ++P   +   V+ 
+Sbjct  115  LSKEELLELATEGEG------HPDNVAPALLGGLVLSRSDGEPVRVVRLPVPPDLKAVVV  168
+
+Query  177  YPGIKVSTAEARAILPAQYRRQDCIAHGRHLAGFIHACYSRQPELAAKLMKDVIAEPYRE  236
+             P  ++ST EARA+LP Q   +D + +    A  + A  +   EL  + M+D + EPYR 
+Sbjct  169  IPDFELSTKEARAVLPKQVPLKDAVFNSSRAALLVAALATGDYELLGRAMEDRLHEPYRA  228
+
+Query  237  RLLPGFRQARQAVAEIGAVASGISGSGPTLFALCDKPETAQRVADWLGKNYLQNQEGF-V  295
+            +L+PGF + ++A  E GA+ +GISG+GPT+ AL D  E A+ VA+ +   + +      V
+Sbjct  229  KLIPGFDEVKEAALEAGALGAGISGAGPTVLALADDEE-AEAVAEAMKAAFAEAGIDARV  287
+
+Query  296  HICRLDTAGARVLE  309
+            ++ ++D  GARVLE
+Sbjct  288  YVLKIDNEGARVLE  301
+
+
+>CDD:215248 PLN02451, PLN02451, homoserine kinase.
+Length=370
+
+ Score = 154 bits (390),  Expect = 4e-44, Method: Composition-based stats.
+ Identities = 104/320 (33%), Positives = 158/320 (49%), Gaps = 17/320 (5%)
+
+Query  2    VKVYAPASSANMSVGFDVLGAAVTPVDGALLGDVVTVEAAETF-----SLNNLGRFADKL  56
+            VK +APA+ AN+  GFD LG AV   DG  LGD VT            S++ +     +L
+Sbjct  54   VKAFAPATVANLGPGFDFLGCAV---DG--LGDFVTARVDPGVRPGEVSISEITGDTGRL  108
+
+Query  57   PSEPRENIVYQCWERFCQELG-KQIPVAMTLEKNMPIGSGLGSSACSVVAALMAMNEHCG  115
+              +P  N          + LG + + ++++L K +P+GSGLGSSA S  AA +A+NE  G
+Sbjct  109  SKDPLRNCAGIAAIATMKLLGIRSVGLSLSLHKGLPLGSGLGSSAASAAAAAVAVNELFG  168
+
+Query  116  KPLNDTRLLALMGELEGRISGSIHYDNVAPCFLGGMQLM--IEENDIISQQVPGFDEWLW  173
+             PL    L+    E E ++SG  H DN+AP  +GG  L+   E   +I  + P   +  +
+Sbjct  169  SPLGKDDLVLAGLESEAKVSG-YHADNIAPALMGGFVLIRSYEPLHLIPLRFPSAKDLFF  227
+
+Query  174  VLAYPGIKVSTAEARAILPAQYRRQDCIAHGRHLAGFIHACYSRQPELAAK-LMKDVIAE  232
+            VL  P  +  T + RA LP +   +  + +    A  + A       L  + L  D I E
+Sbjct  228  VLVSPDFEAPTKKMRAALPKEIPMKHHVWNCSQAAALVAAILQGDAVLLGEALSSDKIVE  287
+
+Query  233  PYRERLLPGFRQARQAVAEIGAVASGISGSGPTLFALCDKPETAQRVADWLGKNYLQ--N  290
+            P R  L+PG    ++A  E GA    ISG+GPT  A+ D  E  + V + + + + +  N
+Sbjct  288  PTRAPLIPGMEAVKKAALEAGAYGCTISGAGPTAVAVIDDEEKGEEVGERMVEAFRKAGN  347
+
+Query  291  QEGFVHICRLDTAGARVLEN  310
+             +    + +LD  GAR++E+
+Sbjct  348  LKATASVKKLDRVGARLVES  367
+
+
+>CDD:441550 COG1947, IspE, 4-diphosphocytidyl-2C-methyl-D-erythritol kinase 
+[Lipid transport and metabolism].  4-diphosphocytidyl-2C-methyl-D-erythritol 
+kinase is part of the Pathway/BioSystem: 
+Isoprenoid biosynthesis.
+Length=281
+
+ Score = 127 bits (321),  Expect = 1e-34, Method: Composition-based stats.
+ Identities = 82/270 (30%), Positives = 119/270 (44%), Gaps = 34/270 (13%)
+
+Query  24   VTPVDGALLGDVVTVEAAETFSLNNLGRFADKLPSEPRENIVYQCWERFCQELGKQIPVA  83
+               +D   LGD +T+E A+  S++  G  A  +P    +N+VY+      +  G    V 
+Sbjct  31   FQFID---LGDTLTIEPADDGSISLTGPGAG-VP-TDEDNLVYRAARLLQEATGIPPGVD  85
+
+Query  84   MTLEKNMPIGSGL--GSS--ACSVVAALMAMNEHCGKPLNDTRLLALMGELEGRISGSIH  139
+            + LEK +P+G+GL  GSS  A    A L A+N   G  L+   L  L  +L     G+  
+Sbjct  86   IHLEKRIPVGAGLGGGSSDAA----ATLRALNRLWGLGLSREELAELAAKL-----GA--  134
+
+Query  140  YDNVAPCFLGGMQLMIEENDIISQQVPGFDEWLWVLAYPGIKVSTAEARAILPAQYRRQD  199
+             D V     GG  L     + +   +P   E   VL  PG+ VSTAE        YR  D
+Sbjct  135  -D-VPFFLYGGTALAEGRGEKL-TPLPPLPELWLVLVKPGVGVSTAEV-------YRALD  184
+
+Query  200  C--IAHGRHLAGFIHACYSRQPELAAKLMKDVIAEPYRERLLPGFRQARQAVAEIGAVAS  257
+                     +   + A  +    LAA L  D+  EP   +L P   +  +A+ E GA+A+
+Sbjct  185  LTRDTPPPDIDALLAALAAGDAALAALLRNDL--EPVAFKLYPEIAEVLEALLEAGALAA  242
+
+Query  258  GISGSGPTLFALCDKPETAQRVADWLGKNY  287
+             +SGSG T+F L +  E A+  A  L    
+Sbjct  243  RMSGSGSTVFGLFEDEEAAEAAAAALPARG  272
+
+
+>CDD:140320 PTZ00299, PTZ00299, homoserine kinase; Provisional.
+Length=336
+
+ Score = 91.9 bits (228),  Expect = 4e-21, Method: Composition-based stats.
+ Identities = 77/278 (28%), Positives = 129/278 (46%), Gaps = 24/278 (9%)
+
+Query  2    VKVYAPASSANMSVGFDVLGAAVTPVDGALLGDVVTVEAAETFSLNNLGRFADKLPSEPR  61
+            V +  PA++AN+   +D LG A++      +   +TVE A+ FS+   G  ++ + S   
+Sbjct  8    VVLRVPATTANIGPAYDTLGMALS------IFMELTVEHADAFSMTVEGEGSEHI-STDE  60
+
+Query  62   ENIVYQCWERFCQELGKQI--PVAMTLEKNMPIGSGLGSSACSVVAALMAMNEHCGKPL-  118
+            +N+V Q      +E   +   P+   +  N+P G G GSS+ + VA  +A  + CG  + 
+Sbjct  61   DNMVVQACRLAFEEYAHKSMPPLKFIMHSNIPYGCGCGSSSAAAVAGFVAGMKLCGLTME  120
+
+Query  119  --NDTRLLALMGELEGRISGSIHYDNVAPCFLGGMQLMIEEND--IISQQVPGFDEWLWV  174
+              N+  LL  + + EG      H DN AP   GG+QL+ ++++   ++ +VP       V
+Sbjct  121  TENEEALLQAIAKFEG------HPDNAAPAIYGGIQLVYKKDNGRFLTYRVPTPPNLSVV  174
+
+Query  175  LAYPG--IKVSTAEARAILPAQYRRQDCIAHGRHLAGFIHACYSRQPELAAKLMKDVIAE  232
+            L  P   +K +T   R ++P     +D +         +    S       K   D + E
+Sbjct  175  LFVPHNKMKANTHVTRNLIPTSVSLEDAV-FNISRTSILVLALSTGDLRMLKSCSDKLHE  233
+
+Query  233  PYRER-LLPGFRQARQAVAEIGAVASGISGSGPTLFAL  269
+              R   L P FR   +A  E GA  + +SG+GP++ AL
+Sbjct  234  QQRSDALFPHFRPCVKAAREAGAHYAFLSGAGPSVCAL  271
+
+
+
+Lambda      K        H        a         alpha
+   0.321    0.136    0.412    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1691646156
+
+
+Query= NP_414545.1
+
+Length=428
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:107203 cd01560, Thr-synth_2, Threonine synthase catalyzes the...  513     0.0   
+CDD:272986 TIGR00260, Threonine_synthase, threonine synthase. Inv...  397     6e-138
+CDD:440264 COG0498, ThrC, Threonine synthase [Amino acid transpor...  225     1e-69 
+CDD:107202 cd00640, Trp-synth-beta_II, Tryptophan synthase beta s...  145     5e-41 
+CDD:459749 pfam00291, PALP, Pyridoxal-phosphate dependent enzyme....  100     8e-24 
+CDD:107206 cd01563, Thr-synth_1, Threonine synthase is a pyridoxa...  82.3    3e-17 
+
+
+>CDD:107203 cd01560, Thr-synth_2, Threonine synthase catalyzes the final 
+step of threonine biosynthesis. The conversion of O-phosphohomoserine 
+into threonine and inorganic phosphate is pyridoxal 
+5'-phosphate dependent. The Thr-synth_1 CD includes members 
+from higher plants, cyanobacteria, archaebacteria and eubacterial 
+groups. This CD, Thr-synth_2, includes enzymes from 
+fungi and eubacterial groups, as well as, metazoan threonine 
+synthase-like proteins.
+Length=460
+
+ Score = 513 bits (1323),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 181/460 (39%), Positives = 259/460 (56%), Gaps = 38/460 (8%)
+
+Query  2    KLYNLKDHNEQVSFAQAVTQGLGKNQGLFFPHDLPEFSLTEIDEMLKLDFVTRSAKILSA  61
+            K  + +  N  VSF++A+  GL  + GL+ P +LP+ S  EI     L +   + ++LS 
+Sbjct  1    KYVSTRGGNPGVSFSEALLSGLAPDGGLYVPEELPKLSAEEIASWSGLSYQELAFEVLSL  60
+
+Query  62   FIGDEIPQEILEERVRAAFAFPAPVA-----NVESDVGCLELFHGPTLAFKDFGGRFMAQ  116
+            FIGDEIP++ L+  +  A++F           +  ++  LELFHGPTLAFKD   +F+ +
+Sbjct  61   FIGDEIPEDDLKSLIDRAYSFFRHPDIAPLVQLGDNLYVLELFHGPTLAFKDMALQFLGR  120
+
+Query  117  MLTHIAGD--KPVTILTATSGDTGAAVAHAFYGLPNVKVVILYPRGKISPLQEKLFCTLG  174
+            +L +      + +TIL ATSGDTG+A    F G PNV VV+LYP+G +SP+QE    TL 
+Sbjct  121  LLEYFLKRRNERITILVATSGDTGSAAIEGFRGKPNVDVVVLYPKGGVSPIQELQMTTLP  180
+
+Query  175  G-NIETVAIDGDFDACQALVKQAFDDEELKVALGLNSANSINISRLLAQICYYFEAVAQL  233
+              N+  VA++GDFD CQ+LVK  F DE+    L L+SANSIN +R+LAQI YYF A  QL
+Sbjct  181  ADNVHVVAVEGDFDDCQSLVKALFADEDFNKKLKLSSANSINWARILAQIVYYFYAYLQL  240
+
+Query  234  PQE-TRNQLVVSVPSGNFGDLTAGLLAKSLGLPVKRFIAATNVNDTVPRFLHDGQWSPK-  291
+             +     ++  SVP+GNFG++ AG  AK +GLP+K+ I ATN ND + RF   G++  + 
+Sbjct  241  LKRGEGEKVEFSVPTGNFGNILAGYYAKKMGLPIKKLIVATNENDVLRRFFKTGRYDRRE  300
+
+Query  292  ATQATLSNAMDVSQPNNWPRVEELFRRKIWQ-------------------------LKEL  326
+            + + TLS AMD+ + +N+ R+  L   +                             ++ 
+Sbjct  301  SLKQTLSPAMDILKSSNFERLLFLLAGRDRTKVKMLMEEFEATGFLSLPKEELKKLREDF  360
+
+Query  327  GYAAVDDETTQQTMREL-KELGYTSEPHAAVAYRALRDQLN-PGEYGLFLGTAHPAKFKE  384
+               +V DE T +T+RE+ +E GY  +PH AV  RA       PG  G+ L TAHPAKF E
+Sbjct  361  SSGSVSDEETLETIREVYEETGYLIDPHTAVGVRAAERVRKSPGTPGVVLSTAHPAKFPE  420
+
+Query  385  SVEAILGETL-DLPKELAERADLPLLSHNLPADFAALRKL  423
+            +V+  LGE   +LP+EL    DL     +L AD   L+  
+Sbjct  421  AVKEALGEEPVELPEELEGLEDLEKRHEDLLADKELLKSH  460
+
+
+>CDD:272986 TIGR00260, Threonine_synthase, threonine synthase.  Involved 
+in threonine biosynthesis it catalyses the reaction O-PHOSPHO-L-HOMOSERINE 
++ H(2)O = L-THREONINE + ORTHOPHOSPHATE using 
+pyridoxal phosphate as a cofactor. the enzyme is distantly related 
+to the serine/threonine dehydratases which are also pyridoxal-phosphate 
+dependent enzymes. the pyridoxal-phosphate 
+binding site is a Lys (K) residues present at residue 70 of 
+the model. [Amino acid biosynthesis, Aspartate family].
+Length=327
+
+ Score = 397 bits (1023),  Expect = 6e-138, Method: Composition-based stats.
+ Identities = 158/353 (45%), Positives = 185/353 (52%), Gaps = 32/353 (9%)
+
+Query  52   VTRSAKILSAFIGDEIPQEILEERVRAAFAFPAPVANVESD-VGCLELFHGPTLAFKDFG  110
+            V R  + L      E     L E V   F  PA  ANV    +   EL H PTL+FKD G
+Sbjct  1    VWRYREFLPVT---EKDLVDLGEGVTPLFRAPALAANVGIKNLYVKELGHNPTLSFKDRG  57
+
+Query  111  GRFMAQMLTHIAGDKPVTILTATSGDTGAAVAHAFYGLPNVKVVILYPRGKISPLQEKLF  170
+               MA  LT        T+L A++G+TGAA A A+ G   +KVV+LYP GKIS    KL 
+Sbjct  58   ---MAVALTKALELGNDTVLCASTGNTGAAAA-AYAGKAGLKVVVLYPAGKIS--LGKLA  111
+
+Query  171  CTLGGNIETVAIDGDFDACQALVKQAFDDEELKVALGLNSANSINISRLLAQICYYFEAV  230
+              LG N E VAIDG+FD  Q LVKQ F+D   K ALGLNSANSI   RL  Q  Y FEAV
+Sbjct  112  QALGYNAEVVAIDGNFDDAQRLVKQLFED---KPALGLNSANSI-PYRLEGQKTYAFEAV  167
+
+Query  231  AQLPQETRNQLVVSVP-SGNFGDLTAGLLA-KSLG---LPVKRFIAATNVNDTVPRFLHD  285
+             QL  E  +++VV VP SGNFG +  G    K LG   LPVKR I A    D V  FL  
+Sbjct  168  EQLGWEAPDKVVVPVPNSGNFGAIWKGFKEKKMLGLDSLPVKRGIQAEGAADIVRAFLEG  227
+
+Query  286  GQWSPKATQATLSNAMDVSQPNNWPRVEELFRRKIWQLKELGYAAVDDETTQQTMRELKE  345
+            GQW P  T  TLS AMD+  P NWPR  E FRR     ++L     D+E  +      +E
+Sbjct  228  GQWEPIETPETLSTAMDIGNPANWPRALEAFRRSNGYAEDL----SDEEILEAIKLLARE  283
+
+Query  346  LGYTSEPHAAVAYRALRDQLNPGEYGLFLGTAHPAKFKESVEAILGETLDLPK  398
+             GY  EPH+AVA  AL   +         GTA PA  +  V A+ G  L  P+
+Sbjct  284  EGYFVEPHSAVAVAALLKLVEK-------GTADPA--ERVVCALTGNGLKDPE  327
+
+
+>CDD:440264 COG0498, ThrC, Threonine synthase [Amino acid transport and metabolism]. 
+ Threonine synthase is part of the Pathway/BioSystem: 
+Threonine biosynthesis.
+Length=394
+
+ Score = 225 bits (576),  Expect = 1e-69, Method: Composition-based stats.
+ Identities = 111/327 (34%), Positives = 148/327 (45%), Gaps = 45/327 (14%)
+
+Query  96   LELFHGPTLAFKDFGGRFMAQMLTHIAGDKPVTILTATSGDTGAAVAHAFYGLPNVKVVI  155
+             E  H PT +FKD   R M   ++        TI+ A+SG+  AA+A A+     ++V +
+Sbjct  86   KEEGHNPTGSFKD---RAMQVAVSLALERGAKTIVCASSGNGSAALA-AYAARAGIEVFV  141
+
+Query  156  LYPRGKISPLQEKLFCTLGGNIETVAIDGDFDACQALVKQAFDDEELKVALGLNSANSIN  215
+              P GK+SP Q     T G     +A+DG+FD  Q LVK+   DE      GL + NSIN
+Sbjct  142  FVPEGKVSPGQLAQMLTYG--AHVIAVDGNFDDAQRLVKELAADE------GLYAVNSIN  193
+
+Query  216  ISRLLAQICYYFEAVAQLPQETRNQLVVSVPSGNFGDLTAGLLAK----SLGLPVK--RF  269
+             +RL  Q  Y FE   QL    R    V VP+GN G++ AG  A      LGL  +  R 
+Sbjct  194  PARLEGQKTYAFEIAEQL---GRVPDWVVVPTGNGGNILAGYKAFKELKELGLIDRLPRL  250
+
+Query  270  IA--ATNVNDTVPRFLHDGQWSPKATQATLSNAMDVSQPNNWPRVEELFRRKIWQLKEL-  326
+            IA  AT  N  +  F             T++ +MD+  P+N  R           L  L 
+Sbjct  251  IAVQATGCNPILTAFETGRDEYEPERPETIAPSMDIGNPSNGERA----------LFALR  300
+
+Query  327  ---GYA-AVDDETTQQTMREL-KELGYTSEPHAAVAYRALRDQLNPGEYG-----LFLGT  376
+               G A AV DE   + +R L +  G   EP  AVA   LR     GE       + L T
+Sbjct  301  ESGGTAVAVSDEEILEAIRLLARREGIFVEPATAVAVAGLRKLREEGEIDPDEPVVVLST  360
+
+Query  377  AHPAKFKESV-EAILGETLDLPKELAE  402
+             H  KF ++V EA+ GE L +P +L  
+Sbjct  361  GHGLKFPDAVREALGGEPLAVPPDLEA  387
+
+
+>CDD:107202 cd00640, Trp-synth-beta_II, Tryptophan synthase beta superfamily 
+(fold type II); this family of pyridoxal phosphate (PLP)-dependent 
+enzymes catalyzes beta-replacement and beta-elimination 
+reactions. This CD corresponds to aminocyclopropane-1-carboxylate 
+deaminase (ACCD), tryptophan synthase beta chain 
+(Trp-synth_B), cystathionine beta-synthase (CBS), O-acetylserine 
+sulfhydrylase (CS), serine dehydratase (Ser-dehyd), threonine 
+dehydratase (Thr-dehyd), diaminopropionate ammonia 
+lyase (DAL), and threonine synthase (Thr-synth). ACCD catalyzes 
+the conversion of 1-aminocyclopropane-1-carboxylate  to 
+alpha-ketobutyrate and ammonia. Tryptophan synthase folds into 
+a tetramer, where the beta chain is the catalytic PLP-binding 
+subunit and catalyzes the formation of L-tryptophan from 
+indole and L-serine. CBS is a tetrameric hemeprotein that 
+catalyzes condensation of serine and homocysteine to cystathionine. 
+CS is a homodimer that catalyzes the formation of L-cysteine 
+from O-acetyl-L-serine. Ser-dehyd catalyzes the conversion 
+of L- or D-serine  to pyruvate and ammonia. Thr-dehyd 
+is active as a homodimer and catalyzes the conversion of L-threonine 
+to 2-oxobutanoate and ammonia. DAL is also a homodimer 
+and catalyzes the alpha, beta-elimination reaction of 
+both L- and D-alpha, beta-diaminopropionate to form pyruvate 
+and ammonia. Thr-synth catalyzes the formation of threonine 
+and inorganic phosphate from O-phosphohomoserine.
+Length=244
+
+ Score = 145 bits (369),  Expect = 5e-41, Method: Composition-based stats.
+ Identities = 64/288 (22%), Positives = 95/288 (33%), Gaps = 68/288 (24%)
+
+Query  96   LELFHGPTLAFKDFGGRFMAQMLTHIAGDKPVTILTATSGDTGAAVAHAFYGLPNVKVVI  155
+               F  PT +FKD G   +  +           I+ +T G+TG A+A A   L  +K  I
+Sbjct  20   KLEFLNPTGSFKDRGALNLILLAEEEGKLPKGVIIESTGGNTGIALAAAAARL-GLKCTI  78
+
+Query  156  LYPRGKISPLQEKLFCTLGGNIETVAIDGDFDACQALVKQAFDDEELKVALGLNSANS-I  214
+            + P G  SP +      LG  +  V + GDFD   AL K+  +++      G    N   
+Sbjct  79   VMPEGA-SPEKVAQMRALGAEV--VLVPGDFDDAIALAKELAEEDP-----GAYYVNQFD  130
+
+Query  215  NISRLLAQICYYFEAVAQLPQETRNQLVVSVPSGNFGDLTAGLLAKSLGLPVKRFIAATN  274
+            N + +  Q     E + QL  +      V VP G  G++     A    LP  + I    
+Sbjct  131  NPANIAGQGTIGLEILEQLGGQ--KPDAVVVPVGGGGNIAGIARALKELLPNVKVIGVEP  188
+
+Query  275  VNDTVPRFLHDGQWSPKATQATLSNAMDVSQPNNWPRVEELFRRKIWQLKELGYAAVDDE  334
+                                                                    V DE
+Sbjct  189  ----------------------------------------------------EVVTVSDE  196
+
+Query  335  TTQQTMREL-KELGYTSEPHAAVAYRA---LRDQLNPGEYGLFLGTAH  378
+               + +R L +E G   EP +A A  A   L  +L  G+  + + T  
+Sbjct  197  EALEAIRLLAREEGILVEPSSAAALAAALKLAKKLGKGKTVVVILTGG  244
+
+
+>CDD:459749 pfam00291, PALP, Pyridoxal-phosphate dependent enzyme.  Members 
+of this family are all pyridoxal-phosphate dependent enzymes. 
+This family includes: serine dehydratase EC:4.2.1.13 P20132, 
+threonine dehydratase EC:4.2.1.16, tryptophan synthase 
+beta chain EC:4.2.1.20, threonine synthase EC:4.2.99.2, cysteine 
+synthase EC:4.2.99.8 P11096, cystathionine beta-synthase 
+EC:4.2.1.22, 1-aminocyclopropane-1-carboxylate deaminase 
+EC:4.1.99.4.
+Length=295
+
+ Score = 100 bits (251),  Expect = 8e-24, Method: Composition-based stats.
+ Identities = 68/278 (24%), Positives = 104/278 (37%), Gaps = 34/278 (12%)
+
+Query  96   LELFHGPTLAFKDFGGRFMAQMLTHIAGDKPVTILTATSGDTGAAVAH--AFYGLPNVKV  153
+            LE  + PT +FKD G   +  +L    G+   T++ A+SG+ G A+A   A  GL   KV
+Sbjct  28   LESLN-PTGSFKDRGALNL--LLRLKEGEGGKTVVEASSGNHGRALAAAAARLGL---KV  81
+
+Query  154  VILYPR----GKISPLQEKLFCTLGGNIETVAIDGDFDACQALVKQAFDDEELKVALGLN  209
+             I+ P     GK+  ++      LG  +  V + GD+D   A  ++   +          
+Sbjct  82   TIVVPEDAPPGKLLLMRA-----LGAEV--VLVGGDYDEAVAAARELAAEGP-GAYYINQ  133
+
+Query  210  SANSINISRLLAQICYYFEAVAQLPQETRNQLVVSVPSGNFGDLTAGLLAKSLGLPVKRF  269
+              N +NI           E + QL  +      V VP G  G +           P  R 
+Sbjct  134  YDNPLNI---EGYGTIGLEILEQLGGDPD---AVVVPVGGGGLIAGIARGLKELGPDVRV  187
+
+Query  270  IAA-TNVNDTVPRFLHDGQWSPKATQATLSNAMDVSQPNNWPRVEELFRRKIWQLKELGY  328
+            I         + R L  G+  P     T+++ + V          +L    +        
+Sbjct  188  IGVEPEGAPALARSLAAGRPVPVPVADTIADGLGVGDEPG-ALALDLLDEYVG-----EV  241
+
+Query  329  AAVDDETTQQTMREL-KELGYTSEPHAAVAYRALRDQL  365
+              V DE   + MR L +  G   EP +A A  AL+  L
+Sbjct  242  VTVSDEEALEAMRLLARREGIVVEPSSAAALAALKLAL  279
+
+
+>CDD:107206 cd01563, Thr-synth_1, Threonine synthase is a pyridoxal phosphate 
+(PLP) dependent enzyme that catalyses the last reaction 
+in the synthesis of  threonine from aspartate. It proceeds 
+by converting O-phospho-L-homoserine (OPH) into threonine and 
+inorganic phosphate. In plants, OPH is an intermediate between 
+the methionine and threonine/isoleucine pathways. Thus 
+threonine synthase competes for OPH with cystathionine-gamma-synthase, 
+the first enzyme in the methionine pathway. These 
+enzymes are in general dimers. Members of this CD, Thr-synth_1, 
+are widely distributed in bacteria, archaea and higher 
+plants.
+Length=324
+
+ Score = 82.3 bits (204),  Expect = 3e-17, Method: Composition-based stats.
+ Identities = 74/280 (26%), Positives = 117/280 (42%), Gaps = 34/280 (12%)
+
+Query  102  PTLAFKDFGGRFMAQMLTHIAGDKPVTILTATSGDTGAAVAHAFYGLPNVKVVILYPRGK  161
+            PT +FKD   R M   ++         +  A++G+T A++A A+     +K V+  P GK
+Sbjct  49   PTGSFKD---RGMTVAVSKAKELGVKAVACASTGNTSASLA-AYAARAGIKCVVFLPAGK  104
+
+Query  162  ISPLQEKLFCTLGGNIETVAIDGDFDACQALVKQAFDDEELKVALGLNSANSINISRLLA  221
+                  KL   L      +A++G+FD    LV++  ++        +  +NS+N  RL  
+Sbjct  105  A---LGKLAQALAYGATVLAVEGNFDDALRLVRELAEEN------WIYLSNSLNPYRLEG  155
+
+Query  222  QICYYFEAVAQLPQETRNQLVVSVPSGNFGDLTA---GLLA-KSLGLPVK--RFIA--AT  273
+            Q    FE   QL  E  + +V  VP GN G++TA   G    K LGL  +  R +   A 
+Sbjct  156  QKTIAFEIAEQLGWEVPDYVV--VPVGNGGNITAIWKGFKELKELGLIDRLPRMVGVQAE  213
+
+Query  274  NVNDTVPRFL-HDGQWSPKATQATLSNAMDVSQPNNWPRVEELFRRKIWQLKEL-GYA-A  330
+                 V  F        P     T++ A+ +  P + P+           ++E  G A A
+Sbjct  214  GAAPIVRAFKEGKDDIEPVENPETIATAIRIGNPASGPKALRA-------VRESGGTAVA  266
+
+Query  331  VDDETTQQTMREL-KELGYTSEPHAAVAYRALRDQLNPGE  369
+            V DE   +  + L +  G   EP +A +   L+     G 
+Sbjct  267  VSDEEILEAQKLLARTEGIFVEPASAASLAGLKKLREEGI  306
+
+
+
+Lambda      K        H        a         alpha
+   0.319    0.135    0.395    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2548015065
+
+
+Query= NP_414546.1
+
+Length=98
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:431443 pfam10697, DUF2502, Protein of unknown function (DUF25...  59.6    4e-13
+
+
+>CDD:431443 pfam10697, DUF2502, Protein of unknown function (DUF2502).  Members 
+of this family are all Gammaproteobacteria. The function 
+is not known.
+Length=90
+
+ Score = 59.6 bits (144),  Expect = 4e-13, Method: Composition-based stats.
+ Identities = 29/71 (41%), Positives = 35/71 (49%), Gaps = 12/71 (17%)
+
+Query  25  EITLVPSVKLQIGDRDNRGYYWDGGHWRDHGWWKQH------------YEWRGNRWHLHG  72
+            I L+PS+ LQIGD+D+RG YWDG  WRD  WW  H            Y W GNRW  H 
+Sbjct  1   SIDLLPSISLQIGDQDDRGNYWDGYDWRDRQWWHNHRGAHIGERNERGYYWDGNRWQRHD  60
+
+Query  73  PPPPPRHHKKA  83
+                 + +  
+Sbjct  61  NGYRKAYERGG  71
+
+
+
+Lambda      K        H        a         alpha
+   0.321    0.139    0.512    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 355789805
+
+
+Query= NP_414547.1
+
+Length=258
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:234999 PRK02101, PRK02101, peroxide stress protein YaaA           434     3e-156
+CDD:442258 COG3022, YaaA, DNA-binding protein YaaA associated wit...  429     2e-154
+CDD:461083 pfam03883, H2O2_YaaD, Peroxide stress protein YaaA. Ya...  378     2e-134
+
+
+>CDD:234999 PRK02101, PRK02101, peroxide stress protein YaaA.  
+Length=255
+
+ Score = 434 bits (1118),  Expect = 3e-156, Method: Composition-based stats.
+ Identities = 179/257 (70%), Positives = 212/257 (82%), Gaps = 2/257 (1%)
+
+Query  1    MLILISPAKTLDYQSPLTTTRYTLPELLDNSQQLIHEARKLTPPQISTLMRISDKLAGIN  60
+            MLILISPAKTLDY  PL T R + PELLD SQ+L+   R+L+P  +++LM+ISDKLAG+N
+Sbjct  1    MLILISPAKTLDYDGPLDTDRLSQPELLDQSQELLDALRELSPDDLASLMKISDKLAGLN  60
+
+Query  61   AARFHDWQPDFTPANARQAILAFKGDVYTGLQAETFSEDDFDFAQQHLRMLSGLYGVLRP  120
+            AARF DWQP+FT ANAR AILAF GDVY GL A++ SE D D+AQQHLR+LSGLYG+LRP
+Sbjct  61   AARFQDWQPEFTTANARPAILAFTGDVYDGLDADSLSEADLDYAQQHLRILSGLYGLLRP  120
+
+Query  121  LDLMQPYRLEMGIRLENARGKDLYQFWGDIITNKLNEALAAQGDNVVINLASDEYFKSVK  180
+            LDL+QPYRLEMG +L N RGK+LY FWGDIIT  LNE  AAQGD V++NLAS EYFK+VK
+Sbjct  121  LDLIQPYRLEMGTKLPNPRGKNLYAFWGDIITQALNE--AAQGDEVLVNLASSEYFKAVK  178
+
+Query  181  PKKLNAEIIKPVFLDEKNGKFKIISFYAKKARGLMSRFIIENRLTKPEQLTGFNSEGYFF  240
+            PKKL A +I PVFL+EKNGK+K+ISFYAKKARGLM+R++IENR+T PE L  FN  GY F
+Sbjct  179  PKKLKARVITPVFLEEKNGKYKVISFYAKKARGLMARYLIENRITTPEDLKDFNFAGYAF  238
+
+Query  241  DEDSSSNGELVFKRYEQ  257
+            DE+ S++ ELVF R EQ
+Sbjct  239  DEELSTDDELVFVRKEQ  255
+
+
+>CDD:442258 COG3022, YaaA, DNA-binding protein YaaA associated with the oxidative 
+stress response [Replication, recombination and repair]. 
+ 
+Length=250
+
+ Score = 429 bits (1106),  Expect = 2e-154, Method: Composition-based stats.
+ Identities = 148/253 (58%), Positives = 185/253 (73%), Gaps = 3/253 (1%)
+
+Query  2    LILISPAKTLDYQSPLTTTRYTLPELLDNSQQLIHEARKLTPPQISTLMRISDKLAGINA  61
+            LIL+SPAKT D+ SPL     T PELL+  ++LI   RKL+  +++ LM ISDKLA +N 
+Sbjct  1    LILLSPAKTKDFGSPLDLDELTFPELLEEREELIDALRKLSADELAKLMGISDKLAELNV  60
+
+Query  62   ARFHDWQPDFTPANARQAILAFKGDVYTGLQAETFSEDDFDFAQQHLRMLSGLYGVLRPL  121
+             RF DW    T A AR AILA+ G VY GL A + SE+   +AQ+HLR+LSGLYG+LRPL
+Sbjct  61   ERFQDWNAPLTTAPARPAILAYTGVVYDGLDAASLSEEALAYAQEHLRILSGLYGLLRPL  120
+
+Query  122  DLMQPYRLEMGIRLENARGKDLYQFWGDIITNKLNEALAAQGDNVVINLASDEYFKSVKP  181
+            DL+ PYRLEMG +L   RGK+LY FWGD +T+ LNE L   GD +V+NLAS+EYFK+V P
+Sbjct  121  DLIPPYRLEMGTKLPGLRGKNLYAFWGDRLTDALNEEL---GDELVVNLASNEYFKAVDP  177
+
+Query  182  KKLNAEIIKPVFLDEKNGKFKIISFYAKKARGLMSRFIIENRLTKPEQLTGFNSEGYFFD  241
+            K L A +I PVF +EKNGK K+IS YAKKARGLM+R++IENR+  PE+L  F+ EGY FD
+Sbjct  178  KALKARVITPVFKEEKNGKRKVISHYAKKARGLMARYLIENRIEDPEELKAFDREGYRFD  237
+
+Query  242  EDSSSNGELVFKR  254
+            E+ S+  ELVF R
+Sbjct  238  EELSTEDELVFVR  250
+
+
+>CDD:461083 pfam03883, H2O2_YaaD, Peroxide stress protein YaaA.  YaaA is 
+a key element of the stress response to H2O2. It acts by reducing 
+the level of intracellular iron levels after peroxide 
+stress, thereby attenuating the Fenton reaction and the DNA 
+damage that this would cause. The molecular mechanism of action 
+is not known.
+Length=233
+
+ Score = 378 bits (972),  Expect = 2e-134, Method: Composition-based stats.
+ Identities = 136/238 (57%), Positives = 175/238 (74%), Gaps = 6/238 (3%)
+
+Query  1    MLILISPAKTLDYQSPLTTTRYTLPELLDNSQQLIHEARKLTPPQISTLMRISDKLAGIN  60
+            MLIL+SPAKT+D+ SP      T P  LD +++LI   + L+P +++ LM+ISDKLA +N
+Sbjct  1    MLILLSPAKTMDFDSPSPPPELTQPLFLDEAEELIDVLKSLSPEELAKLMKISDKLAELN  60
+
+Query  61   AARFHDWQPDFTPANARQAILAFKGDVYTGLQAETFSEDDFDFAQQHLRMLSGLYGVLRP  120
+              R+ D++        + AILA+ G VY GL AE+ SE+D D+AQ+HLR+LSGLYG+LRP
+Sbjct  61   YERYQDFKTPAL--RTKPAILAYTGVVYKGLDAESLSEEDLDYAQEHLRILSGLYGLLRP  118
+
+Query  121  LDLMQPYRLEMGIRLENARGKDLYQFWGDIITNKLNEALAAQGDNVVINLASDEYFKSVK  180
+            LDL+QPYRLEMG +L N  GK+LY FWGD +T    +ALA Q D V++NLAS EYFK+V 
+Sbjct  119  LDLIQPYRLEMGTKLPNPGGKNLYAFWGDKLT----DALAEQDDGVLVNLASGEYFKAVD  174
+
+Query  181  PKKLNAEIIKPVFLDEKNGKFKIISFYAKKARGLMSRFIIENRLTKPEQLTGFNSEGY  238
+            PKKL A +I PVF +EKNGK K++SFYAKKARGLM R+I ENR+  PE L  F+SEGY
+Sbjct  175  PKKLKARVITPVFKEEKNGKLKVVSFYAKKARGLMVRYIAENRIESPEDLKAFDSEGY  232
+
+
+
+Lambda      K        H        a         alpha
+   0.320    0.137    0.393    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1312908750
+
+
+Query= NP_414548.1
+
+Length=476
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:440732 COG1115, AlsT, Na+/alanine symporter [Amino acid trans...  551     0.0   
+CDD:273291 TIGR00835, carrier_protein, amino acid carrier protein...  542     0.0   
+CDD:460125 pfam01235, Na_Ala_symp, Sodium:alanine symporter family    495     7e-175
+CDD:440297 COG0531, PotE, Serine transporter YbeC, amino acid:H+ ...  48.4    7e-06 
+
+
+>CDD:440732 COG1115, AlsT, Na+/alanine symporter [Amino acid transport and 
+metabolism].  
+Length=450
+
+ Score = 551 bits (1423),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 221/450 (49%), Positives = 291/450 (65%), Gaps = 5/450 (1%)
+
+Query  1    MPDFFSFINSVLWGSVMIYLLFGAGCWFTFRTGFVQFRYIRQFGKSL--KNSIHPQPGGL  58
+            + +  + IN  LWG  +I LL G G +FT R GFVQFR      + L  K       GG+
+Sbjct  4    LNEILNAINDFLWGPPLIILLLGTGLYFTIRLGFVQFRKFGHAFRLLFGKKKDKGGEGGI  63
+
+Query  59   TSFQSLCTSLAARVGSGNLAGVALAITAGGPGAVFWMWVAAFIGMATSFAECSLAQLYKE  118
+            +SFQ+L T+LAA VG+GN+AGVA AI  GGPGAVFWMWV A +GMAT FAE +LAQ Y+E
+Sbjct  64   SSFQALATALAATVGTGNIAGVATAIALGGPGAVFWMWVTALLGMATKFAESTLAQKYRE  123
+
+Query  119  RDVNGQFRGGPAWYMARGLGMRWMGVLFAVFLLIAYGIIFSGVQANAVARALSFSFDFPP  178
+            +D +G++RGGP +Y+ +GLG +W+ VLFA+FL+IA G I + VQAN++A AL  +F  PP
+Sbjct  124  KDEDGEYRGGPMYYIEKGLGKKWLAVLFAIFLIIAAGGIGNMVQANSIASALENAFGIPP  183
+
+Query  179  LVTGIILAVFTLLAITRGLHGVARLMQGFVPLMAIIWVLTSLVICVMNIGQLPHVIWSIF  238
+             +TGI+LAV   L I  G+  +A++ +  VP MA++++L +L+I ++NI Q+P     IF
+Sbjct  184  WITGIVLAVLVGLVIFGGIKRIAKVAEKLVPFMAVLYILGALIILILNIDQIPAAFALIF  243
+
+Query  239  ESAFGWQEAAGGAAGYTLSQAITNGFQRSMFSNEAGMGSTPNAAAAAASWPPHPAAQGIV  298
+            +SAFG Q AAGG AG T+  AI  G  R +FSNEAG+GS     AAAA+   HP  QG+V
+Sbjct  244  KSAFGPQAAAGGFAGATVMAAIRQGVARGLFSNEAGLGSA--PIAAAAAKTDHPVRQGLV  301
+
+Query  299  QMIGIFIDTLVICTASAMLILLAGNGTTYMPLEGIQLIQKAMRVLMGSWGAEFVTLVVIL  358
+            QM+G+FIDT+V+CT +A++ILL G       L G  L Q A   ++G WG  FV + + L
+Sbjct  302  QMLGVFIDTIVVCTMTALVILLTGVWNPGGGLTGAALTQAAFSSVLGGWGGYFVAIALFL  361
+
+Query  359  FAFSSIVANYIYAENNLFFLRLNNPKAIWCLRICTFATVIGGTLLSLPLMWQLADIIMAC  418
+            FAFS+I+  Y Y E NL +L   + KAI   RI     V  G + SL L+W LADI    
+Sbjct  362  FAFSTIIGWYYYGEKNLEYL-FGSKKAILVYRILFLLMVFVGAVASLDLVWALADIFNGL  420
+
+Query  419  MAITNLTAILLLSPVVHTIASDYLRQRKLG  448
+            MAI NL A+LLLS VV     DY  Q K G
+Sbjct  421  MAIPNLIALLLLSGVVVKELKDYFAQLKAG  450
+
+
+>CDD:273291 TIGR00835, carrier_protein, amino acid carrier protein.  The 
+Alanine or Glycine: Cation Symporter (AGCS) Family (TC 2.A.25) 
+Members of the AGCS family transport alanine and/or glycine 
+in symport with Na+ and or H+.
+Length=425
+
+ Score = 542 bits (1399),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 231/430 (54%), Positives = 292/430 (68%), Gaps = 6/430 (1%)
+
+Query  13   WGSVMIYLLFGAGCWFTFRTGFVQFRYIRQFGKSLKNSIHPQP-GGLTSFQSLCTSLAAR  71
+            WG  M  LL G G +FT R GFVQFRY+    + L      Q  GG++SFQ+L TSLAAR
+Sbjct  1    WGYPMFILLLGTGLFFTIRLGFVQFRYLPAAFRLLFGKRKEQGKGGVSSFQALFTSLAAR  60
+
+Query  72   VGSGNLAGVALAITAGGPGAVFWMWVAAFIGMATSFAECSLAQLYKERDVNGQFRGGPAW  131
+            VG GN+ GVA AI  GGPGAVFWMWV AFIGMAT F E +LAQ Y+ERD +G FRGGP +
+Sbjct  61   VGIGNIVGVATAIAIGGPGAVFWMWVTAFIGMATKFVESTLAQKYRERDADGVFRGGPMY  120
+
+Query  132  YMARGLGMRWMGVLFAVFLLIAYGIIFSGVQANAVARALSFSFDFPPLVTGIILAVFTLL  191
+            Y+ +GLGMRW+ VLFAVFL+ ++GI  + VQANA+A ALS +F+ P LVTGI+L V T L
+Sbjct  121  YIKKGLGMRWLAVLFAVFLIASFGIG-NMVQANAIASALSNAFNVPKLVTGIVLTVLTAL  179
+
+Query  192  AITRGLHGVARLMQGFVPLMAIIWVLTSLVICVMNIGQLPHVIWSIFESAFGWQEAAGGA  251
+             I  GL  +A++    VP MA+++V+ +L I +MNI QLP VI  IF SAFG   AAGG 
+Sbjct  180  IIFGGLKRIAKISSVVVPFMALLYVIMALYIIIMNIEQLPAVISLIFRSAFGGDAAAGGF  239
+
+Query  252  AGYTLSQAITNGFQRSMFSNEAGMGSTPNAAAAAASWPPHPAAQGIVQMIGIFIDTLVIC  311
+            AG T++QAI  G +R +FSNEAGMGS     AAAA+   HP  QG+VQM+G+FIDT+++C
+Sbjct  240  AGSTVAQAIMIGVKRGLFSNEAGMGSA--PIAAAAAQVSHPVRQGLVQMLGVFIDTMIVC  297
+
+Query  312  TASAMLILLAGNGTTYMPLEGIQLIQKAMRVLMGSWGAEFVTLVVILFAFSSIVANYIYA  371
+            TA+A++ILL+G       L G QL Q+A+   +GS+GA FV + + LFAFS+I+  Y Y 
+Sbjct  298  TATALVILLSGVWNNGEGLSGAQLTQQALSYGLGSFGAVFVAVALFLFAFSTIIGWYYYG  357
+
+Query  372  ENNLFFLRLNNPKAIWCLRICTFATVIGGTLLSLPLMWQLADIIMACMAITNLTAILLLS  431
+            E N  FL+ N    +   R+   A V  G  LSL L+W LAD+ M  MAI NL AILLL 
+Sbjct  358  EKNAEFLKGNKK--VKLYRLVFLAAVFVGAFLSLDLVWNLADLSMGLMAIPNLIAILLLR  415
+
+Query  432  PVVHTIASDY  441
+             VV+ +  DY
+Sbjct  416  KVVYELTKDY  425
+
+
+>CDD:460125 pfam01235, Na_Ala_symp, Sodium:alanine symporter family.  
+Length=385
+
+ Score = 495 bits (1278),  Expect = 7e-175, Method: Composition-based stats.
+ Identities = 202/398 (51%), Positives = 269/398 (68%), Gaps = 16/398 (4%)
+
+Query  52   HPQPGGLTSFQSLCTSLAARVGSGNLAGVALAITAGGPGAVFWMWVAAFIGMATSFAECS  111
+                GG++SFQ+LCTSLAARVG+GN+AGVA AI  GGPGAVFWMWV A +GMAT+F E +
+Sbjct  4    KDGKGGISSFQALCTSLAARVGTGNIAGVATAIALGGPGAVFWMWVIALLGMATAFVEST  63
+
+Query  112  LAQLYKERDVNGQFRGGPAWYMARGLGMRWMGVLFAVFLLIAYGIIFSGVQANAVARALS  171
+            LAQ+YKE+D +G++RGGPA+Y+ +GLG +W+ VLFA+FL++A+G  F+ VQAN++A A  
+Sbjct  64   LAQIYKEKDKDGEYRGGPAYYIEKGLGKKWLAVLFAIFLILAFGFGFNAVQANSIASAFE  123
+
+Query  172  FSFDFPPLVTGIILAVFTLLAITRGLHGVARLMQGFVPLMAIIWVLTSLVICVMNIGQLP  231
+             +F  PPL+TGI+LAV   L I  G+  +A++ +  VP MA+ ++L +L++ +MNI Q+P
+Sbjct  124  NAFGIPPLITGIVLAVLVALVIFGGIKRIAKVAEVVVPFMALAYILVALIVIIMNITQIP  183
+
+Query  232  HVIWSIFESAFGWQEAAGGAAGYTLSQAITNGFQRSMFSNEAGMGSTPNAAAAAASWPPH  291
+             V   IF+SAFG++ A GG  G     AI  G +R +FSNEAGMGS     AAAA+   H
+Sbjct  184  AVFALIFKSAFGFEAAFGGILG----AAIMWGVKRGLFSNEAGMGSA--PNAAAAAEVSH  237
+
+Query  292  PAAQGIVQMIGIFIDTLVICTASAMLILLAGNGTTYMPLEGIQLIQKAMRVLMGSWGAEF  351
+            P  QG+VQM+G+FIDT+VICTA+A++ILL           GI L Q A   ++G +G  F
+Sbjct  238  PVKQGLVQMLGVFIDTIVICTATALIILL---------TAGIALTQAAFSSVLGGFGPYF  288
+
+Query  352  VTLVVILFAFSSIVANYIYAENNLFFLRLNNPKAIWCLRICTFATVIGGTLLSLPLMWQL  411
+            + + + LFAF++I+ NY Y E NL +L     KA+   RI   A V  G + SL L+W L
+Sbjct  289  IAIALFLFAFTTILGNYYYGETNLEYLF-GKKKALLIYRILVLAMVFFGAVASLDLVWNL  347
+
+Query  412  ADIIMACMAITNLTAILLLSPVVHTIASDYLRQRKLGV  449
+            ADI M  MAI NL AILLLS V      DY  QRK G 
+Sbjct  348  ADIFMGLMAIPNLIAILLLSGVAVKALKDYEAQRKAGK  385
+
+
+>CDD:440297 COG0531, PotE, Serine transporter YbeC, amino acid:H+ symporter 
+family [Amino acid transport and metabolism].  
+Length=438
+
+ Score = 48.4 bits (116),  Expect = 7e-06, Method: Composition-based stats.
+ Identities = 43/199 (22%), Positives = 72/199 (36%), Gaps = 12/199 (6%)
+
+Query  55   PGGLTSFQSLCTSLAARVGSGNLAGVALAITAGGPGAVFWMWVAAFIGMATSFAECSLAQ  114
+               L  F  +   + A +G+G      LA    GP A+    +A  + +  + +   LA 
+Sbjct  10   KRKLGLFDLVALGVGAIIGAGIFVLPGLAAGLAGPAAILAWLIAGLLALLVALSYAELAS  69
+
+Query  115  LYKERDVNGQFRGGPAWYMARGLGMRWMGVLFAVFLLIAYGIIFSGVQANAVARALS--F  172
+             +          GG   Y  R LG   +G L    LL++Y +  + V A A    LS  F
+Sbjct  70   AFPR-------AGGAYTYARRALG-PLLGFLAGWALLLSYVLAVAAV-AVAFGGYLSSLF  120
+
+Query  173  SFDFPPLVTGIILAVFTLLAITRGLHGVARLMQGFVPLMAIIWVLTSLVICVMNIGQLPH  232
+                  L+  +++ + TLL + RG+   A++      L  ++ +L  +V           
+Sbjct  121  PAGGSVLIALVLILLLTLLNL-RGVKESAKVNNILTVLKLLVLLLFIVVGLFAFDPANFT  179
+
+Query  233  VIWSIFESAFGWQEAAGGA  251
+                      G   A   A
+Sbjct  180  PFLPAGGGLSGVLAALALA  198
+
+
+
+Lambda      K        H        a         alpha
+   0.328    0.140    0.447    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2890884986
+
+
+Query= NP_414549.1
+
+Length=317
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:235381 PRK05269, PRK05269, transaldolase B; Provisional           674     0.0   
+CDD:162081 TIGR00874, Transaldolase_NQM1, transaldolase. This fam...  590     0.0   
+CDD:183458 PRK12346, PRK12346, transaldolase A; Provisional           564     0.0   
+CDD:188644 cd00957, Transaldolase_TalAB, Transaldolases including...  544     0.0   
+CDD:240406 PTZ00411, PTZ00411, transaldolase-like protein; Provis...  496     1e-178
+CDD:183426 PRK12309, PRK12309, transaldolase                          476     1e-169
+
+
+>CDD:235381 PRK05269, PRK05269, transaldolase B; Provisional.
+Length=318
+
+ Score = 674 bits (1743),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 259/317 (82%), Positives = 285/317 (90%), Gaps = 0/317 (0%)
+
+Query  1    MTDKLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAK  60
+            MT+KL  L+Q+TTVVADTGDI A+K YQPQDATTNPSLIL AAQIPEY  LIDDAVAWAK
+Sbjct  1    MTNKLEQLKQFTTVVADTGDIEAIKKYQPQDATTNPSLILKAAQIPEYAPLIDDAVAWAK  60
+
+Query  61   QQSNDRAQQIVDATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIAKAKRLIKLYN  120
+            QQS DRAQQI DA DKLAVN GLEILKL+PGR+STEVDARLS+DTEA+IAKA++LI LY 
+Sbjct  61   QQSGDRAQQIDDAIDKLAVNFGLEILKLIPGRVSTEVDARLSFDTEATIAKARKLIALYE  120
+
+Query  121  DAGISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVG  180
+            +AGIS DRILIK+ASTW+GIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVG
+Sbjct  121  EAGISKDRILIKIASTWEGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVG  180
+
+Query  181  RILDWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNIGEILELAGCD  240
+            RILDWYK NT KKEYAPAEDPGVVSV++IY YYK+HGY+TVVMGASFRN G+ILELAGCD
+Sbjct  181  RILDWYKKNTGKKEYAPAEDPGVVSVTKIYNYYKKHGYKTVVMGASFRNTGQILELAGCD  240
+
+Query  241  RLTIAPALLKELAESEGAIERKLSYTGEVKARPARITESEFLWQHNQDPMAVDKLAEGIR  300
+            RLTI+PALL+ELA SEG +ERKLS  GE KARP  +TE+EF WQHN+D MA +KLAEGIR
+Sbjct  241  RLTISPALLEELAASEGELERKLSPPGEAKARPVPLTEAEFRWQHNEDAMATEKLAEGIR  300
+
+Query  301  KFAIDQEKLEKMIGDLL  317
+            KFA DQEKLEK+I   L
+Sbjct  301  KFAKDQEKLEKLIAAKL  317
+
+
+>CDD:162081 TIGR00874, Transaldolase_NQM1, transaldolase.  This family includes 
+the majority of known and predicted transaldolase sequences, 
+including E. coli TalA and TalB. It excluded two other 
+families. The first includes E. coli transaldolase-like protein 
+TalC. The second family includes the putative transaldolases 
+of Helicobacter pylori and Mycobacterium tuberculosis. 
+[Energy metabolism, Pentose phosphate pathway].
+Length=317
+
+ Score = 590 bits (1524),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 222/317 (70%), Positives = 258/317 (81%), Gaps = 2/317 (1%)
+
+Query  3    DKLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAKQQ  62
+            ++L  L+Q+T VVADTGDI A+K YQPQDATTNPSLIL AAQ+P+Y +LID+AVAW K+Q
+Sbjct  1    NQLDQLKQFTVVVADTGDIEAIKKYQPQDATTNPSLILAAAQLPKYAELIDEAVAWGKKQ  60
+
+Query  63   SNDRAQQIVDATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIAKAKRLIKLYNDA  122
+              D AQQ+ +A DKLAVN GLEILK+VPGR+STEVDARLS+DTEA++ KA+ LIKLY DA
+Sbjct  61   GKDDAQQVENALDKLAVNFGLEILKIVPGRVSTEVDARLSFDTEATVEKARHLIKLYEDA  120
+
+Query  123  GISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVGRI  182
+            G+   RILIK+ASTW+GIRAAE+LEKEGI+CNLTLLFSF QA ACAEA V LISPFVGRI
+Sbjct  121  GVDKKRILIKIASTWEGIRAAEELEKEGIHCNLTLLFSFVQAIACAEAKVTLISPFVGRI  180
+
+Query  183  LDWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNIGEILELAGCDRL  242
+            LDWYKA T KKEY+  EDPGV SV +IY YYK+HGY T VMGASFRN  EIL LAGCDRL
+Sbjct  181  LDWYKAATGKKEYSIEEDPGVASVKKIYNYYKKHGYPTEVMGASFRNKEEILALAGCDRL  240
+
+Query  243  TIAPALLKELAESEGAIERKLSYTGE--VKARPARITESEFLWQHNQDPMAVDKLAEGIR  300
+            TI+PALL EL ES G +ERKL       V  +P  + ESEF + HN+D MA +KLAEGIR
+Sbjct  241  TISPALLDELKESTGPVERKLDPESAKKVDKQPIILDESEFRFLHNEDAMATEKLAEGIR  300
+
+Query  301  KFAIDQEKLEKMIGDLL  317
+            KFA DQEKLEK++ + L
+Sbjct  301  KFAADQEKLEKLLEEKL  317
+
+
+>CDD:183458 PRK12346, PRK12346, transaldolase A; Provisional.
+Length=316
+
+ Score = 564 bits (1455),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 208/316 (66%), Positives = 248/316 (78%), Gaps = 0/316 (0%)
+
+Query  2    TDKLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAKQ  61
+             ++L  ++Q+TTVVAD+GDI +++ Y PQDATTNPSL+L AA +P+Y+ LIDDA+AW K+
+Sbjct  1    MNQLDGIKQFTTVVADSGDIESIRHYHPQDATTNPSLLLKAAGLPQYQHLIDDAIAWGKK  60
+
+Query  62   QSNDRAQQIVDATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIAKAKRLIKLYND  121
+            Q   + QQ+V A DKLAVN G EILK VPGR+STEVDARLS+D E SI KA+ L+ LY  
+Sbjct  61   QGGTQEQQVVAACDKLAVNFGAEILKSVPGRVSTEVDARLSFDREKSIEKARHLVDLYQQ  120
+
+Query  122  AGISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVGR  181
+             GI   RILIKLASTW+GIRAAE+LEKEGINCNLTLLFSFAQARACAEAGVFLISPFVGR
+Sbjct  121  QGIDKSRILIKLASTWEGIRAAEELEKEGINCNLTLLFSFAQARACAEAGVFLISPFVGR  180
+
+Query  182  ILDWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNIGEILELAGCDR  241
+            I DWY+A      Y   EDPGV SV  IY YYK+H YET+VMGASFR   +IL LAGCDR
+Sbjct  181  IYDWYQARKPMDPYVVEEDPGVKSVRNIYDYYKQHRYETIVMGASFRRTEQILALAGCDR  240
+
+Query  242  LTIAPALLKELAESEGAIERKLSYTGEVKARPARITESEFLWQHNQDPMAVDKLAEGIRK  301
+            LTI+P LLKEL ESE  +ERKL  + +   RPA ++E+EF W+HNQD MAV+KL+EGIR 
+Sbjct  241  LTISPNLLKELQESESPVERKLIPSSQTFPRPAPMSEAEFRWEHNQDAMAVEKLSEGIRL  300
+
+Query  302  FAIDQEKLEKMIGDLL  317
+            FA+DQ KLE ++   L
+Sbjct  301  FAVDQRKLEDLLAAKL  316
+
+
+>CDD:188644 cd00957, Transaldolase_TalAB, Transaldolases including both TalA 
+and TalB.  Transaldolases including both TalA and TalB. 
+The enzyme catalyses the reversible transfer of a dyhydroxyacetone 
+moiety, derived from fructose-6-phosphate to erythrose-4-phosphate 
+yielding sedoheptulose-7-phosphate and glyceraldehyde-3-phosphate. 
+The catalytic mechanism is similar to other 
+class I aldolases. The enzyme is found in the non-oxidative 
+branch of the pentose phosphate pathway and forms a dimer 
+in solution.
+Length=313
+
+ Score = 544 bits (1404),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 201/312 (64%), Positives = 248/312 (79%), Gaps = 2/312 (1%)
+
+Query  4    KLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAKQQS  63
+            +L  L+++TT+VADTGD  A+K ++PQDATTNPSLIL AA++PEY KL+D+A+A+AK++ 
+Sbjct  2    QLDQLKKFTTIVADTGDFEAIKKFKPQDATTNPSLILAAAKLPEYNKLVDEAIAYAKKKG  61
+
+Query  64   NDRAQQIVDATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIAKAKRLIKLYNDAG  123
+                 QI +A DKL VN G EILKL+PGR+STEVDARLS+DT A+IAKA++LIKLY +AG
+Sbjct  62   GSDEDQISNALDKLLVNFGTEILKLIPGRVSTEVDARLSFDTNATIAKARKLIKLYEEAG  121
+
+Query  124  ISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISPFVGRIL  183
+            I  +RILIK+A+TW+GI+AA+QLEKEGI+CNLTLLFSFAQA ACAEAGV LISPFVGRIL
+Sbjct  122  IDKERILIKIAATWEGIQAAKQLEKEGIHCNLTLLFSFAQAVACAEAGVTLISPFVGRIL  181
+
+Query  184  DWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNIGEILELAGCDRLT  243
+            DWYK ++  K Y   EDPGV SV +IY YYK+ GY+T VMGASFRNIG+IL LAGCD LT
+Sbjct  182  DWYKKHSGDKAYTAEEDPGVASVKKIYNYYKKFGYKTKVMGASFRNIGQILALAGCDYLT  241
+
+Query  244  IAPALLKELAESEGAIERKLSY--TGEVKARPARITESEFLWQHNQDPMAVDKLAEGIRK  301
+            I+PALL+EL  S   +ERKL    +  +   P  + ES F W  N+D MAV+KL+EGIR 
+Sbjct  242  ISPALLEELKNSTAKVERKLDPAASKALDIHPNFLDESAFRWALNEDAMAVEKLSEGIRG  301
+
+Query  302  FAIDQEKLEKMI  313
+            FA D  KLEK+I
+Sbjct  302  FAKDAVKLEKLI  313
+
+
+>CDD:240406 PTZ00411, PTZ00411, transaldolase-like protein; Provisional.
+Length=333
+
+ Score = 496 bits (1280),  Expect = 1e-178, Method: Composition-based stats.
+ Identities = 198/330 (60%), Positives = 250/330 (76%), Gaps = 13/330 (4%)
+
+Query  1    MTDKLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAK  60
+            M ++L +L+++TTVVADTGD + +K +QP+DATTNPSL+L AAQ+PEY  LIDDA+ +AK
+Sbjct  1    MPNQLEALKEHTTVVADTGDFSLLKKFQPEDATTNPSLVLAAAQMPEYAHLIDDAIKYAK  60
+
+Query  61   QQS----------NDRAQQIVDATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIA  110
+                          ++ + +    DKL VN G+EILK+VPGR+STEVDARLS+D +A + 
+Sbjct  61   ANVSRLRDPLLSDEEKEELVELVVDKLTVNFGVEILKIVPGRVSTEVDARLSFDKQAMVD  120
+
+Query  111  KAKRLIKLYNDAGISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEA  170
+            KA+++IK+Y +AGIS DRILIKLASTW+GI+AA+ LEKEGI+CNLTLLFSFAQA ACA+A
+Sbjct  121  KARKIIKMYEEAGISKDRILIKLASTWEGIQAAKALEKEGIHCNLTLLFSFAQAVACAQA  180
+
+Query  171  GVFLISPFVGRILDWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNI  230
+            GV LISPFVGRILDWYK     + Y  A+DPGV+SV++IY YYK+HGY+T+VMGASFRN 
+Sbjct  181  GVTLISPFVGRILDWYKKPEKAESYVGAQDPGVISVTKIYNYYKKHGYKTIVMGASFRNT  240
+
+Query  231  GEILELAGCDRLTIAPALLKELAESEGA-IERKLSYTGEVKARPARI--TESEFLWQHNQ  287
+            GEILELAGCD+LTI+P LL+ELA +E   +ERKL      +        TE EF W+ N+
+Sbjct  241  GEILELAGCDKLTISPKLLEELANTEDGPVERKLDPEKLTEDTEKLPELTEKEFRWELNE  300
+
+Query  288  DPMAVDKLAEGIRKFAIDQEKLEKMIGDLL  317
+            D MA +KLAEGIR FA D EKLE +I   L
+Sbjct  301  DAMATEKLAEGIRNFAKDLEKLENVIRAKL  330
+
+
+>CDD:183426 PRK12309, PRK12309, transaldolase.  
+Length=391
+
+ Score = 476 bits (1226),  Expect = 1e-169, Method: Composition-based stats.
+ Identities = 190/322 (59%), Positives = 237/322 (74%), Gaps = 5/322 (2%)
+
+Query  1    MTDKLTSLRQYTTVVADTGDIAAMKLYQPQDATTNPSLILNAAQIPEYRKLIDDAVAWAK  60
+            M   L  LRQ T VVADTGDI A++ + P+DATTNPSLI  AAQ+P+Y+ ++D+ +  A+
+Sbjct  2    MASLLEQLRQMTVVVADTGDIQAIEKFTPRDATTNPSLITAAAQMPQYQSIVDETLRQAR  61
+
+Query  61   QQSNDRA--QQIV-DATDKLAVNIGLEILKLVPGRISTEVDARLSYDTEASIAKAKRLIK  117
+            ++    A  + +V  A D+LAV  GL+ILK+VPGR+STEVDARLSYDTEA+IAKA++LI 
+Sbjct  62   KELGSDAPVEDVVALAFDRLAVAFGLKILKIVPGRVSTEVDARLSYDTEATIAKARKLIS  121
+
+Query  118  LYNDAGISNDRILIKLASTWQGIRAAEQLEKEGINCNLTLLFSFAQARACAEAGVFLISP  177
+            LY DAGIS DR+LIK+ASTW+GI+AAE LEKEGI+CNLTLLF F QA ACAEAGV LISP
+Sbjct  122  LYEDAGISRDRVLIKIASTWEGIKAAEVLEKEGIHCNLTLLFGFHQAIACAEAGVTLISP  181
+
+Query  178  FVGRILDWYKANTDKKEYAPAEDPGVVSVSEIYQYYKEHGYETVVMGASFRNIGEILELA  237
+            FVGRILDWYK  T +  Y  AEDPGV SV++IY YYK+ GY+T VMGASFRNIGEI+ELA
+Sbjct  182  FVGRILDWYKKETGRDSYPGAEDPGVQSVTQIYNYYKKFGYKTEVMGASFRNIGEIIELA  241
+
+Query  238  GCDRLTIAPALLKELAESEGAIERKLSYTGEVKARPARIT--ESEFLWQHNQDPMAVDKL  295
+            GCD LTI+P LL++L  +E  + RKL           +I    + F   H +D MA +KL
+Sbjct  242  GCDLLTISPKLLEQLRSTEAELPRKLDPANAAGMEIEKIHMDRATFDKMHAEDRMASEKL  301
+
+Query  296  AEGIRKFAIDQEKLEKMIGDLL  317
+             EGI+ F+   E LEK++   L
+Sbjct  302  DEGIKGFSKALETLEKLLAHRL  323
+
+
+
+Lambda      K        H        a         alpha
+   0.316    0.133    0.373    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1747502397
+
+
+Query= NP_414550.1
+
+Length=195
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:181837 PRK09417, mogA, molybdenum cofactor biosynthesis prote...  411     2e-149
+CDD:440287 COG0521, MoaB, Molybdopterin biosynthesis enzyme MoaB/...  207     8e-69 
+CDD:238451 cd00886, MogA_MoaB, MogA_MoaB family. Members of this ...  184     5e-60 
+CDD:272944 TIGR00177, Molybdopterin_molybdenumtransferase, molybd...  135     8e-41 
+CDD:238387 cd00758, MoCF_BD, MoCF_BD: molybdenum cofactor (MoCF) ...  132     1e-39 
+CDD:214856 smart00852, MoCF_biosynth, Probable molybdopterin bind...  119     1e-34 
+
+
+>CDD:181837 PRK09417, mogA, molybdenum cofactor biosynthesis protein MogA; 
+Provisional.
+Length=193
+
+ Score = 411 bits (1059),  Expect = 2e-149, Method: Composition-based stats.
+ Identities = 165/193 (85%), Positives = 180/193 (93%), Gaps = 0/193 (0%)
+
+Query  1    MNTLRIGLVSISDRASSGVYQDKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQTLCE  60
+            M+TL+IGLVSISDRASSGVY+DKGIPALEEWL SALT+PFE+ETRLIPDEQ +IEQTL E
+Sbjct  1    MDTLKIGLVSISDRASSGVYEDKGIPALEEWLASALTSPFEIETRLIPDEQDLIEQTLIE  60
+
+Query  61   LVDEMSCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISLHFVPTAILSRQV  120
+            LVDEM C LVLTTGGTGPARRDVTP+ATLAVAD+EMPGFGEQMRQISL FVPTAILSRQV
+Sbjct  61   LVDEMGCDLVLTTGGTGPARRDVTPEATLAVADKEMPGFGEQMRQISLKFVPTAILSRQV  120
+
+Query  121  GVIRKQALILNLPGQPKSIKETLEGVKDAEGNVVVHGIFASVPYCIQLLEGPYVETAPEV  180
+             VIR Q+LI+NLPGQPKSIKETLEG+KDA+GNVVV GIFA+VPYCI L+ GPY+ET PEV
+Sbjct  121  AVIRGQSLIINLPGQPKSIKETLEGLKDADGNVVVPGIFAAVPYCIDLIGGPYIETNPEV  180
+
+Query  181  VAAFRPKSARRDV  193
+            V AFRPKSARRDV
+Sbjct  181  VKAFRPKSARRDV  193
+
+
+>CDD:440287 COG0521, MoaB, Molybdopterin biosynthesis enzyme MoaB/MogA [Coenzyme 
+transport and metabolism].  Molybdopterin biosynthesis 
+enzyme MoaB/MogA is part of the Pathway/BioSystem: Molybdopterin 
+biosynthesis.
+Length=169
+
+ Score = 207 bits (529),  Expect = 8e-69, Method: Composition-based stats.
+ Identities = 74/175 (42%), Positives = 99/175 (57%), Gaps = 15/175 (9%)
+
+Query  3    TLRIGLVSISDRASSGVYQDKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQTLCELV  62
+             LRI ++++SDR S G  +D   PAL E L  A      +  R++PD++  I   L EL+
+Sbjct  9    PLRIAVLTVSDRRSRGEREDTSGPALVELLEEA--GHEVVARRIVPDDKDAIRAALRELI  66
+
+Query  63   DEMSCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISL-HFVPTAILSRQVG  121
+            D+    LVLTTGGTG + RDVTP+AT  + D+E+PGFGE  R +SL    P+AILSR V 
+Sbjct  67   DDEGVDLVLTTGGTGLSPRDVTPEATRPLLDKELPGFGELFRALSLEEIGPSAILSRAVA  126
+
+Query  122  VIRKQALILNLPGQPKSIKETLEGVKDAEGNVVVHGIFASVPYCIQLLEGPYVET  176
+             IR   LI NLPG P +++E LE             I   +P+ + LL G   E 
+Sbjct  127  GIRGGTLIFNLPGSPGAVREALE------------AILPELPHAVDLLNGVDHEC  169
+
+
+>CDD:238451 cd00886, MogA_MoaB, MogA_MoaB family. Members of this family 
+are involved in biosynthesis of the molybdenum cofactor (MoCF) 
+an essential cofactor of a diverse group of redox enzymes. 
+MoCF biosynthesis is an evolutionarily conserved pathway present 
+in eubacteria, archaea, and eukaryotes. MoCF contains 
+a tricyclic pyranopterin, termed molybdopterin (MPT).  MogA, 
+together with MoeA, is responsible for the metal incorporation 
+into MPT, the third step in MoCF biosynthesis. The plant 
+homolog Cnx1 is a MoeA-MogA fusion protein.  The mammalian 
+homolog gephyrin is a MogA-MoeA fusion protein, that plays 
+a critical role in postsynaptic anchoring of inhibitory glycine 
+receptors and major GABAa receptor subtypes. In contrast, 
+MoaB shows high similarity to MogA, but little is known about 
+its physiological role. All well studied members of this 
+family form highly stable trimers.
+Length=152
+
+ Score = 184 bits (469),  Expect = 5e-60, Method: Composition-based stats.
+ Identities = 68/166 (41%), Positives = 95/166 (57%), Gaps = 14/166 (8%)
+
+Query  4    LRIGLVSISDRASSGVYQDKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQTLCELVD  63
+            LR  ++++SD  S+G  +D+  PAL E L  A      +   ++PD++  I + L E  D
+Sbjct  1    LRAAVLTVSDTRSAGEAEDRSGPALVELLEEAGHE--VVAYEIVPDDKDEIREALIEWAD  58
+
+Query  64   EMSCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISLHFVPTAILSRQVGVI  123
+            E    L+LTTGGTG A RDVTP+AT  + D+E+PGFGE  R +SL    TA+LSR V  I
+Sbjct  59   EDGVDLILTTGGTGLAPRDVTPEATRPLLDKELPGFGEAFRALSLEETGTAMLSRAVAGI  118
+
+Query  124  RKQALILNLPGQPKSIKETLEGVKDAEGNVVVHGIFASVPYCIQLL  169
+            R   LI NLPG PK+++E LE +               +P+ + LL
+Sbjct  119  RGGTLIFNLPGSPKAVREALEVILPE------------LPHLLDLL  152
+
+
+>CDD:272944 TIGR00177, Molybdopterin_molybdenumtransferase, molybdenum cofactor 
+synthesis domain.  The Drosophila protein cinnamon, the 
+Arabidopsis protein cnx1, and rat protein gephyrin each have 
+one domain like MoeA and one like MoaB and Mog. These domains 
+are, however, distantly related to each other, as captured 
+by this model. Gephyrin is unusual in that it seems to 
+be a tubulin-binding neuroprotein involved in the clustering 
+of both blycine receptors and GABA receptors, rather than a 
+protein of molybdenum cofactor biosynthesis.
+Length=148
+
+ Score = 135 bits (342),  Expect = 8e-41, Method: Composition-based stats.
+ Identities = 52/155 (34%), Positives = 70/155 (45%), Gaps = 20/155 (13%)
+
+Query  4    LRIGLVSISDRASSG-------VYQDKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQ  56
+             R+ ++S+ D    G          D   P L   L  A          ++PD+   I +
+Sbjct  1    PRVAVISVGDELVEGGQPLEPGQIYDSNGPLLAALLQEAGFNVVR--LGIVPDDPEEIRE  58
+
+Query  57   TLCELVDEMSCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISLHFVPTAIL  116
+             L + VDE    +VLTTGGTG   RDVTP+A   + ++E+PGFGE     SL      +L
+Sbjct  59   ILRKAVDE--ADVVLTTGGTGVGPRDVTPEALEELGEKEIPGFGEFRMLSSL-----PVL  111
+
+Query  117  SRQVGV----IRKQALILNLPGQPKSIKETLEGVK  147
+            SR        +R   LI NLPG P S   T E + 
+Sbjct  112  SRPGKPATAGVRGGTLIFNLPGNPVSALVTFEVLI  146
+
+
+>CDD:238387 cd00758, MoCF_BD, MoCF_BD: molybdenum cofactor (MoCF) binding 
+domain (BD). This domain is found a variety of proteins involved 
+in biosynthesis of molybdopterin cofactor, like MoaB, 
+MogA, and MoeA. The domain is presumed to bind molybdopterin.
+Length=133
+
+ Score = 132 bits (333),  Expect = 1e-39, Method: Composition-based stats.
+ Identities = 53/140 (38%), Positives = 65/140 (46%), Gaps = 14/140 (10%)
+
+Query  5    RIGLVSISDRASSGVYQDKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQTLCELVDE  64
+            R+ +V++SD  S G  +D   PALE  L              +PD+   I   L E   E
+Sbjct  1    RVAIVTVSDELSQGQIEDTNGPALEALLEDLGCEVIYAGV--VPDDADSIRAALIEASRE  58
+
+Query  65   MSCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISLHFVPTAILSRQVGVIR  124
+                LVLTTGGTG  RRDVTP+A   + +RE  G            V  A  SR    I 
+Sbjct  59   --ADLVLTTGGTGVGRRDVTPEALAELGEREAHG----------KGVALAPGSRTAFGII  106
+
+Query  125  KQALILNLPGQPKSIKETLE  144
+             + LI+NLPG PKS   T E
+Sbjct  107  GKVLIINLPGSPKSALTTFE  126
+
+
+>CDD:214856 smart00852, MoCF_biosynth, Probable molybdopterin binding domain. 
+ This domain is found a variety of proteins involved in 
+biosynthesis of molybdopterin cofactor. The domain is presumed 
+to bind molybdopterin. The structure of this domain is known, 
+and it forms an alpha/beta structure. In the known structure 
+of Gephyrin this domain mediates trimerisation.
+Length=138
+
+ Score = 119 bits (300),  Expect = 1e-34, Method: Composition-based stats.
+ Identities = 42/141 (30%), Positives = 59/141 (42%), Gaps = 4/141 (3%)
+
+Query  7    GLVSISDRASSGVYQ-DKGIPALEEWLTSALTTPFELETRLIPDEQAIIEQTLCELVDEM  65
+             ++S  D   SG    D   P L   L         +     PD+   I + L E + E 
+Sbjct  1    AIISTGDELLSGGQIRDSNGPMLAALLRELGIEVVRVVVVGGPDDPEAIREALREALAE-  59
+
+Query  66   SCHLVLTTGGTGPARRDVTPDATLAVADREMPGFGEQMRQISLHFVPTAILSRQVGVIRK  125
+               +V+TTGGTGP   D+TP+A   +  RE+ G G  MR       P A LS     +R 
+Sbjct  60   -ADVVITTGGTGPGPDDLTPEALAELGGRELLGHGVAMRPGGP-PGPLANLSGTAPGVRG  117
+
+Query  126  QALILNLPGQPKSIKETLEGV  146
+            +  +  LPG P +     E +
+Sbjct  118  KKPVFGLPGNPVAALVMFEEL  138
+
+
+
+Lambda      K        H        a         alpha
+   0.318    0.135    0.385    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 845757786
+
+
+Query= NP_414551.1
+
+Length=188
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:182625 PRK10659, PRK10659, acetate uptake transporter             308     1e-108
+CDD:411606 NF038013, AceTr_1, acetate uptake transporter. Protein...  279     3e-97 
+CDD:441192 COG1584, SatP, Succinate-acetate transporter SatP [Ene...  211     3e-70 
+CDD:426106 pfam01184, Grp1_Fun34_YaaH, GPR1/FUN34/yaaH family. Th...  135     3e-40 
+
+
+>CDD:182625 PRK10659, PRK10659, acetate uptake transporter.  
+Length=188
+
+ Score = 308 bits (790),  Expect = 1e-108, Method: Composition-based stats.
+ Identities = 181/188 (96%), Positives = 183/188 (97%), Gaps = 0/188 (0%)
+
+Query  1    MGNTKLANPAPLGLMGFGMTTILLNLHNVGYFALDGIILAMGIFYGGIAQIFAGLLEYKK  60
+            MGNTKLANPAPLGLMGFGMTTILLNLHN G+FALDGIILAMGIFYGGIAQIFAGLLEYKK
+Sbjct  1    MGNTKLANPAPLGLMGFGMTTILLNLHNAGFFALDGIILAMGIFYGGIAQIFAGLLEYKK  60
+
+Query  61   GNTFGLTAFTSYGSFWLTLVAILLMPKLGLTDAPNAQFLGVYLGLWGVFTLFMFFGTLKG  120
+            GNTFGLTAFTSYGSFWLTLVAILLMPK+GL DAPNAQFLGVYLGLWGVFTLFMFFGTLK 
+Sbjct  61   GNTFGLTAFTSYGSFWLTLVAILLMPKMGLADAPNAQFLGVYLGLWGVFTLFMFFGTLKA  120
+
+Query  121  ARVLQFVFFSLTVLFALLAIGNIAGNAAIIHFAGWIGLICGASAIYLAMGEVLNEQFGRT  180
+            AR LQFVFFSLTVLFALLAIGNI GNAAIIHFAGWIGLICGASAIYLAMGEVLNEQFGRT
+Sbjct  121  ARALQFVFFSLTVLFALLAIGNITGNAAIIHFAGWIGLICGASAIYLAMGEVLNEQFGRT  180
+
+Query  181  VLPIGESH  188
+            VLPIGESH
+Sbjct  181  VLPIGESH  188
+
+
+>CDD:411606 NF038013, AceTr_1, acetate uptake transporter.  Proteins of this 
+family are acetate transporters, which usually have 6 transmembrane 
+regions. The homologue in E. coli is YaaH.
+Length=176
+
+ Score = 279 bits (715),  Expect = 3e-97, Method: Composition-based stats.
+ Identities = 123/176 (70%), Positives = 145/176 (82%), Gaps = 0/176 (0%)
+
+Query  8    NPAPLGLMGFGMTTILLNLHNVGYFALDGIILAMGIFYGGIAQIFAGLLEYKKGNTFGLT  67
+            NPAPLGL+GFGMTT+LLNLHN G+F L  +ILAMGIFYGG+AQI AG++E+KKGNTFG T
+Sbjct  1    NPAPLGLLGFGMTTVLLNLHNAGFFPLSSMILAMGIFYGGLAQIIAGIMEFKKGNTFGAT  60
+
+Query  68   AFTSYGSFWLTLVAILLMPKLGLTDAPNAQFLGVYLGLWGVFTLFMFFGTLKGARVLQFV  127
+            AFTSYG FWL+LV I L+PK+GL +A +   +G YL LWG+FTLFMF GTLK  R LQFV
+Sbjct  61   AFTSYGFFWLSLVGIWLLPKMGLAEAADETSMGAYLLLWGIFTLFMFIGTLKHNRALQFV  120
+
+Query  128  FFSLTVLFALLAIGNIAGNAAIIHFAGWIGLICGASAIYLAMGEVLNEQFGRTVLP  183
+            F SLT+LF LLAIG+  GNA I   AG+ G+ CGASAIYLAM +VLNE++GRTVLP
+Sbjct  121  FGSLTILFFLLAIGDFTGNALITTIAGYEGIFCGASAIYLAMAQVLNEEYGRTVLP  176
+
+
+>CDD:441192 COG1584, SatP, Succinate-acetate transporter SatP [Energy production 
+and conversion].  
+Length=187
+
+ Score = 211 bits (539),  Expect = 3e-70, Method: Composition-based stats.
+ Identities = 110/187 (59%), Positives = 135/187 (72%), Gaps = 1/187 (1%)
+
+Query  1    MGNTKLANPAPLGLMGFGMTTILLNLHNVGYFALDGI-ILAMGIFYGGIAQIFAGLLEYK  59
+                K ANPAPLGL GF MTT LL+LHN G+F    + +LAM +FYGG+AQ+ AG++E+K
+Sbjct  1    AVKDKTANPAPLGLFGFAMTTFLLSLHNAGWFPGSALPVLAMALFYGGLAQLIAGIMEFK  60
+
+Query  60   KGNTFGLTAFTSYGSFWLTLVAILLMPKLGLTDAPNAQFLGVYLGLWGVFTLFMFFGTLK  119
+            KGNTFG TAFTSYG+FWL+L  +LL+PK GL  A +A  LG YL  WG+FTLFM   TLK
+Sbjct  61   KGNTFGATAFTSYGAFWLSLAGLLLLPKFGLAAAADAAALGWYLLAWGIFTLFMTIATLK  120
+
+Query  120  GARVLQFVFFSLTVLFALLAIGNIAGNAAIIHFAGWIGLICGASAIYLAMGEVLNEQFGR  179
+              + LQ VF  L +LF LLA+G+  G+AA+   AG+ GLICG  A YLA   VLNE FGR
+Sbjct  121  TNKALQVVFLLLDILFFLLALGDFTGSAALTTIAGYEGLICGLLAWYLAAALVLNETFGR  180
+
+Query  180  TVLPIGE  186
+            TVLP+G+
+Sbjct  181  TVLPLGK  187
+
+
+>CDD:426106 pfam01184, Grp1_Fun34_YaaH, GPR1/FUN34/yaaH family.  The Ady2 
+protein is required for acetate in Saccharomyces cerevisiae, 
+and is probably an acetate transporter. A homolog in Yarrowia 
+lipolytica (GPR1) has a role in acetic acid sensitivity.
+Length=207
+
+ Score = 135 bits (342),  Expect = 3e-40, Method: Composition-based stats.
+ Identities = 69/180 (38%), Positives = 96/180 (53%), Gaps = 9/180 (5%)
+
+Query  5    KLANPAPLGLMGFGMTTILLNLHNVGYFALD--GIILAMGIFYGGIAQIFAGLLEYKKGN  62
+            K ANPAPLGL  F +TT +L+L+N G   +    +++ + +FYGG+ Q+ AG+ E+  GN
+Sbjct  16   KFANPAPLGLAAFALTTFVLSLYNAGARGITIPNVVVGLALFYGGLVQLLAGMWEFAIGN  75
+
+Query  63   TFGLTAFTSYGSFWLTLVAILLMPKLGLTDAPN------AQFLGVYLGLWGVFTLFMFFG  116
+            TFG TAF+SYG FWL+    + +P  G+  A           LG+YL  W +FT  +   
+Sbjct  76   TFGATAFSSYGGFWLSF-GAIFIPSFGIAAAYAEDPEEFNNALGLYLLGWFIFTFLLLLC  134
+
+Query  117  TLKGARVLQFVFFSLTVLFALLAIGNIAGNAAIIHFAGWIGLICGASAIYLAMGEVLNEQ  176
+            TLK       +FF L + F LLA G   GNA +    G  G+I    A Y A   +   Q
+Sbjct  135  TLKSTVAFFLLFFFLDLTFLLLAAGYFTGNAGVTKAGGVFGIITAFLAWYNAFAGLATPQ  194
+
+
+
+Lambda      K        H        a         alpha
+   0.330    0.147    0.457    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 787715585
+
+
+Query= NP_414877.1
+
+Length=417
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:396050 pfam01306, LacY_symp, LacY proton/sugar symporter. Thi...  612     0.0  
+CDD:236549 PRK09528, lacY, galactoside permease; Reviewed             597     0.0  
+CDD:211613 TIGR00882, Lactose_permease, oligosaccharide:H+ sympor...  572     0.0  
+CDD:340862 cd06172, MFS_LacY, LacY proton/sugar symporter family ...  512     0.0  
+CDD:441825 COG2223, NarK, Nitrate/nitrite transporter NarK [Inorg...  93.0    1e-20
+CDD:340893 cd17335, MFS_MFSD6, Major facilitator superfamily doma...  87.3    1e-18
+
+
+>CDD:396050 pfam01306, LacY_symp, LacY proton/sugar symporter.  This family 
+is closely related to the sugar transporter family.
+Length=413
+
+ Score = 612 bits (1580),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 333/413 (81%), Positives = 370/413 (90%), Gaps = 0/413 (0%)
+
+Query  1    MYYLKNTNFWMFGLFFFFYFFIMGAYFPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQ  60
+            MY LKNTNFWMFGLFFFFYFFIM AYFPFFPIWLHD+NH+SK+DTGI+F+ ISLFS+LFQ
+Sbjct  1    MYPLKNTNFWMFGLFFFFYFFIMSAYFPFFPIWLHDVNHLSKTDTGIVFSCISLFSILFQ  60
+
+Query  61   PLFGLLSDKLGLRKYLLWIITGMLVMFAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNA  120
+            PLFGL+SDKLGLRK+LLW ITG+LV+FAPFFI++FGPLLQ NILVG+IVGG+YLGF F+A
+Sbjct  61   PLFGLISDKLGLRKHLLWCITGLLVLFAPFFIYVFGPLLQSNILVGAIVGGVYLGFVFSA  120
+
+Query  121  GAPAVEAFIEKVSRRSNFEFGRARMFGCVGWALCASIVGIMFTINNQFVFWLGSGCALIL  180
+            GA A+EA+IEKVSRRSNFE+G+ARMFGCVGWALCASI GI+F+I+ Q VFWLGSG ALIL
+Sbjct  121  GAGAIEAYIEKVSRRSNFEYGKARMFGCVGWALCASIAGILFSIDPQIVFWLGSGFALIL  180
+
+Query  181  AVLLFFAKTDAPSSATVANAVGANHSAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFD  240
+            A+LL FAK D  SSA VA+A+GAN SAFSL+LALELFR PK W   LYV+GV+C YDVFD
+Sbjct  181  ALLLMFAKPDKSSSAIVADALGANKSAFSLRLALELFRMPKFWVFVLYVVGVACVYDVFD  240
+
+Query  241  QQFANFFTSFFATGEQGTRVFGYVTTMGELLNASIMFFAPLIINRIGGKNALLLAGTIMS  300
+            QQFANFFTSFFAT +QGTRVFGYVTTMGELLNA IMF APLIINRIG KNALL+AGTIMS
+Sbjct  241  QQFANFFTSFFATPQQGTRVFGYVTTMGELLNALIMFCAPLIINRIGAKNALLIAGTIMS  300
+
+Query  301  VRIIGSSFATSALEVVILKTLHMFEVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQL  360
+            VRI+GSSFAT+ALEVVILK LHMFEVPFLLVGCFKYITSQF+VR SATIYL+ F F KQL
+Sbjct  301  VRILGSSFATTALEVVILKMLHMFEVPFLLVGCFKYITSQFDVRLSATIYLIGFQFSKQL  360
+
+Query  361  AMIFMSVLAGNMYESIGFQGAYLVLGLVALGFTLISVFTLSGPGPLSLLRRQV  413
+            AMI +S LAG MY+SIGFQGAYLVLG + L FTLISVFTLSG GP  LL R V
+Sbjct  361  AMILLSTLAGIMYDSIGFQGAYLVLGGIVLSFTLISVFTLSGSGPQILLPRPV  413
+
+
+>CDD:236549 PRK09528, lacY, galactoside permease; Reviewed.
+Length=420
+
+ Score = 597 bits (1541),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 305/417 (73%), Positives = 346/417 (83%), Gaps = 0/417 (0%)
+
+Query  1    MYYLKNTNFWMFGLFFFFYFFIMGAYFPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQ  60
+            MYYLKN N+W+F LFFFF+FFI  ++F FFPIWLHDIN +S +DTGIIF+A SLF+LLFQ
+Sbjct  4    MYYLKNPNYWIFSLFFFFFFFIWSSWFSFFPIWLHDINGLSGTDTGIIFSANSLFALLFQ  63
+
+Query  61   PLFGLLSDKLGLRKYLLWIITGMLVMFAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNA  120
+            PL+GL+SDKLGL+K+LLWII+G+LV+F PFFI++F PLLQYNIL+G+IVGGIYLGF F A
+Sbjct  64   PLYGLISDKLGLKKHLLWIISGLLVLFGPFFIYVFAPLLQYNILLGAIVGGIYLGFGFLA  123
+
+Query  121  GAPAVEAFIEKVSRRSNFEFGRARMFGCVGWALCASIVGIMFTINNQFVFWLGSGCALIL  180
+            GA A+EA+IE+VSRRS FE+GRARM+G +GWALCA I GI+F IN Q  FWLGSG ALIL
+Sbjct  124  GAGAIEAYIERVSRRSGFEYGRARMWGSLGWALCAFIAGILFNINPQINFWLGSGSALIL  183
+
+Query  181  AVLLFFAKTDAPSSATVANAVGANHSAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFD  240
+             VLLFFAK DAPS+A VANA+GAN SA SLK AL L + PK WFL LYVIGV+C YDVFD
+Sbjct  184  LVLLFFAKPDAPSTAKVANALGANASAVSLKDALALLKLPKFWFLVLYVIGVACFYDVFD  243
+
+Query  241  QQFANFFTSFFATGEQGTRVFGYVTTMGELLNASIMFFAPLIINRIGGKNALLLAGTIMS  300
+            QQF NFF SFFAT EQGTRVFGY+ +    L A IMFFAP IINRIG KNALLLAGTIM+
+Sbjct  244  QQFPNFFASFFATPEQGTRVFGYLNSFQVFLEALIMFFAPFIINRIGAKNALLLAGTIMA  303
+
+Query  301  VRIIGSSFATSALEVVILKTLHMFEVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQL  360
+            VRIIGS FAT  LEV ILK LH FEVPFLLVG FKYIT  F+VR SATIYLV F F KQL
+Sbjct  304  VRIIGSGFATGPLEVSILKLLHAFEVPFLLVGVFKYITLNFDVRLSATIYLVGFQFAKQL  363
+
+Query  361  AMIFMSVLAGNMYESIGFQGAYLVLGLVALGFTLISVFTLSGPGPLSLLRRQVNEVA  417
+              +F+S LAGN+Y+SIGFQG YL+LG + L FTLISVFTLSG   LSLLRRQV E A
+Sbjct  364  GAVFLSTLAGNLYDSIGFQGTYLILGGIVLLFTLISVFTLSGDRELSLLRRQVPEAA  420
+
+
+>CDD:211613 TIGR00882, Lactose_permease, oligosaccharide:H+ symporter.  [Transport 
+and binding proteins, Carbohydrates, organic alcohols, 
+and acids].
+Length=396
+
+ Score = 572 bits (1477),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 323/396 (82%), Positives = 359/396 (91%), Gaps = 0/396 (0%)
+
+Query  6    NTNFWMFGLFFFFYFFIMGAYFPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQPLFGL  65
+            NTNFWMFGLFFF YFFIM AYFPFFPIWLHD+N +SK+DTGI+F+ ISLFS+LFQPLFGL
+Sbjct  1    NTNFWMFGLFFFLYFFIMSAYFPFFPIWLHDVNGLSKTDTGIVFSCISLFSILFQPLFGL  60
+
+Query  66   LSDKLGLRKYLLWIITGMLVMFAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNAGAPAV  125
+            +SDKLGL+K+LLWII+G+LV+FAPFFI++FGPLLQ NILVG+IVGG+YLGF F+AGA A+
+Sbjct  61   ISDKLGLKKHLLWIISGLLVLFAPFFIYVFGPLLQSNILVGAIVGGLYLGFVFSAGAGAI  120
+
+Query  126  EAFIEKVSRRSNFEFGRARMFGCVGWALCASIVGIMFTINNQFVFWLGSGCALILAVLLF  185
+            EA+IEKVSR SNFE+G+ARMFGCVGWALCASI GI+F+I+ Q VFWLGSG ALIL +LL 
+Sbjct  121  EAYIEKVSRNSNFEYGKARMFGCVGWALCASIAGILFSIDPQIVFWLGSGFALILMLLLM  180
+
+Query  186  FAKTDAPSSATVANAVGANHSAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFDQQFAN  245
+            FAK  APSSATVANA+GAN SAFSLKLALELFRQ K W   LYV+GV+C YDVFDQQFAN
+Sbjct  181  FAKPKAPSSATVANALGANASAFSLKLALELFRQRKFWMFVLYVVGVACVYDVFDQQFAN  240
+
+Query  246  FFTSFFATGEQGTRVFGYVTTMGELLNASIMFFAPLIINRIGGKNALLLAGTIMSVRIIG  305
+            FFTSFFAT +QGTRVFGYVTTMGELLNA IMF APLIINRIG KNALL+AGTIMSVRIIG
+Sbjct  241  FFTSFFATPQQGTRVFGYVTTMGELLNALIMFCAPLIINRIGAKNALLIAGTIMSVRIIG  300
+
+Query  306  SSFATSALEVVILKTLHMFEVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQLAMIFM  365
+            SSFAT+ALEVVILK LH FEVPFLLVGCFKYITSQF+VR SATIYL+ F F KQLAMIF+
+Sbjct  301  SSFATTALEVVILKMLHAFEVPFLLVGCFKYITSQFDVRLSATIYLIGFQFAKQLAMIFL  360
+
+Query  366  SVLAGNMYESIGFQGAYLVLGLVALGFTLISVFTLS  401
+            S LAGNMY+SIGFQGAYLVLG + L FTLISVFTLS
+Sbjct  361  STLAGNMYDSIGFQGAYLVLGCIVLLFTLISVFTLS  396
+
+
+>CDD:340862 cd06172, MFS_LacY, LacY proton/sugar symporter family of the 
+Major Facilitator Superfamily of transporters.  LacY proton/sugar 
+family (also called LacY/RafB family) symporters are integral 
+membrane proteins responsible for the transport of specific 
+beta-glucosides into the cell accompanied by the import 
+of a proton. Members include lactose permease (LacY), raffinose 
+permease (RafB), and sucrose permease, which facilitate 
+the transport of beta-galactosides, raffinose, and sucrose, 
+respectively. The prototypical member, LacY, contains 12 
+transmembrane helices connected by hydrophilic loops with both 
+N and C termini on the cytoplasmic face. The LacY/RafB permease 
+family belongs to the Major Facilitator Superfamily 
+(MFS) of membrane transport proteins, which are thought to function 
+through a single substrate binding site, alternating-access 
+mechanism involving a rocker-switch type of movement.
+Length=389
+
+ Score = 512 bits (1320),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 249/379 (66%), Positives = 293/379 (77%), Gaps = 3/379 (1%)
+
+Query  22   IMGAYFPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQPLFGLLSDKLGLRKYLLWIIT  81
+            I  A F FFPIWL  INH+S S+TGI+F+A SLF+LLFQP++GL+SDKLGL+K+LLW I+
+Sbjct  14   IWSASFSFFPIWLTQINHLSGSETGIVFSANSLFALLFQPVYGLISDKLGLKKHLLWFIS  73
+
+Query  82   GMLVMFAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNAGAPAVEAFIEKVSRRSNFEFG  141
+            G+LV+F PFFIF++GPLLQ NIL+G+IVGGIYLGF F AG  A+E++IE+VSRR NFE+G
+Sbjct  74   GLLVLFGPFFIFVYGPLLQSNILLGAIVGGIYLGFAFLAGCGAIESYIERVSRRFNFEYG  133
+
+Query  142  RARMFGCVGWALCASIVGIMFTINNQFVFWLGSGCALILAVLLFFAKTDAPSSATVANAV  201
+            RARM+G +GWAL A   GI+F IN    FWLGSG ALIL +LL FAK +   +A    A 
+Sbjct  134  RARMWGSLGWALAAFFAGILFNINPNINFWLGSGFALILLLLLLFAKPEDSDTAA---AA  190
+
+Query  202  GANHSAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFDQQFANFFTSFFATGEQGTRVF  261
+            GAN S+ SLK  LELFR PK WF  L+VIGVSC YDVFDQQF  +FTS FAT EQG RVF
+Sbjct  191  GANASSVSLKDVLELFRMPKFWFFILFVIGVSCFYDVFDQQFPPYFTSLFATPEQGNRVF  250
+
+Query  262  GYVTTMGELLNASIMFFAPLIINRIGGKNALLLAGTIMSVRIIGSSFATSALEVVILKTL  321
+            GY+ +    L A +MF APLI+NRIG KN LLLAGTIM+VRIIGS  ATS LE+ ILK L
+Sbjct  251  GYLNSAQVFLEAGMMFLAPLIVNRIGAKNGLLLAGTIMAVRIIGSGLATSPLEISILKLL  310
+
+Query  322  HMFEVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQLAMIFMSVLAGNMYESIGFQGA  381
+            H FEVP LLV  FKYITS F+ R SAT+YLV F F KQL  + +S LAGN+Y+SIGFQ  
+Sbjct  311  HAFEVPLLLVSIFKYITSHFDTRLSATLYLVGFQFAKQLGAVVLSPLAGNLYDSIGFQQT  370
+
+Query  382  YLVLGLVALGFTLISVFTL  400
+            YLVLG + L FTLISVFTL
+Sbjct  371  YLVLGGIVLVFTLISVFTL  389
+
+
+>CDD:441825 COG2223, NarK, Nitrate/nitrite transporter NarK [Inorganic ion 
+transport and metabolism].  
+Length=392
+
+ Score = 93.0 bits (232),  Expect = 1e-20, Method: Composition-based stats.
+ Identities = 77/378 (20%), Positives = 149/378 (39%), Gaps = 20/378 (5%)
+
+Query  27   FPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQPLFGLLSDKLGLRKYLLWIITGMLVM  86
+            +      L +   +S +  G++FA   L   L +   G L D+ G R+    ++ G+L++
+Sbjct  24   WSVLAPPLAEEFGLSAAQLGLLFAIPVLVGALLRIPLGFLVDRFGPRR---VLLIGLLLL  80
+
+Query  87   FAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNAGAPAVEAFIEKVSRRSNFEFGRARMF  146
+                 +        + +L+  ++ GI  G  F  G   V  +      R     G A   
+Sbjct  81   GIGLLLLALAVSY-WLLLLLGLLLGIGGGGSFAVGIALVSKWFPP--DRRGLALGLAAGG  137
+
+Query  147  GCVGWALCASIVGIMFTINN-QFVFWLGSGCALILAVLLFFAKTDAPSSATVANAVGANH  205
+            G +G A+ A +  ++      +  F +     L++AVL +    D P+ A  A       
+Sbjct  138  GNLGAAVAAFLAPLLIAAFGWRNAFLILGILLLVVAVLAWLFLRDPPAGAAAA-------  190
+
+Query  206  SAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFDQQFANFFTSFFATGEQGTRVFGYVT  265
+            +  SL+  LE  R P+ W LSL   G   ++  F      +    F          G + 
+Sbjct  191  AKASLRDQLEALRDPRFWLLSLLYFGTFGSFIGFSSWLPPYLVDQFGLSAA---TAGLLA  247
+
+Query  266  TMGELLNASIMFFAPLIINRIGGKNALLLAGTIMSVRIIGSSFATSALEV-VILKTLHMF  324
+             +  LL A        + +RIGG+  LL+   +M++ ++  + A  +L + ++L  L   
+Sbjct  248  ALFALLGALGRPLGGWLSDRIGGRRVLLIVFALMALGLLLLALALGSLWLFLVLFLLLGL  307
+
+Query  325  EVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQLAMIFMSVLAGNMYESIG-FQGAYL  383
+             +       F  +   F  + +  +Y +       L      +L G + ++ G +  A+L
+Sbjct  308  ALGGGNGAVFALVPDIFPTKNAGAVYGLVGAAG-GLGGFLGPLLFGALLDATGSYTAAFL  366
+
+Query  384  VLGLVALGFTLISVFTLS  401
+            V  ++AL   ++++    
+Sbjct  367  VFAVLALVALVLTLLLYR  384
+
+
+>CDD:340893 cd17335, MFS_MFSD6, Major facilitator superfamily domain-containing 
+protein 6.  Human Major facilitator superfamily domain-containing 
+protein 6 (MFSD6) is also called macrophage MHC 
+class I receptor 2 homolog (MMR2). It has been postulated as 
+a possible receptor for human leukocyte antigen (HLA)-B62. 
+MFSD6 is conserved through evolution and appeared before bilateral 
+animals. It belongs to the Major Facilitator Superfamily 
+(MFS) of membrane transport proteins, which are thought 
+to function through a single substrate binding site, alternating-access 
+mechanism involving a rocker-switch type of movement.
+Length=375
+
+ Score = 87.3 bits (217),  Expect = 1e-18, Method: Composition-based stats.
+ Identities = 74/384 (19%), Positives = 137/384 (36%), Gaps = 26/384 (7%)
+
+Query  20   FFIMGAYFPFFPIWLHDINHISKSDTGIIFAAISLFSLLFQPLFGLLSDKLGLRKYLLWI  79
+            F  +G+  PF  ++L  +  +S +  GI+         L  PL+G L+D+ G RK LL +
+Sbjct  10   FAALGSLLPFLSVYLKQL-GLSPTQIGILIGIRPFVRFLSAPLWGALADRFGKRKALLLL  68
+
+Query  80   ITGMLVMFAPFFIFIFGPLLQYNILVGSIVGGIYLGFCFNAGAPAVEAFIEKVSRRSNFE  139
+                 V+F     F+        I    ++  I   F      P V++   +        
+Sbjct  69   SLLAAVLFFLSLFFVAQ------IFWLLLLLVILGAFFSAPVVPLVDSITLQYLGEERER  122
+
+Query  140  FGRARMFGCVGWALCASIVGIMFT-----INNQFVFWLGSGCALILAVLLFFAKTDAPSS  194
+            +G+ R++G +G+ + A +VGI+        N    F++ +   L+  +L           
+Sbjct  123  YGKQRLWGSIGFGIAALLVGILIDRSSTYKNYTIAFYVFAVLMLLALLLALKFPFRPKHP  182
+
+Query  195  ATVANAVGANHSAFSLKLALELFRQPKLWFLSLYVIGVSCTYDVFDQQFANFFTSFFATG  254
+                          +    L L R P++    L    +   + +      +F        
+Sbjct  183  ----------EPNENTGGLLALLRNPRVLAFLLVAFLMGFGHGLIY----SFLFWHLQDL  228
+
+Query  255  EQGTRVFGYVTTMGELLNASIMFFAPLIINRIGGKNALLLAGTIMSVRIIGSSFATSALE  314
+                 + G + T+G +      FF+  +I R G    L L      VR +  SF  +   
+Sbjct  229  GGSKTLIGLLWTVGVVSEIPFFFFSSRLIQRFGHVGLLYLGLLAYVVRWLLYSFLENPWL  288
+
+Query  315  VVILKTLHMFEVPFLLVGCFKYITSQFEVRFSATIYLVCFCFFKQLAMIFMSVLAGNMYE  374
+            V+ ++ LH      +      Y ++       AT   +    +  L     S++ G +YE
+Sbjct  289  VLPIELLHGLTFALVWAAAVSYASAAAPPGLRATAQGLLQGLYFGLGGGLGSLIGGYLYE  348
+
+Query  375  SIGFQGAYLVLGLVALGFTLISVF  398
+            + G +  +    + AL   L    
+Sbjct  349  AFGARTTFRFFAIAALAGLLAFFL  372
+
+
+
+Lambda      K        H        a         alpha
+   0.334    0.147    0.460    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2462302020
+
+
+Query= NP_417759.1
+
+Length=443
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:439971 COG0201, SecY, Preprotein translocase subunit SecY [In...  627     0.0   
+CDD:273369 TIGR00967, Protein_translocase_subunit_SecY, preprotei...  419     1e-144
+CDD:459771 pfam00344, SecY, SecY translocase                          376     2e-129
+CDD:214379 CHL00161, secY, preprotein translocase subunit SecY; V...  288     1e-93 
+CDD:237095 PRK12417, secY, preprotein translocase subunit SecY; R...  128     6e-33 
+CDD:131966 TIGR02920, preprotein_translocase_SecY_family_protein,...  123     4e-31 
+
+
+>CDD:439971 COG0201, SecY, Preprotein translocase subunit SecY [Intracellular 
+trafficking, secretion, and vesicular transport].  
+Length=427
+
+ Score = 627 bits (1620),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 268/417 (64%), Positives = 326/417 (78%), Gaps = 2/417 (0%)
+
+Query  18   ELKRRLLFVIGALIVFRIGSFIPIPGIDAAVLAKLLEQQRGTIIEMFNMFSGGALSRASI  77
+            EL++R+LF +G LIV+R+GS IP+PGID A LA+L  QQ G ++ + NMFSGGALSR SI
+Sbjct  13   ELRKRILFTLGILIVYRLGSHIPVPGIDPAALAQLFAQQSGGLLGLLNMFSGGALSRFSI  72
+
+Query  78   FALGIMPYISASIIIQLLTVVHPTLAEIKKEGESGRRKISQYTRYGTLVLAIFQSIGIAT  137
+            FALGIMPYI+ASII+QLLTVV P L E++KEGE GR+KI+QYTRY T+VLA+ Q+ GIA 
+Sbjct  73   FALGIMPYITASIIMQLLTVVIPKLEELQKEGEEGRKKITQYTRYLTVVLALLQAFGIAL  132
+
+Query  138  GLPNMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGIVA  197
+            GL + P   GLVI+PG  FY   V++L  GTMFLMWLGEQITERGIGNGIS+IIFAGIVA
+Sbjct  133  GLRSGPPGGGLVIDPGILFYLLTVITLTAGTMFLMWLGEQITERGIGNGISLIIFAGIVA  192
+
+Query  198  GLPPAIAHTIEQARQGDLHFLVLLLVAVLVFAVTFFVVFVERGQRRIVVNYAKRQQGRRV  257
+             LP A+A   E  R G+L  L+LLL+ VL  AV  FVVFVE+ QRRI V YAKR  GRR+
+Sbjct  193  RLPSALAQIFELVRTGELSILLLLLLLVLALAVIAFVVFVEQAQRRIPVQYAKRVVGRRM  252
+
+Query  258  YAAQSTHLPLKVNMAGVIPAIFASSIILFPATIASWFGGGTGWNWLTTISLYLQPGQPLY  317
+            Y  QST+LPLKVNMAGVIP IFASS++LFPATIA +FGG +G  WL  I+ YL PG PLY
+Sbjct  253  YGGQSTYLPLKVNMAGVIPIIFASSLLLFPATIAQFFGGSSG--WLQWIANYLSPGSPLY  310
+
+Query  318  VLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTRLTLVG  377
+            ++LYA  IIFF +FYTA+ FNP E ADNLKKSG F+PGIRPG+ TA+Y+DKV+TRLTLVG
+Sbjct  311  IVLYALLIIFFTYFYTAITFNPEEIADNLKKSGGFIPGIRPGKPTAEYLDKVLTRLTLVG  370
+
+Query  378  ALYITFICLIPEFMRDAMKVPFYFGGTSLLIVVVVIMDFMAQVQTLMMSSQYESALK  434
+            A+++  I ++PE +     VPFYFGGTSLLIVV V +D M Q+++ ++   YE  LK
+Sbjct  371  AIFLALIAILPEILGAITGVPFYFGGTSLLIVVGVALDTMKQIESQLLMRHYEGFLK  427
+
+
+>CDD:273369 TIGR00967, Protein_translocase_subunit_SecY, preprotein translocase, 
+SecY subunit.  Members of this protein family are the 
+SecY component of the SecYEG translocon, or protein translocation 
+pore, which is driven by the ATPase SecA. This model 
+does not discriminate bacterial from archaeal forms. [Protein 
+fate, Protein and peptide secretion and trafficking].
+Length=410
+
+ Score = 419 bits (1078),  Expect = 1e-144, Method: Composition-based stats.
+ Identities = 206/419 (49%), Positives = 267/419 (64%), Gaps = 18/419 (4%)
+
+Query  20   KRRLLFVIGALIVFRIGSFIPIPGIDAAVLAKLLEQQRGTIIEMFNMFSGGALSRASIFA  79
+            + +LLF +G L++FRIG+FIPIPGIDA+    L++Q    I  + N FSGGAL + SIFA
+Sbjct  1    REKLLFTLGLLVLFRIGTFIPIPGIDASAFQNLIQQNP--IFGLLNTFSGGALGQISIFA  58
+
+Query  80   LGIMPYISASIIIQLLTV-VHPTLAEIKKEGESGRRKISQYTRYGTLVLAIFQSIGIATG  138
+            LGI PYI+ASIIIQLLT  V P L   KKEGE GRRKI+Q TRY TL+LA  QS+GI   
+Sbjct  59   LGISPYITASIIIQLLTGDVPPLLQLQKKEGEIGRRKINQLTRYLTLILAFIQSLGIV--  116
+
+Query  139  LPNMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGIVAG  198
+               M GM G V +PG  FY   V+ L TG+M +MWLGEQIT+ GIGNGIS++IFAGI A 
+Sbjct  117  ---MTGMYGYVGDPGAFFYLLIVIQLTTGSMIVMWLGEQITKYGIGNGISLLIFAGIAAT  173
+
+Query  199  LPPAIAHTIE--QARQGDLHFLVLLLVAVLVFAVTFFVVFV----ERGQRRIVVNYAKRQ  252
+            +P  +    E  Q++  DL   +  L  +L    T  V  V    ++ +R+I +  AKRQ
+Sbjct  174  IPSGLLQPTEVRQSKVRDLISFLQNLPFLLYLIATIIVFAVVVFVQQARRKIPIQSAKRQ  233
+
+Query  253  QGRRVYAAQSTHLPLKVNMAGVIPAIFASSIILFPATIASWFGGGTGWNWLTTISLYLQP  312
+             GRR   +QST+LPLK+N AGVIP IFAS+++  PATI+ +     G  W     L L  
+Sbjct  234  GGRR--GSQSTYLPLKLNYAGVIPVIFASALLSNPATISQFLNSNQGGAWFLNPILSLSL  291
+
+Query  313  GQPLYVLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTR  372
+              P+  +LY   IIFF FFY  L  NP + A NLKK G F+PGIRPG+ T KY+ +V+ R
+Sbjct  292  SDPIGAILYLILIIFFSFFYVELQLNPEDMAKNLKKQGMFIPGIRPGKMTEKYLKRVIPR  351
+
+Query  373  LTLVGALYITFICLIPEFMRDAMKVP--FYFGGTSLLIVVVVIMDFMAQVQTLMMSSQY  429
+            LT VG+L++  I L+P F+     +P     GGTSLLIVV V +D   Q+++ ++S  Y
+Sbjct  352  LTFVGSLFLGLIALLPNFLGAIGGLPTSKGLGGTSLLIVVGVAIDTYKQLESELISRNY  410
+
+
+>CDD:459771 pfam00344, SecY, SecY translocase.  
+Length=322
+
+ Score = 376 bits (968),  Expect = 2e-129, Method: Composition-based stats.
+ Identities = 187/343 (55%), Positives = 235/343 (69%), Gaps = 22/343 (6%)
+
+Query  76   SIFALGIMPYISASIIIQLLTVVHPTLAEIKKEGESGRRKISQYTRYGTLVLAIFQSIGI  135
+            S+FALGIMPYI+ASII+QLL VV  +L E+KKEGE GR+KI+QYTRY T+VLA+ Q+IGI
+Sbjct  1    SLFALGIMPYITASIIMQLLGVV-ISLEELKKEGEEGRKKINQYTRYLTVVLALIQAIGI  59
+
+Query  136  ATGLPNMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGI  195
+               L         V   G  FY   V+ L  GTMFLMWLGEQIT+ GIGNGIS+IIFAGI
+Sbjct  60   VLSL--------GVYGGGGGFYLLIVLQLTAGTMFLMWLGEQITKYGIGNGISLIIFAGI  111
+
+Query  196  VAGLPPAIA-HTIEQARQGDLHFLVLLLVAVLVFAVTFFVVFVERGQRRIVVNYAKRQQG  254
+            VA LP A +   I   R G    L  LL+ ++  AV   VV++++ +RRI V YAKR  G
+Sbjct  112  VARLPSAFSGALIALFRLGARSILPNLLLLIITLAVIALVVYLQQAERRIPVQYAKRVVG  171
+
+Query  255  RRVYAAQSTHLPLKVNMAGVIPAIFASSIILFPATIASWFGGGTGWNWLTTISLYLQPGQ  314
+                  QS++LPLK+N AGVIP IFASS++ FPATIA +FG       L        PG 
+Sbjct  172  -----GQSSYLPLKLNYAGVIPIIFASSLLSFPATIAQFFGLQFIAAAL-------DPGS  219
+
+Query  315  PLYVLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTRLT  374
+            PLY +LYA  IIFF +FYTA+ FNP++ A+NLKK G F+PGIRPG+ TAKY+D+V+ R+T
+Sbjct  220  PLYTVLYALLIIFFAYFYTAITFNPKDIAENLKKQGGFIPGIRPGKPTAKYLDRVIPRIT  279
+
+Query  375  LVGALYITFICLIPEFMRDAMKVPFYFGGTSLLIVVVVIMDFM  417
+            L+GAL++  I ++P+ +     VPF FGGTSLLIVV V +D  
+Sbjct  280  LLGALFLGIIAVLPDLLGALTGVPFGFGGTSLLIVVGVALDTY  322
+
+
+>CDD:214379 CHL00161, secY, preprotein translocase subunit SecY; Validated.
+Length=417
+
+ Score = 288 bits (739),  Expect = 1e-93, Method: Composition-based stats.
+ Identities = 167/416 (40%), Positives = 254/416 (61%), Gaps = 14/416 (3%)
+
+Query  18   ELKRRLLFVIGALIVFRIGSFIPIPGIDAAVLAKLLEQQRGTIIEMFNMFSGGALSRASI  77
+            EL  RLLF +G L++ R+G+FIP+PGID   L   L      ++ + N FSGG      +
+Sbjct  9    ELLNRLLFTLGLLLLIRLGTFIPVPGIDHTQLYPSLSNN--PLLNLLNTFSGGGFFVIGL  66
+
+Query  78   FALGIMPYISASIIIQLLTVVHPTLAEIKKE-GESGRRKISQYTRYGTLVLAIFQSIGIA  136
+            FALGI+PYI+ASIIIQLLT + P+L +++KE GE+GRRKI+QYTRY TL  AI QSIGI+
+Sbjct  67   FALGILPYINASIIIQLLTSIIPSLEKLQKEEGEAGRRKINQYTRYLTLGWAIIQSIGIS  126
+
+Query  137  TGLPNMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGIV  196
+              L      +  + N         V++L +G+M ++WL E ITE+G+GNG S++IF  IV
+Sbjct  127  FWL------KPYLFNWNLLLALEIVLALTSGSMIVLWLSELITEKGLGNGSSLLIFFNIV  180
+
+Query  197  AGLPPAIAHTIEQARQGDLHFLVLLLVAVLVFAVTFFVVFVERGQRRIVVNYAKRQQGRR  256
+            + LP  +   +           +LLL+ +    +   +   E   R+I +  AK Q G+ 
+Sbjct  181  SNLPKLLQSLLFSLSANITILSILLLLFLFFITLIGIIFLQE-AIRKIPLISAK-QLGKS  238
+
+Query  257  VYAAQSTHLPLKVNMAGVIPAIFASSIILFPATIASWFGGGTGWNWLTTISLYLQPGQPL  316
+               A +++LPL++N AGV+P IFAS++++ P  + +          L ++ L L   + L
+Sbjct  239  SRLASNSYLPLRLNQAGVMPIIFASALLVLPGYLTN-ILLNQFLLPLLSLFLQLASFKIL  297
+
+Query  317  YVLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTRLTLV  376
+            Y++LY   I+FF +FY+ +V NP++ ++NL+K    +PGIRPG+ T KY+ K + RLTL+
+Sbjct  298  YLVLYFVLILFFSYFYSTIVLNPKDISENLQKMAVSIPGIRPGKATTKYLKKTLNRLTLL  357
+
+Query  377  GALYITFICLIPEFMRDAMKVPFY--FGGTSLLIVVVVIMDFMAQVQTLMMSSQYE  430
+            GAL++ FI L+P  +   + +  +   G TSLLI+V V +D   Q+QT ++S+ YE
+Sbjct  358  GALFLAFIALLPNLIESVLNLSVFKGLGTTSLLILVGVAIDTSRQIQTYLISNNYE  413
+
+
+>CDD:237095 PRK12417, secY, preprotein translocase subunit SecY; Reviewed.
+Length=404
+
+ Score = 128 bits (324),  Expect = 6e-33, Method: Composition-based stats.
+ Identities = 105/429 (24%), Positives = 197/429 (46%), Gaps = 52/429 (12%)
+
+Query  21   RRLLFVIGALIVFRIGSFIPIPGIDAAVLAKLLEQQRGTIIEMFNMFSGGALSRASIFAL  80
+            +++LF    L ++ +GS I IP     V    +     + +++    +GG L   +IF+L
+Sbjct  14   KKILFTCFILFIYILGSNISIPF----VSYNDMLGGHESFLKIAAANTGGDLRTLNIFSL  69
+
+Query  81   GIMPYISASIIIQLLTVVHPTLAEIKKEGESGRRKISQYTRYGTLVLAIFQSIGIATGLP  140
+            G+ P++++ II+QL +         +   E   R+     R  TL++A+ QS+ +   LP
+Sbjct  70   GLGPWMTSMIILQLFSYRKRDGLMKQTIEEQHYRE-----RILTLIIAVIQSLAVILSLP  124
+
+Query  141  NMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGIVAGLP  200
+            +   +    I           + LVTGTMFL+WL +    R    G   I+   ++  +P
+Sbjct  125  SKERISQTNI-------LLNTLILVTGTMFLVWLSDL-NARYGIGGPMPIVLVSMIKSIP  176
+
+Query  201  PAIAHTIEQARQGDLHFLVLLLVAVLVFAVTFFVVFVERGQRRIVVNYAKRQQGRRVYAA  260
+              +   I      D   +V++L+ +LV    FF+ F+E  + RI  N        ++Y  
+Sbjct  177  QDVIEYI------DASHIVIILLILLVIITLFFLYFIELVEYRIPYNDIMNHNRFKMY--  228
+
+Query  261  QSTHLPLKVNMAGVIPAIFASSIILFPAT----IASWFGGGTGWNWLTTISLYLQPGQPL  316
+              ++L +K+N AG +P +++ S+++FP      I S F   +G   ++     L  G PL
+Sbjct  229  --SYLSIKLNPAGGMPIMYSMSLLVFPQYIIILILSIFPNNSG---ISADMDMLSFGSPL  283
+
+Query  317  YVLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTRLTLV  376
+             V +Y        +F++ +  N ++ A ++ KSG ++PG+ PG+ T +Y++ +  R +  
+Sbjct  284  GVTVYLILQFLLSYFFSFVNINTKQIAKDMLKSGNYIPGVYPGKDTERYLNYIARRFSWF  343
+
+Query  377  GALYITFIC--------LIPEFMRDAMKVPFYFGGTSLLIVVVVIMDFMA--QVQTLMMS  426
+            GAL++T I           P    +           S   ++ V M F    +++ L+  
+Sbjct  344  GALFVTVIAGIPLYFTLFDPHLSTEIY--------FSGQFMMFVGMSFNIADEIRALLYF  395
+
+Query  427  SQYESALKK  435
+             +Y+  L +
+Sbjct  396  DKYKPLLNQ  404
+
+
+>CDD:131966 TIGR02920, preprotein_translocase_SecY_family_protein, accessory 
+Sec system translocase SecY2.  Members of this family are 
+restricted to the Firmicutes lineage (low-GC Gram-positive 
+bacteria) and appear to be paralogous to, and much more divergent 
+than, the preprotein translocase SecY. Members include 
+the SecY2 protein of the accessory Sec system in Streptococcus 
+gordonii, involved in export of the highly glycosylated 
+platelet-binding protein GspB. [Protein fate, Protein and peptide 
+secretion and trafficking].
+Length=395
+
+ Score = 123 bits (310),  Expect = 4e-31, Method: Composition-based stats.
+ Identities = 102/422 (24%), Positives = 200/422 (47%), Gaps = 39/422 (9%)
+
+Query  21   RRLLFVIGALIVFRIGSFIPIPGIDAAVLAKLLEQQRGTIIEMFNMFSGGALSRASIFAL  80
+            +++LF    LI++ +GS+IPIP ++  V  + +E  + +  ++    +GG L+  SIF+L
+Sbjct  4    KKILFTCFILIIYVLGSYIPIPFVE--VSKQDMEGVKNSFFKIAIANTGGNLTTLSIFSL  61
+
+Query  81   GIMPYISASIIIQLLTVVHPTLAEIKKEGESGRRKISQY-TRYGTLVLAIFQSIGIATGL  139
+            G+ P++++ II+QL +           + +S   K  QY  R+ TL++AI Q + I    
+Sbjct  62   GLGPWMTSMIILQLFSFTK----SDGFDAQS--PKEQQYRERFLTLIIAIIQGLAIIHSF  115
+
+Query  140  PNMPGMQGLVINPGFAFYFTAVVSLVTGTMFLMWLGEQITERGIGNGISIIIFAGIVAGL  199
+             N  G+    +         A + LVTGT  L+WL +   + GIG  + I     ++  +
+Sbjct  116  TNKNGLSDFNM-------LLATLILVTGTCLLVWLADLNAKYGIGGSMPI-----VLVSM  163
+
+Query  200  PPAIAHTIEQARQGDLHFLVLLLVAVLVFAVTFFVVFVERGQRRIVVNYAKRQQGRRVYA  259
+               I   + +  Q   +  ++ L+ +L     F + F+ER + RI VN         +  
+Sbjct  164  LKNIPSNVFELFQ-MSYIWLIALLILLTLVALFLLAFIERAEYRIPVNDISLHNRSNLM-  221
+
+Query  260  AQSTHLPLKVNMAGVIPAIFASSIILFPAT----IASWFGGGTGWNWLTTISLYLQPGQP  315
+               ++LP+K+N AG +  ++  S+++ P      +   F   +    +           P
+Sbjct  222  ---SYLPIKLNPAGGMMYMYVMSLLMLPQYIIILLGRIFPNSSL---INNWVFQFSFSSP  275
+
+Query  316  LYVLLYASAIIFFCFFYTALVFNPRETADNLKKSGAFVPGIRPGEQTAKYIDKVMTRLTL  375
+            + +L+Y    +   +F+T +  NP+E + + +KSG ++PGI PG+ T +Y++++  R   
+Sbjct  276  VGILIYLILQMLLSYFFTFVNINPKEISKSFRKSGNYIPGIAPGKDTQRYLNRLARRFCW  335
+
+Query  376  VGALYITFICLIPEFMRDAMKVPFYFGGTSLLIVVVVIMDFMA----QVQTLMMSSQYES  431
+             G ++  F   IP  +  A+ VP       +    ++I         +++T++   +Y+ 
+Sbjct  336  FGGVFNAFQLGIP--LYFALFVPHLLTEAYIPGQFMMITGMSFNIADEIRTILYFDRYKP  393
+
+Query  432  AL  433
+             L
+Sbjct  394  LL  395
+
+
+
+Lambda      K        H        a         alpha
+   0.328    0.143    0.422    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2664896490
+
+
+Query= NP_415477.1
+
+Length=346
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:236764 PRK10808, PRK10808, outer membrane protein A; Reviewed     717     0.0   
+CDD:396112 pfam01389, OmpA_membrane, OmpA-like transmembrane doma...  295     3e-101
+CDD:143586 cd07185, OmpA_C-like, Peptidoglycan binding domains si...  136     7e-40 
+CDD:442131 COG2885, OmpA, Outer membrane protein OmpA and related...  136     1e-37 
+CDD:425825 pfam00691, OmpA, OmpA family. The Pfam entry also incl...  100     2e-26 
+CDD:440971 COG1360, MotB, Flagellar motor protein MotB [Cell moti...  93.4    7e-23 
+
+
+>CDD:236764 PRK10808, PRK10808, outer membrane protein A; Reviewed.
+Length=351
+
+ Score = 717 bits (1852),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 321/351 (91%), Positives = 332/351 (95%), Gaps = 5/351 (1%)
+
+Query  1    MKKTAIAIAVALAGFATVAQAAPKDNTWYTGAKLGWSQYHDTGF--INNNGPTHENQLGA  58
+            MKKTAIAIAVALAGFATVAQAAPKDNTWYTG KLGWSQYHDTG+  INNNGPTH+NQLGA
+Sbjct  1    MKKTAIAIAVALAGFATVAQAAPKDNTWYTGGKLGWSQYHDTGYGFINNNGPTHKNQLGA  60
+
+Query  59   GAFGGYQVNPYVGFEMGYDWLGRMPYKGSVENGAYKAQGVQLTAKLGYPITDDLDIYTRL  118
+            GAFGGYQ NPY+GFEMGYDWLGRMPYKG V NGA+KAQGVQLTAKLGYPITDDLD+YTRL
+Sbjct  61   GAFGGYQANPYLGFEMGYDWLGRMPYKGDVNNGAFKAQGVQLTAKLGYPITDDLDVYTRL  120
+
+Query  119  GGMVWRADTKSNV---YGKNHDTGVSPVFAGGVEYAITPEIATRLEYQWTNNIGDAHTIG  175
+            GGMVWRADTKSNV    GK+HDTGVSPVFAGGVEYAIT   ATRLEYQWTNNIGDA T+G
+Sbjct  121  GGMVWRADTKSNVPGARGKDHDTGVSPVFAGGVEYAITKNWATRLEYQWTNNIGDADTVG  180
+
+Query  176  TRPDNGMLSLGVSYRFGQGEAAPVVAPAPAPAPEVQTKHFTLKSDVLFNFNKATLKPEGQ  235
+             RPDNGMLS+GVSYRFGQ EAAPVVAPAPAPAP VQTKHFTLKSDVLFNFNKATLKPEGQ
+Sbjct  181  ARPDNGMLSVGVSYRFGQEEAAPVVAPAPAPAPVVQTKHFTLKSDVLFNFNKATLKPEGQ  240
+
+Query  236  AALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSERRAQSVVDYLISKGIPADKI  295
+             ALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSE+RAQSVVDYL+SKGIPADKI
+Sbjct  241  QALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSEKRAQSVVDYLVSKGIPADKI  300
+
+Query  296  SARGMGESNPVTGNTCDNVKQRAALIDCLAPDRRVEIEVKGIKDVVTQPQA  346
+            SARGMG+SNPVTGNTCDNVK RAALIDCLAPDRRVEIEVKGIKDVVTQPQA
+Sbjct  301  SARGMGKSNPVTGNTCDNVKPRAALIDCLAPDRRVEIEVKGIKDVVTQPQA  351
+
+
+>CDD:396112 pfam01389, OmpA_membrane, OmpA-like transmembrane domain.  The 
+structure of OmpA transmembrane domain shows that it consists 
+of an eight stranded beta barrel. This family includes some 
+other distantly related outer membrane proteins with low 
+scores.
+Length=177
+
+ Score = 295 bits (758),  Expect = 3e-101, Method: Composition-based stats.
+ Identities = 118/177 (67%), Positives = 136/177 (77%), Gaps = 4/177 (2%)
+
+Query  23   PKDNTWYTGAKLGWSQYHDTGFINNNGPTHENQLGAGAFGGYQVNPYVGFEMGYDWLGRM  82
+            P  NTWYTGAK GW+ +HDTG I  NGPTHEN L AGAFGGYQ+N Y+  E+GYD+LGRM
+Sbjct  1    PAANTWYTGAKAGWASFHDTGNIEGNGPTHENSLTAGAFGGYQINNYLAAELGYDYLGRM  60
+
+Query  83   PYKGSVENGAYKAQGVQLTAKLGYPITDDLDIYTRLGGMVWRADTKSNVY----GKNHDT  138
+            PYKG  +N A+KAQGV L+ KL YP+TDDLD+Y ++GG + RAD K          NHDT
+Sbjct  61   PYKGKGKNNAHKAQGVTLSLKLSYPLTDDLDVYGKVGGALVRADYKFYEDANGKTGNHDT  120
+
+Query  139  GVSPVFAGGVEYAITPEIATRLEYQWTNNIGDAHTIGTRPDNGMLSLGVSYRFGQGE  195
+            GVSP+FA GVEYAITPE+A RLEYQ+ NNIGD H  G RPDNG  SLG+SYRFGQGE
+Sbjct  121  GVSPLFALGVEYAITPELAVRLEYQYLNNIGDLHKQGKRPDNGSASLGISYRFGQGE  177
+
+
+>CDD:143586 cd07185, OmpA_C-like, Peptidoglycan binding domains similar to 
+the C-terminal domain of outer-membrane protein OmpA.  OmpA-like 
+domains (named after the C-terminal domain of Escherichia 
+coli OmpA protein) have been shown to non-covalently associate 
+with peptidoglycan, a network of glycan chains composed 
+of disaccharides, which are crosslinked via short peptide 
+bridges. Well-studied members of this family include the Escherichia 
+coli outer membrane protein OmpA, the Escherichia 
+coli lipoprotein PAL, Neisseria meningitdis RmpM, which interact 
+with the outer membrane, as well as the Escherichia coli 
+motor protein MotB, and the Vibrio flagellar motor proteins 
+PomB and MotY, which interact with the inner membrane.
+Length=106
+
+ Score = 136 bits (344),  Expect = 7e-40, Method: Composition-based stats.
+ Identities = 49/115 (43%), Positives = 66/115 (57%), Gaps = 11/115 (10%)
+
+Query  220  DVLFNFNKATLKPEGQAALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSERRAQ  279
+             + F+F  A L PE +  LD+L   L      D  + + G+TD  GSDAYNQ LSERRA+
+Sbjct  3    TIYFDFGSAELTPEAKPLLDKLAEVLKKNP--DAKIRIEGHTDSRGSDAYNQELSERRAE  60
+
+Query  280  SVVDYLISKGIPADKISARGMGESNPVTGNTCDNVKQRAALIDCLAPDRRVEIEV  334
+            +V DYL+SKG+ A +I+A G GES P+  N            +  A +RRVEI +
+Sbjct  61   AVADYLVSKGVDASRITAVGYGESRPIASN---------DTEEGRAKNRRVEIVI  106
+
+
+>CDD:442131 COG2885, OmpA, Outer membrane protein OmpA and related peptidoglycan-associated 
+(lipo)proteins [Cell wall/membrane/envelope 
+biogenesis].  
+Length=294
+
+ Score = 136 bits (342),  Expect = 1e-37, Method: Composition-based stats.
+ Identities = 75/283 (27%), Positives = 96/283 (34%), Gaps = 12/283 (4%)
+
+Query  54   NQLGAGAFGGYQVNPYVGFEMGYDWLGRMPYKGSVENGAYKAQGVQLTAKLGYPITDDLD  113
+              L     G       +               G    GA           L         
+Sbjct  23   AALLLALLGVLGSAGGLLSLADDLAEASAGAAGGAAAGAEAGGLSAGLELLDAGSLSATA  82
+
+Query  114  IYTRLGGMVWRADTKSNVYGKNHDTGVSPVFAGGVEYAITPEIATRLEYQWTNNIGDAHT  173
+                   +V  A   +   G           A           A             A  
+Sbjct  83   AAGAAALLVLLAALGALGAGLAALLLAIAAAASAAAADALALAAGAAAALGALGASAAAA  142
+
+Query  174  IGTRPDNGMLSLGVSYRFGQGEAAPVVAPAPAPAPEVQTKHFTLKSDVLFNFNKATLKPE  233
+                     L    +       A    A A A           L S+V F+F+ A L PE
+Sbjct  143  AAALAAAKALGDSAAA-ALDAAAKAEAAAAAAALLPAAVAEVVLLSNVYFDFDSAELTPE  201
+
+Query  234  GQAALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSERRAQSVVDYLISKGIPAD  293
+             +AALD+L + L      D  + + G+TD  GSDAYN  LSERRA++V DYL+SKGIPA 
+Sbjct  202  AKAALDELAALLKEN--PDLRIEIEGHTDSRGSDAYNLALSERRAEAVKDYLVSKGIPAS  259
+
+Query  294  KISARGMGESNPVTGNTCDNVKQRAALIDCLAPDRRVEIEVKG  336
+            +I+A G GES PV   + D  + RA        +RRVEI V  
+Sbjct  260  RITAVGYGESRPV--ASNDTEEGRAK-------NRRVEIVVLK  293
+
+
+>CDD:425825 pfam00691, OmpA, OmpA family.  The Pfam entry also includes MotB 
+and related proteins which are not included in the Prosite 
+family.
+Length=95
+
+ Score = 100 bits (251),  Expect = 2e-26, Method: Composition-based stats.
+ Identities = 34/95 (36%), Positives = 57/95 (60%), Gaps = 1/95 (1%)
+
+Query  223  FNFNKATLKPEGQAALDQLYSQLSNLDPKDGSVVVLGYTDRIGSDAYNQGLSERRAQSVV  282
+            F+   + L P+ +A LD++   L   + K+ ++ + G+TD +GS AYN  LS+RRA++V 
+Sbjct  1    FDPGSSQLTPKAKATLDEIADLLKFPELKN-TITIEGHTDTVGSAAYNWELSQRRAEAVR  59
+
+Query  283  DYLISKGIPADKISARGMGESNPVTGNTCDNVKQR  317
+             YL++ G+P  +IS  G G + P+T N     + R
+Sbjct  60   RYLVNFGVPPSRISVVGYGATKPITDNKTPEGRAR  94
+
+
+>CDD:440971 COG1360, MotB, Flagellar motor protein MotB [Cell motility]. 
+ 
+Length=174
+
+ Score = 93.4 bits (233),  Expect = 7e-23, Method: Composition-based stats.
+ Identities = 42/122 (34%), Positives = 65/122 (53%), Gaps = 16/122 (13%)
+
+Query  215  FTLKSDVLFNFNKATLKPEGQAALDQLYSQLSNLDPKDGSVVVLGYTDR--IGSDAY--N  270
+              ++  VLF+   A L PEG+  LD++ + L+ +      + V G+TD   I +  +  N
+Sbjct  55   IEIQDRVLFDSGSAELTPEGRELLDKIAAVLAEVP---NRIRVEGHTDNVPISTARFPSN  111
+
+Query  271  QGLSERRAQSVVDYLISKGIPADKISARGMGESNPVTGNTCDNVKQRAALIDCLAPDRRV  330
+              LS  RA +VV YLI  G+P +++SA G G++ P+  N  D  + RA        +RRV
+Sbjct  112  WELSAARAAAVVRYLIEGGVPPERLSAVGYGDTRPLAPN--DTPEGRAR-------NRRV  162
+
+Query  331  EI  332
+            EI
+Sbjct  163  EI  164
+
+
+
+Lambda      K        H        a         alpha
+   0.315    0.134    0.400    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1955500729
+
+
+Query= NP_414606.1
+
+Length=292
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:236717 PRK10572, PRK10572, arabinose operon transcriptional r...  581     0.0  
+CDD:197666 smart00342, HTH_ARAC, helix_turn_helix, arabinose oper...  105     6e-29
+CDD:441809 COG2207, AraC, AraC-type DNA-binding domain and AraC-c...  104     2e-26
+CDD:396749 pfam02311, AraC_binding, AraC-like ligand binding doma...  98.7    1e-25
+CDD:444002 COG4977, GlxA, Transcriptional regulator GlxA, contain...  101     8e-25
+CDD:432818 pfam12833, HTH_18, Helix-turn-helix domain                 88.4    2e-22
+
+
+>CDD:236717 PRK10572, PRK10572, arabinose operon transcriptional regulator 
+AraC.  
+Length=290
+
+ Score = 581 bits (1501),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 248/286 (87%), Positives = 260/286 (91%), Gaps = 2/286 (1%)
+
+Query  1    MAEAQNDPLLPGYSFNAHLVAGLTPIEANGYLDFFIDRPLGMKGYILNLTIRGQGVVKNQ  60
+            MAEAQN+PLLPGYSFNAHLVAGLTPIEA GYLDFFIDRPLGMKGYILNLTIRGQGV+ N 
+Sbjct  6    MAEAQNNPLLPGYSFNAHLVAGLTPIEAGGYLDFFIDRPLGMKGYILNLTIRGQGVIFNG  65
+
+Query  61   GREFVCRPGDILLFPPGEIHHYGRHPEAREWYHQWVYFRPRAYWHEWLNWPSIFANTGFF  120
+            GR FVCRPGD+LLFPPGEIHHYGRHP++ EWYHQWVYFRPRAYW +WLNWPSIFA  G  
+Sbjct  66   GRAFVCRPGDLLLFPPGEIHHYGRHPDSDEWYHQWVYFRPRAYWADWLNWPSIFAGVGRL  125
+
+Query  121  R-PDEAHQPHFSDLFGQIINAGQGEGRYSELLAINLLEQLLLRRMEAINESLHPPMDNRV  179
+            R PDEA QP FSDLFGQI  AGQ EGRYSELLA+NLLE+LLLR MEAI ESLHPPMD RV
+Sbjct  126  RIPDEALQPEFSDLFGQIEQAGQSEGRYSELLAMNLLERLLLRCMEAIPESLHPPMDPRV  185
+
+Query  180  REACQYISDHLADSNFDIASVAQHVCLSPSRLSHLFRQQLGISVLSWREDQRISQAKLLL  239
+            REACQYISDHLA S FDI SVAQHVCLSPSRL+HLFRQQLGISVL WREDQRIS+AKLLL
+Sbjct  186  REACQYISDHLA-SEFDIESVAQHVCLSPSRLAHLFRQQLGISVLRWREDQRISRAKLLL  244
+
+Query  240  STTRMPIATVGRNVGFDDQLYFSRVFKKCTGASPSEFRAGCEEKVN  285
+             TTRMPIAT+GRNVG+DDQLYFSRVFKKCTGASPSEFRA CEEK N
+Sbjct  245  QTTRMPIATIGRNVGYDDQLYFSRVFKKCTGASPSEFRARCEEKNN  290
+
+
+>CDD:197666 smart00342, HTH_ARAC, helix_turn_helix, arabinose operon control 
+protein.  
+Length=84
+
+ Score = 105 bits (265),  Expect = 6e-29, Method: Composition-based stats.
+ Identities = 29/84 (35%), Positives = 48/84 (57%), Gaps = 0/84 (0%)
+
+Query  194  NFDIASVAQHVCLSPSRLSHLFRQQLGISVLSWREDQRISQAKLLLSTTRMPIATVGRNV  253
+               +  +A+ + +SP  L  LF+++ G +   +  D+R+ +A+ LL  T + +  +   V
+Sbjct  1    PLTLEDLAEALGVSPRHLQRLFKKETGTTPKQYLRDRRLERARRLLRDTDLSVTEIALRV  60
+
+Query  254  GFDDQLYFSRVFKKCTGASPSEFR  277
+            GF  Q YFSR FKK  G +PSE+R
+Sbjct  61   GFSSQSYFSRAFKKLFGVTPSEYR  84
+
+
+>CDD:441809 COG2207, AraC, AraC-type DNA-binding domain and AraC-containing 
+proteins [Transcription].  
+Length=258
+
+ Score = 104 bits (258),  Expect = 2e-26, Method: Composition-based stats.
+ Identities = 47/246 (19%), Positives = 83/246 (34%), Gaps = 3/246 (1%)
+
+Query  34   FFIDRPLGMKGYILNLTIRGQGVVKNQGREFVCRPGDILLFPPGEIHHYGRHPEAREWYH  93
+              +   L +   +L L I     +             +LL                    
+Sbjct  11   LLLLALLLLLLLLLLLLILLLLALVLLLLLLALLLLLLLLLGLLGGLLLLLLLLLLLGLL  70
+
+Query  94   QWVYFRPRAYWHEWLNWPSIFANTGFFRPDEAHQPHFSDLFGQIINAGQGEGRYSELLAI  153
+              +           L    +                   L   ++           LLA+
+Sbjct  71   LLLLLLLLGLLLLALLALLLLVGLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLAL  130
+
+Query  154  NLLEQLLLRRMEAINESLHPPMDNRVREACQYISDHLADSNFDIASVAQHVCLSPSRLSH  213
+                +LLL  +  +   L   +   +      +   L  +   +  +A+ + LSP  LS 
+Sbjct  131  LRALELLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLT---LEELARELGLSPRTLSR  187
+
+Query  214  LFRQQLGISVLSWREDQRISQAKLLLSTTRMPIATVGRNVGFDDQLYFSRVFKKCTGASP  273
+            LF+++ G S   +  + R+ +AK LL+ T + I+ +   +GF  Q +FSR FKK  G +P
+Sbjct  188  LFKEETGTSPKQYLRELRLERAKRLLAETDLSISEIAYELGFSSQSHFSRAFKKRFGVTP  247
+
+Query  274  SEFRAG  279
+            SE+R  
+Sbjct  248  SEYRKR  253
+
+
+>CDD:396749 pfam02311, AraC_binding, AraC-like ligand binding domain.  This 
+family represents the arabinose-binding and dimerization 
+domain of the bacterial gene regulatory protein AraC. The domain 
+is found in conjunction with the helix-turn-helix (HTH) 
+DNA-binding motif pfam00165. This domain is distantly related 
+to the Cupin domain pfam00190.
+Length=134
+
+ Score = 98.7 bits (246),  Expect = 1e-25, Method: Composition-based stats.
+ Identities = 37/136 (27%), Positives = 51/136 (38%), Gaps = 3/136 (2%)
+
+Query  21   AGLTPIEANGYLDFFIDRPLGMKGYILNLTIRGQGVVKNQGREFVCRPGDILLFPPGEIH  80
+             GL  IEA      F         Y++    RG G  +  GR +   PGD+ L PPGE H
+Sbjct  2    PGLEGIEARYPGHSFPPHVHD--FYVIGYIERGVGRFRLNGRTYHLGPGDLFLLPPGEPH  59
+
+Query  81   HYGRHPEAREWYHQWVYFRPRAYWHEWLNWPSIFANTGFFRPDEAHQPHFSDLFGQIINA  140
+             Y    E   W ++W+YF P        +   +         D         LF  +  A
+Sbjct  60   DYEPESED-GWRYRWLYFEPELLERILADISILAGGPLPLLRDPELAALLRALFRLLEEA  118
+
+Query  141  GQGEGRYSELLAINLL  156
+            G+ +   +E L   LL
+Sbjct  119  GRSDDLLAEALLYQLL  134
+
+
+>CDD:444002 COG4977, GlxA, Transcriptional regulator GlxA, contains an amidase 
+domain and an AraC-type DNA-binding HTH domain [Transcription]. 
+ 
+Length=318
+
+ Score = 101 bits (253),  Expect = 8e-25, Method: Composition-based stats.
+ Identities = 28/107 (26%), Positives = 49/107 (46%), Gaps = 1/107 (1%)
+
+Query  172  HPPMDNRVREACQYISDHLADSNFDIASVAQHVCLSPSRLSHLFRQQLGISVLSWREDQR  231
+                D R+  A  ++  +L +    +  +A+   +SP  L   FR   G +   + +  R
+Sbjct  205  LGHRDPRLARAQAWMEANLEE-PLSVDELARRAGMSPRTLERRFRAATGTTPARYLQRLR  263
+
+Query  232  ISQAKLLLSTTRMPIATVGRNVGFDDQLYFSRVFKKCTGASPSEFRA  278
+            + +A+ LL TT + I  +    GF    +F R F++  G SPS +R 
+Sbjct  264  LERARRLLETTDLSIEEIAAACGFGSASHFRRAFRRRFGVSPSAYRR  310
+
+
+>CDD:432818 pfam12833, HTH_18, Helix-turn-helix domain.  
+Length=81
+
+ Score = 88.4 bits (220),  Expect = 2e-22, Method: Composition-based stats.
+ Identities = 29/80 (36%), Positives = 49/80 (61%), Gaps = 1/80 (1%)
+
+Query  200  VAQHVCLSPSRLSHLFRQQLGISVLSWREDQRISQAK-LLLSTTRMPIATVGRNVGFDDQ  258
+            +A  + +SP  LS LF+++LG+S   +    R+ +A+ LLL  T + +A +   +GF D 
+Sbjct  1    LAAALGMSPRTLSRLFKRELGLSPKEYLRRLRLERARRLLLEDTGLSVAEIALALGFSDA  60
+
+Query  259  LYFSRVFKKCTGASPSEFRA  278
+             +FSR F++  G +PSE+R 
+Sbjct  61   SHFSRAFRRLFGLTPSEYRR  80
+
+
+
+Lambda      K        H        a         alpha
+   0.323    0.139    0.443    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1568174205
+
+
+Query= NP_417863.1
+
+Length=450
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:236531 PRK09467, envZ, osmolarity sensor protein; Provisional     869     0.0  
+CDD:340426 cd16950, HATPase_EnvZ-like, Histidine kinase-like ATPa...  184     1e-57
+CDD:441807 COG2205, KdpD, K+-sensing histidine kinase KdpD [Signa...  176     1e-52
+CDD:440407 COG0642, BaeS, Signal transduction histidine kinase [S...  176     3e-51
+CDD:444026 COG5002, WalK, Sensor histidine kinase WalK [Signal tr...  170     1e-48
+CDD:236724 PRK10604, PRK10604, sensor protein RstB; Provisional       154     3e-42
+
+
+>CDD:236531 PRK09467, envZ, osmolarity sensor protein; Provisional.
+Length=435
+
+ Score = 869 bits (2248),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 382/436 (88%), Positives = 403/436 (92%), Gaps = 2/436 (0%)
+
+Query  4    LRFSPRSSFARTLLLIVTLLFASLVTTYLVVLNFAILPSLQQFNKVLAYEVRMLMTDKLQ  63
+            +RFSPRSSFARTLLLIVTLLF S V +YLVVLN+AILPSLQQFNKVLAYEVR+L TD  Q
+Sbjct  1    MRFSPRSSFARTLLLIVTLLFISQVVSYLVVLNYAILPSLQQFNKVLAYEVRLLFTD--Q  58
+
+Query  64   LEDGTQLVVPPAFRREIYRELGISLYSNEAAEEAGLRWAQHYEFLSHQMAQQLGGPTEVR  123
+            LEDGTQLVVPPAFRREIYRELGISLYSNEAAEEAGLRWAQHYEFLS QM+QQLGGPTEVR
+Sbjct  59   LEDGTQLVVPPAFRREIYRELGISLYSNEAAEEAGLRWAQHYEFLSEQMSQQLGGPTEVR  118
+
+Query  124  VEVNKSSPVVWLKTWLSPNIWVRVPLTEIHQGDFSPLFRYTLAIMLLAIGGAWLFIRIQN  183
+            VEV K SP+VW+KT L+PNIWVRVPLTEIHQGDFSPLFRYTLAI LL++ G WLFIRIQN
+Sbjct  119  VEVGKESPIVWIKTPLAPNIWVRVPLTEIHQGDFSPLFRYTLAIGLLSVAGGWLFIRIQN  178
+
+Query  184  RPLVDLEHAALQVGKGIIPPPLREYGASEVRSVTRAFNHMAAGVKQLADDRTLLMAGVSH  243
+            RPLV LEHAALQVGKG IPPPLREYGASEVRSVTRAFN MAAG+KQL DDRTLLMAGVSH
+Sbjct  179  RPLVALEHAALQVGKGEIPPPLREYGASEVRSVTRAFNQMAAGIKQLEDDRTLLMAGVSH  238
+
+Query  244  DLRTPLTRIRLATEMMSEQDGYLAESINKDIEECNAIIEQFIDYLRTGQEMPMEMADLNA  303
+            DLRTPLTRIRLATEMMSE+DGYLAESINKDIEECNAIIEQFIDYLRTGQEMPMEMADLNA
+Sbjct  239  DLRTPLTRIRLATEMMSEEDGYLAESINKDIEECNAIIEQFIDYLRTGQEMPMEMADLNA  298
+
+Query  304  VLGEVIAAESGYEREIETALYPGSIEVKMHPLSIKRAVANMVVNAARYGNGWIKVSSGTE  363
+            +LGEVIAAESGYEREIETAL PG IEV M+P++IKRA+AN+VVNAARYGNGWIKVSSGTE
+Sbjct  299  LLGEVIAAESGYEREIETALQPGPIEVPMNPIAIKRALANLVVNAARYGNGWIKVSSGTE  358
+
+Query  364  PNRAWFQVEDDGPGIAPEQRKHLFQPFVRGDSARTISGTGLGLAIVQRIVDNHNGMLELG  423
+              RAWFQVEDDGPGI PEQ KHLFQPF RGDSAR  SGTGLGLAIV+RIVD HNG +ELG
+Sbjct  359  GKRAWFQVEDDGPGIPPEQLKHLFQPFTRGDSARGSSGTGLGLAIVKRIVDQHNGKVELG  418
+
+Query  424  TSERGGLSIRAWLPVP  439
+             SE GGLS RAWLP+ 
+Sbjct  419  NSEEGGLSARAWLPLT  434
+
+
+>CDD:340426 cd16950, HATPase_EnvZ-like, Histidine kinase-like ATPase domain 
+of two-component sensor histidine kinases similar to Escherichia 
+coli EnvZ and Pseudomonas aeruginosa BfmS.  This family 
+includes the histidine kinase-like ATPase (HATPase) domains 
+of various two-component sensor histidine kinase (HKs) such 
+as Escherichia coli EnvZ of the EnvZ-OmpR two-component 
+regulatory system (TCS), which functions in osmoregulation. 
+It also contains the HATPase domain of Pseudomonas aeruginosa 
+BfmS, the HK of the BfmSR TCS, which functions in the regulation 
+of the rhl quorum-sensing system and bacterial virulence 
+in P. aeruginosa. Proteins having this HATPase domain also 
+contain a histidine kinase dimerization and phosphoacceptor 
+domain (HisKA) and a HAMP sensor domain; some also contain 
+a periplasmic domain.
+Length=101
+
+ Score = 184 bits (470),  Expect = 1e-57, Method: Composition-based stats.
+ Identities = 61/101 (60%), Positives = 70/101 (69%), Gaps = 0/101 (0%)
+
+Query  337  IKRAVANMVVNAARYGNGWIKVSSGTEPNRAWFQVEDDGPGIAPEQRKHLFQPFVRGDSA  396
+            +KR ++N+V NA RYG GW++VSS  E NR   QV D+GPGIAPE+   LFQPF RGD+A
+Sbjct  1    LKRVLSNLVDNALRYGGGWVEVSSDGEGNRTRIQVLDNGPGIAPEEVDELFQPFYRGDNA  60
+
+Query  397  RTISGTGLGLAIVQRIVDNHNGMLELGTSERGGLSIRAWLP  437
+            R  SGTGLGLAIVQRI D H G L L     GGL  R  LP
+Sbjct  61   RGTSGTGLGLAIVQRISDAHGGSLTLANRAGGGLCARIELP  101
+
+
+>CDD:441807 COG2205, KdpD, K+-sensing histidine kinase KdpD [Signal transduction 
+mechanisms].  
+Length=239
+
+ Score = 176 bits (449),  Expect = 1e-52, Method: Composition-based stats.
+ Identities = 72/236 (31%), Positives = 116/236 (49%), Gaps = 16/236 (7%)
+
+Query  219  AFNHMAAGVKQLADDRTLLMAGVSHDLRTPLTRIRLATEMMSEQDGY-------LAESIN  271
+                    +++L   ++  +A VSH+LRTPLT I  A E++ +++         L E I 
+Sbjct  1    ELEEALEELEELERLKSEFLANVSHELRTPLTSILGAAELLLDEEDLSPEERRELLEIIR  60
+
+Query  272  KDIEECNAIIEQFIDYLRT---GQEMPMEMADLNAVLGEVIA----AESGYEREIETALY  324
+            +  E    +IE  +D  R       + +E  DL  +L E +             +E  L 
+Sbjct  61   ESAERLLRLIEDLLDLSRLESGKLSLELEPVDLAELLEEAVEELRPLAEEKGIRLELDLP  120
+
+Query  325  PGSIEVKMHPLSIKRAVANMVVNAARYG--NGWIKVSSGTEPNRAWFQVEDDGPGIAPEQ  382
+            P    V   P  +++ +AN++ NA +Y    G I +S+  E +     V D+GPGI  E+
+Sbjct  121  PELPLVYADPELLEQVLANLLDNAIKYSPPGGTITISARREGDGVRISVSDNGPGIPEEE  180
+
+Query  383  RKHLFQPFVRGDSARTISGTGLGLAIVQRIVDNHNGMLELGTSERGGLSIRAWLPV  438
+             + +F+ F RGD++R   GTGLGLAIV+RIV+ H G + + +   GG +    LP+
+Sbjct  181  LERIFERFYRGDNSRGEGGTGLGLAIVKRIVEAHGGTIWVESEPGGGTTFTVTLPL  236
+
+
+>CDD:440407 COG0642, BaeS, Signal transduction histidine kinase [Signal transduction 
+mechanisms].  
+Length=328
+
+ Score = 176 bits (447),  Expect = 3e-51, Method: Composition-based stats.
+ Identities = 87/321 (27%), Positives = 142/321 (44%), Gaps = 13/321 (4%)
+
+Query  132  VVWLKTWLSPNIWVRVPLTEIHQGDFSPLFRYTLAIMLLAIGGAWLFIRIQNRPLVDLEH  191
+            +V L   L   +   + L  +       L    L ++LL +    L        L+ L  
+Sbjct  8    LVLLLLLLLLLLLALLLLLLLLLLLALLLLLALLLLLLLLLLLLLLLALALLALLLLLLL  67
+
+Query  192  AALQVGKGIIPPPLREYGASEVRSVTRAFNHMAAGVKQLADDRTLLMAGVSHDLRTPLTR  251
+              L +   ++   L       +  +      +   +++  + ++  +A VSH+LRTPLT 
+Sbjct  68   LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLALLLLLEEANEAKSRFLANVSHELRTPLTA  127
+
+Query  252  IRLATEMM----SEQDGYLAESINKDIEECNAIIEQFIDYLRTGQ---EMPMEMADLNAV  304
+            IR   E++     E+     E+I +  +    +I   +D  R      E+  E  DL  +
+Sbjct  128  IRGYLELLLEELDEEQREYLETILRSADRLLRLINDLLDLSRLEAGKLELEPEPVDLAEL  187
+
+Query  305  LGEVIAA-ESGYER---EIETALYPGSIEVKMHPLSIKRAVANMVVNAARYG--NGWIKV  358
+            L EV+       E    E+E  L      V+  P  +++ + N++ NA +Y    G + V
+Sbjct  188  LEEVVELFRPLAEEKGIELELDLPDDLPTVRGDPDRLRQVLLNLLSNAIKYTPEGGTVTV  247
+
+Query  359  SSGTEPNRAWFQVEDDGPGIAPEQRKHLFQPFVRGDSARTISGTGLGLAIVQRIVDNHNG  418
+            S   E +R    VED GPGI PE  + +F+PF R D +R   GTGLGLAIV+RIV+ H G
+Sbjct  248  SVRREGDRVRISVEDTGPGIPPEDLERIFEPFFRTDPSRRGGGTGLGLAIVKRIVELHGG  307
+
+Query  419  MLELGTSERGGLSIRAWLPVP  439
+             +E+ +    G +    LP+ 
+Sbjct  308  TIEVESEPGKGTTFTVTLPLA  328
+
+
+>CDD:444026 COG5002, WalK, Sensor histidine kinase WalK [Signal transduction 
+mechanisms].  
+Length=390
+
+ Score = 170 bits (433),  Expect = 1e-48, Method: Composition-based stats.
+ Identities = 86/338 (25%), Positives = 143/338 (42%), Gaps = 22/338 (7%)
+
+Query  121  EVRVEVNKSSPVVWLKTWLSPNIWVRVPLTEIHQGDFSPLFRYTLAIMLLAIGGAWLFIR  180
+               + +     ++ L   L   + + +    +       L    L ++ L I    L + 
+Sbjct  52   LALLLLLLLLLLLLLALLLLLLLLLLLLALALLLLALLLLLLLLLLLLALLILLLLLALL  111
+
+Query  181  IQNRPLVDLEHAALQVGKGIIPPPLREYGASEVRSVTRAFNHMAAGVKQLADDRTLLMAG  240
+            I    L+ L    L +   +    LR         +  A       +++L   R   +A 
+Sbjct  112  ILLAALLLLLSELLLLLLLLGRLSLRLSALLLGLLLLAAVERDITELERLEQMRREFVAN  171
+
+Query  241  VSHDLRTPLTRIRLATEMM-------SEQDGYLAESINKDIEECNAIIEQFIDY--LRTG  291
+            VSH+LRTPLT IR   E++        E+     E I ++ E  + ++   +D   L +G
+Sbjct  172  VSHELRTPLTSIRGYLELLLDGAADDPEERREYLEIILEEAERLSRLVNDLLDLSRLESG  231
+
+Query  292  Q-EMPMEMADLNAVLGEVI------AAESGYEREIETALYPGSIEVKMHPLSIKRAVANM  344
+            + ++  E  DL  +L EV+      A E G E  +E  L    + V   P  +++ + N+
+Sbjct  232  ELKLEKEPVDLAELLEEVVEELRPLAEEKGIE--LELDLPEDPLLVLGDPDRLEQVLTNL  289
+
+Query  345  VVNAARYG--NGWIKVSSGTEPNRAWFQVEDDGPGIAPEQRKHLFQPFVRGDSART--IS  400
+            + NA +Y    G I VS   E ++    V D G GI  E    +F+ F R D +R+    
+Sbjct  290  LDNAIKYTPEGGTITVSLREEDDQVRISVRDTGIGIPEEDLPRIFERFYRVDKSRSRETG  349
+
+Query  401  GTGLGLAIVQRIVDNHNGMLELGTSERGGLSIRAWLPV  438
+            GTGLGLAIV+ IV+ H G + + +    G +    LP+
+Sbjct  350  GTGLGLAIVKHIVEAHGGRIWVESEPGKGTTFTITLPL  387
+
+
+>CDD:236724 PRK10604, PRK10604, sensor protein RstB; Provisional.
+Length=433
+
+ Score = 154 bits (392),  Expect = 3e-42, Method: Composition-based stats.
+ Identities = 87/287 (30%), Positives = 143/287 (50%), Gaps = 10/287 (3%)
+
+Query  165  LAIMLLAIGGA---WLFIRIQNRPLVDLEHAALQVGKGIIPPPLREYGASEVRSVTRAFN  221
+              + L+ +  A   +L++R   + ++ LE AA ++G G +   +     S +  +  AFN
+Sbjct  140  ALLALIGLSLAFPVFLWMRPHWQDMLKLEAAAQRLGDGHLAERIHFDEGSSLERLGVAFN  199
+
+Query  222  HMAAGVKQLADDRTLLMAGVSHDLRTPLTRIRLATEMMSEQDGYLAESINKDIEECNAII  281
+             MA  +  L   +  L+ G++H+LRTPL R+R   EM        ++++N+DI +  A+I
+Sbjct  200  QMADNINALIASKKQLIDGIAHELRTPLVRLRYRLEMSDNLSAAESQALNRDIGQLEALI  259
+
+Query  282  EQFIDYLRTG-QEMPMEMA--DLNAVLGEVIA--AESGYEREIETALYPGSIEVKMHPLS  336
+            E+ + Y R    +  + ++  DL A L   +A       E+ +            +    
+Sbjct  260  EELLTYARLDRPQNELHLSEPDLPAWLSTHLADIQAVTPEKTVRLDTPHQGDYGALDMRL  319
+
+Query  337  IKRAVANMVVNAARYGNGWIKVSSGTEPNRAWFQVEDDGPGIAPEQRKHLFQPFVRGDSA  396
+            ++R + N++ NA RY +  ++VS   + N+A   VEDDGPGI PE+R+ +F+PFVR D +
+Sbjct  320  MERVLDNLLNNALRYAHSRVRVSLLLDGNQACLIVEDDGPGIPPEERERVFEPFVRLDPS  379
+
+Query  397  RTIS--GTGLGLAIVQRIVDNHNGMLELGTSERGGLSIRAWLPVPVT  441
+            R  +  G GLGLAIV  I     G +    SE GG       PV   
+Sbjct  380  RDRATGGCGLGLAIVHSIALAMGGSVNCDESELGGARFSFSWPVWHN  426
+
+
+
+Lambda      K        H        a         alpha
+   0.321    0.136    0.400    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2719441155
+
+
+Query= NP_417864.1
+
+Length=239
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:181883 PRK09468, ompR, osmolarity response regulator; Provisi...  505     0.0  
+CDD:440508 COG0745, OmpR, DNA-binding response regulator, OmpR fa...  229     3e-76
+CDD:214376 CHL00148, orf27, Ycf27; Reviewed                           218     2e-71
+CDD:131209 TIGR02154, PhoB, phosphate regulon transcriptional reg...  203     7e-66
+CDD:468653 NF040689, MtrAB_MtrA, MtrAB system response regulator ...  200     7e-65
+CDD:182711 PRK10766, PRK10766, two-component system response regu...  188     5e-60
+
+
+>CDD:181883 PRK09468, ompR, osmolarity response regulator; Provisional.
+Length=239
+
+ Score = 505 bits (1303),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 225/238 (95%), Positives = 233/238 (98%), Gaps = 0/238 (0%)
+
+Query  1    MQENYKILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPG  60
+            MQENYKILVVDDDMRLRALLERYLTEQGFQVRS ANAEQMDRLLTRESFHLMVLDLMLPG
+Sbjct  2    MQENYKILVVDDDMRLRALLERYLTEQGFQVRSAANAEQMDRLLTRESFHLMVLDLMLPG  61
+
+Query  61   EDGLSICRRLRSQSNPMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVL  120
+            EDGLSICRRLRSQ+NP PIIM+TAKGEEVDRIVGLEIGADDY+PKPFNPRELLARIRAVL
+Sbjct  62   EDGLSICRRLRSQNNPTPIIMLTAKGEEVDRIVGLEIGADDYLPKPFNPRELLARIRAVL  121
+
+Query  121  RRQANELPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPL  180
+            RRQA ELPGAPSQEE VIAFGKFKLNLGTRE+FR DEPMPLT+GEFAVLKALVSHPREPL
+Sbjct  122  RRQAPELPGAPSQEEEVIAFGKFKLNLGTRELFRGDEPMPLTTGEFAVLKALVSHPREPL  181
+
+Query  181  SRDKLMNLARGREYSAMERSIDVQISRLRRMVEEDPAHPRYIQTVWGLGYVFVPDGSK  238
+            SRDKLMNLARGREYSAMERSIDVQISRLRR++EEDPAHPRYIQTVWGLGYVFVPDG+K
+Sbjct  182  SRDKLMNLARGREYSAMERSIDVQISRLRRLIEEDPAHPRYIQTVWGLGYVFVPDGAK  239
+
+
+>CDD:440508 COG0745, OmpR, DNA-binding response regulator, OmpR family, contains 
+REC and winged-helix (wHTH) domain [Signal transduction 
+mechanisms, Transcription].  
+Length=204
+
+ Score = 229 bits (585),  Expect = 3e-76, Method: Composition-based stats.
+ Identities = 100/220 (45%), Positives = 145/220 (66%), Gaps = 17/220 (8%)
+
+Query  5    YKILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPGEDGL  64
+             +ILVV+DD  +R LL   L  +G++V + A+ E+   LL  E   L++LDLMLPG DGL
+Sbjct  2    PRILVVEDDPDIRELLADALEREGYEVDTAADGEEALELLEEERPDLILLDLMLPGMDGL  61
+
+Query  65   SICRRLRSQSNPMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVLRRQA  124
+             +CRRLR++ + +PIIM+TA+ +E DR+ GLE GADDY+ KPF+P ELLARIRA+LRR+A
+Sbjct  62   EVCRRLRARPSDIPIIMLTARDDEEDRVRGLEAGADDYLTKPFDPEELLARIRALLRRRA  121
+
+Query  125  NELPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPLSRDK  184
+             E          V+  G   L+L  RE+ R+ EP+ LT  EF +L+ L+ +P   +SR++
+Sbjct  122  AE----------VLRVGDL-LDLAAREVTRDGEPVELTPKEFRLLELLMRNPGRVVSREQ  170
+
+Query  185  LMNLARGREYSAMERSIDVQISRLRRMVEEDPAHPRYIQT  224
+            L+    G +Y   +R++DV ISRLR+ +E+D      I+T
+Sbjct  171  LLEEVWGYDYGD-DRTVDVHISRLRKKLEDD-----LIET  204
+
+
+>CDD:214376 CHL00148, orf27, Ycf27; Reviewed.
+Length=240
+
+ Score = 218 bits (557),  Expect = 2e-71, Method: Composition-based stats.
+ Identities = 92/231 (40%), Positives = 146/231 (63%), Gaps = 3/231 (1%)
+
+Query  4    NYKILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPGEDG  63
+              KILVVDD+  +R +LE  L+  G++V + ++ E+  +L  +E   L++LD+M+P  DG
+Sbjct  6    KEKILVVDDEAYIRKILETRLSIIGYEVITASDGEEALKLFRKEQPDLVILDVMMPKLDG  65
+
+Query  64   LSICRRLRSQSNPMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVLRRQ  123
+              +C+ +R +S+ +PIIM+TA G+  DRI GLE+GADDY+ KPF+P+EL ARIR+VLRR 
+Sbjct  66   YGVCQEIRKESD-VPIIMLTALGDVSDRITGLELGADDYVVKPFSPKELEARIRSVLRRT  124
+
+Query  124  ANELPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPLSRD  183
+              +   +     ++I  G  K++L  +++++ +E + LT  EF++L+ L+S   E  SR 
+Sbjct  125  NKKSFSSKIPNSSIIRIGFLKIDLNKKQVYKNNERIRLTGMEFSLLELLISKSGEIFSRA  184
+
+Query  184  KLMNLARGREYSAM--ERSIDVQISRLRRMVEEDPAHPRYIQTVWGLGYVF  232
+             ++    G         R +DV ISRLR  +E+DP++P  I T  G GY+F
+Sbjct  185  TILKEVWGYTPERHIDTRVVDVHISRLRAKLEDDPSNPDLILTARGTGYLF  235
+
+
+>CDD:131209 TIGR02154, PhoB, phosphate regulon transcriptional regulatory 
+protein PhoB.  PhoB is a DNA-binding response regulator protein 
+acting with PhoR in a 2-component system responding to 
+phosphate ion. PhoB acts as a positive regulator of gene expression 
+for phosphate-related genes such as phoA, phoS, phoE 
+and ugpAB as well as itself. It is often found proximal to 
+genes for the high-affinity phosphate ABC transporter (pstSCAB; 
+GenProp0190) and presumably regulates these as well. [Regulatory 
+functions, DNA interactions, Signal transduction, Two-component 
+systems].
+Length=226
+
+ Score = 203 bits (519),  Expect = 7e-66, Method: Composition-based stats.
+ Identities = 94/229 (41%), Positives = 134/229 (59%), Gaps = 9/229 (4%)
+
+Query  6    KILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPGEDGLS  65
+            +ILVV+D+  +R L+   L + G+ V    + ++   L+      L++LD MLPG  G+ 
+Sbjct  4    RILVVEDEPAIRELIAYNLEKAGYDVVEAGDGDEALTLINERGPDLILLDWMLPGTSGIE  63
+
+Query  66   ICRRLRSQSN--PMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVLRRQ  123
+            +CRRLR +     +PIIM+TA+GEE DR+ GLE GADDYI KPF+PRELLARI+AVLRR 
+Sbjct  64   LCRRLRRRPETRAIPIIMLTARGEEEDRVRGLETGADDYITKPFSPRELLARIKAVLRRI  123
+
+Query  124  ANELPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPLSRD  183
+                   P   + VI  G   L+     +FR  +P+ L   EF +L   ++HP    SR+
+Sbjct  124  ------RPQLSDEVIEVGDLSLDPVAHRVFRGGQPLSLGPTEFRLLHFFMTHPERVYSRE  177
+
+Query  184  KLMNLARGREYSAMERSIDVQISRLRRMVEEDPAHPRYIQTVWGLGYVF  232
+            +L++   GR+    ER++DV I RLR+ +         +QTV G GY F
+Sbjct  178  QLLDRVWGRDVYVEERTVDVHIRRLRKALNPF-GLEDPVQTVRGAGYRF  225
+
+
+>CDD:468653 NF040689, MtrAB_MtrA, MtrAB system response regulator MtrA.  
+
+Length=219
+
+ Score = 200 bits (512),  Expect = 7e-65, Method: Composition-based stats.
+ Identities = 93/224 (42%), Positives = 134/224 (60%), Gaps = 8/224 (4%)
+
+Query  7    ILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPGEDGLSI  66
+            ILVVDDD  L  +L   L  +GF+    A+  +           L++LDLMLPG DG+ +
+Sbjct  1    ILVVDDDPALAEMLGIVLRAEGFETVFCADGAEAVEAFREVRPDLVLLDLMLPGMDGIEV  60
+
+Query  67   CRRLRSQSNPMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVLRRQANE  126
+            CR++R++S  +PIIM+TAK + VD + GLE GADDY+ KPF P+EL+ARIRA LRR  +E
+Sbjct  61   CRQIRAESG-VPIIMLTAKSDTVDVVRGLEAGADDYVVKPFKPKELVARIRARLRRSEDE  119
+
+Query  127  LPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPLSRDKLM  186
+                   E  V+  G   +++   E+ R  E +PLT  EF +L AL   P +  SR++L+
+Sbjct  120  -------ESEVLRIGDLTIDVAGHEVTRGGEEIPLTPLEFDLLVALARKPGQVFSREELL  172
+
+Query  187  NLARGREYSAMERSIDVQISRLRRMVEEDPAHPRYIQTVWGLGY  230
+                G  ++A  R ++V + RLR  +E DP +P  + TV G+GY
+Sbjct  173  EQVWGYRHAADTRLVNVHVQRLRAKIERDPENPEIVVTVRGVGY  216
+
+
+>CDD:182711 PRK10766, PRK10766, two-component system response regulator TorR. 
+ 
+Length=221
+
+ Score = 188 bits (480),  Expect = 5e-60, Method: Composition-based stats.
+ Identities = 83/207 (40%), Positives = 127/207 (61%), Gaps = 3/207 (1%)
+
+Query  5    YKILVVDDDMRLRALLERYLTEQGFQVRSVANAEQMDRLLTRESFHLMVLDLMLPGEDGL  64
+            Y ILVV+D+   RA L+ Y  ++G+ V   A+   M  ++  +   L++LD+ LPGEDGL
+Sbjct  3    YHILVVEDEPVTRARLQGYFEQEGYTVSEAASGAGMREIMQNQHVDLILLDINLPGEDGL  62
+
+Query  65   SICRRLRSQSNPMPIIMVTAKGEEVDRIVGLEIGADDYIPKPFNPRELLARIRAVLRR--  122
+             + R LRS+S  + II+VT + + +DRIVGLE+GADDY+ KP   RELL R++ +L R  
+Sbjct  63   MLTRELRSRST-VGIILVTGRTDSIDRIVGLEMGADDYVTKPLELRELLVRVKNLLWRIS  121
+
+Query  123  QANELPGAPSQEEAVIAFGKFKLNLGTREMFREDEPMPLTSGEFAVLKALVSHPREPLSR  182
+             A +      +E+    F  + LN+  R + R  EP+ LT  E+ +L A V++P + LSR
+Sbjct  122  LARQAQPHAQEEDNCYRFAGYCLNVSRRTLERNGEPIKLTKAEYELLVAFVTNPGQVLSR  181
+
+Query  183  DKLMNLARGREYSAMERSIDVQISRLR  209
+            ++L+ +   R  +  +R+IDV I RLR
+Sbjct  182  ERLLRMLSHRVENPNDRTIDVLIRRLR  208
+
+
+
+Lambda      K        H        a         alpha
+   0.321    0.138    0.393    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1176023664
+
+
+Query= NP_418458.1
+
+Length=396
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:236533 PRK09474, malE, maltose/maltodextrin ABC transporter s...  815     0.0   
+CDD:270374 cd13656, PBP2_MBP, The periplasmic binding component o...  685     0.0   
+CDD:441785 COG2182, MalE, Maltose-binding periplasmic protein Mal...  420     3e-146
+CDD:270240 cd13522, PBP2_ABC_oligosaccharides, The periplasmic-bi...  415     9e-145
+CDD:270304 cd13586, PBP2_Maltose_binding_like, The periplasmic-bi...  387     2e-133
+CDD:270376 cd13658, PBP2_CMBP, The periplasmic binding component ...  274     2e-89 
+
+
+>CDD:236533 PRK09474, malE, maltose/maltodextrin ABC transporter substrate-binding 
+protein MalE.  
+Length=396
+
+ Score = 815 bits (2106),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 359/396 (91%), Positives = 376/396 (95%), Gaps = 0/396 (0%)
+
+Query  1    MKIKTGARILALSALTTMMFSASALAKIEEGKLVIWINGDKGYNGLAEVGKKFEKDTGIK  60
+            MKIK G R LALSAL T+MFSASALAKIEEGKLVIWINGDKGYNGLAEVGKKFEKDTGIK
+Sbjct  1    MKIKKGLRTLALSALATLMFSASALAKIEEGKLVIWINGDKGYNGLAEVGKKFEKDTGIK  60
+
+Query  61   VTVEHPDKLEEKFPQVAATGDGPDIIFWAHDRFGGYAQSGLLAEITPDKAFQDKLYPFTW  120
+            VTVEHPDKLEEKFPQVAATGDGPDIIFWAHDRFGGYAQSGLLAE+TP KAF+DKL PFTW
+Sbjct  61   VTVEHPDKLEEKFPQVAATGDGPDIIFWAHDRFGGYAQSGLLAEVTPSKAFKDKLVPFTW  120
+
+Query  121  DAVRYNGKLIAYPIAVEALSLIYNKDLLPNPPKTWEEIPALDKELKAKGKSALMFNLQEP  180
+            DAVRYNGKLI YPIAVEALSLIYNKDL+P PPKTWEEIPALDKELKAKGKSA+M+NLQEP
+Sbjct  121  DAVRYNGKLIGYPIAVEALSLIYNKDLVPTPPKTWEEIPALDKELKAKGKSAIMWNLQEP  180
+
+Query  181  YFTWPLIAADGGYAFKYENGKYDIKDVGVDNAGAKAGLTFLVDLIKNKHMNADTDYSIAE  240
+            YFTWPLIAADGGYAFK+ENG YD+KDVGV+NAGAKAGL FLVDL+KNKHMNADTDYSIAE
+Sbjct  181  YFTWPLIAADGGYAFKFENGGYDVKDVGVNNAGAKAGLQFLVDLVKNKHMNADTDYSIAE  240
+
+Query  241  AAFNKGETAMTINGPWAWSNIDTSKVNYGVTVLPTFKGQPSKPFVGVLSAGINAASPNKE  300
+            AAFNKGETAMTINGPWAWSNID S +NYGVTVLPTF G+PSKPFVGVLSAGINAASPNKE
+Sbjct  241  AAFNKGETAMTINGPWAWSNIDKSGINYGVTVLPTFNGKPSKPFVGVLSAGINAASPNKE  300
+
+Query  301  LAKEFLENYLLTDEGLEAVNKDKPLGAVALKSYEEELAKDPRIAATMENAQKGEIMPNIP  360
+            LAKEFLENYLLTDEGLE VNKDKPLGAVALKS++EELAKDPRIAATM+NAQ GEIMPNIP
+Sbjct  301  LAKEFLENYLLTDEGLETVNKDKPLGAVALKSFQEELAKDPRIAATMDNAQNGEIMPNIP  360
+
+Query  361  QMSAFWYAVRTAVINAASGRQTVDEALKDAQTRITK  396
+            QMSAFWYA+RTA+INA SGRQTVD AL DA  RITK
+Sbjct  361  QMSAFWYAMRTAIINATSGRQTVDAALDDAAKRITK  396
+
+
+>CDD:270374 cd13656, PBP2_MBP, The periplasmic binding component of ABC tansport 
+system specific for maltose; possess the type 2 periplasmic 
+binidng fold.  This group includes the periplasmic maltose-binding 
+protein of an ATP-binding cassette transporter. 
+Maltose is a disaccharide formed from two units of glucose. 
+Members of this group belong to the type 2 periplasmic-binding 
+fold superfamily. PBP2 is comprised of two globular subdomains 
+connected by a flexible hinge and bind their ligand 
+in the cleft between these domains in a manner resembling a 
+Venus flytrap. The majority of PBP2 proteins function in the 
+uptake of small soluble substrates in eubacteria and archaea. 
+After binding their specific ligand with high affinity, 
+they can interact with a cognate membrane transport complex 
+comprised of two integral membrane domains and two cytoplasmically 
+located ATPase domains. This interaction triggers the 
+ligand translocation across the cytoplasmic membrane energized 
+by ATP hydrolysis.
+Length=364
+
+ Score = 685 bits (1770),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 364/364 (100%), Positives = 364/364 (100%), Gaps = 0/364 (0%)
+
+Query  31   GKLVIWINGDKGYNGLAEVGKKFEKDTGIKVTVEHPDKLEEKFPQVAATGDGPDIIFWAH  90
+            GKLVIWINGDKGYNGLAEVGKKFEKDTGIKVTVEHPDKLEEKFPQVAATGDGPDIIFWAH
+Sbjct  1    GKLVIWINGDKGYNGLAEVGKKFEKDTGIKVTVEHPDKLEEKFPQVAATGDGPDIIFWAH  60
+
+Query  91   DRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLPN  150
+            DRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLPN
+Sbjct  61   DRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLPN  120
+
+Query  151  PPKTWEEIPALDKELKAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDVGVD  210
+            PPKTWEEIPALDKELKAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDVGVD
+Sbjct  121  PPKTWEEIPALDKELKAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDVGVD  180
+
+Query  211  NAGAKAGLTFLVDLIKNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTSKVNYGV  270
+            NAGAKAGLTFLVDLIKNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTSKVNYGV
+Sbjct  181  NAGAKAGLTFLVDLIKNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTSKVNYGV  240
+
+Query  271  TVLPTFKGQPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDKPLGAVAL  330
+            TVLPTFKGQPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDKPLGAVAL
+Sbjct  241  TVLPTFKGQPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDKPLGAVAL  300
+
+Query  331  KSYEEELAKDPRIAATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTVDEALKDA  390
+            KSYEEELAKDPRIAATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTVDEALKDA
+Sbjct  301  KSYEEELAKDPRIAATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTVDEALKDA  360
+
+Query  391  QTRI  394
+            QTRI
+Sbjct  361  QTRI  364
+
+
+>CDD:441785 COG2182, MalE, Maltose-binding periplasmic protein MalE [Carbohydrate 
+transport and metabolism].  
+Length=410
+
+ Score = 420 bits (1083),  Expect = 3e-146, Method: Composition-based stats.
+ Identities = 169/412 (41%), Positives = 231/412 (56%), Gaps = 22/412 (5%)
+
+Query  1    MKIKTGARILALSALTTMMFSA---------SALAKIEEGKLVIWINGDKGYNGLAEVGK  51
+            MK +  A  LAL+    +  +A         S+ A    G L +W++ D+    L E   
+Sbjct  1    MKRRLLA-ALALALALALALAACGSGSSSSGSSSAAGAGGTLTVWVDDDEA-EALEEAAA  58
+
+Query  52   KFEKDTGIKVTVEHP--DKLEEKFPQVAATGDGPDIIFWAHDRFGGYAQSGLLAEITPDK  109
+             FE++ GIKV V     D L EK    A  G GPD+   AHD  G  A++GLLA +  D 
+Sbjct  59   AFEEEPGIKVKVVEVPWDDLREKLTTAAPAGKGPDVFVGAHDWLGELAEAGLLAPLDDDL  118
+
+Query  110  AFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLP-NPPKTWEEIPALDKELKAK  168
+            A +D   P   DAV Y+GKL   P AVE L+L YNKDL+   PPKTW+E+ A  K+L A 
+Sbjct  119  ADKDDFLPAALDAVTYDGKLYGVPYAVETLALYYNKDLVKAEPPKTWDELIAAAKKLTAA  178
+
+Query  169  GKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDVGVDNAGAKAGLTFLVDLIKNK  228
+            GK  L ++  + Y+ +P +AA GGY F  +    D KDVG+++ GA A L +L DLIK+ 
+Sbjct  179  GKYGLAYDAGDAYYFYPFLAAFGGYLFGKDGD--DPKDVGLNSPGAVAALEYLKDLIKDG  236
+
+Query  229  HMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTS-KVNYGVTVLPTF-KGQPSKPFVG  286
+             + AD DY  A+A F +G+ AM INGPWA +++  +  ++YGV  LPT   G+P+KPFVG
+Sbjct  237  VLPADADYDAADALFAEGKAAMIINGPWAAADLKKALGIDYGVAPLPTLAGGKPAKPFVG  296
+
+Query  287  VLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDKPLGAVALKSY--EEELAKDPRIA  344
+            V   G++A S NKE A+EF   YL + E  +A+ +       A K+   + E+  DP IA
+Sbjct  297  VKGFGVSAYSKNKEAAQEFA-EYLTSPEAQKALFEATGR-IPANKAAAEDAEVKADPLIA  354
+
+Query  345  ATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTVDEALKDAQTRITK  396
+            A  E A+    MPNIP+M A W  + TA+   ASG+    EAL  AQ +I  
+Sbjct  355  AFAEQAEYAVPMPNIPEMGAVWTPLGTALQAIASGKADPAEALDAAQKQIEA  406
+
+
+>CDD:270240 cd13522, PBP2_ABC_oligosaccharides, The periplasmic-binding component 
+of ABC transport systems specific for maltose and related 
+oligosaccharides; possess type 2 periplasmic binding 
+fold.  This family represents the periplasmic binding component 
+of ABC transport systems involved in uptake of oligosaccharides 
+including maltose, trehalose, maltodextrin, and cyclodextrin. 
+Members of this family belong to the type 2 periplasmic-binding 
+fold superfamily. PBP2 is comprised of two globular 
+subdomains connected by a flexible hinge and bind their 
+ligand in the cleft between these domains in a manner resembling 
+a Venus flytrap. The majority of PBP2 proteins function 
+in the uptake of small soluble substrates in eubacteria and 
+archaea. After binding their specific ligand with high affinity, 
+they can interact with a cognate membrane transport 
+complex comprised of two integral membrane domains and two cytoplasmically 
+located ATPase domains. This interaction triggers 
+the ligand translocation across the cytoplasmic membrane 
+energized by ATP hydrolysis.
+Length=368
+
+ Score = 415 bits (1069),  Expect = 9e-145, Method: Composition-based stats.
+ Identities = 151/373 (40%), Positives = 192/373 (51%), Gaps = 15/373 (4%)
+
+Query  32   KLVIWINGDKG-YNGLAEVGKKFEKDT-GIKVTVEHPDK--LEEKFPQVAATGDGPDIIF  87
+             + +W   D G    + E+  KFEK   GI V V + D     + F   AA G GPD++F
+Sbjct  1    TITVWHQYDTGENQAVNELIAKFEKAYPGITVEVTYQDTEARRQFFSTAAAGGKGPDVVF  60
+
+Query  88   WAHDRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDL  147
+               D  G +A +GLLA +    +   K  P T  A++ NGKL   P++V A  + YNK L
+Sbjct  61   GPSDSLGPFAAAGLLAPLDEYVSKSGKYAPNTIAAMKLNGKLYGVPVSVGAHLMYYNKKL  120
+
+Query  148  LP-NPPKTWEEIPALDKELKAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKD  206
+            +P NPPKTW+E+ AL + LKAK    L++N  EPYF    I   GG  FK  NGK +   
+Sbjct  121  VPKNPPKTWQELIALAQGLKAKNVWGLVYNQNEPYFFAAWIGGFGGQVFKANNGKNNP--  178
+
+Query  207  VGVDNAGAKAGLTFLVDLI-KNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNID-TS  264
+              +D  GA   L FLVDL  K K M  +TDYSIA+A F  G+ AM INGPW   +     
+Sbjct  179  -TLDTPGAVEALQFLVDLKSKYKIMPPETDYSIADALFKAGKAAMIINGPWDLGDYRQAL  237
+
+Query  265  KVNYGVTVLPTFKG-QPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDK  323
+            K+N GV  LPTF G + + PFVG    GIN  S NK  A EF++        L  V  D 
+Sbjct  238  KINLGVAPLPTFSGTKHAAPFVGGKGFGINKESQNKAAAVEFVKYLTSYQAQL--VLFDD  295
+
+Query  324  PLGAVALKSYEEELAKDPRIA--ATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQ  381
+                 A     E  A   + A  A+ E A  G  MPNIP+M A W A R AV +  +G+ 
+Sbjct  296  AGDIPANLQAYESPAVQNKPAQKASAEQAAYGVPMPNIPEMRAVWDAFRIAVNSVLAGKV  355
+
+Query  382  TVDEALKDAQTRI  394
+            T + A KDAQ   
+Sbjct  356  TPEAAAKDAQQEA  368
+
+
+>CDD:270304 cd13586, PBP2_Maltose_binding_like, The periplasmic-binding component 
+of ABC transport systems specific for maltose and related 
+polysaccharides; possess type 2 periplasmic binding fold. 
+ This subfamily represents the periplasmic binding component 
+of ABC transport systems involved in uptake of polysaccharides 
+including maltose, maltodextrin, and cyclodextrin. 
+Members of this family belong to the type 2 periplasmic-binding 
+fold superfamily. PBP2 is comprised of two globular subdomains 
+connected by a flexible hinge and bind their ligand in 
+the cleft between these domains in a manner resembling a Venus 
+flytrap. The majority of PBP2 proteins function in the 
+uptake of small soluble substrates in eubacteria and archaea. 
+After binding their specific ligand with high affinity, they 
+can interact with a cognate membrane transport complex comprised 
+of two integral membrane domains and two cytoplasmically 
+located ATPase domains. This interaction triggers the ligand 
+translocation across the cytoplasmic membrane energized 
+by ATP hydrolysis.
+Length=367
+
+ Score = 387 bits (995),  Expect = 2e-133, Method: Composition-based stats.
+ Identities = 159/371 (43%), Positives = 208/371 (56%), Gaps = 12/371 (3%)
+
+Query  32   KLVIWINGDKGYNGLAEVGKKFEKDTGIKVTVEHPD--KLEEKFPQVAATGDGPDIIFWA  89
+             + +W + D     L E+ ++FEK  GIKV V + D     EKF      G GPD+ F  
+Sbjct  1    TITVWTDEDGELEYLKELAEEFEKKYGIKVEVVYVDSGDTREKFITAGPAGKGPDVFFGP  60
+
+Query  90   HDRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLP  149
+            HD  G  A +GLLA I    A + K  P    AV YNGKL   P++VE ++L YNKDL+P
+Sbjct  61   HDWLGELAAAGLLAPIPEYLAVKIKNLPVALAAVTYNGKLYGVPVSVETIALFYNKDLVP  120
+
+Query  150  NPPKTWEEIPALDK--ELKAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDV  207
+             PPKTWEE+ AL K    KA GK    ++   PYF++P +AA GGY F    G  D  D+
+Sbjct  121  EPPKTWEELIALAKKFNDKAGGKYGFAYDQTNPYFSYPFLAAFGGYVFGENGG--DPTDI  178
+
+Query  208  GVDNAGAKAGLTFLVDLI-KNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTSKV  266
+            G++N GA  GL F+ DL  K K +  D DY IA+A F +G+ AM INGPW  ++   + +
+Sbjct  179  GLNNEGAVKGLKFIKDLKKKYKVLPPDLDYDIADALFKEGKAAMIINGPWDLADYKDAGI  238
+
+Query  267  NYGVTVLPTFKG-QPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDKPL  325
+            N+GV  LPT  G + + PFVGV  A ++A S NKE A EF E YL +DE    + +    
+Sbjct  239  NFGVAPLPTLPGGKQAAPFVGVQGAFVSAYSKNKEAAVEFAE-YLTSDEAQLLLFEKTG-  296
+
+Query  326  GAVALKSYEE--ELAKDPRIAATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTV  383
+               ALK       +  DP + A  E AQ G  MPNIP+M+A W A+  A+   ASG+ T 
+Sbjct  297  RIPALKDALNDAAVKNDPLVKAFAEQAQYGVPMPNIPEMAAVWDAMGNALNLVASGKATP  356
+
+Query  384  DEALKDAQTRI  394
+            +EA KDA   I
+Sbjct  357  EEAAKDAVAAI  367
+
+
+>CDD:270376 cd13658, PBP2_CMBP, The periplasmic binding component of ABC 
+transport systems specific for cyclo/maltodextrin; possess the 
+type 2 periplasmic binding fold.  This group includes the 
+periplasmic cyclo/maltodextrin-binding protein of Thermoactinomyces 
+vulgaris ATP-binding cassette transporter and related 
+proteins. Cyclodextrins are a family of compounds composed 
+of glucose units connected by 1, 4 glycosidic linkages to 
+form a series of oligosaccharide rings, and their cavity is 
+hydrophibic which allows cyclodextrins to accomodate hydrophobic 
+molecules/moieties in the cavity. Members of this group 
+belong to the type 2 periplasmic-binding fold superfamily. 
+PBP2 is comprised of two globular subdomains connected by a 
+flexible hinge and bind their ligand in the cleft between these 
+domains in a manner resembling a Venus flytrap. The majority 
+of PBP2 proteins function in the uptake of small soluble 
+substrates in eubacteria and archaea. After binding their 
+specific ligand with high affinity, they can interact with a 
+cognate membrane transport complex comprised of two integral 
+membrane domains and two cytoplasmically located ATPase domains. 
+This interaction triggers the ligand translocation across 
+the cytoplasmic membrane energized by ATP hydrolysis.
+Length=372
+
+ Score = 274 bits (703),  Expect = 2e-89, Method: Composition-based stats.
+ Identities = 123/372 (33%), Positives = 193/372 (52%), Gaps = 11/372 (3%)
+
+Query  32   KLVIWINGDKGYNGLAEVGKKFEKDTGIKVTVEHPDKLE--EKFPQVAATGDGPDIIFWA  89
+            +L +W++ DK    + ++ K++ K TG+KV +   D+L+  EK       G GPD++   
+Sbjct  1    QLTVWVDEDKKMAFIKKIAKQYTKKTGVKVKLVEVDQLDQLEKLSLDGPAGKGPDVMVAP  60
+
+Query  90   HDRFGGYAQSGLLAEITPDKAFQDKLYPFTWDAVRYNGKLIAYPIAVEALSLIYNKDLLP  149
+            HDR G     GLL+ I   K  +         A+ Y+GKL   P AVE L+L YNKDL+ 
+Sbjct  61   HDRIGSAVLQGLLSPIKLSKDKKKGFTDQALKALTYDGKLYGLPAAVETLALYYNKDLVK  120
+
+Query  150  NPPKTWEEIPALDKEL--KAKGKSALMFNLQEPYFTWPLIAADGGYAFKYENGKYDIKDV  207
+            N PKT++E+ AL K+L  +   +   + +    Y+++ L+A +GGY FK      DI D+
+Sbjct  121  NAPKTFDELEALAKDLTKEKGKQYGFLADATNFYYSYGLLAGNGGYIFKKNGSDLDINDI  180
+
+Query  208  GVDNAGAKAGLTFLVDLIKNKHMNADTDYSIAEAAFNKGETAMTINGPWAWSNIDTSKVN  267
+            G+++ GA   + FL       ++       + +  F +G+ A  I+GPWA      + VN
+Sbjct  181  GLNSPGAVKAVKFLKKWYTEGYLPKGMTGDVIQGLFKEGKAAAVIDGPWAIQEYQEAGVN  240
+
+Query  268  YGVTVLPTF-KGQPSKPFVGVLSAGINAASPNKELAKEFLENYLLTDEGLEAVNKDK---  323
+            YGV  LPT   G+P  PF+GV    ++A S +KE A++F+E +L + E L+    +    
+Sbjct  241  YGVAPLPTLPNGKPMAPFLGVKGWYLSAYSKHKEWAQKFME-FLTSKENLKKRYDETNEI  299
+
+Query  324  PLGAVALKSYEEELAKDPRIAATMENAQKGEIMPNIPQMSAFWYAVRTAVINAASGRQTV  383
+            P     ++S  E    +P  +A  + A +   MPNIP+M A W     A+    SG++T 
+Sbjct  300  P-PRKDVRSDPEI-KNNPLTSAFAKQASRAVPMPNIPEMGAVWEPANNALFFILSGKKTP  357
+
+Query  384  DEALKDAQTRIT  395
+             +AL DA   I 
+Sbjct  358  KQALNDAVNDIK  369
+
+
+
+Lambda      K        H        a         alpha
+   0.315    0.133    0.390    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2324947096
+
+
+Query= NP_417507.2
+
+Length=493
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:236529 PRK09465, tolC, outer membrane channel protein; Reviewed   778     0.0   
+CDD:273829 TIGR01844, Proteases_secretion_protein_PrtF, type I se...  421     6e-145
+CDD:441147 COG1538, TolC, Outer membrane protein TolC [Cell wall/...  207     2e-62 
+CDD:396757 pfam02321, OEP, Outer membrane efflux protein. The OEP...  93.0    7e-22 
+CDD:273830 TIGR01845, Outer_membrane_protein_OprM, efflux transpo...  94.0    2e-20 
+CDD:182103 PRK09837, PRK09837, Cu(I)/Ag(I) efflux RND transporter...  42.2    7e-04 
+
+
+>CDD:236529 PRK09465, tolC, outer membrane channel protein; Reviewed.
+Length=446
+
+ Score = 778 bits (2011),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 392/451 (87%), Positives = 413/451 (92%), Gaps = 5/451 (1%)
+
+Query  1    MKKLLPILIGLSLSGFSSLSQAENLMQVYQQARLSNPELRKSAADRDAAFEKINEARSPL  60
+            MKKLLP+LIGLSL+GFSS SQAE+L+QVYQQARLSNPEL K+AADRDAAFEKINEARSPL
+Sbjct  1    MKKLLPLLIGLSLAGFSSASQAEDLLQVYQQARLSNPELLKAAADRDAAFEKINEARSPL  60
+
+Query  61   LPQLGLGADYTYSNGYRDANGINSNATSASLQLTQSIFDMSKWRALTLQEKAAGIQDVTY  120
+            LPQLGLGA YTYSNGYRDANGI+SN TSASLQLTQ+IFDMSKWRALTL EKAAGI DVTY
+Sbjct  61   LPQLGLGAGYTYSNGYRDANGIDSNGTSASLQLTQTIFDMSKWRALTLAEKAAGIADVTY  120
+
+Query  121  QTDQQTLILNTATAYFNVLNAIDVLSYTQAQKEAIYRQLDQTTQRFNVGLVAITDVQNAR  180
+            QT QQTLIL TATAYFNVL AID LS+T+A+K AIYRQLDQTTQRFNVGLVAITDVQNA+
+Sbjct  121  QTAQQTLILRTATAYFNVLRAIDNLSFTEAEKRAIYRQLDQTTQRFNVGLVAITDVQNAQ  180
+
+Query  181  AQYDTVLANEVTARNNLDNAVEQLRQITGNYYPELAALNVENFKTDKPQPVNALLKEAEK  240
+            AQYDTVLANEV ARNNLDNA E LRQITGNYYPELA LN E F T KPQ VNALLKEAEK
+Sbjct  181  AQYDTVLANEVLARNNLDNAYEALRQITGNYYPELAVLNTERFSTPKPQSVNALLKEAEK  240
+
+Query  241  RNLSLLQARLSQDLAREQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQYDDSN  300
+            RNLSLL ARLSQDLAREQIR AQ GH+PTLDLTAS GISDTSYS     GA GTQYDDS+
+Sbjct  241  RNLSLLSARLSQDLAREQIRLAQAGHMPTLDLTASYGISDTSYS-----GANGTQYDDSD  295
+
+Query  301  MGQNKVGLSFSLPIYQGGMVNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASI  360
+            MGQNKVGL+ SLP+Y GG VNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASI
+Sbjct  296  MGQNKVGLNLSLPLYSGGAVNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASI  355
+
+Query  361  SSINAYKQAVVSAQSSLDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANARYNYLINQL  420
+            SSINAY+QAVVSAQSSLDA EAGY VGTRTIVDVLDATTTLY+AKQ+L+NARYNYLINQL
+Sbjct  356  SSINAYEQAVVSAQSSLDATEAGYEVGTRTIVDVLDATTTLYDAKQQLSNARYNYLINQL  415
+
+Query  421  NIKSALGTLNEQDLLALNNALSKPVSTNPEN  451
+            N+K ALGTLNEQDLLALNN L KPVST+PEN
+Sbjct  416  NLKQALGTLNEQDLLALNNGLGKPVSTSPEN  446
+
+
+>CDD:273829 TIGR01844, Proteases_secretion_protein_PrtF, type I secretion 
+outer membrane protein, TolC family.  Members of this model 
+are outer membrane proteins from the TolC subfamily within 
+the RND (Resistance-Nodulation-cell Division) efflux systems. 
+These proteins, unlike the NodT subfamily, appear not to be 
+lipoproteins. All are believed to participate in type I protein 
+secretion, an ABC transporter system for protein secretion 
+without cleavage of a signal sequence, although they may, 
+like TolC, participate also in the efflux of smaller molecules 
+as well. This family includes the well-documented examples 
+TolC (E. coli), PrtF (Erwinia), and AprF (Pseudomonas aeruginosa). 
+[Protein fate, Protein and peptide secretion and 
+trafficking, Transport and binding proteins, Porins].
+Length=415
+
+ Score = 421 bits (1085),  Expect = 6e-145, Method: Composition-based stats.
+ Identities = 201/427 (47%), Positives = 267/427 (63%), Gaps = 16/427 (4%)
+
+Query  21   QAENLMQVYQQARLSNPELRKSAADRDAAFEKINEARSPLLPQLGLGADYTYSNGYRD-A  79
+             A  L+     A  +NPELR + A RDA  E++ +AR+ LLPQLGL A+Y YSN Y   +
+Sbjct  1    AALTLLDAVLLALANNPELRAARAQRDAGEEQVAQARAALLPQLGLTANYGYSNTYPTES  60
+
+Query  80   NGINS--NATSASLQLTQSIFD-MSKWRALTLQEKAAGIQDVTYQTDQQTLILNTATAYF  136
+             G N+  N+ S++L L+Q +FD  S W A+   E AA     T +   Q LIL TA AY 
+Sbjct  61   RGRNTDLNSGSSTLTLSQPLFDGGSTWNAVRAAEAAALAARETLRATAQDLILRTAEAYM  120
+
+Query  137  NVLNAIDVLSYTQAQKEAIYRQLDQTTQRFNVGLVAITDVQNARAQYDTVLANEVTARNN  196
+             VL A ++L+  +A   A+  QLD    RF+VGL   TDV  A A+Y +  A  + A+NN
+Sbjct  121  EVLRAQEILALAEANLAALKEQLDLARARFDVGLGTRTDVLQAEARYASARAQLIQAQNN  180
+
+Query  197  LDNAVEQLRQITGNYYPELAALNVENFKTDKPQPVNALLKEAEKRNLSLLQARLSQDLAR  256
+            LD+A  QLR++ G   PELA L V +F  + P+P++ LL+ AE  N  LL A+ + D AR
+Sbjct  181  LDDAKAQLRRLVGQ--PELAPLAVPSFPAELPEPLDQLLEIAEASNPLLLAAQAAVDAAR  238
+
+Query  257  EQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQYDDSNMGQNKVGLSFSLPIYQ  316
+             Q+ QA+ GHLPTL LTASTG SDTS  GS            S+     VGL+ S+P+YQ
+Sbjct  239  YQVEQARAGHLPTLSLTASTGNSDTSSGGSGN----------SDSDTYSVGLNVSIPLYQ  288
+
+Query  317  GGMVNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASISSINAYKQAVVSAQSS  376
+            GG  ++QV+QA +    +   LES  R+V Q VR++++N+NA+ +S+ AY+Q V SAQ +
+Sbjct  289  GGATSAQVRQAAHQLNQSRSTLESQKRTVRQQVRNAWSNLNAAAASVQAYEQQVASAQKA  348
+
+Query  377  LDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANARYNYLINQLNIKSALGTLNEQDLLA  436
+            LDA    Y VGTRT++DVL+A   LY A+QELANARY+YL  QLN+ SA GTLNE DLL 
+Sbjct  349  LDAYRQEYQVGTRTLLDVLNAEQELYQARQELANARYDYLQAQLNLLSATGTLNEADLLL  408
+
+Query  437  LNNALSK  443
+             N ALSK
+Sbjct  409  QNAALSK  415
+
+
+>CDD:441147 COG1538, TolC, Outer membrane protein TolC [Cell wall/membrane/envelope 
+biogenesis].  
+Length=367
+
+ Score = 207 bits (530),  Expect = 2e-62, Method: Composition-based stats.
+ Identities = 106/410 (26%), Positives = 165/410 (40%), Gaps = 45/410 (11%)
+
+Query  24   NLMQVYQQARLSNPELRKSAADRDAAFEKINEARSPLLPQLGLGADYTYSNGYRDANGIN  83
+             L ++ ++A  +NP+LR + A  +AA  ++ +AR+ LLP                     
+Sbjct  1    TLDELIERALANNPDLRAARARVEAARAQLRQARAGLLPS--------------------  40
+
+Query  84   SNATSASLQLTQSIFDMSKWRALTLQEKA-AGIQDVTYQTDQQTLILNTATAYFNVLNAI  142
+                       Q +    K RA     KA A   +   +  +  L    A AYF++L A 
+Sbjct  41   -----------QELDLGGKRRARIEAAKAQAEAAEADLRAARLDLAAEVAQAYFDLLAAQ  89
+
+Query  143  DVLSYTQAQKEAIYRQLDQTTQRFNVGLVAITDVQNARAQYDTVLANEVTARNNLDNAVE  202
+            + L+  +         L+    R+  GL +  DV  A AQ     A    A   L  A  
+Sbjct  90   EQLALAEENLALAEELLELARARYEAGLASRLDVLQAEAQLAQARAQLAQAEAQLAQARN  149
+
+Query  203  QLRQITGNYYPELAALNVENFKTDK-PQPVNALLKEAEKRNLSLLQARLSQDLAREQIRQ  261
+             L  + G   P    L          P  +  L  EA +R   L  A    + A  +I  
+Sbjct  150  ALALLLGLPPPAPLDLPDPLPPLPPLPPSLPGLPSEALERRPDLRAAEAQLEAAEAEIGV  209
+
+Query  262  AQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQYDDSNMGQNKVGLSFSLPIYQGGMVN  321
+            A+   LP+L L+AS G S +    S                   VGLS SLP++ GG   
+Sbjct  210  ARAAFLPSLSLSASYGYSSSDDLFSGGSDTWS------------VGLSLSLPLFDGGRNR  257
+
+Query  322  SQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASISSINAYKQAVVSAQSSLDAME  381
+            ++V+ A+     A  Q E      +Q V  +   + A+   + A ++A+ +A+ +L+   
+Sbjct  258  ARVRAAKAQLEQAEAQYEQTVLQALQEVEDALAALRAAREQLEALEEALEAAEEALELAR  317
+
+Query  382  AGYSVGTRTIVDVLDATTTLYNAKQELANARYNYLINQLNIKSALGTLNE  431
+            A Y  G  +++DVLDA   L  A+  L  ARY+YL+  + +  ALG   E
+Sbjct  318  ARYRAGLASLLDVLDAQRELLQAQLNLIQARYDYLLALVQLYRALGGGWE  367
+
+
+ Score = 75.5 bits (186),  Expect = 1e-14, Method: Composition-based stats.
+ Identities = 53/206 (26%), Positives = 84/206 (41%), Gaps = 2/206 (1%)
+
+Query  6    PILIGLSLSGFSSLSQAENLMQVYQQARLSNPELRKSAADRDAAFEKINEARSPLLPQLG  65
+            P  + L            +L  +  +A    P+LR + A  +AA  +I  AR+  LP L 
+Sbjct  160  PAPLDLPDPLPPLPPLPPSLPGLPSEALERRPDLRAAEAQLEAAEAEIGVARAAFLPSLS  219
+
+Query  66   LGADYTYSNGYRDANGINSNATSASLQLTQSIFDMSKWRALTLQEKAAGIQDV-TYQTDQ  124
+            L A Y YS+     +G  S+  S  L L+  +FD  + RA     KA   Q    Y+   
+Sbjct  220  LSASYGYSSSDDLFSG-GSDTWSVGLSLSLPLFDGGRNRARVRAAKAQLEQAEAQYEQTV  278
+
+Query  125  QTLILNTATAYFNVLNAIDVLSYTQAQKEAIYRQLDQTTQRFNVGLVAITDVQNARAQYD  184
+               +     A   +  A + L   +   EA    L+    R+  GL ++ DV +A+ +  
+Sbjct  279  LQALQEVEDALAALRAAREQLEALEEALEAAEEALELARARYRAGLASLLDVLDAQRELL  338
+
+Query  185  TVLANEVTARNNLDNAVEQLRQITGN  210
+                N + AR +   A+ QL +  G 
+Sbjct  339  QAQLNLIQARYDYLLALVQLYRALGG  364
+
+
+ Score = 65.4 bits (160),  Expect = 2e-11, Method: Composition-based stats.
+ Identities = 42/229 (18%), Positives = 76/229 (33%), Gaps = 42/229 (18%)
+
+Query  232  NALLKEAEKRNLSLLQARLSQDLAREQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGA  291
+            + L++ A   N  L  AR   + AR Q+RQA+ G LP+                      
+Sbjct  3    DELIERALANNPDLRAARARVEAARAQLRQARAGLLPSQ---------------------  41
+
+Query  292  AGTQYDDSNMGQNKVGLSFSLPIYQGGMVNSQVKQAQYNFVGASEQLESAHRSVVQTVRS  351
+                                  +  GG   ++++ A+     A   L +A   +   V  
+Sbjct  42   ---------------------ELDLGGKRRARIEAAKAQAEAAEADLRAARLDLAAEVAQ  80
+
+Query  352  SFNNINASISSINAYKQAVVSAQSSLDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANA  411
+            ++ ++ A+   +   ++ +  A+  L+   A Y  G  + +DVL A   L  A+ +LA A
+Sbjct  81   AYFDLLAAQEQLALAEENLALAEELLELARARYEAGLASRLDVLQAEAQLAQARAQLAQA  140
+
+Query  412  RYNYLINQLNIKSALGTLNEQDLLALNNALSKPVSTNPENVAPQTPEQN  460
+                   +  +   LG      L   +     P         P    + 
+Sbjct  141  EAQLAQARNALALLLGLPPPAPLDLPDPLPPLPPLPPSLPGLPSEALER  189
+
+
+>CDD:396757 pfam02321, OEP, Outer membrane efflux protein.  The OEP family 
+(Outer membrane efflux protein) form trimeric channels that 
+allow export of a variety of substrates in Gram negative bacteria. 
+Each member of this family is composed of two repeats. 
+The trimeric channel is composed of a 12 stranded all beta 
+sheet barrel that spans the outer membrane, and a long all 
+helical barrel that spans the periplasm.
+Length=181
+
+ Score = 93.0 bits (231),  Expect = 7e-22, Method: Composition-based stats.
+ Identities = 50/192 (26%), Positives = 85/192 (44%), Gaps = 11/192 (6%)
+
+Query  236  KEAEKRNLSLLQARLSQDLAREQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQ  295
+              A + N  L  A    + A   I+ A+   LP L L+   G             +  ++
+Sbjct  1    ALALENNPDLKAAEAEIEAAEANIKLAKSEFLPDLSLSGGYG-----------YNSNNSE  49
+
+Query  296  YDDSNMGQNKVGLSFSLPIYQGGMVNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNN  355
+                + G  +VGL  S P++ GG   ++VK A+     A  QLE A + +   V  ++  
+Sbjct  50   SGGDDPGTGEVGLGLSQPLFDGGKRRARVKAAKAQVEAAEAQLEQARQQLRLEVAQAYLQ  109
+
+Query  356  INASISSINAYKQAVVSAQSSLDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANARYNY  415
+            + A+   +   +QA+  A+ +L+  EA Y  G  +++DVL A   L  A+ EL NA  + 
+Sbjct  110  LLAAKEQLELAEQALELAEEALELAEARYEAGLISLLDVLQAEVELLEARLELLNAEADL  169
+
+Query  416  LINQLNIKSALG  427
+             +    ++  LG
+Sbjct  170  ELALAQLEQLLG  181
+
+
+ Score = 88.0 bits (218),  Expect = 3e-20, Method: Composition-based stats.
+ Identities = 51/181 (28%), Positives = 82/181 (45%), Gaps = 1/181 (1%)
+
+Query  30   QQARLSNPELRKSAADRDAAFEKINEARSPLLPQLGLGADYTYSNGYRDANGINSNATSA  89
+              A  +NP+L+ + A+ +AA   I  A+S  LP L L   Y Y++   ++ G +      
+Sbjct  1    ALALENNPDLKAAEAEIEAAEANIKLAKSEFLPDLSLSGGYGYNSNNSESGGDDPGTGEV  60
+
+Query  90   SLQLTQSIFDMSKWRALTLQEKAA-GIQDVTYQTDQQTLILNTATAYFNVLNAIDVLSYT  148
+             L L+Q +FD  K RA     KA     +   +  +Q L L  A AY  +L A + L   
+Sbjct  61   GLGLSQPLFDGGKRRARVKAAKAQVEAAEAQLEQARQQLRLEVAQAYLQLLAAKEQLELA  120
+
+Query  149  QAQKEAIYRQLDQTTQRFNVGLVAITDVQNARAQYDTVLANEVTARNNLDNAVEQLRQIT  208
+            +   E     L+    R+  GL+++ DV  A  +        + A  +L+ A+ QL Q+ 
+Sbjct  121  EQALELAEEALELAEARYEAGLISLLDVLQAEVELLEARLELLNAEADLELALAQLEQLL  180
+
+Query  209  G  209
+            G
+Sbjct  181  G  181
+
+
+>CDD:273830 TIGR01845, Outer_membrane_protein_OprM, efflux transporter, outer 
+membrane factor (OMF) lipoprotein, NodT family.  Members 
+of this model comprise a subfamily of the Outer Membrane Factor 
+(TCDB 1.B.17) porins. OMF proteins operate in conjunction 
+with a primary transporter of the RND, MFS, ABC, or PET 
+systems, and a MFP (membrane fusion protein) to tranport substrates 
+across membranes. The complex thus formed allows transport 
+(export) of various solutes (heavy metal cations; drugs, 
+oligosaccharides, proteins, etc.) across the two envelopes 
+of the Gram-negative bacterial cell envelope in a single 
+energy-coupled step. Current data suggest that the OMF (and 
+not the MFP) is largely responsible for the formation of both 
+the trans-outer membrane and trans-periplasmic channels. The 
+roles played by the MFP have yet to be determined. [Cellular 
+processes, Detoxification, Transport and binding proteins, 
+Porins].
+Length=460
+
+ Score = 94.0 bits (234),  Expect = 2e-20, Method: Composition-based stats.
+ Identities = 98/419 (23%), Positives = 173/419 (41%), Gaps = 35/419 (8%)
+
+Query  25   LMQVYQQARLSNPELRKSAADRDAAFEKINEARSPLLPQLGLGADYTYSNGYRDANGI--  82
+            L  + ++A   NP+L+ + A   AA   +  AR+   P LGL A  T      DA+G   
+Sbjct  59   LNALIEEALADNPDLQVAEARLRAARANLRAARADFFPSLGLSASATRQKSSEDASGTTS  118
+
+Query  83   -NSNATSASLQLTQSIFDMSKWRALTLQEKAAGIQDVTYQTDQQ----TLILNTATAYFN  137
+              S + +++L L  S +++  +  +    ++A  Q    + D Q    TL  + A AY  
+Sbjct  119  GGSLSNTSTLTLDVS-YELDLFGKVRRAVESALAQLEAAEADSQAARLTLSASIANAYVQ  177
+
+Query  138  VLNAIDVLSYTQAQKEAIY-------RQLDQTTQRFNVGLVAITDVQNARAQYDTVLANE  190
+                   L+  +AQ +  +       + L+ T +R+  G+ A +DV+ A A   +  A  
+Sbjct  178  -------LAALRAQLDVYHAALASRRKTLELTQKRYAAGVAAASDVRQAEAAVASAEAEL  230
+
+Query  191  VTARNNLDNAVEQLRQITGNYYPELAALNVENFKTDKPQP--VNALLKEAEKRNLSLLQA  248
+             +    +  A   L  + G   P            D+  P    +L  +  +R   +  A
+Sbjct  231  PSLDVQIAQARNALAALLGKG-PSRGLAIARPLLLDQLPPDLPLSLPSDLLRRRPDIRAA  289
+
+Query  249  RLSQDLAREQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQYDDSNMGQNKVGL  308
+                  A  QI  A+    P++ L+AS G+S +  S             D       +G 
+Sbjct  290  ERRLAAANAQIGVAKAAFFPSITLSASIGLSASQLSRLF----------DGGSRFWSIGP  339
+
+Query  309  SFSLPIYQGGMVNSQVKQAQYNFVGASEQLESAHRSVVQTVRSSFNNINASISSINAYKQ  368
+            + +LPI+ GG + + +  A+  +  A  Q      +  Q V  +   + A    ++A +Q
+Sbjct  340  ALALPIFDGGSLRAALDSAKATYDAAVAQYRQTVLTAFQEVADALVALQALARRLDAQRQ  399
+
+Query  369  AVVSAQSSLDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANARYNYLINQLNIKSALG  427
+            AV  AQ +L   +  Y  G  + + VL+A  +L  A++ LA  +   L + + +  ALG
+Sbjct  400  AVEQAQEALSLAQTRYRAGLDSYLTVLEAQRSLLTAQRSLATLQARRLSDSVALYKALG  458
+
+
+>CDD:182103 PRK09837, PRK09837, Cu(I)/Ag(I) efflux RND transporter outer 
+membrane protein.  
+Length=461
+
+ Score = 42.2 bits (99),  Expect = 7e-04, Method: Composition-based stats.
+ Identities = 62/312 (20%), Positives = 127/312 (41%), Gaps = 32/312 (10%)
+
+Query  127  LILNTATAYFNVLNAIDVLSYTQAQKEAIYRQLDQTTQRFNVGLVAITDVQNARAQYDTV  186
+            L+ N A +YFN   A   L   +       +      ++   G   +  ++ AR   ++ 
+Sbjct  166  LVSNVAQSYFNQQLAYAQLQIAEETLRNYQQSYAFVEKQLLTGSSNVLALEQARGVIEST  225
+
+Query  187  LANEVTARNNLDNAVEQLRQITGNY--YPELAALN---VENFKTDKPQPVNALLKEAEKR  241
+             A+    +  L  A   L+ + G+Y   P+   +N   +++ K         LL+  +  
+Sbjct  226  RADIAKRQGELAQANNALQLLLGSYGKLPQAQTVNSDSLQSVKLPAGLSSQILLQRPD--  283
+
+Query  242  NLSLLQARLSQDLAREQIRQAQDGHLPTLDLTASTGISDTSYSGSKTRGAAGTQYDDSNM  301
+               +++A  +   A   I  A+    P++ LT+    S +  S      +    +     
+Sbjct  284  ---IMEAEHALMAANANIGAARAAFFPSISLTSGLSTSSSDLSSLFNASSGMWNFIPK--  338
+
+Query  302  GQNKVGLSFSLPIYQGGMVNSQVKQA----QYNFVGASEQLESAHRSVVQTV--RSSFNN  355
+                      +PI+  G   + +  A    Q + V   +++++A + V   +  R S N+
+Sbjct  339  --------IEIPIFNAGRNQANLDLAEIRQQQSVVNYEQKIQNAFKEVADALALRQSLND  390
+
+Query  356  INASISSINAYKQAVVSAQSSLDAMEAGYSVGTRTIVDVLDATTTLYNAKQELANARYNY  415
+                   I+A ++ + S Q +L    A Y  G  + ++VLDA  +L+  +Q L +  Y  
+Sbjct  391  ------QISAQQRYLASLQITLQRARALYQHGAVSYLEVLDAERSLFATRQTLLDLNYAR  444
+
+Query  416  LINQLNIKSALG  427
+             +N++++ +ALG
+Sbjct  445  QVNEISLFTALG  456
+
+
+
+Lambda      K        H        a         alpha
+   0.310    0.125    0.333    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 3022288849
+
+
+Query= NP_417717.2
+
+Length=347
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:237562 PRK13927, PRK13927, rod shape-determining protein MreB...  677     0.0  
+CDD:129982 TIGR00904, mreB, cell shape determining protein, MreB/...  609     0.0  
+CDD:440695 COG1077, MreB, Cell shape-determining ATPase MreB, act...  598     0.0  
+CDD:237564 PRK13930, PRK13930, rod shape-determining protein MreB...  577     0.0  
+CDD:399596 pfam06723, MreB_Mbl, MreB/Mbl protein. This family con...  554     0.0  
+CDD:466824 cd10225, ASKHA_NBD_MreB-like, nucleotide-binding domai...  543     0.0  
+
+
+>CDD:237562 PRK13927, PRK13927, rod shape-determining protein MreB; Provisional.
+Length=334
+
+ Score = 677 bits (1750),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 264/340 (78%), Positives = 293/340 (86%), Gaps = 6/340 (2%)
+
+Query  6    RGMFSNDLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQMLGR  65
+             G+FSNDL IDLGTANTL+YVKG+GIVLNEPSVVAIR D     K V AVG +AKQMLGR
+Sbjct  1    FGLFSNDLGIDLGTANTLVYVKGKGIVLNEPSVVAIRTDT----KKVLAVGEEAKQMLGR  56
+
+Query  66   TPGNIAAIRPMKDGVIADFFVTEKMLQHFIKQVHSNSFMRPSPRVLVCVPVGATQVERRA  125
+            TPGNI AIRPMKDGVIADF VTEKML++FIK+VH N    PSPRV++CVP G T+VERRA
+Sbjct  57   TPGNIVAIRPMKDGVIADFDVTEKMLKYFIKKVHKNFR--PSPRVVICVPSGITEVERRA  114
+
+Query  126  IRESAQGAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVYSS  185
+            +RESA GAGAREV+LIEEPMAAAIGAGLPV+E TGSMVVDIGGGTTEVAVISL G+VYS 
+Sbjct  115  VRESALGAGAREVYLIEEPMAAAIGAGLPVTEPTGSMVVDIGGGTTEVAVISLGGIVYSK  174
+
+Query  186  SVRIGGDRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYPGDEVREIEVRGRNLAEGV  245
+            SVR+GGD+FDEAIINYVRRNY  LIGE TAERIK EIGSAYPGDEV E+EVRGR+L  G+
+Sbjct  175  SVRVGGDKFDEAIINYVRRNYNLLIGERTAERIKIEIGSAYPGDEVLEMEVRGRDLVTGL  234
+
+Query  246  PRGFTLNSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNLDR  305
+            P+  T++SNEI EALQEPL+ IV AV VALEQ PPELA+DI +RG+VLTGGGALLR LD+
+Sbjct  235  PKTITISSNEIREALQEPLSAIVEAVKVALEQTPPELAADIVDRGIVLTGGGALLRGLDK  294
+
+Query  306  LLMEETGIPVVVAEDPLTCVARGGGKALEMIDMHGGDLFS  345
+            LL EETG+PV VAEDPLTCVARG GKALE ID+  G LFS
+Sbjct  295  LLSEETGLPVHVAEDPLTCVARGTGKALENIDLLKGVLFS  334
+
+
+>CDD:129982 TIGR00904, mreB, cell shape determining protein, MreB/Mrl family. 
+ MreB (mecillinam resistance) in E. coli (also called envB) 
+and the paralogous pair MreB and Mrl of Bacillus subtilis 
+have all been shown to help determine cell shape. This protein 
+is present in a wide variety of bacteria, including spirochetes, 
+but is missing from the Mycoplasmas and from Gram-positive 
+cocci. Most completed bacterial genomes have a single 
+member of this family. In some species it is an essential 
+gene. A close homolog is found in the Archaeon Methanobacterium 
+thermoautotrophicum, and a more distant homolog in Archaeoglobus 
+fulgidus. The family is related to cell division 
+protein FtsA and heat shock protein DnaK. [Cell envelope, Biosynthesis 
+and degradation of murein sacculus and peptidoglycan].
+Length=333
+
+ Score = 609 bits (1572),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 241/335 (72%), Positives = 280/335 (84%), Gaps = 4/335 (1%)
+
+Query  9    FSNDLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQMLGRTPG  68
+            FS+D+ IDLGTANTL+YVKG+GIVLNEPSVVAIR DR    KS+ AVGH+AK+MLG+TPG
+Sbjct  1    FSSDIGIDLGTANTLVYVKGRGIVLNEPSVVAIRTDRDAKTKSILAVGHEAKEMLGKTPG  60
+
+Query  69   NIAAIRPMKDGVIADFFVTEKMLQHFIKQVHSN-SFMRPSPRVLVCVPVGATQVERRAIR  127
+            NI AIRPMKDGVIADF VTEKM+++FIKQVHS  SF +P  R+++CVP G T VERRA++
+Sbjct  61   NIVAIRPMKDGVIADFEVTEKMIKYFIKQVHSRKSFFKP--RIVICVPSGITPVERRAVK  118
+
+Query  128  ESAQGAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVYSSSV  187
+            ESA  AGAREV+LIEEPMAAAIGAGLPV E TGSMVVDIGGGTTEVAVISL G+V S S+
+Sbjct  119  ESALSAGAREVYLIEEPMAAAIGAGLPVEEPTGSMVVDIGGGTTEVAVISLGGIVVSRSI  178
+
+Query  188  RIGGDRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYP-GDEVREIEVRGRNLAEGVP  246
+            R+GGD FDEAIINY+RR Y  LIGE TAERIK EIGSAYP  DE R++EVRGR+L  G+P
+Sbjct  179  RVGGDEFDEAIINYIRRTYNLLIGEQTAERIKIEIGSAYPLNDEPRKMEVRGRDLVTGLP  238
+
+Query  247  RGFTLNSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNLDRL  306
+            R   + S E+ EALQEP+  IV AV   LE+ PPELA+DI ERG+VLTGGGALLRNLD+L
+Sbjct  239  RTIEITSVEVREALQEPVNQIVEAVKRTLEKTPPELAADIVERGIVLTGGGALLRNLDKL  298
+
+Query  307  LMEETGIPVVVAEDPLTCVARGGGKALEMIDMHGG  341
+            L +ETG+PV+VA+DPL CVA+G GKALE ID+  G
+Sbjct  299  LSKETGLPVIVADDPLLCVAKGTGKALEDIDLIKG  333
+
+
+>CDD:440695 COG1077, MreB, Cell shape-determining ATPase MreB, actin-like 
+superfamily [Cell cycle control, cell division, chromosome 
+partitioning, Cytoskeleton].  
+Length=339
+
+ Score = 598 bits (1544),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 227/343 (66%), Positives = 269/343 (78%), Gaps = 5/343 (1%)
+
+Query  5    FRGMFSNDLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQMLG  64
+              G+FS D+ IDLGTANTL+YVKG+GIVLNEPSVVAI +        V AVG +AK+MLG
+Sbjct  2    LFGLFSKDIGIDLGTANTLVYVKGKGIVLNEPSVVAIDKKT----GKVLAVGEEAKEMLG  57
+
+Query  65   RTPGNIAAIRPMKDGVIADFFVTEKMLQHFIKQVHSNSFMRPSPRVLVCVPVGATQVERR  124
+            RTPGNI AIRP+KDGVIADF VTE ML++FIK+VH        PRV++CVP G T+VERR
+Sbjct  58   RTPGNIVAIRPLKDGVIADFEVTEAMLKYFIKKVHGRRSFF-RPRVVICVPSGITEVERR  116
+
+Query  125  AIRESAQGAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVYS  184
+            A+R++A+ AGAREV+LIEEPMAAAIGAGLP+ E TG+MVVDIGGGTTEVAVISL G+V S
+Sbjct  117  AVRDAAEQAGAREVYLIEEPMAAAIGAGLPIEEPTGNMVVDIGGGTTEVAVISLGGIVVS  176
+
+Query  185  SSVRIGGDRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYPGDEVREIEVRGRNLAEG  244
+             S+R+ GD  DEAII YVR+ Y  LIGE TAE IK EIGSAYP +E   +EVRGR+L  G
+Sbjct  177  RSIRVAGDELDEAIIQYVRKKYNLLIGERTAEEIKIEIGSAYPLEEELTMEVRGRDLVTG  236
+
+Query  245  VPRGFTLNSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNLD  304
+            +P+  T+ S EI EAL+EPL  IV A+   LE+ PPELA+DI +RG+VLTGGGALLR LD
+Sbjct  237  LPKTITITSEEIREALEEPLNAIVEAIKSVLEKTPPELAADIVDRGIVLTGGGALLRGLD  296
+
+Query  305  RLLMEETGIPVVVAEDPLTCVARGGGKALEMIDMHGGDLFSEE  347
+            +LL EETG+PV VAEDPLTCVARG GKALE +D+    L S +
+Sbjct  297  KLLSEETGLPVHVAEDPLTCVARGTGKALENLDLLRRVLISSD  339
+
+
+>CDD:237564 PRK13930, PRK13930, rod shape-determining protein MreB; Provisional.
+Length=335
+
+ Score = 577 bits (1489),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 224/336 (67%), Positives = 263/336 (78%), Gaps = 5/336 (1%)
+
+Query  4    KFRGMFSNDLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQML  63
+               G FS D+ IDLGTANTL+YVKG+GIVLNEPSVVAI          V AVG +AK+ML
+Sbjct  2    PLFGFFSKDIGIDLGTANTLVYVKGKGIVLNEPSVVAIDTKT----GKVLAVGEEAKEML  57
+
+Query  64   GRTPGNIAAIRPMKDGVIADFFVTEKMLQHFIKQVHSNSFMRPSPRVLVCVPVGATQVER  123
+            GRTPGNI AIRP+KDGVIADF  TE ML++FIK+     F R  PR+++CVP G T+VER
+Sbjct  58   GRTPGNIEAIRPLKDGVIADFEATEAMLRYFIKKARGRRFFR-KPRIVICVPSGITEVER  116
+
+Query  124  RAIRESAQGAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVY  183
+            RA+RE+A+ AGAREV+LIEEPMAAAIGAGLPV+E  G+MVVDIGGGTTEVAVISL G+VY
+Sbjct  117  RAVREAAEHAGAREVYLIEEPMAAAIGAGLPVTEPVGNMVVDIGGGTTEVAVISLGGIVY  176
+
+Query  184  SSSVRIGGDRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYPGDEVREIEVRGRNLAE  243
+            S S+R+ GD  DEAI+ YVRR Y  LIGE TAE IK EIGSAYP DE   +EVRGR+L  
+Sbjct  177  SESIRVAGDEMDEAIVQYVRRKYNLLIGERTAEEIKIEIGSAYPLDEEESMEVRGRDLVT  236
+
+Query  244  GVPRGFTLNSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNL  303
+            G+P+   ++S E+ EAL EPL  IV AV   LE+ PPELA+DI +RG+VLTGGGALLR L
+Sbjct  237  GLPKTIEISSEEVREALAEPLQQIVEAVKSVLEKTPPELAADIIDRGIVLTGGGALLRGL  296
+
+Query  304  DRLLMEETGIPVVVAEDPLTCVARGGGKALEMIDMH  339
+            D+LL EETG+PV +AEDPLTCVARG GKALE +D+ 
+Sbjct  297  DKLLSEETGLPVHIAEDPLTCVARGTGKALENLDLL  332
+
+
+>CDD:399596 pfam06723, MreB_Mbl, MreB/Mbl protein.  This family consists 
+of bacterial MreB and Mbl proteins as well as two related archaeal 
+sequences. MreB is known to be a rod shape-determining 
+protein in bacteria and goes to make up the bacterial cytoskeleton. 
+Genes coding for MreB/Mbl are only found in elongated 
+bacteria, not in coccoid forms. It has been speculated that 
+constituents of the eukaryotic cytoskeleton (tubulin, actin) 
+may have evolved from prokaryotic precursor proteins closely 
+related to today's bacterial proteins FtsZ and MreB/Mbl.
+Length=327
+
+ Score = 554 bits (1431),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 221/330 (67%), Positives = 266/330 (81%), Gaps = 5/330 (2%)
+
+Query  10   SNDLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQMLGRTPGN  69
+            S D+ IDLGTANTL+YVKG+GIVLNEPSVVAI        K V AVG++AK+MLGRTPGN
+Sbjct  1    SKDIGIDLGTANTLVYVKGKGIVLNEPSVVAINTK----TKKVLAVGNEAKKMLGRTPGN  56
+
+Query  70   IAAIRPMKDGVIADFFVTEKMLQHFIKQVHSNSFMRPSPRVLVCVPVGATQVERRAIRES  129
+            I A+RP+KDGVIADF VTE ML++FIK+VH        PRV++CVP G T+VERRA++E+
+Sbjct  57   IVAVRPLKDGVIADFEVTEAMLKYFIKKVHGRRSF-SKPRVVICVPSGITEVERRAVKEA  115
+
+Query  130  AQGAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVYSSSVRI  189
+            A+ AGAREVFLIEEPMAAAIGAGLPV E TG+MVVDIGGGTTEVAVISL G+V S SVR+
+Sbjct  116  AKNAGAREVFLIEEPMAAAIGAGLPVEEPTGNMVVDIGGGTTEVAVISLGGIVTSKSVRV  175
+
+Query  190  GGDRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYPGDEVREIEVRGRNLAEGVPRGF  249
+             GD FDEAII Y+R+ Y  LIGE TAERIK EIGSAYP +E  ++E+RGR+L  G+P+  
+Sbjct  176  AGDEFDEAIIKYIRKKYNLLIGERTAERIKIEIGSAYPTEEEEKMEIRGRDLVTGLPKTI  235
+
+Query  250  TLNSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNLDRLLME  309
+             ++S E+ EAL+EP++ IV AV   LE+ PPELA+DI +RG+VLTGGGALLR LD+LL +
+Sbjct  236  EISSEEVREALKEPVSAIVEAVKEVLEKTPPELAADIVDRGIVLTGGGALLRGLDKLLSD  295
+
+Query  310  ETGIPVVVAEDPLTCVARGGGKALEMIDMH  339
+            ETG+PV +AEDPLTCVA G GKALE +D  
+Sbjct  296  ETGLPVHIAEDPLTCVALGTGKALENLDKL  325
+
+
+>CDD:466824 cd10225, ASKHA_NBD_MreB-like, nucleotide-binding domain (NBD) 
+of the cell shape-determining proteins MreB, Mbl, MreBH and 
+similar proteins.  MreB proteins are bacterial actin homologs 
+that may play a role in cell shape determination by positioning 
+the cell wall synthetic machinery. MreB has also been 
+implicated in chromosome segregation; specifically, MreB is 
+thought to bind to and segregate the replication origin of 
+bacterial chromosomes. The family includes three MreB isoforms, 
+MreB (also called actin-like MreB protein or rod shape-determining 
+protein MreB), Mbl (also called actin-like Mbl protein 
+or rod shape-determining protein Mbl) and MreBH (also 
+called actin-like MreBH protein or rod shape-determining protein 
+MreBH), in cell morphogenesis of Bacillus subtilis. All 
+isoforms can support rod-shaped cell growth normal conditions. 
+They form membrane-associated dynamic filaments that are 
+essential for cell shape determination. They act by regulating 
+cell wall synthesis and cell elongation, and thus cell shape. 
+The feedback loops between cell geometry and their localizations 
+may maintain elongated cell shape by targeting cell 
+wall growth to regions of negative cell wall curvature. Filaments 
+rotate around the cell circumference in concert with 
+the cell wall synthesis enzymes.  The process is driven by 
+the cell wall synthesis machinery and does not depend on their 
+polymerization. They organize peptidoglycan synthesis in 
+the lateral cell wall. MreB, Mbl and MreBH can form a complex. 
+The MreB-like family belongs to the ASKHA (Acetate and Sugar 
+Kinases/Hsc70/Actin) superfamily, all members of which 
+share a common characteristic five-stranded beta sheet occurring 
+in both the N- and C-terminal domains.
+Length=317
+
+ Score = 543 bits (1403),  Expect = 0.0, Method: Composition-based stats.
+ Identities = 215/322 (67%), Positives = 255/322 (79%), Gaps = 5/322 (2%)
+
+Query  12   DLSIDLGTANTLIYVKGQGIVLNEPSVVAIRQDRAGSPKSVAAVGHDAKQMLGRTPGNIA  71
+            D+ IDLGTANTL+YVKG+GIVLNEPSVVA+ ++       V AVG +AK+MLGRTPGNI 
+Sbjct  1    DIGIDLGTANTLVYVKGKGIVLNEPSVVAVDKNT----GKVLAVGEEAKKMLGRTPGNIV  56
+
+Query  72   AIRPMKDGVIADFFVTEKMLQHFIKQVHSNSFMRPSPRVLVCVPVGATQVERRAIRESAQ  131
+            AIRP++DGVIADF  TE ML++FI++ H        PRV++ VP G T+VERRA++E+A+
+Sbjct  57   AIRPLRDGVIADFEATEAMLRYFIRKAHRRRGF-LRPRVVIGVPSGITEVERRAVKEAAE  115
+
+Query  132  GAGAREVFLIEEPMAAAIGAGLPVSEATGSMVVDIGGGTTEVAVISLNGVVYSSSVRIGG  191
+             AGAREV+LIEEPMAAAIGAGLP+ E  GSMVVDIGGGTTE+AVISL G+V S SVR+ G
+Sbjct  116  HAGAREVYLIEEPMAAAIGAGLPIEEPRGSMVVDIGGGTTEIAVISLGGIVTSRSVRVAG  175
+
+Query  192  DRFDEAIINYVRRNYGSLIGEATAERIKHEIGSAYPGDEVREIEVRGRNLAEGVPRGFTL  251
+            D  DEAIINYVRR Y  LIGE TAERIK EIGSAYP DE   +EVRGR+L  G+PR   +
+Sbjct  176  DEMDEAIINYVRRKYNLLIGERTAERIKIEIGSAYPLDEELSMEVRGRDLVTGLPRTIEI  235
+
+Query  252  NSNEILEALQEPLTGIVSAVMVALEQCPPELASDISERGMVLTGGGALLRNLDRLLMEET  311
+             S E+ EAL+EP+  IV AV   LE+ PPELA+DI +RG+VLTGGGALLR LD LL EET
+Sbjct  236  TSEEVREALEEPVNAIVEAVRSTLERTPPELAADIVDRGIVLTGGGALLRGLDELLREET  295
+
+Query  312  GIPVVVAEDPLTCVARGGGKAL  333
+            G+PV VA+DPLTCVA+G GKAL
+Sbjct  296  GLPVHVADDPLTCVAKGAGKAL  317
+
+
+
+Lambda      K        H        a         alpha
+   0.318    0.136    0.382    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 1963417736
+
+
+Query= NP_414637.1
+
+Length=383
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+CDD:439976 COG0206, FtsZ, Cell division GTPase FtsZ [Cell cycle c...  474     2e-168
+CDD:276961 cd02201, FtsZ_type1, Filamenting temperature sensitive...  417     1e-146
+CDD:272884 TIGR00065, Cell_division_protein_FtsZ, cell division p...  414     1e-144
+CDD:237273 PRK13018, PRK13018, cell division protein FtsZ; Provis...  321     1e-107
+CDD:276960 cd02191, FtsZ_CetZ-like, Subfamily of FitZ and Cell-st...  250     4e-81 
+CDD:214867 smart00864, Tubulin, Tubulin/FtsZ family, GTPase domai...  214     2e-68 
+
+
+>CDD:439976 COG0206, FtsZ, Cell division GTPase FtsZ [Cell cycle control, 
+cell division, chromosome partitioning].  
+Length=347
+
+ Score = 474 bits (1222),  Expect = 2e-168, Method: Composition-based stats.
+ Identities = 195/356 (55%), Positives = 241/356 (68%), Gaps = 33/356 (9%)
+
+Query  24   NAVEHMVRERIEGVEFFAVNTDAQALRKTAVGQTIQIGSGITKGLGAGANPEVGRNAADE  83
+            NAV  M+   +EGVEF A NTDAQAL  +     IQ+G  +T+GLGAGANPEVGR AA+E
+Sbjct  25   NAVNRMIEAGLEGVEFIAANTDAQALENSKAPTKIQLGEKLTRGLGAGANPEVGRKAAEE  84
+
+Query  84   DRDALRAALEGADMVFIAAGMGGGTGTGAAPVVAEVAKDLGILTVAVVTKPFNFEGKKRM  143
+             R+ +R ALEGADMVFI AGMGGGTGTGAAPV+AE+AK+LG LTV VVTKPF+FEGK+RM
+Sbjct  85   SREEIREALEGADMVFITAGMGGGTGTGAAPVIAEIAKELGALTVGVVTKPFSFEGKRRM  144
+
+Query  144  AFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQGIAELITRP  203
+              AE+GI EL K+VD+LI IPNDKLL+V  +   LL+AF  A+DVL+ AVQGI +LIT+P
+Sbjct  145  RQAEEGIEELRKYVDTLIVIPNDKLLEVADKNTPLLEAFKKADDVLRQAVQGITDLITKP  204
+
+Query  204  GLMNVDFADVRTVMSEMGYAMMGSGVASGEDRAEEAAEMAISSPLLEDIDLSGARGVLVN  263
+            GL+N+DFADV+TVMS  G A+MG G ASGE+RAEEAAE AISSPLLED+ +SGA+GVLVN
+Sbjct  205  GLINLDFADVKTVMSNGGVALMGIGEASGENRAEEAAEKAISSPLLEDVSISGAKGVLVN  264
+
+Query  264  ITAGFDLRLDEFETVGNTIRAFASDNATVVIGTSLDPDMNDELRVTVVATGIGMDKRPEI  323
+            IT G DL LDE       I+  A  +A ++ G  +D  + DE+RVTV+ATG         
+Sbjct  265  ITGGSDLTLDEVNEAAEIIQEEADPDANIIFGAVIDESLGDEIRVTVIATGFD-------  317
+
+Query  324  TLVTNKQVQQPVMDRYQQHGMAPLTQEQKPVAKVVNDNAPQTAKEPDYLDIPAFLR  379
+                                       +  V +   +   +  +  + LDIPAFLR
+Sbjct  318  --------------------------SEAIVGEEETERPLEETEPAEDLDIPAFLR  347
+
+
+>CDD:276961 cd02201, FtsZ_type1, Filamenting temperature sensitive mutant 
+Z, type 1.  FtsZ is a GTPase that is similar to the eukaryotic 
+tubulins and is essential for cell division in prokaryotes. 
+ FtsZ is capable of polymerizing in a GTP-driven process 
+into structures similar to those formed by tubulin. FtsZ forms 
+a ring-shaped septum at the site of bacterial cell division, 
+which is required for constriction of cell membrane and 
+cell envelope to yield two daughter cells.
+Length=303
+
+ Score = 417 bits (1074),  Expect = 1e-146, Method: Composition-based stats.
+ Identities = 175/291 (60%), Positives = 226/291 (78%), Gaps = 1/291 (0%)
+
+Query  24   NAVEHMVRERIEGVEFFAVNTDAQALRKTAVGQTIQIGSGITKGLGAGANPEVGRNAADE  83
+            NAV  M+   +EGVEF A+NTDAQAL K+     IQIG  +T+GLGAG +PEVGR AA+E
+Sbjct  14   NAVNRMIESGLEGVEFIAINTDAQALEKSKAPNKIQIGEKLTRGLGAGGDPEVGRKAAEE  73
+
+Query  84   DRDALRAALEGADMVFIAAGMGGGTGTGAAPVVAEVAKDLGILTVAVVTKPFNFEGKKRM  143
+             R+ ++ AL+GADMVFI AGMGGGTGTGAAPV+A++AK++G LTVAVVT PF+FEGKKRM
+Sbjct  74   SREEIKEALKGADMVFITAGMGGGTGTGAAPVIAKIAKEMGALTVAVVTLPFSFEGKKRM  133
+
+Query  144  AFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQGIAELITRP  203
+              AE+G+ EL K+VD+LI IPNDKLL+++G+ + LL+AF  A++VL  AV+GI +LIT+P
+Sbjct  134  RNAEEGLEELKKYVDTLIVIPNDKLLEIVGKNLPLLEAFKKADEVLAQAVKGITDLITKP  193
+
+Query  204  GLMNVDFADVRTVMSEMGYAMMGSGVASGEDRAEEAAEMAISSPLLEDIDLSGARGVLVN  263
+            GL+N+DFADV+TVM   G A+MG G ASGE+RAEEA E A++SPLLED D+ GA+GVLVN
+Sbjct  194  GLINLDFADVKTVMKNGGLALMGIGEASGENRAEEAVEKALNSPLLED-DIKGAKGVLVN  252
+
+Query  264  ITAGFDLRLDEFETVGNTIRAFASDNATVVIGTSLDPDMNDELRVTVVATG  314
+            IT G DL L+E       I   A  +A ++ G  +D ++ DE+RVTV+ATG
+Sbjct  253  ITGGPDLTLEEVNEAAEIITEKADPDANIIFGAVIDEELGDEIRVTVIATG  303
+
+
+>CDD:272884 TIGR00065, Cell_division_protein_FtsZ, cell division protein 
+FtsZ.  This family consists of cell division protein FtsZ, a 
+GTPase found in bacteria, the chloroplast of plants, and in 
+archaebacteria. Structurally similar to tubulin, FtsZ undergoes 
+GTP-dependent polymerization into filaments that form a 
+cytoskeleton involved in septum synthesis. [Cellular processes, 
+Cell division].
+Length=349
+
+ Score = 414 bits (1065),  Expect = 1e-144, Method: Composition-based stats.
+ Identities = 174/308 (56%), Positives = 217/308 (70%), Gaps = 4/308 (1%)
+
+Query  24   NAVEHMVRERIEGVEFFAVNTDAQALRKTAVGQTIQIGSGITKGLGAGANPEVGRNAADE  83
+            N V  M+ E +EGVEF A+NTDAQ L+ T   + I IG  +T+GLGAG NPE+GR AA+E
+Sbjct  31   NTVNRMLEEGVEGVEFIAINTDAQHLKTTKADKKILIGKKLTRGLGAGGNPEIGRKAAEE  90
+
+Query  84   DRDALRAALEGADMVFIAAGMGGGTGTGAAPVVAEVAKDLGILTVAVVTKPFNFEGKKRM  143
+             RD +R  LEGADMVFI AGMGGGTGTGAAPVVA++AK+LG LTVAVVTKPF FEG KR 
+Sbjct  91   SRDEIRKLLEGADMVFITAGMGGGTGTGAAPVVAKIAKELGALTVAVVTKPFKFEGLKRR  150
+
+Query  144  AFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQGIAELITRP  203
+              AE+G+  L + VD+LI IPNDKLL+V+   + L DAF  A+DVL  AV+GI+ELIT+P
+Sbjct  151  KKAEEGLERLKQAVDTLIVIPNDKLLEVVPN-LPLNDAFKVADDVLVRAVKGISELITKP  209
+
+Query  204  GLMNVDFADVRTVMSEMGYAMMGSGVASGED---RAEEAAEMAISSPLLEDIDLSGARGV  260
+            GL+N+DFADVR VMS  G AMMG G A GED   RA EA   A+SSPLL+   +SGA+G 
+Sbjct  210  GLINIDFADVRAVMSGGGVAMMGIGEALGEDTANRAFEAVRKALSSPLLDVDKISGAKGA  269
+
+Query  261  LVNITAGFDLRLDEFETVGNTIRAFASDNATVVIGTSLDPDMNDELRVTVVATGIGMDKR  320
+            LV+IT G DL L E E +   I +    +A ++ G  +DP++ DE+RVT+VATG+     
+Sbjct  270  LVHITGGADLTLLEAEEIQEIITSELDQDANIIWGAIIDPNLEDEIRVTIVATGVKSQIF  329
+
+Query  321  PEITLVTN  328
+                   +
+Sbjct  330  FGSEKSKD  337
+
+
+>CDD:237273 PRK13018, PRK13018, cell division protein FtsZ; Provisional.
+Length=378
+
+ Score = 321 bits (824),  Expect = 1e-107, Method: Composition-based stats.
+ Identities = 146/300 (49%), Positives = 198/300 (66%), Gaps = 5/300 (2%)
+
+Query  24   NAVEHMVRERIEGVEFFAVNTDAQALRKTAVGQTIQIGSGITKGLGAGANPEVGRNAADE  83
+            N +  +    IEG E  A+NTDAQ L      + I IG  +T+GLGAG +PEVGR AA+E
+Sbjct  42   NTINRLYEIGIEGAETIAINTDAQHLAMIKADKKILIGKSLTRGLGAGGDPEVGRKAAEE  101
+
+Query  84   DRDALRAALEGADMVFIAAGMGGGTGTGAAPVVAEVAKDLGILTVAVVTKPFNFEGKKRM  143
+             RD ++  L+GAD+VF+ AGMGGGTGTGAAPVVAE+AK+ G L V VVTKPF FEG+ RM
+Sbjct  102  SRDEIKEVLKGADLVFVTAGMGGGTGTGAAPVVAEIAKEQGALVVGVVTKPFKFEGRARM  161
+
+Query  144  AFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQGIAELITRP  203
+              AE+GI  L +  D++I I N++LL ++   + + DAF  A++V+   V+GI E IT+P
+Sbjct  162  QKAEEGIERLREAADTVIVIDNNRLLDIV-PNLPIADAFSVADEVIAETVKGITETITKP  220
+
+Query  204  GLMNVDFADVRTVMSEMGYAMMGSGVASGEDRAEEAAEMAISSPLLEDIDLSGARGVLVN  263
+             L+N+DFADV++VM   G AMMG G A G++RA EA   A+++PLL D+D  GA+G LV+
+Sbjct  221  SLINLDFADVKSVMKGGGVAMMGVGEAKGQNRAMEAVRAALANPLL-DVDYRGAKGALVH  279
+
+Query  264  ITAGFDLRLDEFETVGNTIRAFASDNATVVIGTSLDPDMNDELRVTVVATGIGMDKRPEI  323
+            IT G DL L E     + I       A ++ G  +DPDM  ++RV V+ TG+   K  +I
+Sbjct  280  ITGGPDLTLKEANEAASRITEELDPEANIIWGARIDPDMEGKVRVMVIMTGV---KSAQI  336
+
+
+>CDD:276960 cd02191, FtsZ_CetZ-like, Subfamily of FitZ and Cell-structure-related 
+euryarchaeota tubulin/FtsZ homolog-like.  FtsZ is a 
+GTPase that is similar to the eukaryotic tubulins and is essential 
+for cell division in prokaryotes.  CetZ-like proteins 
+are related to tubulin and FtsZ and co-exists with FtsZ in 
+many archaea. However, a recent study found that Cetz proteins 
+(formerly annotated FtsZ type 2) are not required for cell 
+division. Instead, CetZ proteins are shown to be involved 
+in controlling archaeal cell shape dynamics.  The results from 
+inactivation studies of CetZ proteins in Haloferax volcanii 
+suggest that CetZ1 is essential for normal swimming motility 
+and rod-cell development.
+Length=308
+
+ Score = 250 bits (641),  Expect = 4e-81, Method: Composition-based stats.
+ Identities = 131/302 (43%), Positives = 168/302 (56%), Gaps = 18/302 (6%)
+
+Query  24   NAVEHMVRERIE-----GVEFFAVNTDAQALRKTAVGQTIQIGSGITKGLGAGANPEVGR  78
+            N    +     E     GVE  A+NT AQ L+     +T+ IG   T G G G NPE+G 
+Sbjct  14   NLASALQSFDRETGFGAGVETVAINTAAQDLKSLKAKETLLIGQDRTNGHGVGGNPELGA  73
+
+Query  79   NAADEDRDALRAALEG---ADMVFIAAGMGGGTGTGAAPVVAEVAKDLGI-LTVAVVTKP  134
+             AA+ED++ +  ALEG   ADM+F+  G+GGGTG+G APV+AE  K +   LTVAVVT P
+Sbjct  74   QAAEEDQEEIMEALEGRVEADMIFVTTGLGGGTGSGGAPVLAEALKKVYDVLTVAVVTLP  133
+
+Query  135  FNFEGKKRMAFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQ  194
+            F  EG   M  A +G+  L++  D+LI + N+KL  + G   SL +A+ A N+VL   V 
+Sbjct  134  FADEGALYMQNAGEGLRTLAEEADALILVDNEKLRSIGG---SLSEAYDAINEVLARRVG  190
+
+Query  195  GIAELITRPGLMNVDFADVRTVMSEMGYAMMGSGVASG-EDRAEEAAEMAISSPLLEDID  253
+            G+ E I   GL  VDFADV+TVM+  G AM+G G A    +RA EA   A+ +PLL   D
+Sbjct  191  GLLEAIEATGLSVVDFADVKTVMNSGGMAMLGYGSADASINRAREATRRALRTPLLLP-D  249
+
+Query  254  LSGARGVLVNITAGFD-LRLDEFETVGNTIRAFASDNATVVIGTSLDPDMNDELRVTVVA  312
+             SGA G LV I    D L L E E V   +      +ATV  G  +D      LRV VV 
+Sbjct  250  ASGADGALVVIAGEPDTLPLKEVERVRRWVEDET-GSATVRGGDVIDESG--RLRVLVVL  306
+
+Query  313  TG  314
+            TG
+Sbjct  307  TG  308
+
+
+>CDD:214867 smart00864, Tubulin, Tubulin/FtsZ family, GTPase domain.  This 
+domain is found in all tubulin chains, as well as the bacterial 
+FtsZ family of proteins. These proteins are involved in 
+polymer formation. Tubulin is the major component of microtubules, 
+while FtsZ is the polymer-forming protein of bacterial 
+cell division, it is part of a ring in the middle of the 
+dividing cell that is required for constriction of cell membrane 
+and cell envelope to yield two daughter cells. FtsZ and 
+tubulin are GTPases, this entry is the GTPase domain. FtsZ 
+can polymerise into tubes, sheets, and rings in vitro and is 
+ubiquitous in bacteria and archaea.
+Length=192
+
+ Score = 214 bits (547),  Expect = 2e-68, Method: Composition-based stats.
+ Identities = 105/182 (58%), Positives = 125/182 (69%), Gaps = 3/182 (2%)
+
+Query  24   NAVEHMVRERIEGVEFFAVNTDAQALR-KTAVGQTIQIGSGITKGLGAGANPEVGRNAAD  82
+            NAV   +      ++    NTDAQAL  ++     IQ G+  T+GLGAGA+PEVGR AA+
+Sbjct  13   NAVNVDLEPG--VIDGVRANTDAQALNPESLASGKIQAGNNWTRGLGAGADPEVGREAAE  70
+
+Query  83   EDRDALRAALEGADMVFIAAGMGGGTGTGAAPVVAEVAKDLGILTVAVVTKPFNFEGKKR  142
+            E  D +R  LEGAD VFI AGMGGGTGTGAAPV+AE+AK+ GILTVAVVTKPF+FEG  R
+Sbjct  71   ESLDEIREELEGADGVFITAGMGGGTGTGAAPVIAEIAKEYGILTVAVVTKPFSFEGVVR  130
+
+Query  143  MAFAEQGITELSKHVDSLITIPNDKLLKVLGRGISLLDAFGAANDVLKGAVQGIAELITR  202
+               AE G+ EL +HVDSLI I ND LL + GR + L  AF  AND+L  AV GI +LI  
+Sbjct  131  PYNAELGLEELREHVDSLIVIDNDALLDICGRKLPLRPAFKDANDLLAQAVSGITDLIRF  190
+
+Query  203  PG  204
+            PG
+Sbjct  191  PG  192
+
+
+
+Lambda      K        H        a         alpha
+   0.316    0.134    0.370    0.792     4.96 
+
+Gapped
+Lambda      K        H        a         alpha    sigma
+   0.267   0.0410    0.140     1.90     42.6     43.6 
+
+Effective search space used: 2222837933
+
+
+  Database: All CDD models 3.21
+    Posted date:  May 11, 2025  3:42 PM
+  Number of letters in database: 14,100,151
+  Number of sequences in database:  62,456
+
+
+
+Matrix: BLOSUM62
+Gap Penalties: Existence: 11, Extension: 1
+Window for multiple hits: 40

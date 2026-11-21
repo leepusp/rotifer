@@ -1,0 +1,4 @@
+# Configuration and data files used by rotifer.core (etc/rotifer and
+# share/rotifer in a checkout are symlinks to these directories)
+graft lib/rotifer/_data
+global-exclude __pycache__ *.py[cod]
