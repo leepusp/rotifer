@@ -3,7 +3,6 @@
 # Data here is a child of Pandas DataFrame
 
 from collections import OrderedDict
-import itertools
 import numpy as np
 import pandas as pd
 import rotifer
@@ -95,12 +94,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         A function to add the column strand_groups in the acc2operon dataframe.
         """
         dataframe = self.copy()
-        dataframe['strand_group'] = np.cumsum(
-            np.where(dataframe.block_id == dataframe.block_id.shift(1),
-                     np.where(
-                         dataframe.strand.shift(1) == dataframe.strand, 0, 1
-                     ), 1)
-        )
+        dataframe['strand_group'], _ = self._strand_runs(query=None)
         return dataframe
 
     def same_strand(self,
@@ -109,11 +103,45 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         Using the strand group and a query it will filter the self with
         strands that present one  query at least.
         """
-        dataframe = self.group_strand().copy()
-        return dataframe[dataframe.strand_group.isin(
-            dataframe.groupby('strand_group')[query].sum().where(
-                lambda x: x > 0
-            ).dropna().index)]
+        dataframe = self.group_strand()
+        _, keep = dataframe._strand_runs(query=query)
+        return dataframe[keep]
+
+    def _strand_runs(self, group='block_id', query='query'):
+        """
+        Number the runs of same-strand rows and flag the runs with a query.
+
+        A run is a stretch of consecutive rows (in table order) of the
+        same ``group`` value and the same ``strand``. Shared by
+        :meth:`group_strand`, :meth:`same_strand`,
+        :meth:`trim_blocks` and :meth:`neighbors` (``strand='same'``).
+
+        Parameters
+        ----------
+        group : str, default 'block_id'
+            Column whose value change also starts a new run.
+        query : str or None, default 'query'
+            Column whose positive values mark the rows a run must
+            contain to be kept. None keeps every row.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            ``(run, keep)``: ``run`` is the int64 run number of each row,
+            starting at 1 and increasing in table order; ``keep`` is
+            True for the rows of runs whose ``query`` sum is above 0.
+            Both are empty for an empty table.
+        """
+        if len(self) == 0:
+            return np.empty(0, dtype=np.int64), np.empty(0, dtype=bool)
+        block = self[group]
+        same = (block == block.shift(1)) & (self.strand == self.strand.shift(1))
+        run = np.cumsum(~same.to_numpy(), dtype=np.int64)
+        if query is None:
+            return run, np.ones(len(run), dtype=bool)
+        total = self[query].groupby(run).transform('sum')
+        return run, (total > 0).to_numpy()
+
 
     def value_counts_full(self, column):
         """
@@ -324,6 +352,134 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
     #Alias for compact neighborhood
     compact = compact_neighborhood
 
+    def _select_targets(self, targets):
+        """
+        Mark the rows that anchor a neighbourhood.
+
+        Shared by :meth:`neighbors` and :meth:`trim_blocks`. Each rule
+        is evaluated on this table and the results are combined with a
+        logical AND, so a row is a target only when every rule holds.
+
+        Parameters
+        ----------
+        targets : str, pandas.Series or list of them
+            Rules that select target rows. A string is evaluated with
+            :meth:`pandas.DataFrame.eval` (for example ``"query == 1"``
+            or ``"pid in ['WP_1.1', 'WP_2.1']"``); a single string is
+            one rule, not a list of characters. A boolean Series is
+            aligned on this table's index; labels it lacks count as
+            False. A list combines its items.
+
+        Returns
+        -------
+        pandas.Series
+            Boolean, indexed like this table, named ``query``. All False
+            when no row matches.
+
+        Raises
+        ------
+        ValueError
+            If a string rule cannot be evaluated (unknown column, syntax
+            error) or does not give one boolean per row. The message
+            names the rule.
+        TypeError
+            If an item is neither a string nor a boolean Series.
+        """
+        if not isinstance(targets, list):
+            targets = [targets]
+        select = pd.Series(True, index=self.index, name='query')
+        for code in targets:
+            if isinstance(code, str):
+                try:
+                    result = self.eval(code)
+                except Exception as exc:
+                    raise ValueError(f'Rule {code!r} failed: {exc}') from exc
+                if not (isinstance(result, pd.Series) and len(result) == len(self)
+                        and pd.api.types.is_bool_dtype(result.dtype)):
+                    raise ValueError(f'Rule {code!r} does not give one boolean per row')
+            elif isinstance(code, pd.Series):
+                if not pd.api.types.is_bool_dtype(code.dtype):
+                    raise TypeError(f'targets must be strings or boolean Series, not a Series of {code.dtype}')
+                result = code
+            else:
+                raise TypeError(f'targets must be strings or boolean Series, not {type(code).__name__}')
+            if not result.index.equals(self.index):
+                result = result.reindex(self.index, fill_value=False)
+            select &= result.fillna(False).astype(bool).to_numpy()
+        return select
+
+
+    def _expand_windows(self, windows, position, keys):
+        """
+        Return the rows of this table that fall inside closed windows.
+
+        Shared by :meth:`neighbors` and :meth:`trim_blocks`. Each
+        window covers the rows whose ``position`` value lies between its
+        ``up`` and ``down`` values, both inclusive, among rows with the
+        same ``keys`` values. Overlapping windows that share a
+        ``block`` value give each row once.
+
+        Parameters
+        ----------
+        windows : pandas.DataFrame
+            One row per window, with the ``keys`` columns, ``up`` and
+            ``down`` (integers, ``up <= down``) and ``block`` (the label
+            given to the rows of that window). Other columns are copied
+            to the output rows. It is not modified.
+        position : str
+            Column of this table holding each row's integer coordinate
+            (``internal_id`` for :meth:`neighbors`, a row position for
+            :meth:`trim_blocks`).
+        keys : list of str
+            Columns that must match between a window and its rows.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The matching rows of this table, every column kept, plus the
+            columns of ``windows`` that this table lacks. Rows are
+            ordered by ``block`` and then by ``position``; the index is
+            the original row label. Empty, with those columns, when no
+            row matches.
+        """
+        w = windows.reset_index(drop=True)
+        columns = [c for c in w.columns if c not in self.columns]
+        pos = self[position].to_numpy().astype(np.int64)
+        up = w['up'].to_numpy().astype(np.int64)
+        down = w['down'].to_numpy().astype(np.int64)
+
+        # One integer per key combination, so windows and rows can be sorted together
+        both = pd.concat([self[keys], w[keys]], ignore_index=True)
+        code = both.groupby(keys, sort=False, dropna=False).ngroup().to_numpy().astype(np.int64)
+        row_code, win_code = code[:len(self)], code[len(self):]
+
+        low = pos.min() if len(pos) else 0
+        span = (pos.max() - low + 1) if len(pos) else 1
+        row_key = row_code * span + (pos - low)
+        order = np.argsort(row_key, kind='stable')
+        sorted_key = row_key[order]
+        lo = win_code * span + (np.clip(up, low, low + span - 1) - low)
+        hi = win_code * span + (np.clip(down, low, low + span - 1) - low)
+        start = np.searchsorted(sorted_key, lo, side='left')
+        count = np.maximum(np.searchsorted(sorted_key, hi, side='right') - start, 0)
+        count[(down < low) | (up > low + span - 1)] = 0
+
+        # Rows of every window, then each row once per block
+        which = np.repeat(np.arange(len(w)), count)
+        offset = np.arange(count.sum()) - np.repeat(np.cumsum(count) - count, count)
+        rows = order[start[which] + offset]
+        label = pd.factorize(w['block'], sort=True)[0][which]
+        first = ~pd.DataFrame({'block': label, 'row': rows}).duplicated().to_numpy()
+        which, rows, label = which[first], rows[first], label[first]
+        final = np.lexsort((np.arange(len(rows)), pos[rows], label))
+        which, rows = which[final], rows[final]
+
+        out = self.iloc[rows].copy()
+        for name in columns:
+            out[name] = w[name].to_numpy()[which]
+        return out
+
+
     # Find internal_id (iimin,iimax) and feature_order (fomin,fomax) boundaries
     def boundaries(self, nucleotide=None):
         """
@@ -336,13 +492,13 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         if isinstance(nucleotide,list) or isinstance(nucleotide,pd.Series):
             df = self[self.nucleotide.isin(nucleotide)]
         dflim = df.groupby(['assembly','nucleotide','block_id','type']).agg({'feature_order':['min','max']})
-        dflim.reset_index(inplace=True)
+        dflim = dflim.reset_index()
         dflim.columns = ['assembly','nucleotide','block','type','fomin','fomax']
         iidlim = df.groupby(['assembly','nucleotide','block_id']).agg({'internal_id':['min','max']})
-        iidlim.reset_index(inplace=True)
+        iidlim = iidlim.reset_index()
         iidlim.columns = ['assembly','nucleotide','block','iidmin','iidmax']
         bidlim = df.groupby(['assembly']).agg({'block_id':[lambda x: 1,'nunique']})
-        bidlim.reset_index(inplace=True)
+        bidlim = bidlim.reset_index()
         bidlim.columns = ['assembly','bidmin','bidmax']
         dflim = dflim.merge(iidlim, on=['assembly','nucleotide','block'], how='left')
         dflim = dflim.merge(bidlim, on=['assembly'], how='left')
@@ -392,31 +548,15 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             If an item of ``targets`` is neither a string nor a boolean Series.
         """
         _check_choice('fttype', fttype, ['same'])
-        import sys
-        import numpy as np
-        from copy import deepcopy
-        blks = deepcopy(self)
 
         # Make sure data is sorted and has compatible internal ids
-        blks.sort_values(['assembly','nucleotide','block_id','internal_id'], ascending=[True,True,True,True], inplace=True)
+        blks = self.sort_values(['assembly','nucleotide','block_id','internal_id'], ascending=[True,True,True,True])
 
-        # Build boolean pandas.Series to mark targets
-        select = True
-        if not isinstance(targets, list):
-            targets = [targets]
-        for code in targets:
-            if isinstance(code,str):
-                try:
-                    select &= blks.eval(code)
-                except Exception as exc:
-                    raise ValueError(f'Rule {code!r} failed: {exc}') from exc
-            elif isinstance(code,pd.Series):
-                select &= code
-            else:
-                raise TypeError(f'targets must be strings or boolean Series, not {type(code).__name__}')
+        # Boolean pandas.Series that marks targets
+        select = blks._select_targets(targets)
 
         # Find targets and their neighborhood
-        if (not isinstance(select,pd.Series)) or (select.sum() == 0):
+        if not select.any():
             logger.error(f'No anchors to define neighborhoods! Targets: {targets}')
             return pd.DataFrame()
 
@@ -434,12 +574,12 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             blks['fodown'] = blks.feature_order + after
 
             # Identify blocks by merging neighborhoods
-            blks.sort_values([*cols,'feature_order'], inplace=True)
+            blks = blks.sort_values([*cols,'feature_order'])
             bid = (blks.nucleotide != blks.nucleotide.shift(1))
             bid = bid | (blks.is_fragment & (blks.block_id != blks.block_id.shift(1)))
             bid = bid | (blks.type != blks.type.shift(1))
             bid = bid | ((blks.foup - blks.fodown.shift(1) - 1) > min_block_distance)
-            blks.rename({'block_id':'block'}, axis=1, inplace=True)
+            blks = blks.rename({'block_id':'block'}, axis=1)
             blks['block_id'] = bid.cumsum()
             blks = blks.groupby([*cols,'block','block_id']).agg({
                 'feature_order': lambda x: ", ".join(sorted(set([ str(y) for y in x]))),
@@ -449,7 +589,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 'is_fragment': 'all'
             }).reset_index()
             blks = blks.merge(dflim, on=['assembly','nucleotide','block','type'], how='left')
-            blks.rename({'feature_order':'targets','internal_id':'tiids'}, axis=1, inplace=True)
+            blks = blks.rename({'feature_order':'targets','internal_id':'tiids'}, axis=1)
             blks['origin'] = 0
 
             # Initiate analysis of circular replicons
@@ -457,7 +597,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             if len(circular) > 0:
                 circular = circular.groupby(['assembly','nucleotide','type'])
                 circular = circular.agg({'block_id':['min','max'],'foup':'min','fodown':'max','fomin':'min','fomax':'max'})
-                circular.reset_index(inplace=True)
+                circular = circular.reset_index()
                 circular.columns = ['assembly','nucleotide','type','bidmin','bidmax','foup','fodown','fomin','fomax']
 
                 # Merge first and last blocks of circular replicons, if too close
@@ -465,7 +605,6 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 if tooclose.any():
                     bidmaxIndex = blks[blks.block_id.isin(circular[tooclose].bidmax)].index
                     bidminIndex = blks[blks.block_id.isin(circular[tooclose].bidmin)].index
-                    #logger.debug("First and last are too close:\n"+blks.iloc[bidminIndex.append(bidmaxIndex)].to_string()+"\n")
                     blks.loc[bidminIndex,'foup']     = blks.loc[bidminIndex,'fomin'] # Set foup   = fomin
                     blks.loc[bidmaxIndex,'fodown']   = blks.loc[bidmaxIndex,'fomax'] # Set fodown = fomax
                     blks.loc[bidmaxIndex,'block_id'] = blks.loc[bidminIndex,'block_id'].to_list() # Set block_ids to be the same
@@ -477,7 +616,6 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 overrun = (circular.foup < circular.fomin) & (circular.fodown > circular.fomax)
                 if overrun.any():
                     overIndex = blks[blks.block_id.isin(circular[overrun].bidmin)].index
-                    #logger.debug("Overrun:\n"+blks.iloc[overIndex].to_string()+"\n")
                     blks.loc[overIndex,'foup']   = blks.loc[overIndex,'fomin'] # Set foup   = fomin
                     blks.loc[overIndex,'fodown'] = blks.loc[overIndex,'fomax'] # Set fodown = fomax
                     blks.loc[overIndex,'origin'] = 2
@@ -489,7 +627,6 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                     beforeOriginIndex = blks[blks.block_id.isin(circular[startsBefore].bidmin)].index
                     blks.loc[beforeOriginIndex,'origin'] = 1
                     beforeOrigin = blks.iloc[beforeOriginIndex].copy()
-                    #logger.debug("Starts before origin:\n"+beforeOrigin.to_string()+"\n")
                     beforeOrigin.foup   = beforeOrigin.fomax + beforeOrigin.foup - beforeOrigin.fomin + 1
                     beforeOrigin.fodown = beforeOrigin.fomax
                     blks.loc[beforeOriginIndex,'foup'] = blks.loc[beforeOriginIndex,'fomin'] # Set foup = fomin
@@ -502,7 +639,6 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                     afterOriginIndex = blks[blks.block_id.isin(circular[endsAfter].bidmax)].index
                     blks.loc[afterOriginIndex,'origin'] = 1
                     afterOrigin = blks.iloc[afterOriginIndex].copy()
-                    #logger.debug("Ends after origin:\n"+afterOrigin.to_string()+"\n")
                     afterOrigin.foup   = afterOrigin.fomin
                     afterOrigin.fodown = afterOrigin.fomin + afterOrigin.fodown - afterOrigin.fomax - 1
                     blks.loc[afterOriginIndex,'fodown'] = blks.loc[afterOriginIndex,'fomax'] # Set fodown = fomax
@@ -513,8 +649,8 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             blks.fodown = np.where(blks.fodown > blks.fomax, blks.fomax, blks.fodown)
 
             # Sort again and add row ID, i.e. within block row number
-            blks.sort_values([*cols,'block_id','foup'], ascending=[True,True,True,True,True,False], inplace=True)
-            blks.reset_index(inplace=True, drop=True)
+            blks = blks.sort_values([*cols,'block_id','foup'], ascending=[True,True,True,True,True,False])
+            blks = blks.reset_index(drop=True)
             blks['rid'] = blks.index.to_series() - (blks.index.to_series() * (blks.block_id != blks.block_id.shift(1))).cummax()
 
             # Add first and last internal_id per block
@@ -534,19 +670,8 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             blks.down = np.where(blks.fodown == blks.fomax, blks.iidmax, blks.down)
             blks.is_fragment = blks.is_fragment | (blks.up > blks.iidmin) | (blks.down < blks.iidmax)
 
-        # If type is to be ignored, all analysis should focus on internal_ids
-        elif (fttype == 'any'):
-            logger.error(f'Unsuported fttype {fttype}')
-            return pd.DataFrame()
-
-        # Unkown fttype
-        else:
-            logger.error(f'Unknown fttype {fttype}')
-            return pd.DataFrame()
-
         # Return a summary of all regions
-        blks.drop_duplicates(inplace=True)
-        return blks
+        return blks.drop_duplicates()
 
     def neighbors(self, targets=['query == 1'], before=3, after=3, min_block_distance=0, strand='any', fttype='same'):
         """
@@ -590,72 +715,48 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         """
         _check_choice('strand', strand, [None, 'any', 'same'])
         _check_choice('fttype', fttype, ['same'])
-        import sys
-        import numpy as np
-        from copy import deepcopy
-        df = deepcopy(self)
-
         # Make sure data is sorted and has compatible internal ids
-        df.sort_values(['assembly','nucleotide','block_id','internal_id'], ascending=[True,True,True,True], inplace=True)
+        df = self.sort_values(['assembly','nucleotide','block_id','internal_id'], ascending=[True,True,True,True])
 
-        # Build boolean pandas.Series to mark targets
-        select = True
-        if not isinstance(targets, list):
-            targets = [targets]
-        for code in targets:
-            if isinstance(code,str):
-                try:
-                    select &= df.eval(code)
-                except Exception as exc:
-                    raise ValueError(f'Rule {code!r} failed: {exc}') from exc
-            elif isinstance(code,pd.Series):
-                select &= code
-            else:
-                raise TypeError(f'targets must be strings or boolean Series, not {type(code).__name__}')
+        # Boolean pandas.Series that marks targets
+        select = df._select_targets(targets)
 
         # Find targets and their neighborhood
-        if (not isinstance(select,pd.Series)) or (select.sum() == 0):
-            logger.error(f'No anchors to search for neighbors were found! Revise your list of targets!')
+        if not select.any():
+            logger.error('No anchors to search for neighbors were found! Revise your list of targets!')
             return seqrecords_to_dataframe([])
 
         # Initialize dataframe for each region (blocks)
-        select = df.filter(['assembly','nucleotide','internal_id']).assign(query=select)
-        blks = df.vicinity(select['query'], before, after, min_block_distance, fttype)
+        blks = df.vicinity(select, before, after, min_block_distance, fttype)
         if blks.empty:
             return seqrecords_to_dataframe([])
 
         # Expand list of features within each neighborhood, tag queries
         # IMPORTANT: row number may increase if min_block_distance < 0!
-        blks['internal_id'] = list(map(lambda x: list(range(x[0], x[1] + 1)), blks[["up", "down"]].values.tolist()))
-        blks = blks.filter(['assembly','nucleotide','internal_id','block_id','rid','origin','is_fragment']).explode('internal_id')
-        blks = blks.merge(select.drop_duplicates(), on=['assembly','nucleotide','internal_id'], how="left")
-
-        # Replace columns in self with those from blks
-        dropList = ['query','block_id','origin','rid','is_fragment']
-        cols = df.columns
-        dropList = [ x for x in dropList if x in cols ]
+        windows = blks.filter(['assembly','nucleotide','block_id','rid','origin','is_fragment','up','down'])
+        windows['block'] = windows['block_id']
+        dropList = [ x for x in ['query','block_id','origin','rid','is_fragment'] if x in df.columns ]
+        # Rows that share an internal_id (a CDS split at the origin) keep their start, end order
         copy = df.drop(dropList, axis=1).sort_values(['assembly','nucleotide','start','end'])
-        copy = copy.merge(blks, left_on=['assembly','nucleotide','internal_id'], right_on=['assembly','nucleotide','internal_id'], how='inner')
-        copy.sort_values(['assembly','nucleotide','block_id','rid','internal_id'], ascending=[True,True,True,True,True], inplace=True)
-        copy['query'] = np.where((~copy['query'].isna()) & copy['query'],1,0).astype(int)
-        copy = copy[cols].copy()
+        copy = copy._expand_windows(windows, 'internal_id', ['assembly','nucleotide'])
+        # Tag queries. A CDS split at the origin has two rows with one internal_id; the
+        # merge keeps a row for each distinct query value, as it always has
+        marks = df.filter(['assembly','nucleotide','internal_id']).assign(query=select).drop_duplicates()
+        copy = copy.merge(marks, on=['assembly','nucleotide','internal_id'], how='left')
+        copy['query'] = np.where((~copy['query'].isna()) & copy['query'], 1, 0).astype(int)
+        copy = copy.sort_values(['assembly','nucleotide','block_id','rid','internal_id'], ascending=[True,True,True,True,True])
+        copy = copy[df.columns].copy()
 
         # Evaluate other criteria for defining blocks
         if strand == 'same':
-            # Locate new blocks
-            tmp  = (copy.assembly   == copy.shift(1).assembly)
-            tmp &= (copy.nucleotide == copy.shift(1).nucleotide)
-            tmp &= (copy.block_id   == copy.shift(1).block_id)
-            tmp &= (copy.strand     == copy.shift(1).strand)
-            copy['block_id'] = (~tmp).cumsum()
-
-            # Cleanup
-            valid = set(copy.groupby('block_id').agg({'query':'sum'}).query('query > 0').index)
-            copy = copy.query('block_id in @valid').copy()
-            copy['block_id'] = (~(copy.block_id == copy.shift(1).block_id)).cumsum()
+            # Keep runs of same-strand rows that contain a target; they are the new blocks
+            run, keep = copy._strand_runs('block_id', 'query')
+            run = run[keep]
+            copy = copy[keep].copy()
+            copy['block_id'] = np.cumsum(np.r_[True, run[1:] != run[:-1]]) if len(run) else run
 
         # Set within block row number
-        copy.reset_index(inplace=True, drop=True)
+        copy = copy.reset_index(drop=True)
         copy['internal_id'] = copy.index.to_series()
 
         # Convert block_ids to universal identifiers: nucleotide:start-end
