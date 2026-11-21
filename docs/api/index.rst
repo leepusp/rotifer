@@ -83,6 +83,9 @@ Sequence and interval utilities
 Graphs and networks
 -------------------
 
+The :doc:`graphs section </graph/index>` is the curated entry point for
+``rotifer.graph`` and ``rotifer.view.network``.
+
 .. autosummary::
    :toctree: generated
 
@@ -92,6 +95,8 @@ Graphs and networks
 
 Data manipulation and taxonomy
 ------------------------------
+
+The :doc:`pandas section </pandas/index>` is the curated entry point for ``rotifer.pandas``.
 
 .. autosummary::
    :toctree: generated
