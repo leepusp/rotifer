@@ -104,7 +104,6 @@ NITPICK_IGNORES = [
 # Module members that autosummary must skip because autodoc cannot process
 # them (documenting them crashes or warns without a code fix).
 AUTOSUMMARY_SKIP_MEMBERS = [
-    "from_genbank",  # module-level @classmethod in rotifer.genome, not a callable object
 ]
 
 # Legacy docstrings contain malformed reST that cannot be fixed without
