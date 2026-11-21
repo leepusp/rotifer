@@ -48,6 +48,7 @@ What changed in each release, and what to do when upgrading.
 Documentation <overview>
 install
 db/index
+genome/index
 pandas/blocks
 cli/index
 api/index

@@ -307,6 +307,7 @@ html_theme_options = {
     "nav_links": [
         {"title": "Install", "url": "install"},
         {"title": "Data access", "url": "db/index"},
+        {"title": "Genomes", "url": "genome/index"},
         {"title": "Command line", "url": "cli/index"},
         {"title": "API", "url": "api/index"},
         {"title": "Contributing", "url": "contributing/index"},
