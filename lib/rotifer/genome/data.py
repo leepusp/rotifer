@@ -3,11 +3,11 @@
 # Data here is a child of Pandas DataFrame
 
 from collections import OrderedDict
+import warnings
 import numpy as np
 import pandas as pd
 import rotifer
 import rotifer.pipeline
-from rotifer.core.functions import not_kwargs
 from rotifer.taxonomy.utils import lineage as rtlineage
 from rotifer.genome.utils import seqrecords_to_dataframe
 logger = rotifer.logging.getLogger(__name__)
@@ -161,60 +161,149 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
         return g_df
 
-    def select_neighbors(self,
-                         column='query',
-                         value=1,
-                         new_query=True,
-                         **kwargs):
+    def trim_blocks(self, targets=['query == 1'], before=1, after=1, *, strand='any'):
         """
-        Slice the self in x neighbors of a given value query.
-        self : The Dataframe to be sliced.
-        Column : The column that will be filtered.
-        value: The value to be filtered.
-        after and before: The numbers of neighbors filtered.
-        strand:Filter for neighbors that are at the same strand of the query
-        stats: If set it will give the stats of the column
-        Examples:
-        get_x_neighbors(DF_ATPases, column='Pfam', value='AAA_9',before=3,after=3).
-        In this example the Dataframe DF_ATPases will be filtered by only blocks
-        that present the AAA_9 ATPase and will return 3 before and 3 after neighbors
-        get_x_neighbors(DF_ATPases, column='cluster', value='sc_29',
-        before=3,after=3, stats='pfam).
-        The output of this example will be the stats of pfam column
-        in the neighborhood of cluster sc_29.
+        Cut every block down to the rows around its targets.
+
+        Works inside the blocks this table already has: for each target
+        row, keep up to ``before`` rows above it and ``after`` rows below
+        it in the same ``block_id``, counting every row whatever its
+        feature type. Windows never cross into another block, and
+        overlapping windows give each row once. Blocks without a target
+        are dropped.
+
+        Use it to shrink neighbourhoods you already have, for example
+        to look at the three genes on each side of a protein cluster.
+        To search a whole genome and build new blocks, counting only
+        features of the target's type and wrapping around circular
+        replicons, use :meth:`neighbors` instead.
+
+        Parameters
+        ----------
+        targets : str, pandas.Series or list of them, default ['query == 1']
+            Rules that select target rows; see :meth:`neighbors`. A
+            single string is one rule.
+        before : int, default 1
+            Rows kept above each target (towards the block's first row).
+            0 keeps none.
+        after : int, default 1
+            Rows kept below each target (towards the block's last row).
+            0 keeps none.
+        strand : {'any', 'same'}, default 'any'
+            ``'same'`` then keeps only the runs of same-strand rows that
+            contain a target (see :meth:`same_strand`); ``'any'``
+            ignores strand.
+
+        Returns
+        -------
+        NeighborhoodDF
+            The kept rows in their original order, with their original
+            index labels and ``block_id``. ``query`` is 1 for target rows
+            and 0 for the others (int64). Empty, with the same columns,
+            when no row is a target.
+
+        Raises
+        ------
+        ValueError
+            If ``before`` or ``after`` is negative, ``strand`` is not
+            ``'any'`` or ``'same'``, or a rule cannot be evaluated.
+        KeyError
+            If the table has no ``block_id`` column.
+
+        See Also
+        --------
+        neighbors : Find neighbourhoods along whole replicons.
         """
+        _check_choice('strand', strand, ['any', 'same'])
+        if before < 0 or after < 0:
+            raise ValueError(f'before and after must not be negative; got before={before!r}, after={after!r}')
+        if 'block_id' not in self.columns:
+            raise KeyError('block_id')
+        hit = self._select_targets(targets).to_numpy()
+        if not hit.any():
+            out = self.iloc[:0].copy()
+            out['query'] = np.empty(0, dtype=np.int64)
+            return out
 
-        after = not_kwargs(kwargs, 'after', 1)
-        before = not_kwargs(kwargs, 'before', 1)
-        strand = not_kwargs(kwargs, 'strand', False)
-        stats = not_kwargs(kwargs, 'stats', False)
+        # Each target is a window of row positions inside its own block
+        block = self['block_id']
+        position = block.groupby(block, dropna=False).cumcount().to_numpy()
+        windows = pd.DataFrame({
+            'block_id': block.to_numpy()[hit],
+            'up': position[hit] - before,
+            'down': position[hit] + after,
+        })
+        windows['block'] = windows['block_id']
+        work = self.assign(_trim_row=np.arange(len(self)), _trim_position=position)
+        out = work._expand_windows(windows, '_trim_position', ['block_id'])
 
-        # Work on row positions, not index labels, so any index will do.
-        # The window of a query runs from `after` rows above to `before`
-        # rows below it, clipped at the first and last row of its block.
-        # Windows are merged, so every row is selected at most once.
-        n = len(self)
-        position = np.arange(n)
-        is_query = (self[column] == value).to_numpy()
-        codes = pd.factorize(self.block_id, use_na_sentinel=False)[0]
-        first = pd.Series(position).groupby(codes).transform('min').to_numpy()
-        last = pd.Series(position).groupby(codes).transform('max').to_numpy()
-        lo = np.maximum(position - after, first)[is_query]
-        hi = np.minimum(position + before, last)[is_query]
-        edges = np.zeros(n + 1, dtype=int)
-        np.add.at(edges, lo, 1)
-        np.add.at(edges, hi + 1, -1)
-        selected_df = self.iloc[np.flatnonzero(np.cumsum(edges)[:n] > 0)].copy()
-        selected_df.loc[:, 'new_query'] = 0
-        selected_df.loc[selected_df[column] == value, 'new_query'] = 1
+        # Back to table order, with query marking the targets
+        out = out.iloc[np.argsort(out['_trim_row'].to_numpy(), kind='stable')]
+        out['query'] = hit[out['_trim_row'].to_numpy()].astype(np.int64)
+        out = out.drop(columns=['_trim_row', '_trim_position', 'block'])
+        if strand == 'same':
+            run, keep = out._strand_runs('block_id', 'query')
+            out = out[keep]
+        return out
+
+
+    def select_neighbors(self, column='query', value=1, new_query=True, **kwargs):
+        """
+        Select the rows around ``column == value`` (deprecated).
+
+        .. deprecated::
+           Use :meth:`trim_blocks`. ``select_neighbors`` will be removed
+           on 2026-11-30 (tracking issue #175).
+
+        A shim over :meth:`trim_blocks` that keeps the old interface and
+        output: ``query`` is left unchanged and the targets are marked in
+        a ``new_query`` column instead, and ``strand=True`` adds the
+        ``strand_group`` column that :meth:`same_strand` writes.
+
+        Parameters
+        ----------
+        column : str, default 'query'
+            Column compared with ``value`` to find the targets.
+        value : scalar, default 1
+            Value that marks a target row.
+        new_query : bool, default True
+            Keep the ``new_query`` column (1 for targets, 0 otherwise).
+        **kwargs
+            ``before`` and ``after`` (int, default 1), ``strand`` (bool,
+            default False: True keeps only same-strand runs with a
+            target) and ``stats`` (column name, default False: return
+            :meth:`value_counts_full` of that column instead of rows).
+            Other keywords raise TypeError.
+
+        Returns
+        -------
+        NeighborhoodDF or pandas.DataFrame
+            The selected rows, or the frequency table when ``stats`` is
+            set.
+
+        Warns
+        -----
+        FutureWarning
+            On every call, pointing at the caller's line.
+        """
+        after = kwargs.pop('after', 1)
+        before = kwargs.pop('before', 1)
+        strand = kwargs.pop('strand', False)
+        stats = kwargs.pop('stats', False)
+        if kwargs:
+            raise TypeError(f"select_neighbors() got an unexpected keyword argument {next(iter(kwargs))!r}")
+        warnings.warn(
+            "NeighborhoodDF.select_neighbors is deprecated and will be removed on 2026-11-30 "
+            "(see #175); use NeighborhoodDF.trim_blocks",
+            FutureWarning, stacklevel=2)
+
+        # The old window ran `after` rows above and `before` rows below a target
+        work = self.assign(_select_row=np.arange(len(self)))
+        trimmed = work.trim_blocks([self[column] == value], before=after, after=before)
+        selected_df = self.iloc[trimmed['_select_row'].to_numpy()].copy()
+        selected_df['new_query'] = trimmed['query'].to_numpy()
         if strand:
-            if stats:
-                return selected_df.same_strand(query='new_query').value_counts_full(stats)
-            if new_query:
-                return selected_df.same_strand(query='new_query')
-            return selected_df.same_strand(query='new_query').drop(
-                'new_query', axis=1)
-
+            selected_df = selected_df.same_strand(query='new_query')
         if stats:
             return selected_df.value_counts_full(stats)
         if new_query:
