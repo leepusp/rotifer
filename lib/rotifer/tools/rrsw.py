@@ -1,5 +1,5 @@
 __doc__ = """
-rrsw: download and unpack mirrors of public databases.
+Download and unpack mirrors of public databases.
 
 A table of targets (``rrsw.yml`` in ROTIFER's ``etc/rotifer/rrsw``
 directory, or ``rrsw.<host>.yml`` when present) lists, for each target,
@@ -55,13 +55,23 @@ DEFAULT_RSYNC_OPTIONS = ['-arHv', '--delete', '--prune-empty-dirs', '--delete-ex
 
 def config_dir():
     """
-    Directory of rrsw's configuration files (``etc/rotifer/rrsw``).
+    Return the directory of rrsw's configuration files (``etc/rotifer/rrsw``).
+
+    Returns
+    -------
+    str
+        Path to the configuration directory.
     """
     return os.path.join(rotifer.config['baseConfig'], 'rrsw')
 
 def default_table():
     """
-    The host-specific table of targets, if present, else ``rrsw.yml``.
+    Return the host-specific table of targets, if present, else ``rrsw.yml``.
+
+    Returns
+    -------
+    str or None
+        Path to the table file, or ``None`` if no table is found.
     """
     host = socket.gethostname().split('.')[0]
     for name in (f'rrsw.{host}.yml', 'rrsw.yml'):
@@ -81,6 +91,16 @@ def _yaml_loader():
 def load_yaml(path):
     """
     Load a YAML configuration file.
+
+    Parameters
+    ----------
+    path : str
+        Path to the YAML file.
+
+    Returns
+    -------
+    object
+        The data loaded from the file.
     """
     import yaml
     with open(path) as handle:
@@ -88,16 +108,52 @@ def load_yaml(path):
 
 def load_table(path=None):
     """
-    Load the table of targets: a list of rows, the first being the header.
-    Missing trailing columns are filled with ``None``.
+    Load the table of targets.
+
+    A list of rows, the first being the header. Missing trailing columns
+    are filled with ``None``.
+
+    Parameters
+    ----------
+    path : str, optional
+        Table file (default: see ``default_table``).
+
+    Returns
+    -------
+    list of list
+        Rows of the table, including the header row.
     """
     rows = load_yaml(path or default_table()) or []
     return [list(row) + [None] * (len(TABLE_COLUMNS) - len(row)) for row in rows]
 
 def select_targets(table, names=(), exclude=()):
     """
-    Rows of the table for the named targets (case-insensitive; ``all``
-    selects every target), without excluded targets. The header is kept.
+    Return the rows of the table for the named targets.
+
+    Target names are matched case-insensitively; ``all`` selects every
+    target. Excluded targets are dropped. The header row is kept.
+
+    Parameters
+    ----------
+    table : list of list
+        Table of targets, as returned by ``load_table``.
+    names : collection of str, optional
+        Target names to keep (default: all targets).
+    exclude : collection of str, optional
+        Target names to drop (default: none).
+
+    Returns
+    -------
+    list of list
+        Selected rows, including the header row.
+
+    Examples
+    --------
+    >>> table = [TABLE_COLUMNS, ["gene"] + [None] * 5, ["uniprot"] + [None] * 5, ["pdb"] + [None] * 5]
+    >>> [row[0] for row in select_targets(table, ["UniProt"])]
+    ['NAME', 'uniprot']
+    >>> [row[0] for row in select_targets(table, ["all"], exclude=["pdb"])]
+    ['NAME', 'gene', 'uniprot']
     """
     names = {name.upper() for name in names}
     exclude = {name.upper() for name in exclude}
@@ -108,8 +164,26 @@ def select_targets(table, names=(), exclude=()):
 
 def target_options(target, plugin, options=None, defaults=None):
     """
-    Options of a plugin for a target: defaults, then the target's table
-    options, then ``<plugin>.yml`` and ``<target>.yml`` (later wins).
+    Return the options of a plugin for a target.
+
+    Defaults are applied first, then the target's table options, then
+    ``<plugin>.yml`` and ``<target>.yml`` (later wins).
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    plugin : str
+        Plugin name (e.g. ``unpack``).
+    options : dict, optional
+        Options from the target's table row.
+    defaults : dict, optional
+        Default options for the plugin.
+
+    Returns
+    -------
+    dict
+        Merged options.
     """
     merged = dict(defaults or {})
     merged.update(options or {})
@@ -124,6 +198,24 @@ def target_options(target, plugin, options=None, defaults=None):
 class Rsync:
     """
     Mirror a target with rsync.
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    test : bool, default False
+        Dry run: show what would be done without changing anything.
+    options : dict, optional
+        Options for the target (may contain an ``rsync`` key).
+
+    Attributes
+    ----------
+    target : str
+        Target name.
+    test : bool
+        Whether this is a dry run.
+    arguments : list of str
+        rsync command-line arguments.
     """
     def __init__(self, target, test=False, options=None):
         self.target, self.test = target, test
@@ -131,6 +223,27 @@ class Rsync:
         self.arguments = options.get('rsync', DEFAULT_RSYNC_OPTIONS) if options else DEFAULT_RSYNC_OPTIONS
 
     def execute(self, origin, destination):
+        """
+        Run rsync from ``origin`` to ``destination``.
+
+        In test mode rsync is invoked with ``-n`` (dry run).
+
+        Parameters
+        ----------
+        origin : str
+            Source URL or path.
+        destination : str
+            Destination path.
+
+        Returns
+        -------
+        bool
+            ``True`` if the rsync command succeeded.
+
+        See Also
+        --------
+        Ftp.execute : Mirror a target over FTP.
+        """
         command = [shutil.which('rsync') or 'rsync', *self.arguments, '-n' if self.test else '--no-motd']
         rules = os.path.join(config_dir(), f'{self.target}.rules')
         if os.path.isfile(rules):
@@ -143,8 +256,30 @@ _LISTING = re.compile(r'^([-dlcbps])[-rwxsStT]{9}\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s
 
 def parse_listing(lines):
     """
-    Parse a Unix-style FTP directory listing into ``(name, type)`` pairs,
-    where type is ``d``, ``f`` or ``l <link target>``.
+    Parse a Unix-style FTP directory listing into ``(name, type)`` pairs.
+
+    ``type`` is ``d`` for a directory, ``f`` for a file, or
+    ``l <link target>`` for a symbolic link.
+
+    Parameters
+    ----------
+    lines : iterable of str
+        Lines of a Unix-style ``LIST`` output.
+
+    Returns
+    -------
+    list of (str, str)
+        ``(name, type)`` pairs.
+
+    Examples
+    --------
+    >>> lines = [
+    ...     "drwxr-xr-x    4 ftp      ftp          4096 Oct 15 10:00 knowledgebase",
+    ...     "-rw-r--r--    1 ftp      ftp          3412 Oct 15  2025 README",
+    ...     "lrwxrwxrwx    1 ftp      ftp            16 Oct 15 10:00 current -> release-2026_04",
+    ... ]
+    >>> parse_listing(lines)
+    [('knowledgebase', 'd'), ('README', 'f'), ('current', 'l release-2026_04')]
     """
     entries = []
     for line in lines:
@@ -170,6 +305,28 @@ class Ftp:
     Options (from the target's table row and ``<target>.yml``):
     ``include`` and ``exclude`` lists of regular expressions matched
     against remote paths; ``config``: another YAML file to read them from.
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    test : bool, default False
+        Dry run: show what would be done without changing anything.
+    options : dict, optional
+        Options for the target.
+
+    Attributes
+    ----------
+    target : str
+        Target name.
+    test : bool
+        Whether this is a dry run.
+    include : list of re.Pattern
+        Regular expressions of paths to include.
+    exclude : list of re.Pattern
+        Regular expressions of paths to exclude.
+    passive : bool
+        Whether passive FTP mode is used.
     """
     def __init__(self, target, test=False, options=None):
         self.target, self.test = target, test
@@ -193,7 +350,24 @@ class Ftp:
     def execute(self, origin, destination):
         """
         Mirror ``origin`` (``ftp://host/path/``) under ``destination/host``.
-        Returns True if any file was (or, in test mode, would be) downloaded.
+
+        In test mode no files are written; the method reports what would be
+        downloaded.
+
+        Parameters
+        ----------
+        origin : str
+            FTP URL of the remote root.
+        destination : str
+            Local root directory.
+
+        Returns
+        -------
+        bool
+            ``True`` if any file was (or, in test mode, would be)
+            downloaded, or a local symbolic link was changed. Also ``True``
+            when the server refuses to enter the remote root: the error is
+            logged, not raised.
         """
         uri = urlparse(origin)
         destination = os.path.realpath(destination) if os.path.isdir(destination) else destination
@@ -323,6 +497,26 @@ class Ftp:
 class Unpack:
     """
     Unpack a downloaded tree into a fresh copy of the processed directory.
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    test : bool, default False
+        Dry run: show what would be done without changing anything.
+    options : dict, optional
+        Options for the target.
+
+    Attributes
+    ----------
+    target : str
+        Target name.
+    test : bool
+        Whether this is a dry run.
+    options : dict
+        Merged options for the unpack plugin.
+    suffixes : dict
+        Mapping of file suffixes to unpack commands.
     """
     SUFFIXES = {'.tar.gz': 'tar', '.tgz': 'tar', '.tar': 'tar', '.gz': 'gzip', '.zip': 'unzip', '.bz2': 'bzip2'}
     DEFAULTS = {'tar': {'command_line_options': ['-xv']}, 'gzip': {'command_line_options': ['-dc']},
@@ -357,6 +551,30 @@ class Unpack:
     def execute(self, source, destination):
         """
         Unpack every file under ``source`` into a new ``destination``.
+
+        In test mode nothing is written and the commands that would run are
+        printed instead.
+
+        Parameters
+        ----------
+        source : str
+            Root of the downloaded tree.
+        destination : str
+            Processed directory to create.
+
+        Returns
+        -------
+        bool
+            ``True`` (unpacking completed).
+
+        Raises
+        ------
+        ValueError
+            If a ``callback`` entry is not a shell script.
+
+        See Also
+        --------
+        Unpack.unpack_each : Unpack a single file.
         """
         scripts = self._callbacks()
         source = source.rstrip('/') or '/'
@@ -384,6 +602,23 @@ class Unpack:
         return True
 
     def unpack_each(self, source, path, workdir):
+        """
+        Unpack a single downloaded file into ``workdir``.
+
+        Parameters
+        ----------
+        source : str
+            Root of the downloaded tree.
+        path : str
+            File to unpack.
+        workdir : str
+            Working directory to unpack into.
+
+        Returns
+        -------
+        None
+            This method does not return a value.
+        """
         if not (os.path.isfile(path) or os.path.islink(path)):
             return
         command, suffix = self._command(path)
@@ -423,10 +658,52 @@ class Unpack:
 class UnpackPfam(Unpack):
     """
     Unpack Pfam, then index its HMM libraries with ``hmmpress``.
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    test : bool, default False
+        Dry run: show what would be done without changing anything.
+    options : dict, optional
+        Options for the target.
+
+    Attributes
+    ----------
+    target : str
+        Target name.
+    test : bool
+        Whether this is a dry run.
+    options : dict
+        Merged options for the unpack plugin.
+    suffixes : dict
+        Mapping of file suffixes to unpack commands.
     """
     NAME = 'unpack_pfam'
 
     def execute(self, source, destination):
+        """
+        Unpack Pfam, then index its HMM libraries with ``hmmpress``.
+
+        In test mode the unpack and ``hmmpress`` commands are printed
+        instead of run.
+
+        Parameters
+        ----------
+        source : str
+            Root of the downloaded tree.
+        destination : str
+            Processed directory to create.
+
+        Returns
+        -------
+        bool
+            ``True`` (unpacking completed).
+
+        See Also
+        --------
+        Unpack.execute : Unpack a downloaded tree.
+        """
         super().execute(source, destination)
         hmmpress = shutil.which('hmmpress') or 'hmmpress'
         for name in sorted(os.listdir(destination)):
@@ -440,10 +717,51 @@ class UnpackPfam(Unpack):
 class UnpackEdirect(Unpack):
     """
     Unpack NCBI's EDirect and keep only its programs.
+
+    Parameters
+    ----------
+    target : str
+        Target name.
+    test : bool, default False
+        Dry run: show what would be done without changing anything.
+    options : dict, optional
+        Options for the target.
+
+    Attributes
+    ----------
+    target : str
+        Target name.
+    test : bool
+        Whether this is a dry run.
+    options : dict
+        Merged options for the unpack plugin.
+    suffixes : dict
+        Mapping of file suffixes to unpack commands.
     """
     NAME = 'unpack_edirect'
 
     def execute(self, source, destination):
+        """
+        Unpack NCBI's EDirect and keep only its programs.
+
+        In test mode only the unpack step runs in dry-run mode.
+
+        Parameters
+        ----------
+        source : str
+            Root of the downloaded tree.
+        destination : str
+            Processed directory to create.
+
+        Returns
+        -------
+        bool
+            ``True`` (unpacking completed).
+
+        See Also
+        --------
+        Unpack.execute : Unpack a downloaded tree.
+        """
         super().execute(source, destination)
         if self.test:
             return True
@@ -492,6 +810,12 @@ def rrsw(targets, table=None, source=None, processed=None, download=True, proces
         Targets to skip.
     test : bool
         Only show what would be done.
+
+    Raises
+    ------
+    ValueError
+        If a selected target names an unknown download method or processor,
+        or a ``callback`` entry is not a shell script.
     """
     datadir = rotifer.config['data']
     source = source or os.path.join(datadir, 'src')
