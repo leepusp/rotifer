@@ -1,5 +1,5 @@
 __doc__ = """
-rrsw: download and unpack mirrors of public databases.
+Download and unpack mirrors of public databases.
 
 Library equivalent: ``rotifer.tools.rrsw.rrsw`` (see that module for the
 configuration files).
@@ -10,6 +10,19 @@ import json
 import sys
 
 def add_arguments(parser):
+    """
+    Add the command's arguments to ``parser``.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parser to add arguments to.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+    """
     parser.add_argument("targets", nargs="*", metavar="TARGET",
                         help="target name(s) from the table of targets, or all")
     parser.add_argument("-l", "--list", dest="list", action="store_true",
@@ -46,6 +59,19 @@ def _format_table(rows):
     return "\n".join(lines) + "\n"
 
 def run(args):
+    """
+    Run the rrsw command.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    int
+        Exit status, always 0; errors are raised as exceptions.
+    """
     import logging
     from rotifer.tools.rrsw import load_table, rrsw, select_targets
     # Report each download (and, with -n, what would be downloaded), as before
@@ -58,6 +84,21 @@ def run(args):
     return 0
 
 def main(argv=None):
+    """
+    Parse arguments and run the rrsw command.
+
+    Parameters
+    ----------
+    argv : list of str, optional
+        Command-line arguments, without the program name (default:
+        ``sys.argv[1:]``).
+
+    Returns
+    -------
+    int
+        Exit status: 1 if neither targets nor ``--list`` were given (the help
+        is printed), otherwise the status from ``run``.
+    """
     parser = argparse.ArgumentParser(prog="rrsw", description="Download and unpack mirrors of public databases.")
     add_arguments(parser)
     args = parser.parse_args(argv)
