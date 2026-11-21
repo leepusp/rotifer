@@ -161,6 +161,11 @@ print("Normalized, cutoff 0.5:", gn.count_series(s, normalize=True, cut_off=0.5)
   - networkx.Graph, min_jaccard_index, cpm_resolution, min_clique_size, seed
   - DataFrame of connected clique pairs with communities
   - graph extra
+* - {py:func}`rotifer.graph.network.overlap_edges`
+  - rotifer.graph.network
+  - Long DataFrame with one row per group and member (for example block and protein cluster)
+  - DataFrame: source, target, shared, weight (Jaccard index, shared count or overlap coefficient)
+  - pandas and scipy
 * - {py:func}`rotifer.graph.network.subgraph_stats`
   - rotifer.graph.network
   - net, subnet (networkx.Graph), theme_dict, theme_to_stats
@@ -289,6 +294,34 @@ print(gn.adjacency_edges(df))
 ```
 
 The function does not sort, so put the rows in genome order first.
+
+To link groups by the members they share, such as blocks that hold the same
+protein clusters, use `overlap_edges`. Each pair of groups with a member in
+common becomes an edge. `metric` picks the weight: the Jaccard index (the
+default), the shared count, or the overlap coefficient. `min_weight` drops
+weak pairs as they are computed, which keeps memory low on large tables:
+
+```python
+import pandas as pd
+from rotifer.graph import network as gn
+
+df = pd.DataFrame({
+    "block": ["b1", "b1", "b1", "b2", "b2", "b3", "b3"],
+    "cluster": ["A", "B", "C", "A", "B", "B", "D"],
+})
+print(gn.overlap_edges(df, "block", "cluster"))
+#   source target  shared    weight
+# 0     b1     b2       2  0.666667
+# 1     b1     b3       1  0.250000
+# 2     b2     b3       1  0.333333
+
+print(gn.overlap_edges(df, "block", "cluster", metric="count", min_weight=2))
+#   source target  shared  weight
+# 0     b1     b2       2       2
+```
+
+The result is an edge list, so `networkx.from_pandas_edgelist(edges,
+edge_attr="weight")` turns it into a graph for the community functions above.
 
 ## Migrating
 
