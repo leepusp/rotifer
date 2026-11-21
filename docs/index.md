@@ -48,6 +48,7 @@ unofficial Spanish, French and Portuguese translations.
 :maxdepth: 2
 
 db/index
+core/session
 api/index
 contributing/index
 licensing/index

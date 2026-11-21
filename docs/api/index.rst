@@ -39,6 +39,8 @@ Data access (rotifer.db)
 Core infrastructure
 -------------------
 
+The :doc:`session page </core/session>` is the curated entry point for ``rotifer.core.session``.
+
 .. autosummary::
    :toctree: generated
 
