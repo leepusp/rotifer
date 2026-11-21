@@ -83,6 +83,9 @@ Sequence and interval utilities
 Graphs and networks
 -------------------
 
+The :doc:`graphs section </graph/index>` is the curated entry point for
+``rotifer.graph`` and ``rotifer.view.network``.
+
 .. autosummary::
    :toctree: generated
 
