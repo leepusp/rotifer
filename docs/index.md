@@ -15,6 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+graph/index
 api/index
 contributing/index
 licensing/index
