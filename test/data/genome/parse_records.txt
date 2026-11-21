@@ -1,0 +1,8 @@
+'NC_0010'	'NC_0010'	'NC_0010 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0011'	'NC_0011'	'NC_0011 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0020'	'NC_0020'	'NC_0020 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0021'	'NC_0021'	'NC_0021 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0022'	'NC_0022'	'NC_0022 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0030'	'NC_0030'	'NC_0030 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0031'	'NC_0031'	'NC_0031 toy replicon'	['Assembly:GCF_000005845.2']
+'NC_0032'	'NC_0032'	'NC_0032 toy replicon'	['Assembly:GCF_000005845.2']

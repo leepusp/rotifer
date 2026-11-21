@@ -1,0 +1,767 @@
+# seed=5 adjacent=False {'before': 0, 'after': 0, 'min_block_distance': -1, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:True
+1	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1501-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:True
+2	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2400'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:2	bool:True
+3	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:3	bool:True
+4	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:4	bool:True
+5	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:5	bool:True
+6	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:6	bool:True
+7	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:7	bool:True
+8	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:3001-3300'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:8	bool:True
+9	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-300'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:9	bool:True
+10	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:10	bool:True
+# seed=5 adjacent=False {'before': 0, 'after': 0, 'min_block_distance': 3, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:True
+1	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:True
+2	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:2	bool:True
+3	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:3	bool:True
+4	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:4	bool:True
+5	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:5	bool:True
+6	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:6	bool:True
+7	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:7	bool:True
+8	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:8	bool:True
+9	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:9	bool:True
+10	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:10	bool:True
+11	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:11	bool:True
+12	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:12	bool:True
+13	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:13	bool:True
+14	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:14	bool:True
+15	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:15	bool:True
+16	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:16	bool:True
+17	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:17	bool:True
+18	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:18	bool:True
+19	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-300'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:19	bool:True
+20	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:20	bool:True
+# seed=5 adjacent=False {'before': 1, 'after': 1, 'min_block_distance': 3, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:1	int:300	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	str:'WP_NC_0050_0.1'	str:'CDS'	int:100	str:'NC_0050_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:0	bool:False
+1	str:'NC_0050'	int:1	int:300	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:1	bool:False
+2	str:'NC_0050'	int:1	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'source'	int:2400	str:'NC_0050.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:2	bool:False
+3	str:'NC_0050'	int:301	int:600	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:3	bool:False
+4	str:'NC_0050'	int:301	int:600	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:4	bool:False
+5	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:5	bool:False
+6	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:6	bool:False
+7	str:'NC_0050'	int:901	int:1200	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0003'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:7	bool:False
+8	str:'NC_0050'	int:901	int:1200	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0003'	str:'chromosome'	str:'GCF_000005845.2'	str:'g3'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:8	bool:False
+9	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:9	bool:False
+10	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:10	bool:False
+11	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:11	bool:False
+12	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:12	bool:False
+13	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:13	bool:False
+14	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:14	bool:False
+15	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:15	bool:False
+16	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:16	bool:False
+17	str:'NC_0051'	int:1801	int:2100	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_6.1'	str:'CDS'	int:100	str:'NC_0051_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:17	bool:True
+18	str:'NC_0051'	int:1801	int:2100	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:18	bool:True
+19	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:1801-3900'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:19	bool:True
+20	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:20	bool:True
+21	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:21	bool:True
+22	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:22	bool:True
+23	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:23	bool:True
+24	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:24	bool:True
+25	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:1801-3900'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:25	bool:True
+26	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:26	bool:True
+27	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:27	bool:True
+28	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:28	bool:True
+29	str:'NC_0051'	int:3601	int:3900	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_12.1'	str:'CDS'	int:99	str:'NC_0051_0012'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 12'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:29	bool:True
+30	str:'NC_0051'	int:3601	int:3900	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0012'	str:'chromosome'	str:'GCF_000005845.2'	str:'g12'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:12	int:30	bool:True
+31	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1801-3900'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:31	bool:True
+32	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:32	bool:True
+33	str:'NC_0051'	int:1	int:3900	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	float:nan	str:'source'	int:3900	str:'NC_0051.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:33	bool:True
+34	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:34	bool:True
+35	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1801-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:35	bool:True
+36	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-600'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:36	bool:True
+37	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:37	bool:True
+38	str:'NC_0052'	int:1	int:5400	int:1	int:5400	str:'NC_0052:1-600'	int:0	float:nan	str:'source'	int:5400	str:'NC_0052.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:38	bool:True
+39	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:1-600'	int:0	str:'WP_NC_0052_1.1'	str:'CDS'	int:100	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:39	bool:True
+40	str:'NC_0052'	int:3901	int:4200	int:1	int:5400	str:'NC_0052:3901-4800'	int:0	str:'WP_NC_0052_13.1'	str:'CDS'	int:99	str:'NC_0052_0013'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 13'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:40	bool:True
+41	str:'NC_0052'	int:3901	int:4200	int:1	int:5400	str:'NC_0052:3901-4800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0013'	str:'chromosome'	str:'GCF_000005845.2'	str:'g13'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:13	int:41	bool:True
+42	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:3901-4800'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:42	bool:True
+43	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:3901-4800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	str:'g14'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:14	int:43	bool:True
+44	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:3901-4800'	int:0	str:'WP_NC_0052_15.1'	str:'CDS'	int:99	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 15'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:44	bool:True
+# seed=5 adjacent=False {'before': 4, 'after': 3, 'min_block_distance': -1, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:False
+1	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:False
+2	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:2	bool:False
+3	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:3	bool:False
+4	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:4	bool:False
+5	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:5	bool:False
+6	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:6	bool:False
+7	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:7	bool:False
+8	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:8	bool:False
+9	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:9	bool:False
+10	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:10	bool:False
+11	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:11	bool:False
+12	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:12	bool:False
+13	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:13	bool:False
+14	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:14	bool:False
+15	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:15	bool:False
+16	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:16	bool:False
+17	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:17	bool:False
+18	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:18	bool:False
+19	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:19	bool:False
+20	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:20	bool:True
+21	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:21	bool:True
+22	str:'NC_0052'	int:1	int:5400	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'source'	int:5400	str:'NC_0052.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:22	bool:True
+23	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:23	bool:True
+24	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	str:'g14'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:14	int:24	bool:True
+# seed=5 adjacent=True {'before': 0, 'after': 0, 'min_block_distance': -1, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:True
+1	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1501-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:True
+2	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2400'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:2	bool:True
+3	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:3	bool:True
+4	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:4	bool:True
+5	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1801-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:5	bool:True
+6	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:6	bool:True
+7	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:7	bool:True
+8	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:8	bool:True
+9	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:9	bool:True
+10	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:10	bool:True
+11	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:11	bool:True
+12	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-2700'	int:1	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:12	bool:True
+13	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:3001-3300'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:13	bool:True
+14	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:3301-3600'	int:1	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:14	bool:True
+15	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-300'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:15	bool:True
+16	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:301-600'	int:1	str:'WP_NC_0052_1.1'	str:'CDS'	int:100	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:16	bool:True
+17	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:17	bool:True
+18	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:4501-4800'	int:1	str:'WP_NC_0052_15.1'	str:'CDS'	int:99	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 15'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:18	bool:True
+# seed=5 adjacent=True {'before': 0, 'after': 0, 'min_block_distance': 3, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:True
+1	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:True
+2	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:2	bool:True
+3	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:3	bool:True
+4	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:4	bool:True
+5	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:5	bool:True
+6	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:6	bool:True
+7	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:7	bool:True
+8	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:8	bool:True
+9	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:9	bool:True
+10	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:10	bool:True
+11	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:11	bool:True
+12	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:12	bool:True
+13	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:13	bool:True
+14	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:14	bool:True
+15	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:15	bool:True
+16	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:16	bool:True
+17	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:17	bool:True
+18	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:18	bool:True
+19	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:19	bool:True
+20	str:'NC_0051'	int:1	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'source'	int:3900	str:'NC_0051.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:20	bool:True
+21	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:21	bool:True
+22	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:22	bool:True
+23	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:23	bool:True
+24	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:24	bool:True
+25	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:25	bool:True
+26	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:26	bool:True
+27	str:'NC_0052'	int:1	int:5400	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'source'	int:5400	str:'NC_0052.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:27	bool:True
+28	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:301-600'	int:1	str:'WP_NC_0052_1.1'	str:'CDS'	int:100	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:28	bool:True
+29	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:29	bool:True
+30	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	str:'g14'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:14	int:30	bool:True
+31	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:4501-4800'	int:1	str:'WP_NC_0052_15.1'	str:'CDS'	int:99	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 15'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:31	bool:True
+# seed=5 adjacent=True {'before': 1, 'after': 1, 'min_block_distance': 3, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:1	int:300	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	str:'WP_NC_0050_0.1'	str:'CDS'	int:100	str:'NC_0050_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:0	bool:False
+1	str:'NC_0050'	int:1	int:300	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:1	bool:False
+2	str:'NC_0050'	int:1	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'source'	int:2400	str:'NC_0050.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:2	bool:False
+3	str:'NC_0050'	int:301	int:600	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:3	bool:False
+4	str:'NC_0050'	int:301	int:600	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:4	bool:False
+5	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:5	bool:False
+6	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:6	bool:False
+7	str:'NC_0050'	int:901	int:1200	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0003'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:7	bool:False
+8	str:'NC_0050'	int:901	int:1200	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0003'	str:'chromosome'	str:'GCF_000005845.2'	str:'g3'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:8	bool:False
+9	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:9	bool:False
+10	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:10	bool:False
+11	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:11	bool:False
+12	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:12	bool:False
+13	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1-2400'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:13	bool:False
+14	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:14	bool:False
+15	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:15	bool:False
+16	str:'NC_0050'	int:2101	int:2400	int:1	int:2400	str:'NC_0050:1-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:16	bool:False
+17	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:17	bool:False
+18	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:18	bool:False
+19	str:'NC_0051'	int:1	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'source'	int:3900	str:'NC_0051.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:19	bool:False
+20	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:20	bool:False
+21	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:21	bool:False
+22	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:22	bool:False
+23	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:23	bool:False
+24	str:'NC_0051'	int:301	int:600	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_1.1'	str:'CDS'	int:99	str:'NC_0051_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:24	bool:False
+25	str:'NC_0051'	int:301	int:600	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:25	bool:False
+26	str:'NC_0051'	int:601	int:900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_2.1'	str:'CDS'	int:99	str:'NC_0051_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:26	bool:False
+27	str:'NC_0051'	int:601	int:900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:27	bool:False
+28	str:'NC_0051'	int:901	int:1200	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_3.1'	str:'CDS'	int:100	str:'NC_0051_0003'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 3'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:28	bool:False
+29	str:'NC_0051'	int:901	int:1200	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0003'	str:'chromosome'	str:'GCF_000005845.2'	str:'g3'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:29	bool:False
+30	str:'NC_0051'	int:1201	int:1500	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_4.1'	str:'CDS'	int:99	str:'NC_0051_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 4'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:30	bool:False
+31	str:'NC_0051'	int:1201	int:1500	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:31	bool:False
+32	str:'NC_0051'	int:1501	int:1800	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:32	bool:False
+33	str:'NC_0051'	int:1501	int:1800	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:33	bool:False
+34	str:'NC_0051'	int:1801	int:2100	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_6.1'	str:'CDS'	int:100	str:'NC_0051_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:34	bool:False
+35	str:'NC_0051'	int:1801	int:2100	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:35	bool:False
+36	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:36	bool:False
+37	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:37	bool:False
+38	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:38	bool:False
+39	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:39	bool:False
+40	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:40	bool:False
+41	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:41	bool:False
+42	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:42	bool:False
+43	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:43	bool:False
+44	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:1-3900'	int:1	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:44	bool:False
+45	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:45	bool:False
+46	str:'NC_0051'	int:3601	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	str:'WP_NC_0051_12.1'	str:'CDS'	int:99	str:'NC_0051_0012'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 12'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:46	bool:False
+47	str:'NC_0051'	int:3601	int:3900	int:1	int:3900	str:'NC_0051:1-3900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0012'	str:'chromosome'	str:'GCF_000005845.2'	str:'g12'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:12	int:47	bool:False
+48	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-900'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:48	bool:True
+49	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:49	bool:True
+50	str:'NC_0052'	int:1	int:5400	int:1	int:5400	str:'NC_0052:1-900'	int:0	float:nan	str:'source'	int:5400	str:'NC_0052.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:50	bool:True
+51	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:1-900'	int:1	str:'WP_NC_0052_1.1'	str:'CDS'	int:100	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:51	bool:True
+52	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:1-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:52	bool:True
+53	str:'NC_0052'	int:601	int:900	int:1	int:5400	str:'NC_0052:1-900'	int:0	str:'WP_NC_0052_2.1'	str:'CDS'	int:99	str:'NC_0052_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:53	bool:True
+54	str:'NC_0052'	int:3901	int:4200	int:1	int:5400	str:'NC_0052:3901-5100'	int:0	str:'WP_NC_0052_13.1'	str:'CDS'	int:99	str:'NC_0052_0013'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 13'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:54	bool:True
+55	str:'NC_0052'	int:3901	int:4200	int:1	int:5400	str:'NC_0052:3901-5100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0013'	str:'chromosome'	str:'GCF_000005845.2'	str:'g13'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:13	int:55	bool:True
+56	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:3901-5100'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:56	bool:True
+57	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:3901-5100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	str:'g14'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:14	int:57	bool:True
+58	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:3901-5100'	int:1	str:'WP_NC_0052_15.1'	str:'CDS'	int:99	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 15'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:58	bool:True
+59	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:3901-5100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	str:'g15'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:15	int:59	bool:True
+60	str:'NC_0052'	int:4801	int:5100	int:-1	int:5400	str:'NC_0052:3901-5100'	int:0	str:'WP_NC_0052_16.1'	str:'CDS'	int:100	str:'NC_0052_0016'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 16'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:12	int:60	bool:True
+# seed=5 adjacent=True {'before': 4, 'after': 3, 'min_block_distance': -1, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:1	str:'WP_NC_0050_2.1'	str:'CDS'	int:99	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:0	bool:False
+1	str:'NC_0050'	int:601	int:900	int:1	int:2400	str:'NC_0050:601-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:1	bool:False
+2	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:2	bool:False
+3	str:'NC_0050'	int:1201	int:1500	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0004'	str:'chromosome'	str:'GCF_000005845.2'	str:'g4'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:4	int:3	bool:False
+4	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:1	str:'WP_NC_0050_5.1'	str:'CDS'	int:99	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 5'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:4	bool:False
+5	str:'NC_0050'	int:1501	int:1800	int:1	int:2400	str:'NC_0050:1201-1800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0005'	str:'chromosome'	str:'GCF_000005845.2'	str:'g5'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:5	int:5	bool:False
+6	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:1	str:'WP_NC_0050_6.1'	str:'CDS'	int:100	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 6'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:6	bool:False
+7	str:'NC_0050'	int:1801	int:2100	int:-1	int:2400	str:'NC_0050:1801-2100'	int:0	float:nan	str:'gene'	int:300	str:'NC_0050_0006'	str:'chromosome'	str:'GCF_000005845.2'	str:'g6'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:6	int:7	bool:False
+8	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:1	str:'WP_NC_0051_0.1'	str:'CDS'	int:100	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:8	bool:False
+9	str:'NC_0051'	int:1	int:300	int:-1	int:3900	str:'NC_0051:1-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:9	bool:False
+10	str:'NC_0051'	int:1	int:3900	int:1	int:3900	str:'NC_0051:1-900'	int:0	float:nan	str:'source'	int:3900	str:'NC_0051.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:10	bool:False
+11	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:11	bool:False
+12	str:'NC_0051'	int:1	int:150	int:1	int:3900	str:'NC_0051:1-900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:12	bool:False
+13	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-900'	int:1	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:13	bool:False
+14	str:'NC_0051'	int:3751	int:3900	int:1	int:3900	str:'NC_0051:1-900'	int:0	str:'WP_NC_0051_ori.1'	str:'CDS'	int:49	str:'NC_0051_ori'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:14	bool:False
+15	str:'NC_0051'	int:301	int:600	int:1	int:3900	str:'NC_0051:1-900'	int:0	str:'WP_NC_0051_1.1'	str:'CDS'	int:99	str:'NC_0051_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:15	bool:False
+16	str:'NC_0051'	int:301	int:600	int:1	int:3900	str:'NC_0051:1-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:16	bool:False
+17	str:'NC_0051'	int:601	int:900	int:1	int:3900	str:'NC_0051:1-900'	int:0	str:'WP_NC_0051_2.1'	str:'CDS'	int:99	str:'NC_0051_0002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 2'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:17	bool:False
+18	str:'NC_0051'	int:601	int:900	int:1	int:3900	str:'NC_0051:1-900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0002'	str:'chromosome'	str:'GCF_000005845.2'	str:'g2'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:18	bool:False
+19	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:1	str:'WP_NC_0051_7.1'	str:'CDS'	int:99	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 7'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:19	bool:False
+20	str:'NC_0051'	int:2101	int:2400	int:1	int:3900	str:'NC_0051:2101-2400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0007'	str:'chromosome'	str:'GCF_000005845.2'	str:'g7'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:7	int:20	bool:False
+21	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_8.1'	str:'CDS'	int:100	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 8'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:21	bool:False
+22	str:'NC_0051'	int:2401	int:2700	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0008'	str:'chromosome'	str:'GCF_000005845.2'	str:'g8'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:8	int:22	bool:False
+23	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:23	bool:False
+24	str:'NC_0051'	int:2701	int:3000	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0009'	str:'chromosome'	str:'GCF_000005845.2'	str:'g9'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:24	bool:False
+25	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_10.1'	str:'CDS'	int:100	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 10'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:9	int:25	bool:False
+26	str:'NC_0051'	int:3001	int:3300	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0010'	str:'chromosome'	str:'GCF_000005845.2'	str:'g10'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:26	bool:False
+27	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:1	str:'WP_NC_0051_11.1'	str:'CDS'	int:100	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 11'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:27	bool:False
+28	str:'NC_0051'	int:3301	int:3600	int:-1	int:3900	str:'NC_0051:2401-3600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0051_0011'	str:'chromosome'	str:'GCF_000005845.2'	str:'g11'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:28	bool:False
+29	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:1	str:'WP_NC_0052_0.1'	str:'CDS'	int:99	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:29	bool:True
+30	str:'NC_0052'	int:1	int:300	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0000'	str:'chromosome'	str:'GCF_000005845.2'	str:'g0'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:30	bool:True
+31	str:'NC_0052'	int:1	int:5400	int:1	int:5400	str:'NC_0052:1-5400'	int:0	float:nan	str:'source'	int:5400	str:'NC_0052.000002'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:31	bool:True
+32	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:301-600'	int:1	str:'WP_NC_0052_1.1'	str:'CDS'	int:100	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 1'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:32	bool:True
+33	str:'NC_0052'	int:301	int:600	int:-1	int:5400	str:'NC_0052:301-600'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0001'	str:'chromosome'	str:'GCF_000005845.2'	str:'g1'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:1	int:33	bool:True
+34	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:1	str:'WP_NC_0052_14.1'	str:'CDS'	int:100	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 14'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:10	int:34	bool:True
+35	str:'NC_0052'	int:4201	int:4500	int:-1	int:5400	str:'NC_0052:4201-4500'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0014'	str:'chromosome'	str:'GCF_000005845.2'	str:'g14'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:14	int:35	bool:True
+36	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:4501-4800'	int:1	str:'WP_NC_0052_15.1'	str:'CDS'	int:99	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'linear'	str:'protein 15'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:11	int:36	bool:True
+37	str:'NC_0052'	int:4501	int:4800	int:1	int:5400	str:'NC_0052:4501-4800'	int:0	float:nan	str:'gene'	int:300	str:'NC_0052_0015'	str:'chromosome'	str:'GCF_000005845.2'	str:'g15'	int:0	str:'linear'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:15	int:37	bool:True
+# seed=11 adjacent=False {'before': 0, 'after': 0, 'min_block_distance': -1, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-5400'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9000'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:1	bool:True
+# seed=11 adjacent=False {'before': 0, 'after': 0, 'min_block_distance': 3, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-5400'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9000'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:1	bool:True
+# seed=11 adjacent=False {'before': 1, 'after': 1, 'min_block_distance': 3, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:4801	int:5100	int:1	int:10200	str:'NC_0110:4801-5700'	int:0	str:'WP_NC_0110_16.1'	str:'CDS'	int:99	str:'NC_0110_0016'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 16'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:15	int:0	bool:True
+1	str:'NC_0110'	int:4801	int:5100	int:1	int:10200	str:'NC_0110:4801-5700'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0016'	str:'chromosome'	str:'GCF_000005845.2'	str:'g16'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:1	bool:True
+2	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:4801-5700'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:2	bool:True
+3	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:4801-5700'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	str:'g17'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:3	bool:True
+4	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:4801-5700'	int:0	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:4	bool:True
+5	str:'NC_0110'	int:8401	int:8700	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	str:'WP_NC_0110_28.1'	str:'CDS'	int:99	str:'NC_0110_0028'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 28'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:25	int:5	bool:True
+6	str:'NC_0110'	int:8401	int:8700	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0028'	str:'chromosome'	str:'GCF_000005845.2'	str:'g28'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:28	int:6	bool:True
+7	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8401-10200'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:7	bool:True
+8	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	str:'g29'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:29	int:8	bool:True
+9	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:9	bool:True
+10	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	str:'g30'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:30	int:10	bool:True
+11	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:11	bool:True
+12	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	str:'g31'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:31	int:12	bool:True
+13	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	str:'WP_NC_0110_32.1'	str:'CDS'	int:99	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 32'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:27	int:13	bool:True
+14	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	str:'g32'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:32	int:14	bool:True
+15	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:15	bool:True
+16	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:8401-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	str:'g33'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:33	int:16	bool:True
+# seed=11 adjacent=False {'before': 4, 'after': 3, 'min_block_distance': -1, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-6000'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	str:'g17'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:1	bool:True
+2	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:2	bool:True
+3	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	str:'g18'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:3	bool:True
+4	str:'NC_0110'	int:5701	int:6000	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	str:'WP_NC_0110_19.1'	str:'CDS'	int:100	str:'NC_0110_0019'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 19'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:4	bool:True
+5	str:'NC_0110'	int:5701	int:6000	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0019'	str:'chromosome'	str:'GCF_000005845.2'	str:'g19'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:19	int:5	bool:True
+6	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:6	bool:True
+7	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	str:'g29'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:29	int:7	bool:True
+8	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:8	bool:True
+9	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	str:'g30'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:30	int:9	bool:True
+# seed=11 adjacent=True {'before': 0, 'after': 0, 'min_block_distance': -1, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-5400'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5401-5700'	int:1	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:1	bool:True
+2	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9000'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:2	bool:True
+3	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9601-10200'	int:1	str:'WP_NC_0110_32.1'	str:'CDS'	int:99	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 32'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:27	int:3	bool:True
+4	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9601-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	str:'g32'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:32	int:4	bool:True
+5	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:9601-10200'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:5	bool:True
+6	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:9601-10200'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	str:'g33'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:33	int:6	bool:True
+# seed=11 adjacent=True {'before': 0, 'after': 0, 'min_block_distance': 3, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-5700'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-5700'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	str:'g17'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:1	bool:True
+2	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5101-5700'	int:1	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:2	bool:True
+3	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:3	bool:True
+4	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	str:'g29'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:29	int:4	bool:True
+5	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:5	bool:True
+6	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	str:'g30'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:30	int:6	bool:True
+7	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:7	bool:True
+8	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	str:'g31'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:31	int:8	bool:True
+9	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9301-9900'	int:1	str:'WP_NC_0110_32.1'	str:'CDS'	int:99	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 32'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:27	int:9	bool:True
+10	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	str:'g32'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:32	int:10	bool:True
+# seed=11 adjacent=True {'before': 1, 'after': 1, 'min_block_distance': 3, 'strand': None}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:4801	int:5100	int:1	int:10200	str:'NC_0110:4801-6000'	int:0	str:'WP_NC_0110_16.1'	str:'CDS'	int:99	str:'NC_0110_0016'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 16'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:15	int:0	bool:True
+1	str:'NC_0110'	int:4801	int:5100	int:1	int:10200	str:'NC_0110:4801-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0016'	str:'chromosome'	str:'GCF_000005845.2'	str:'g16'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:1	bool:True
+2	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:4801-6000'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:2	bool:True
+3	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:4801-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	str:'g17'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:3	bool:True
+4	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:4801-6000'	int:1	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:4	bool:True
+5	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:4801-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	str:'g18'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:5	bool:True
+6	str:'NC_0110'	int:5701	int:6000	int:-1	int:10200	str:'NC_0110:4801-6000'	int:0	str:'WP_NC_0110_19.1'	str:'CDS'	int:100	str:'NC_0110_0019'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 19'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:6	bool:True
+7	str:'NC_0110'	int:8401	int:8700	int:1	int:10200	str:'NC_0110:8401-300'	int:0	str:'WP_NC_0110_28.1'	str:'CDS'	int:99	str:'NC_0110_0028'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 28'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:25	int:7	bool:True
+8	str:'NC_0110'	int:8401	int:8700	int:1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0028'	str:'chromosome'	str:'GCF_000005845.2'	str:'g28'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:28	int:8	bool:True
+9	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8401-300'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:9	bool:True
+10	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	str:'g29'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:29	int:10	bool:True
+11	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:11	bool:True
+12	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	str:'g30'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:30	int:12	bool:True
+13	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:13	bool:True
+14	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	str:'g31'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:31	int:14	bool:True
+15	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:8401-300'	int:1	str:'WP_NC_0110_32.1'	str:'CDS'	int:99	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 32'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:27	int:15	bool:True
+16	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	str:'g32'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:32	int:16	bool:True
+17	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:3	int:17	bool:True
+18	str:'NC_0110'	int:9901	int:10200	int:-1	int:10200	str:'NC_0110:8401-300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0033'	str:'chromosome'	str:'GCF_000005845.2'	str:'g33'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:33	int:18	bool:True
+19	str:'NC_0110'	int:1	int:300	int:1	int:10200	str:'NC_0110:8401-300'	int:0	str:'WP_NC_0110_0.1'	str:'CDS'	int:99	str:'NC_0110_0000'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 0'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:0	int:19	bool:True
+# seed=11 adjacent=True {'before': 4, 'after': 3, 'min_block_distance': -1, 'strand': 'same'}
+NeighborhoodDF
+'nucleotide'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'start'	dtype=dtype('int64') storage=None na_value=None
+'end'	dtype=dtype('int64') storage=None na_value=None
+'strand'	dtype=dtype('int64') storage=None na_value=None
+'nlen'	dtype=dtype('int64') storage=None na_value=None
+'block_id'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'query'	dtype=dtype('int64') storage=None na_value=None
+'pid'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'plen'	dtype=dtype('int64') storage=None na_value=None
+'locus'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'seq_type'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'assembly'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'gene'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'origin'	dtype=dtype('int64') storage=None na_value=None
+'topology'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'product'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'taxid'	dtype=dtype('int64') storage=None na_value=None
+'organism'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'lineage'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'classification'	dtype=<StringDtype(na_value=nan)> storage='pyarrow' na_value=nan
+'feature_order'	dtype=dtype('int64') storage=None na_value=None
+'internal_id'	dtype=dtype('int64') storage=None na_value=None
+'is_fragment'	dtype=dtype('bool') storage=None na_value=None
+index=RangeIndex dtype=dtype('int64') name=None
+0	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-6000'	int:1	str:'WP_NC_0110_17.1'	str:'CDS'	int:100	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 17'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:16	int:0	bool:True
+1	str:'NC_0110'	int:5101	int:5400	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0017'	str:'chromosome'	str:'GCF_000005845.2'	str:'g17'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:1	bool:True
+2	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5101-6000'	int:1	str:'WP_NC_0110_18.1'	str:'CDS'	int:100	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 18'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:17	int:2	bool:True
+3	str:'NC_0110'	int:5401	int:5700	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0018'	str:'chromosome'	str:'GCF_000005845.2'	str:'g18'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:3	bool:True
+4	str:'NC_0110'	int:5701	int:6000	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	str:'WP_NC_0110_19.1'	str:'CDS'	int:100	str:'NC_0110_0019'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:0	str:'circular'	str:'protein 19'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:18	int:4	bool:True
+5	str:'NC_0110'	int:5701	int:6000	int:-1	int:10200	str:'NC_0110:5101-6000'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0019'	str:'chromosome'	str:'GCF_000005845.2'	str:'g19'	int:0	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:19	int:5	bool:True
+6	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:1	str:'WP_NC_0110_29.1'	str:'CDS'	int:100	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 29'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:26	int:6	bool:True
+7	str:'NC_0110'	int:8701	int:9000	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0029'	str:'chromosome'	str:'GCF_000005845.2'	str:'g29'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:29	int:7	bool:True
+8	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'tRNA'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'tRNA-Ala'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:8	bool:True
+9	str:'NC_0110'	int:9001	int:9300	int:-1	int:10200	str:'NC_0110:8701-9300'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0030'	str:'chromosome'	str:'GCF_000005845.2'	str:'g30'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:30	int:9	bool:True
+10	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'PSE'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:2	int:10	bool:True
+11	str:'NC_0110'	int:9301	int:9600	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0031'	str:'chromosome'	str:'GCF_000005845.2'	str:'g31'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:31	int:11	bool:True
+12	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9301-9900'	int:1	str:'WP_NC_0110_32.1'	str:'CDS'	int:99	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	float:nan	int:1	str:'circular'	str:'protein 32'	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:27	int:12	bool:True
+13	str:'NC_0110'	int:9601	int:9900	int:1	int:10200	str:'NC_0110:9301-9900'	int:0	float:nan	str:'gene'	int:300	str:'NC_0110_0032'	str:'chromosome'	str:'GCF_000005845.2'	str:'g32'	int:1	str:'circular'	float:nan	int:562	str:'Escherichia coli'	str:'bacteria>pseudomonadota>gammaproteobacteria'	str:'Bacteria; Pseudomonadota; Gammaproteobacteria'	int:32	int:13	bool:True
