@@ -15,7 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
-io/search
+io/index
 cli/index
 api/index
 contributing/index

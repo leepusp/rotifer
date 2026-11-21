@@ -69,6 +69,7 @@ Genomes and annotation
 Sequence and interval utilities
 -------------------------------
 
+The :doc:`io section </io/index>` is the curated entry point for ``rotifer.io``.
 The :doc:`search results page </io/search>` describes the standard table of ``rotifer.io.search``.
 
 .. autosummary::
