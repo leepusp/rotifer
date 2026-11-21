@@ -1,80 +1,179 @@
-#!/usr/bin/env python3
+"""
+Convert Biopython sequence records into gene neighbourhood tables.
 
-# Core libraries
-import sys
+:func:`seqrecords_to_dataframe` is the bridge between genome files and
+:class:`rotifer.genome.data.NeighborhoodDF`: it takes the records that
+:func:`rotifer.genome.io.parse` or :func:`Bio.SeqIO.parse` yield and
+writes one row per feature location. Every NCBI, SQLite and parallel
+cursor in :mod:`rotifer.db` builds its tables with it.
+
+The private ``_parse_*`` functions are ready-made column extractors for
+its ``parsers`` argument.
+"""
+
 import types
 
-# Pandas
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-# Rotifer libraries
 import rotifer
 logger = rotifer.logging.getLogger(__name__)
 
-# Data
+# Columns of an empty result, in the order seqrecords_to_dataframe writes them
 _columns = ['nucleotide', 'start', 'end', 'strand', 'nlen', 'block_id', 'query', 'pid', 'type', 'plen', 'locus', 'seq_type', 'assembly', 'gene', 'origin', 'topology', 'product', 'taxid', 'organism', 'lineage', 'classification', 'feature_order', 'internal_id', 'is_fragment']
 
 def _parse_assembly_from_dbxrefs(column, feature, seqrecord):
+    """
+    Return the assembly accession from a record's ``Assembly:`` dbxref.
+
+    A column extractor for the ``parsers`` argument of
+    :func:`seqrecords_to_dataframe`.
+
+    Parameters
+    ----------
+    column : str
+        Name of the column being filled (unused).
+    feature : Bio.SeqFeature.SeqFeature
+        The feature of the current row (unused).
+    seqrecord : Bio.SeqRecord.SeqRecord
+        The record the feature belongs to.
+
+    Returns
+    -------
+    str or float
+        The text after the last ``:`` of the first dbxref containing
+        ``Assembly:``, or NaN when there is none.
+    """
     for x in seqrecord.dbxrefs:
         if 'Assembly:' in x:
             return x.split(':')[-1]
     return np.nan
 
 def _parse_annotations(column, feature, seqrecord):
-        if column in seqrecord.annotations:
-            return seqrecord.annotations[column]
-        return np.nan
+    """
+    Return the record annotation named like the column.
+
+    A column extractor for the ``parsers`` argument of
+    :func:`seqrecords_to_dataframe`, for record-level values such as
+    ``topology`` or ``data_file_division``.
+
+    Parameters
+    ----------
+    column : str
+        Annotation key to read, also the column name.
+    feature : Bio.SeqFeature.SeqFeature or None
+        The feature of the current row (unused).
+    seqrecord : Bio.SeqRecord.SeqRecord
+        The record whose ``annotations`` are read.
+
+    Returns
+    -------
+    object
+        ``seqrecord.annotations[column]``, or NaN when the key is absent.
+    """
+    if column in seqrecord.annotations:
+        return seqrecord.annotations[column]
+    return np.nan
 
 def _parse_qualifiers(column, feature, seqrecord):
+    """
+    Return the feature qualifier named like the column.
+
+    A column extractor for the ``parsers`` argument of
+    :func:`seqrecords_to_dataframe`; ``bin/rgaparser`` uses it for the
+    ``gembase`` qualifier.
+
+    Parameters
+    ----------
+    column : str
+        Qualifier key to read, also the column name.
+    feature : Bio.SeqFeature.SeqFeature
+        The feature whose ``qualifiers`` are read.
+    seqrecord : Bio.SeqRecord.SeqRecord
+        The record the feature belongs to (unused).
+
+    Returns
+    -------
+    str or float
+        The single value of the qualifier; several values joined with
+        ``\\x01`` (the separator NCBI uses for the descriptions of
+        identical sequences, which :mod:`rotifer.db.local.easel` splits
+        on); NaN when the feature lacks the qualifier.
+    """
     if column in feature.qualifiers:
         if len(feature.qualifiers[column]) == 1:
             return feature.qualifiers[column][0]
         else:
-            # \x01 is what NCBI uses to join the descriptions of
-            # identical sequences, and what rotifer.db.local.easel
-            # splits on when it reads them back
             return "\x01".join(feature.qualifiers[column])
     return np.nan
 
 def seqrecords_to_dataframe(seqrecs=None, exclude_type=[], autopid=False, assembly=None, codontable='Bacterial', parsers={}):
     '''
-    Extract BioPython's SeqRecord features data to a Pandas dataframe.
+    Write the features of sequence records into a NeighborhoodDF.
+
+    Each feature location becomes one row; a feature that runs through
+    the origin of a circular replicon becomes one row per part, with
+    ``origin`` set to 1. Features are numbered in the order of their
+    start and end coordinates. Records that are not SeqRecords are
+    logged as errors and skipped; records without features are skipped.
+    The input records are not modified, except that each record's
+    feature list is sorted by location.
 
     Parameters
     ----------
-    seqrecs : rotifer.genome.io.parse generator, Bio.SeqIO generator or (list of) Bio.SeqRecord object(s)
-        Sequence records whose features will be extracted.
-    exclude_type : list of strings
-        Exclude features by type.
-    autopid : string
-        Auto-generate missing PIDs from locus_tag.
-
-        You can set autopid to:
-
-        - 'auto', for transforming the locus_tag into unique PIDs, or
-        - 'copy', copy the locus_tag if there is no alternative splicing
-    assembly : string, optional
-        Assembly ID used when it cannot be inferred from the input
-        file name. If not set, the sequence ID is used instead.
-    codontable : integer or string (see Bio.Seq)
-        Genetic code name for translating CDSs.
-    parsers : dict of functions
-        Data extractor routines for non-standard columns.
-
-        This dictionary's keys will be used as column names.
-
-        The corresponding values should be function names or references
-        and should support three arguments:
-
-        1. the column name
-        2. the current feature being processed
-        3. the current sequence object
+    seqrecs : Bio.SeqRecord.SeqRecord, list or iterator of them, optional
+        The records, for example from :func:`rotifer.genome.io.parse` or
+        :func:`Bio.SeqIO.parse`. A single record is treated as a list of
+        one. None gives an empty table.
+    exclude_type : list of str, default []
+        Feature types to leave out (for example ``['gene', 'source']``).
+        Pseudogenes are typed ``PSE``.
+    autopid : {False, 'auto', 'copy'}, default False
+        How to fill ``pid`` for CDSs without a ``protein_id`` or ``ID``
+        qualifier: ``'auto'`` writes ``<locus>.p<cds number>``,
+        ``'copy'`` copies the locus tag, False leaves it missing.
+    assembly : str, optional
+        Assembly accession for records that have no ``Assembly:``
+        dbxref and whose source file name gives none. When None, the
+        record id is used.
+    codontable : int or str, default 'Bacterial'
+        Genetic code used to compute the protein length of CDSs without
+        a ``translation`` qualifier; a ``transl_table`` qualifier takes
+        precedence. A CDS that fails to translate is typed ``PSE``.
+    parsers : dict, default {}
+        Extra columns: each key is a column name and each value a
+        function called as ``f(column, feature, record)`` for every
+        row. See the ``_parse_*`` functions of this module.
 
     Returns
     -------
     rotifer.genome.data.NeighborhoodDF
-        One row per feature, plus one column per key in ``parsers``.
+        One row per feature location, with the columns listed in the
+        Genomes section of the documentation (``nucleotide``,
+        ``start`` and ``end`` 1-based and inclusive, ``strand`` 1 or
+        -1, ``block_id`` set to the record id, ``query`` 0, ...)
+        followed by one column per key of ``parsers``. ``lineage`` is
+        computed from ``classification``. The index is a RangeIndex.
+        Empty, with the same columns, when no record has features.
+
+    Examples
+    --------
+    >>> from Bio.Seq import Seq
+    >>> from Bio.SeqFeature import SeqFeature, FeatureLocation
+    >>> from Bio.SeqRecord import SeqRecord
+    >>> rec = SeqRecord(Seq("ATGGCTTAA" * 4), id="NC_1",
+    ...                 annotations={"molecule_type": "DNA"})
+    >>> rec.features = [
+    ...     SeqFeature(FeatureLocation(0, 9, 1), type="CDS",
+    ...                qualifiers={"protein_id": ["P1.1"], "locus_tag": ["L1"]}),
+    ...     SeqFeature(FeatureLocation(18, 27, -1), type="CDS",
+    ...                qualifiers={"protein_id": ["P2.1"], "locus_tag": ["L2"]}),
+    ... ]
+    >>> df = seqrecords_to_dataframe([rec])
+    >>> df[["nucleotide", "start", "end", "strand", "pid", "plen", "locus"]]
+      nucleotide  start  end  strand   pid  plen locus
+    0       NC_1      1    9       1  P1.1     2    L1
+    1       NC_1     19   27      -1  P2.1     3    L2
     '''
     import re
     import os

@@ -1,6 +1,40 @@
-#!/usr/bin/env python3
+"""Tables of genomic neighbourhoods.
 
-# Data here is a child of Pandas DataFrame
+:class:`NeighborhoodDF` is a :class:`pandas.DataFrame` with one row per
+feature (CDS, tRNA, pseudogene, ...) of a sequence, plus the columns
+that say which block of features the row belongs to. Its methods fall in
+four groups.
+
+Finding neighbourhoods
+    :meth:`~NeighborhoodDF.neighbors` cuts a whole-genome table into
+    blocks around target rows. :meth:`~NeighborhoodDF.vicinity` lists
+    the regions without cutting the table, and
+    :meth:`~NeighborhoodDF.boundaries` gives the limits of each block.
+
+Working inside blocks
+    :meth:`~NeighborhoodDF.trim_blocks` shrinks existing blocks around
+    their targets. :meth:`~NeighborhoodDF.group_strand`,
+    :meth:`~NeighborhoodDF.same_strand` and
+    :meth:`~NeighborhoodDF.value_counts_full` number the same-strand
+    runs, keep the runs that hold a query and count values.
+
+Views and reports
+    :meth:`~NeighborhoodDF.compact` (also ``compact_neighborhood``) gives
+    one line of text per block, :meth:`~NeighborhoodDF.to_blocks` and
+    :meth:`~NeighborhoodDF.to_yaml` write annotated reports.
+
+Networks and clustering
+    :meth:`~NeighborhoodDF.to_network` counts the edges between adjacent
+    features and :meth:`~NeighborhoodDF.jaccard` groups blocks that share
+    protein clusters.
+
+Tables come from :func:`rotifer.genome.utils.seqrecords_to_dataframe`,
+which turns Biopython records into one row per feature, and from the
+``rotifer.db`` cursors (for example
+:class:`rotifer.db.ncbi.GeneNeighborhoodCursor`), which download
+genomes and call :meth:`~NeighborhoodDF.neighbors`. The column table is
+in ``docs/genome/index.md``.
+"""
 
 from collections import OrderedDict
 import warnings
@@ -45,6 +79,20 @@ def _check_choice(name, value, allowed):
 
     The message names the argument, the value given and the values
     accepted.
+
+    Parameters
+    ----------
+    name : str
+        Name of the argument being checked, used in the message.
+    value : str or None
+        The value to check. Only a string or None can pass.
+    allowed : list of (str or None)
+        Accepted values. None passes only if it is in the list.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not in ``allowed``.
     """
     ok = (value is None and None in allowed) or (isinstance(value, str) and value in allowed)
     if not ok:
@@ -54,6 +102,104 @@ def _check_choice(name, value, allowed):
 
 
 class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
+    """
+    A table of genomic features, grouped into neighbourhood blocks.
+
+    One row is one feature (a CDS, pseudogene, tRNA, gene, ...) at one
+    location of a sequence. A feature that runs through the origin of a
+    circular replicon has one row per part. Rows that share a
+    ``block_id`` form a neighbourhood. The class is a
+    :class:`pandas.DataFrame`, so every pandas method works, and methods
+    that return a frame of the same shape return a ``NeighborhoodDF``.
+
+    The standard columns, in this order, are listed in
+    ``NDFProperties['columns']``. None is required to build a table, but
+    each method needs some of them (see its page).
+
+    - ``nucleotide``: accession of the sequence (contig, chromosome or
+      plasmid).
+    - ``start``, ``end``: 1-based, inclusive coordinates of the feature.
+    - ``strand``: 1 or -1.
+    - ``nlen``: length of the sequence in nucleotides.
+    - ``block_id``: neighbourhood identifier. :meth:`neighbors` writes
+      ``nucleotide:start-end``.
+    - ``query``: 1 for the rows that anchor the neighbourhood, 0
+      otherwise.
+    - ``pid``: protein accession (CDS only).
+    - ``type``: feature type (``CDS``, ``PSE`` for pseudogenes, ``tRNA``,
+      ``gene``, ...).
+    - ``plen``: protein length in residues for a CDS, otherwise feature
+      length.
+    - ``locus``: locus tag.
+    - ``seq_type``: ``chromosome`` or ``plasmid``.
+    - ``assembly``: genome assembly accession.
+    - ``gene``, ``product``: gene name and product description.
+    - ``origin``: 1 when the feature or block runs through the origin of
+      replication; :meth:`neighbors` writes 2 when a block covers a whole
+      circular replicon.
+    - ``topology``: ``circular`` or ``linear``.
+    - ``taxid``, ``organism``, ``lineage``, ``classification``: NCBI
+      taxonomy identifier, organism name, lineage made from preferred
+      taxa, and the full classification string.
+    - ``feature_order``: position among the features of the same type on
+      the sequence.
+    - ``internal_id``: position among all features on the sequence.
+    - ``is_fragment``: True when a block does not cover its whole
+      sequence.
+    - ``replaced``: the query protein that a row's ``pid`` stands for; set
+      by the ``rotifer.db`` cursors.
+
+    Parameters
+    ----------
+    *args, **kwargs
+        Passed to :class:`pandas.DataFrame`. With no positional argument
+        and no ``columns``, the table is empty and has the standard
+        columns.
+    filterby : optional
+        Free attribute kept with the table (a pandas metadata field). The
+        class does not use it. Default None.
+    update_lineage : str or False, default False
+        Name of a column that holds classification strings. If the column
+        exists, ``lineage`` is filled from it with
+        :func:`rotifer.taxonomy.utils.lineage`. A missing ``lineage``
+        column is created just before that column. Any other value
+        (including a name that is not a column) does nothing.
+    preferred_taxa : list of str, optional
+        Taxa that :func:`rotifer.taxonomy.utils.lineage` keeps in the
+        lineage. None uses its default.
+
+    Attributes
+    ----------
+    NDFProperties : dict
+        ``columns`` (the standard columns), ``required`` (the columns
+        :mod:`rotifer.genome.utils` expects: ``assembly``, ``nucleotide``,
+        ``start``, ``end``, ``strand``, ``type``) and ``order`` (the sort
+        order of a table: ``assembly``, ``nucleotide``, ``start``,
+        ``end``, ``strand``).
+
+    See Also
+    --------
+    rotifer.genome.utils.seqrecords_to_dataframe : Build a table from
+        Biopython records.
+
+    Examples
+    --------
+    An empty call makes the standard columns:
+
+    >>> NeighborhoodDF().shape
+    (0, 25)
+
+    A table needs only the columns the methods you call use:
+
+    >>> ndf = NeighborhoodDF(pd.DataFrame({
+    ...     'pid': ['P1', 'P2'], 'strand': [1, -1], 'type': 'CDS'}))
+    >>> ndf
+      pid  strand type
+    0  P1       1  CDS
+    1  P2      -1  CDS
+    >>> type(ndf[ndf.strand == 1]).__name__
+    'NeighborhoodDF'
+    """
     _metadata = ['filterby','NDFProperties']
     NDFProperties = {
         "columns": list(_column_dict.keys()),
@@ -62,6 +208,16 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
     }
 
     def __init__(self, *args, **kwargs):
+        """
+        Build the table; see the class docstring for the keywords.
+
+        Parameters
+        ----------
+        *args, **kwargs
+            Passed to :class:`pandas.DataFrame`, after the keywords
+            ``filterby``, ``update_lineage`` and ``preferred_taxa`` are
+            taken out.
+        """
         self.filterby  = kwargs.pop('filterby', None)
         update_lineage = kwargs.pop('update_lineage',False)
         preferred_taxa = kwargs.pop('preferred_taxa',None)
@@ -80,18 +236,53 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                 taxonomy = [ i for i in range(0,len(cols)) if cols[i] == update_lineage ][0]
                 self.insert(taxonomy, "lineage", rtlineage(self[update_lineage], preferred_taxa=preferred_taxa))
 
-    # Pandas contructor
     @property
     def _constructor(self):
+        """
+        Class that pandas uses for the result of an operation.
+
+        Returns
+        -------
+        type
+            :class:`NeighborhoodDF`, so slices and copies keep the class.
+        """
         return NeighborhoodDF
-
-
-
-###### New functions added 12/08/2019
 
     def group_strand(self):
         """
-        A function to add the column strand_groups in the acc2operon dataframe.
+        Number the runs of same-strand rows in a ``strand_group`` column.
+
+        A run is a stretch of consecutive rows, in table order, with the
+        same ``block_id`` and the same ``strand``. Rows are not sorted
+        first.
+
+        Returns
+        -------
+        NeighborhoodDF
+            A copy with the extra column ``strand_group`` (int64): 1 for
+            the first run, increasing by 1 at each new run. ``self`` is
+            not modified. The copy is empty when the table is.
+
+        Raises
+        ------
+        KeyError
+            If ``block_id`` or ``strand`` is missing.
+
+        See Also
+        --------
+        same_strand : Keep only the runs that hold a query.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'block_id': 'b1', 'strand': [1, 1, -1, 1],
+        ...     'pid': ['P1', 'P2', 'P3', 'P4']}))
+        >>> ndf.group_strand()
+          block_id  strand pid  strand_group
+        0       b1       1  P1             1
+        1       b1       1  P2             1
+        2       b1      -1  P3             2
+        3       b1       1  P4             3
         """
         dataframe = self.copy()
         dataframe['strand_group'], _ = self._strand_runs(query=None)
@@ -100,8 +291,43 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
     def same_strand(self,
                     query='query'):
         """
-        Using the strand group and a query it will filter the self with
-        strands that present one  query at least.
+        Keep the same-strand runs that contain a query.
+
+        Runs are numbered as in :meth:`group_strand`. A run is kept, in
+        full, when the sum of ``query`` over its rows is above 0.
+
+        Parameters
+        ----------
+        query : str, default 'query'
+            Column whose positive values mark the query rows.
+
+        Returns
+        -------
+        NeighborhoodDF
+            The rows of the kept runs, in table order, with their index
+            labels and an extra ``strand_group`` column (int64, as in
+            :meth:`group_strand`). ``self`` is not modified.
+
+        Raises
+        ------
+        KeyError
+            If ``block_id``, ``strand`` or ``query`` is missing.
+
+        See Also
+        --------
+        group_strand : Number the runs without filtering.
+        trim_blocks : Cut blocks around targets; its ``strand='same'``
+            keeps only the runs that hold a target.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'block_id': 'b1', 'strand': [1, 1, -1, 1],
+        ...     'query': [0, 1, 0, 0], 'pid': ['P1', 'P2', 'P3', 'P4']}))
+        >>> ndf.same_strand()
+          block_id  strand  query pid  strand_group
+        0       b1       1      0  P1             1
+        1       b1       1      1  P2             1
         """
         dataframe = self.group_strand()
         _, keep = dataframe._strand_runs(query=query)
@@ -145,9 +371,53 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
     def value_counts_full(self, column):
         """
-        Calculate absolute and relative frequencies for a given column.
-        If dropna is True, it will ignore the empty values to count
-        the relative frequency.
+        Count how many blocks and proteins carry each value of a column.
+
+        Only rows with ``type == 'CDS'`` are counted. Rows whose value
+        in ``column`` is missing are left out of the table, but they stay
+        in the totals that the percentages divide by. The totals are
+        logged at INFO level.
+
+        Parameters
+        ----------
+        column : str
+            Column to group by, for example ``'pfam'``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per distinct value of ``column``, sorted by
+            ``block_id_count`` from high to low, with a new 0..n-1 index
+            and the columns:
+
+            - ``<column>``: the value.
+            - ``block_id_count``: number of distinct ``block_id`` with the
+              value (int64).
+            - ``pid_count``: number of rows with the value that have a
+              ``pid`` (int64).
+            - ``relative_block_id``: ``block_id_count`` as a percentage of
+              the distinct ``block_id`` among all CDS rows (float64).
+            - ``relative_pid``: ``pid_count`` as a percentage of the
+              distinct ``pid`` among all CDS rows (float64). It can pass
+              100 when a protein appears in more than one row.
+
+            The frame is empty, with these columns, when no row is a CDS.
+
+        Raises
+        ------
+        KeyError
+            If ``type``, ``block_id``, ``pid`` or ``column`` is missing.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'type': 'CDS', 'block_id': ['b1', 'b1', 'b2', 'b2'],
+        ...     'pid': ['P1', 'P2', 'P3', 'P4'],
+        ...     'pfam': ['A', 'B', 'A', 'A']}))
+        >>> ndf.value_counts_full('pfam')
+          pfam  block_id_count  pid_count  relative_block_id  relative_pid
+        0    A               2          3              100.0          75.0
+        1    B               1          1               50.0          25.0
         """
         x = self[self['type']=="CDS"]
         lpid = x['pid'].nunique()
@@ -315,6 +585,96 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
                              query='query',
                              strand=False,
                              fill_unk=False):
+        """
+        Write each block, or each strand run, as one line of text.
+
+        Every row of the result is a block (or, with ``strand=True``, a
+        run of same-strand rows that holds a query). The line, in the
+        ``compact`` column, has one token per feature, read in the
+        direction of the first query row. Rows with a missing
+        ``block_id`` are ignored. Rows are never sorted: the table order
+        is the order along the block.
+
+        Tokens, with ``A`` the annotation of the feature:
+
+        - ``A->`` for a feature on the reading strand, ``<-A`` for one on
+          the opposite strand.
+        - ``*`` marks a query row: ``*A->`` or ``<-A*``.
+        - ``|`` follows a token when the next feature in reading order
+          starts another strand run. The last token has none.
+        - ``A`` is the ``annotation`` value for a CDS (``?`` when it is
+          missing) and the ``type`` for any other feature. With
+          ``fill_unk``, a ``?`` is replaced by that column's value
+          (still ``?`` if that is missing too).
+
+        When the first query is on the minus strand the group is read
+        from its last row to its first and the strands are flipped, so
+        that query is always shown as ``*A->``.
+
+        Parameters
+        ----------
+        annotation : str, default 'pfam'
+            Column that labels the CDS rows in ``compact``.
+        query : str, default 'query'
+            Column that marks query rows (value 1).
+        strand : bool, default False
+            False gives one line per ``block_id``. True keeps only the
+            runs of same-strand rows, within a block, that contain a
+            query; each run is one line.
+        fill_unk : str or False, default False
+            Column whose value replaces ``?`` for CDS rows without an
+            annotation. False leaves ``?``.
+
+        Returns
+        -------
+        pandas.DataFrame or None
+            Indexed by ``block_id`` (with ``strand=True`` the same
+            ``block_id`` can repeat, once per run), sorted by block, or
+            by order of appearance with ``strand=True``. Columns:
+
+            - ``compact``: the tokens joined without separators.
+            - ``lineage``, ``organism``, ``seq_type``,
+              ``classification``: the first value that is not missing in
+              the group, in reading order.
+            - ``pid_compact``: as ``compact``, with ``pid`` in place of
+              the annotation.
+
+            The frame is empty, with these columns, when no row has a
+            ``block_id`` or, with ``strand=True``, when no row is a query.
+            ``self`` is not modified. In Jupyter the method returns None.
+
+        Raises
+        ------
+        NameError
+            ``Query_Missing`` when a block has no row with ``query == 1``
+            and ``strand=False``. The message names the first ten such
+            ``block_id`` values and counts the rest.
+        KeyError
+            If a column the method reads is missing: ``block_id``,
+            ``strand``, ``pid``, ``type``, ``query``, ``annotation``,
+            ``fill_unk``, ``lineage``, ``organism``, ``seq_type`` or
+            ``classification``.
+
+        Notes
+        -----
+        In Jupyter the method does not return a table. It shows an HTML
+        figure in a pop-up (``rotifer.devel.alpha.gian_func.operon_fig2``)
+        and returns None (issue #149).
+
+        ``compact`` is another name for this method.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'block_id': 'b1', 'strand': [1, 1, -1, -1],
+        ...     'query': [0, 1, 0, 0], 'type': ['CDS', 'CDS', 'CDS', 'tRNA'],
+        ...     'pid': ['P1', 'P2', 'P3', None], 'pfam': ['A', 'B', None, None],
+        ...     'lineage': 'Bacteria', 'organism': 'Org x',
+        ...     'seq_type': 'chromosome', 'classification': 'Bacteria'}))
+        >>> ndf.compact_neighborhood().reset_index()[['block_id', 'compact', 'pid_compact']]
+          block_id            compact           pid_compact
+        0       b1  A->*B->|<-?<-tRNA  P1->*P2->|<-P3<-tRNA
+        """
         from rotifer.view import functions
         from rotifer.devel.alpha import gian_func as gf
         jupyter = functions.is_running_in_jupyter()
@@ -322,16 +682,6 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             to_display = gf.operon_fig2(self,domain_column = annotation, to_string=True) 
             functions.display_html_popup_from_file(to_display)
             return
-        """
-        A tabular and compact representation of  selected neighborhoods block.
-        Given a acc2operons Dataframe it will print the block ID as first column
-        and a compact form of all locus within the block_id as compact form using
-        a given
-        column to annotate it.
-        If stand is True, it will display only the loci that are at the same
-        strand of the query, and also the ID displayed is a new calculated Strand ID.
-        """
-
         columns = ['compact', 'block_id', 'lineage', 'organism', 'seq_type',
                    'classification', 'pid_compact']
         carried = columns[1:-1]
@@ -438,7 +788,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         result = pd.concat([joined, first], axis=1)[columns]
         return result.reset_index(drop=True).set_index('block_id')
 
-    #Alias for compact neighborhood
+    # Short name for compact_neighborhood
     compact = compact_neighborhood
 
     def _select_targets(self, targets):
@@ -569,13 +919,55 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         return out
 
 
-    # Find internal_id (iimin,iimax) and feature_order (fomin,fomax) boundaries
     def boundaries(self, nucleotide=None):
         """
-        Find maximum and minimum values of block_id, feature_order and internal_id.
-        Columns feature_order and internal_id are evaluated per nucleotide entry.
+        Give the lowest and highest feature_order and internal_id of each block.
 
-        Returns a Pandas dataframe.
+        Parameters
+        ----------
+        nucleotide : list or pandas.Series, optional
+            Sequence accessions to keep. Any other value, including a
+            single string and None, keeps every row.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per ``assembly``, ``nucleotide``, block and feature
+            ``type``, with a new 0..n-1 index and the columns:
+
+            - ``assembly``, ``nucleotide``: as in the table.
+            - ``block``: the ``block_id`` of the table.
+            - ``type``: feature type.
+            - ``fomin``, ``fomax``: lowest and highest ``feature_order``
+              of that type in the block.
+            - ``iidmin``, ``iidmax``: lowest and highest ``internal_id``
+              of any type in the block.
+            - ``bidmin``, ``bidmax``: ``bidmin`` is always 1; ``bidmax``
+              is the number of distinct ``block_id`` in the assembly.
+
+            Rows with a missing ``assembly``, ``nucleotide``,
+            ``block_id`` or ``type`` are ignored.
+
+        Raises
+        ------
+        KeyError
+            If ``assembly``, ``nucleotide``, ``block_id``, ``type``,
+            ``feature_order`` or ``internal_id`` is missing.
+
+        See Also
+        --------
+        vicinity : Uses these limits to clip each region to its block.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'assembly': 'GCF_1', 'nucleotide': 'NC_1',
+        ...     'block_id': 'b1', 'type': ['CDS', 'tRNA', 'CDS'],
+        ...     'feature_order': [0, 0, 1], 'internal_id': [0, 1, 2]}))
+        >>> ndf.boundaries()
+          assembly nucleotide block  type  fomin  fomax  iidmin  iidmax  bidmin  bidmax
+        0    GCF_1       NC_1    b1   CDS      0      1       0       2       1       1
+        1    GCF_1       NC_1    b1  tRNA      0      0       0       2       1       1
         """
         df = self
         if isinstance(nucleotide,list) or isinstance(nucleotide,pd.Series):
@@ -595,38 +987,74 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
     def vicinity(self, targets=['query == 1'], before=3, after=3, min_block_distance=0, fttype='same'):
         """
-        Locate genomic regions that contain features selected by some criteria.
+        List the regions of each block that surround the targets.
 
-        Each region will be described by assembly, nucleotide and a pair of minimum and
-        maximum internal IDs.
-
-        The user may choose a set of rows (targets) as anchors, whose neighbors will be
-        evaluated by user-defined parameters, such as feature type, strand or distance.
+        Each target is widened to ``before`` features above and ``after``
+        features below it, counting only features of the target's type.
+        Overlapping or close windows on the same sequence and type are
+        merged into one region, the regions are clipped to their block,
+        and on a circular replicon a region may continue over the origin.
+        The table is not cut: the result has one row per region (or per
+        piece of a region that wraps the origin) with the limits of the
+        region. :meth:`neighbors` uses these limits to pick the rows.
 
         Parameters
         ----------
-        targets: string, (list of) booleans or pd.Series
-          Rules used to identify target rows.
+        targets : str, pandas.Series or list of them, default ['query == 1']
+            Rules that select the target rows. A string is evaluated with
+            :meth:`pandas.DataFrame.eval` (for example ``"query == 1"``); a
+            single string is one rule. A boolean Series is aligned on the
+            index of the table. A row is a target when every rule holds.
+        before : int, default 3
+            Features of the target's type kept above each target.
+        after : int, default 3
+            Features of the target's type kept below each target.
+        min_block_distance : int, default 0
+            Windows of the same sequence and type that are separated by
+            at most this number of features are merged into one region.
+            With 0, windows that touch or overlap merge. A negative value
+            keeps touching windows apart.
+        fttype : {'same'}, default 'same'
+            How features are counted. ``'same'``, the only value, counts
+            features of the target's type.
 
-          Rules are based on Pandas's eval method or its results.
+        Returns
+        -------
+        pandas.DataFrame
+            One row per region piece, sorted by ``assembly``,
+            ``nucleotide``, ``topology``, ``type``, ``block_id`` and then
+            ``foup`` from high to low, with a new 0..n-1 index. A region
+            that wraps the origin has two rows with the same ``block_id``,
+            the one at the end of the replicon first. Columns:
 
-          If all rules return True for a given row, the row is a
-          target and its neighbors will be identified.
-        before: int
-          Keep at most this number of features *before* each target
-        after: int
-          Keep at most this number of features *after* each target
-        min_block_distance: int
-          Minimum distance between two blocks.
+            - ``assembly``, ``nucleotide``, ``topology``, ``type``: as in
+              the table.
+            - ``block``: the ``block_id`` of the table that holds the
+              region.
+            - ``block_id``: number of the region, from 1 across the whole
+              result. Merged windows share one.
+            - ``targets``, ``tiids``: the ``feature_order`` and
+              ``internal_id`` of the targets in the region, as sorted
+              comma-separated strings.
+            - ``foup``, ``fodown``: first and last ``feature_order`` of
+              the piece, limits included, clipped to ``fomin`` and
+              ``fomax``.
+            - ``is_fragment``: True when the region does not span its
+              whole block, or when the targets' own ``is_fragment`` was
+              True for every row of the region.
+            - ``fomin``, ``fomax``, ``iidmin``, ``iidmax``, ``bidmin``,
+              ``bidmax``: the limits that :meth:`boundaries` gives for the
+              block (``bidmin`` is always 1).
+            - ``origin``: 0 for a region inside the sequence, 1 when it
+              touches or crosses the origin of a circular replicon, 2 when
+              it covers the whole replicon.
+            - ``rid``: row number of the piece within its ``block_id``,
+              from 0.
+            - ``up``, ``down``: first and last ``internal_id`` of the
+              piece.
 
-          Blocks that are separated by smaller number of features
-          will be merged into a single block,
-        fttype: str
-          How to count neighbors by feature type.
-          Supported values:
-          ```same```
-            Consider only features of the same type as the target.
-            This is the only supported value; any other raises ValueError.
+            With no target the result is an empty frame without columns,
+            and an error is logged.
 
         Raises
         ------
@@ -634,7 +1062,30 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             If ``fttype`` is not ``'same'`` or a string rule in ``targets``
             cannot be evaluated.
         TypeError
-            If an item of ``targets`` is neither a string nor a boolean Series.
+            If an item of ``targets`` is neither a string nor a boolean
+            Series.
+        KeyError
+            If ``assembly``, ``nucleotide``, ``block_id``, ``internal_id``,
+            ``feature_order``, ``topology`` or ``type`` is missing.
+
+        See Also
+        --------
+        neighbors : Returns the rows of these regions.
+        boundaries : The block limits used to clip the regions.
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'assembly': 'GCF_1', 'nucleotide': 'NC_1', 'topology': 'linear',
+        ...     'type': 'CDS', 'start': [1, 101, 201, 301, 401],
+        ...     'end': [90, 190, 290, 390, 490], 'strand': 1,
+        ...     'pid': ['P1', 'P2', 'P3', 'P4', 'P5'], 'block_id': 'b1',
+        ...     'feature_order': range(5), 'internal_id': range(5),
+        ...     'is_fragment': False, 'query': [0, 0, 1, 0, 0]}))
+        >>> region = ndf.vicinity(before=1, after=1)
+        >>> region[['block_id', 'targets', 'foup', 'fodown', 'up', 'down', 'origin']]
+           block_id targets  foup  fodown  up  down  origin
+        0         1       2     1       3   1     3       0
         """
         _check_choice('fttype', fttype, ['same'])
 
@@ -764,43 +1215,106 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
     def neighbors(self, targets=['query == 1'], before=3, after=3, min_block_distance=0, strand='any', fttype='same'):
         """
-        Find sets of rows, representing genomic regions, that are located near a set of targets.
+        Cut a table into neighbourhood blocks around target rows.
 
-        The user may choose a set of rows (targets) as anchors, whose neighbors will be
-        evaluated by user-defined parameters, such as feature type, strand or distance.
+        For each target, keeps the ``before`` features above and the
+        ``after`` features below it, counting only features of the
+        target's type, and every row of another type that lies between
+        them. Windows that are close are merged, and on a circular
+        replicon a window can run over the origin (see :meth:`vicinity`).
+        The kept rows are numbered and the blocks are renamed, so the
+        result is a new table of blocks, not a subset with the old labels.
+        Use it on a whole-genome table; to shrink blocks you already have,
+        use :meth:`trim_blocks`.
 
-        The returned value is copy of a slice of the original NeighborhoodDF
-        object with updated block_id, origin, is_fragment and query columns.
+        Parameters
+        ----------
+        targets : str, pandas.Series or list of them, default ['query == 1']
+            Rules that select the target rows. A string is evaluated with
+            :meth:`pandas.DataFrame.eval` (for example ``"query == 1"``); a
+            single string is one rule. A boolean Series is aligned on the
+            index of the table. A row is a target when every rule holds.
+        before : int, default 3
+            Features of the target's type kept above each target.
+        after : int, default 3
+            Features of the target's type kept below each target.
+        min_block_distance : int, default 0
+            Windows of the same sequence and type separated by at most
+            this number of features are merged into one block. With a
+            negative value windows stay apart, and a row that falls in
+            two windows appears once in each block.
+        strand : {None, 'any', 'same'}, default 'any'
+            ``None`` and ``'any'`` ignore strand. ``'same'`` splits each
+            block into runs of same-strand rows and keeps only the runs
+            that contain a target; each run is a block.
+        fttype : {'same'}, default 'same'
+            How neighbours are counted. ``'same'``, the only value,
+            counts features of the target's type.
 
-        Arguments:
-         - targets : (list of) boolean pd.Series or rules to select targets.
+        Returns
+        -------
+        NeighborhoodDF
+            A copy of the kept rows with the columns of ``self``, in the
+            same order, and a new 0..n-1 index. Rows are ordered by
+            sequence and block, then in reading order (a block that wraps
+            the origin lists the end of the replicon first). These columns
+            change:
 
-            Rules will used identify target rows using Pandas's eval method.
+            - ``block_id``: ``nucleotide:start-end``, the ``nucleotide``,
+              the ``start`` of the block's first row and the ``end`` of
+              its last row.
+            - ``query``: 1 for target rows, 0 for the rest (int64).
+            - ``origin``: as in :meth:`vicinity`, if the table has the
+              column.
+            - ``is_fragment``: True when the block does not span its
+              whole sequence, if the table has the column.
+            - ``internal_id``: the row position in the result, from 0,
+              over the whole result and not per block.
 
-            If all rules return True for a given row, the row is a target and
-            its neighbors will be identified.
+            The result is empty, with the same columns as an empty
+            table from :func:`rotifer.genome.utils.seqrecords_to_dataframe`,
+            when no row is a target.
 
-         - before : keep at most this number of features, of the same type as the target,
-                    before each target
-         - after  : keep at most this number of features, of the same type as the target,
-                    after each target
+        Raises
+        ------
+        ValueError
+            If ``strand`` or ``fttype`` is not supported, or a string rule
+            in ``targets`` cannot be evaluated.
+        TypeError
+            If an item of ``targets`` is neither a string nor a boolean
+            Series.
+        KeyError
+            If ``assembly``, ``nucleotide``, ``block_id``,
+            ``internal_id``, ``feature_order``, ``topology``, ``type``,
+            ``start`` or ``end`` is missing.
 
-         - min_block_distance : minimum distance between two consecutive blocks
-                                Blocks separated by more features 
+        See Also
+        --------
+        trim_blocks : Shrink blocks that already exist, counting every row.
+        vicinity : The regions this method turns into rows.
 
-         - strand : how to evaluate rows concerning the value of the strand column
-                    Possible values for this option are:
-                     - None or 'any' : ignore strand
-                     - 'same' : keep only runs of same-strand features that
-                                contain a target
+        Notes
+        -----
+        The ``rotifer.db`` cursors call this method with ``strand=None``.
+        ``self`` is sorted by ``assembly``, ``nucleotide``, ``block_id``
+        and ``internal_id`` before the search, so the input order does
+        not matter.
 
-         - fttype : how to process feature types of neighbors
-                    Supported value:
-                     - 'same' : consider only features of the same type as the target
-
-        Raises ValueError for any other strand or fttype, or when a string
-        rule in targets cannot be evaluated; TypeError when a target is
-        neither a string nor a boolean Series.
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'assembly': 'GCF_1', 'nucleotide': 'NC_1', 'topology': 'linear',
+        ...     'type': 'CDS', 'start': [1, 101, 201, 301, 401],
+        ...     'end': [90, 190, 290, 390, 490], 'strand': 1,
+        ...     'pid': ['P1', 'P2', 'P3', 'P4', 'P5'], 'block_id': 'b1',
+        ...     'feature_order': range(5), 'internal_id': range(5),
+        ...     'is_fragment': False, 'query': [0, 0, 1, 0, 0]}))
+        >>> blocks = ndf.neighbors(before=1, after=1)
+        >>> blocks[['pid', 'block_id', 'query', 'internal_id', 'is_fragment']]
+          pid      block_id  query  internal_id  is_fragment
+        0  P2  NC_1:101-390      0            0         True
+        1  P3  NC_1:101-390      1            1         True
+        2  P4  NC_1:101-390      0            2         True
         """
         _check_choice('strand', strand, [None, 'any', 'same'])
         _check_choice('fttype', fttype, ['same'])
