@@ -450,21 +450,21 @@ class GeneNeighborhoodCursor(rotifer.db.methods.GeneNeighborhoodCursor, BaseSQLi
         the target, downstream of each target.
     min_block_distance : int, default 0
         Minimum distance between two consecutive blocks.
-    strand : str, optional
+    strand : {None, 'any', 'same'}, optional
         How to evaluate rows relative to the strand of the target.
         One of:
 
-        - None : ignore strand
-        - same : same strand as the target
-        - + : positive strand features and targets only
-        - - : negative strand features and targets only
+        - None or 'any' : ignore strand
+        - same : keep only runs of same-strand features that contain
+          a target
 
-    fttype : str, default 'same'
-        How to process feature types when counting neighbors:
+        Any other value raises ValueError.
 
-        - same : consider only features of the same type as the target
-        - any : ignore feature type when setting neighborhood
-          boundaries
+    fttype : {'same'}, default 'same'
+        How to process feature types when counting neighbors: only
+        features of the same type as the target are counted when
+        setting neighborhood boundaries. Any other value raises
+        ValueError.
 
     eukaryotes : bool, default False
         Whether the queried genomes are eukaryotic.

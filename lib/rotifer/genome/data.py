@@ -41,6 +41,19 @@ _column_dict = OrderedDict({
   'replaced'       :'feature',
 })
 
+def _check_choice(name, value, allowed):
+    """Raise ValueError unless ``value`` is one of ``allowed``.
+
+    The message names the argument, the value given and the values
+    accepted.
+    """
+    ok = (value is None and None in allowed) or (isinstance(value, str) and value in allowed)
+    if not ok:
+        raise ValueError(
+            f"{name}={value!r} is not supported; use one of "
+            + ", ".join(repr(a) for a in allowed))
+
+
 class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
     _metadata = ['filterby','NDFProperties']
     NDFProperties = {
@@ -378,10 +391,18 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
           How to count neighbors by feature type.
           Supported values:
           ```same```
-            Consider only features of the same type as the target
-          ```any```
-            Ignore feature type and count all neighboring features
+            Consider only features of the same type as the target.
+            This is the only supported value; any other raises ValueError.
+
+        Raises
+        ------
+        ValueError
+            If ``fttype`` is not ``'same'`` or a string rule in ``targets``
+            cannot be evaluated.
+        TypeError
+            If an item of ``targets`` is neither a string nor a boolean Series.
         """
+        _check_choice('fttype', fttype, ['same'])
         import sys
         import numpy as np
         from copy import deepcopy
@@ -398,10 +419,12 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             if isinstance(code,str):
                 try:
                     select &= blks.eval(code)
-                except:
-                    logger.error(f'Rule {code} failed')
+                except Exception as exc:
+                    raise ValueError(f'Rule {code!r} failed: {exc}') from exc
             elif isinstance(code,pd.Series):
                 select &= code
+            else:
+                raise TypeError(f'targets must be strings or boolean Series, not {type(code).__name__}')
 
         # Find targets and their neighborhood
         if (not isinstance(select,pd.Series)) or (select.sum() == 0):
@@ -564,18 +587,20 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
 
          - strand : how to evaluate rows concerning the value of the strand column
                     Possible values for this option are:
-                     - None : ignore strand
-                     - same : same strand as the targets
-                     -    + : positive strand features and targets only
-                     -    - : negative strand features and targets only
+                     - None or 'any' : ignore strand
+                     - 'same' : keep only runs of same-strand features that
+                                contain a target
 
          - fttype : how to process feature types of neighbors
-                    Supported values:
-                     - same : consider only features of the same type as the target
-                     - any  : ignore feature type and count all features when
-                              setting neighborhood boundaries
+                    Supported value:
+                     - 'same' : consider only features of the same type as the target
 
+        Raises ValueError for any other strand or fttype, or when a string
+        rule in targets cannot be evaluated; TypeError when a target is
+        neither a string nor a boolean Series.
         """
+        _check_choice('strand', strand, [None, 'any', 'same'])
+        _check_choice('fttype', fttype, ['same'])
         import sys
         import numpy as np
         from copy import deepcopy
@@ -592,10 +617,12 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             if isinstance(code,str):
                 try:
                     select &= df.eval(code)
-                except:
-                    logger.error(f'Rule {code} failed')
+                except Exception as exc:
+                    raise ValueError(f'Rule {code!r} failed: {exc}') from exc
             elif isinstance(code,pd.Series):
                 select &= code
+            else:
+                raise TypeError(f'targets must be strings or boolean Series, not {type(code).__name__}')
 
         # Find targets and their neighborhood
         if (not isinstance(select,pd.Series)) or (select.sum() == 0):
