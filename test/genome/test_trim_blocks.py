@@ -75,3 +75,22 @@ def test_query_column_is_not_changed_and_new_query_is_added():
     out = make_table(queries=(3,)).select_neighbors(before=1, after=1)
     assert out['query'].tolist() == [0, 1, 0]
     assert out['new_query'].tolist() == [0, 1, 0]
+
+
+def test_value_counts_full_names_the_count_columns():
+    """Columns are <column>, block_id_count, pid_count, relative_block_id, relative_pid.
+
+    Group x has 6 CDS in both blocks, group y has 4 CDS in block A only; the
+    table has 2 blocks and 10 distinct pids.
+    """
+    df = make_table()
+    df['group'] = ['x', 'x', 'y', 'y', 'y', 'y', 'x', 'x', 'x', 'x']
+    out = df.value_counts_full('group')
+    expected = pd.DataFrame({
+        'group': ['x', 'y'],
+        'block_id_count': [2, 1],
+        'pid_count': [6, 4],
+        'relative_block_id': [100.0, 50.0],
+        'relative_pid': [60.0, 40.0],
+    })
+    pd.testing.assert_frame_equal(out, expected, check_dtype=False)

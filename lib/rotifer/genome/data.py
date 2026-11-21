@@ -127,7 +127,7 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         g_df = x.groupby(column).agg({'block_id':'nunique','pid':'count'}).sort_values('block_id', ascending=False).reset_index()
         g_df['relative_block_id'] = g_df.block_id/lbid *100
         g_df['relative_pid'] = g_df.pid/lpid * 100
-        g_df.rename({'block_id':'block_id_count', 'pid':'pid_count'}, axis=1)
+        g_df = g_df.rename({'block_id':'block_id_count', 'pid':'pid_count'}, axis=1)
         logger.info(f'Total of block_id in selection:{lbid}')
         logger.info(f'Total of pid in selection :{lpid}')
 
