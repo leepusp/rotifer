@@ -15,6 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+interval/index
 cli/index
 api/index
 contributing/index

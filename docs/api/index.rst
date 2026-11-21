@@ -69,6 +69,8 @@ Genomes and annotation
 Sequence and interval utilities
 -------------------------------
 
+The :doc:`interval section </interval/index>` is the curated entry point for ``rotifer.interval``.
+
 .. autosummary::
    :toctree: generated
 
