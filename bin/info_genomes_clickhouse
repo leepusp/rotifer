@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 
-from rotifer.alchemy.connect import clickhouse
+from sqlalchemy import create_engine
 import pandas as pd
 import sys
 from tabulate import tabulate
 
 uri = 'clickhouse://default:@localhost/rotifer'
 table_name = 'genomes'
-db =  clickhouse(uri = uri,
-                        table_name = table_name)
-conn = db.conn
-db_columns = db.table_columns()
+conn = create_engine(uri).connect()
 
 # Select date
 #
