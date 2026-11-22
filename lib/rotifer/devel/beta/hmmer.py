@@ -157,6 +157,18 @@ def hmmbuild(seqobj, hmm_name='alignment', save='alignment.hmm'):
 
     return hmm
 
+_EMPTY_INT_COLUMNS = ['hit', 'env_from', 'env_to', 'aln_target_from', 'aln_target_to',
+                      'aln_target_length', 'aln_hmm_length', 'aln_hmm_from', 'aln_hmm_to']
+_EMPTY_FLOAT_COLUMNS = ['i_evalue', 'c_evalue', 'score', 'env_score', 'bias', 'correction', 'pvalue']
+
+def _empty_dtype(column):
+    '''dtype of a column in an empty pyhmmer_to_df result (object for text).'''
+    if column in _EMPTY_INT_COLUMNS:
+        return 'int64'
+    if column in _EMPTY_FLOAT_COLUMNS:
+        return 'float64'
+    return object
+
 def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue','c_evalue','score','env_score','aln_target_from','aln_target_to','aln_target_length','aln_hmm_length','env_from','env_to']):
     # Creation of the list to store the results
     r = []
@@ -199,7 +211,7 @@ def pyhmmer_to_df(output, columns=['aln_target_name', 'aln_hmm_name','i_evalue',
 
     if df.empty:
         print("No results found in HMMER output.")
-        return pd.DataFrame(columns=columns)
+        return pd.DataFrame({ c: pd.Series(dtype=_empty_dtype(c)) for c in (columns or []) })
 
     if columns:
         df = df[columns]
