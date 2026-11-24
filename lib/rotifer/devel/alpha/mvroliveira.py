@@ -260,7 +260,7 @@ def build_ssn(hits, criteria='bitscore > 70', keep_best='bitscore',
         ties between the two directions of a pair. Direction (higher
         or lower wins) is picked automatically.
     add_community : bool, default False
-        Also run Louvain/Leiden clustering (rotifer.devel.alpha.net_functions)
+        Also run Louvain/Leiden clustering (rotifer.graph.network)
         and store it as node attributes 'Louvain' / 'Leiden' -- handy to
         color by in Cytoscape afterwards (see to_cytoscape's color_by).
     auto_cutoff : bool, default False
@@ -413,9 +413,9 @@ def build_ssn(hits, criteria='bitscore > 70', keep_best='bitscore',
     if add_community:
         pbar.set_description('detecting communities')
         if G.number_of_edges() > 0:
-            from rotifer.devel.alpha import net_functions
+            from rotifer.graph import network as net_functions
             weight = 'bitscore' if 'bitscore' in edge_attrs else (edge_attrs[0] if edge_attrs else None)
-            c = net_functions.get_network_community(G, weight=weight, resolution_parameter=resolution_parameter)
+            c = net_functions.get_network_community(G, weight=weight, cpm_resolution=resolution_parameter)
             nx.set_node_attributes(G, c['Louvain'][0], name='Louvain')
             nx.set_node_attributes(G, c['Leidein'][0], name='Leiden')
         pbar.update(1)

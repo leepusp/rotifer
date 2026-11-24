@@ -79,6 +79,19 @@ Sequence and interval utilities
    rotifer.io.fileinput
    rotifer.io.hhsuite
 
+Graphs and networks
+-------------------
+
+The :doc:`graphs section </graph/index>` is the curated entry point for
+``rotifer.graph`` and ``rotifer.view.network``.
+
+.. autosummary::
+   :toctree: generated
+
+   rotifer.graph
+   rotifer.graph.network
+   rotifer.view.network
+
 Data manipulation and taxonomy
 ------------------------------
 
