@@ -515,16 +515,17 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             _['compact'] = compacted(_)
             _['pid_compact'] = compacted(_, annotation='pid')
 
-            return _.groupby(
-                group
-            ).agg({'compact': lambda x: "".join(list(x))[:-1],
-                   'block_id':'first',
-                   'lineage':'first',
-                   'organism':'first',
-                   'seq_type':'first',
-                   'classification':'first',
-                   'pid_compact': lambda x: "".join(list(x))[:-1]
-                  })
+            return _.groupby(group).agg(agg_spec)
+
+        # One row per group; also the schema of an empty result.
+        agg_spec = {'compact': lambda x: "".join(list(x))[:-1],
+                    'block_id':'first',
+                    'lineage':'first',
+                    'organism':'first',
+                    'seq_type':'first',
+                    'classification':'first',
+                    'pid_compact': lambda x: "".join(list(x))[:-1]
+                   }
 
         # Main function, select if it will be grouped by block_id or strand,
         # and then make the groupby.
@@ -534,7 +535,13 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
             _1 = self.same_strand(query=query).copy()
         else:
             _1 = self.group_strand().copy()
-        return _1.groupby(group).apply(main_cnei).reset_index(drop = True).set_index('block_id')
+        if _1.empty:
+            return pd.DataFrame(columns=list(agg_spec)).set_index('block_id')
+
+        # Iterate the groups instead of groupby().apply(): pandas 3 no longer
+        # passes the grouping column to apply(), and main_cnei needs it.
+        compacted_groups = [main_cnei(df_to_compact) for _, df_to_compact in _1.groupby(group)]
+        return pd.concat(compacted_groups).reset_index(drop = True).set_index('block_id')
 
     #Alias for compact neighborhood
     compact = compact_neighborhood
