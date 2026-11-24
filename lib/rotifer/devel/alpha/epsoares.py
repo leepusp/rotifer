@@ -61,17 +61,26 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     else:
         seqobj = seqobj.copy()
 
-    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='left')
+    # Only proteins with a hit: the others have no envelope to extract
+    nohit = ~seqobj.df.id.isin(df.sequence)
+    if nohit.any():
+        dropped = seqobj.df.id[nohit].drop_duplicates().astype(str)
+        logger.warning(f'{len(dropped)} protein(s) had no hit and were dropped: ' + ', '.join(dropped))
+        seqobj.df = seqobj.df[~nohit]
+    seqobj.df = seqobj.df.merge(df.rename({'sequence':'id'},axis=1), how='inner')
     seqobj.df['end'] = seqobj.df[end].fillna(seqobj.df.length).astype(int)
     seqobj.df['start'] = seqobj.df[start].fillna(1).astype(int)
 
+    # Coordinates are 1-based and inclusive: expand both sides by the
+    # same margin, within the protein
     if expand:
-        seqobj.df['start'] = np.where(seqobj.df.start<=expand,1,seqobj.df.start-expand+1)
-        seqobj.df['end'] = np.where(seqobj.df.end+expand > seqobj.df.length, seqobj.df.length, seqobj.df.end+expand)
+        seqobj.df['start'] = (seqobj.df.start - expand).clip(lower=1)
+        seqobj.df['end'] = (seqobj.df.end + expand).clip(upper=seqobj.df.length)
 
     seqobj.df.sequence = seqobj.df.apply(lambda row: row['sequence'][row['start'] - 1:row['end']], axis=1)
+    # The id names the region actually cut, margin included
     seqobj.df['pid'] = seqobj.df['id']
-    seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df[start].astype(str) + '-' + seqobj.df[end].astype(str)
+    seqobj.df['id'] = seqobj.df['id'] + '/' + seqobj.df['start'].astype(str) + '-' + seqobj.df['end'].astype(str)
     seqobj._reset()
 
     return seqobj

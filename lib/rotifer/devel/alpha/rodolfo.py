@@ -836,15 +836,28 @@ def extract_envelope(df, start='estart', end='eend', expand=10, local_database_p
     Using a hmm model to split your sequence object to match only the model region.
     If more than one match in one protein, it will split the match in two sequence.
 
-    
+    .. deprecated::
+       Use :func:`rotifer.devel.beta.blast.extract_envelope` instead.
+       This copy is no longer maintained and keeps coordinate errors
+       fixed there (issue #142): the start is widened by expand - 1,
+       envelopes closer than expand to residue 1 come back empty or
+       wrong, and the id shows the envelope instead of the region cut.
     '''
 
     import os
+    import warnings
     import pandas as pd
     import tempfile
     import subprocess
     from subprocess import Popen, PIPE, STDOUT
     from rotifer.devel.beta import sequence as rdbs
+
+    warnings.warn(
+        'rotifer.devel.alpha.rodolfo.extract_envelope is deprecated and returns wrong '
+        'coordinates (issue #142); use rotifer.devel.beta.blast.extract_envelope instead',
+        FutureWarning,
+        stacklevel=2,
+    )
     
     myDF = df.drop_duplicates()
 
