@@ -46,7 +46,6 @@ MOCKED_IMPORTS = [
     "matplotlib",
     "seaborn",
     "networkx",
-    "sqlalchemy",
     "yaml",
     "scipy",
     "IPython",

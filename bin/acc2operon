@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 import rotifer.core.cli as corecli
 import rotifer.core.functions as rcf
 from rotifer.neighborhood import neighborhood
-from rotifer.alchemy.connect import clickhouse
+CLICKHOUSE_URI = 'clickhouse://default:@localhost:8123/rotifer'
 
 # Warnings: why???????????
 import warnings
@@ -1084,8 +1084,7 @@ if __name__ == '__main__':
 
     if search == 'local':
         try:
-            click = clickhouse(table_name = 'genomes')
-            conn = click.conn
+            conn = create_engine(CLICKHOUSE_URI).connect()
 
             acc_formated = ','.join(["'" + x +"'" for x in accs])
             s = time.time()
@@ -1150,8 +1149,7 @@ if __name__ == '__main__':
             #
             # client.execute(f'''CREATE TABLE rotifer.{table_name} (acc String, assembly String, nucleotide String, original String, asm_modified String)
             #                ENGINE = MergeTree ORDER BY (original)''')
-            click = clickhouse(table_name = 'genomes')
-            conn = click.conn
+            conn = create_engine(CLICKHOUSE_URI).connect()
 
             # Need to remove from db
             df_all, df_ann =  acc2asm2gbk(accs, db, verbose, df_accs, threads = int(args.threads),
