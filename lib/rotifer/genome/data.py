@@ -925,3 +925,164 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         v5 = viz.merge(v4[['vizi', 'nei_c', 'ncc']], how='left')
         return v5
 
+
+    def to_blocks(self, **kwargs):
+        """
+        Render the neighborhood as text blocks, one per c80e3 cluster.
+
+        Applies :data:`rotifer.genome.blocks.NEIGHBORHOOD_BLOCKS` to
+        :func:`rotifer.pandas.to_blocks`. The preset groups by ``c80e3``,
+        shows the columns ``pid``, ``c80i70``, ``c100i100``, ``plen``,
+        ``pfam``, ``aravind``, ``product``, ``organism``, ``lineage`` and
+        ``classification``, sorts the rows by ``lineage``,
+        ``classification`` and ``organism``, and summarises each block by
+        the number of distinct ``lineage``, ``block_id``, ``c80i70`` and
+        ``pid`` values.
+
+        Parameters
+        ----------
+        **kwargs
+            Any argument of :func:`rotifer.pandas.to_blocks`. A keyword
+            that is also a preset entry (``groupby``, ``columns``,
+            ``stats``, ``sortrows``) replaces that entry.
+
+        Returns
+        -------
+        str or None
+            The text, or None when ``buf`` is given.
+
+        See Also
+        --------
+        to_yaml : Same blocks as a YAML document of markdown tables.
+        rotifer.pandas.to_blocks : The function this method calls.
+        """
+        import rotifer.pandas
+        from rotifer.genome.blocks import NEIGHBORHOOD_BLOCKS
+        return rotifer.pandas.to_blocks(self, **{**NEIGHBORHOOD_BLOCKS, **kwargs})
+
+    def to_yaml(self, **kwargs):
+        """
+        Write the neighborhood as a YAML document of markdown tables.
+
+        Applies :data:`rotifer.genome.blocks.NEIGHBORHOOD_YAML` to
+        :func:`rotifer.pandas.yaml_blocks.to_yaml`. The preset groups by
+        ``c80e3`` and shows the same columns as :meth:`to_blocks`. It sorts
+        rows by ``superkingdom``, ``phylum``, ``lineage``,
+        ``classification`` and ``c80i70`` in ascending order, and sorts
+        blocks by ``phylum`` and ``c80i70`` in descending order. Each block gets an
+        annotation table holding the most frequent ``pfam``, a ``stats``
+        table with the number of distinct ``superkingdom``, ``lineage``,
+        ``phylum``, ``taxid``, ``c80i70`` and ``pid`` values, and a
+        ``dist`` table with the number of distinct ``c80i70`` per ``pfam``.
+
+        Parameters
+        ----------
+        **kwargs
+            Any argument of :func:`rotifer.pandas.yaml_blocks.to_yaml`. A
+            keyword that is also a preset entry (``groupby``,
+            ``columns``, ``sortrows``, ``sortblocks``, ``annotation``,
+            ``stats``, ``dist``) replaces that entry.
+
+        Returns
+        -------
+        str or None
+            The text, or None when ``buf`` is given.
+
+        See Also
+        --------
+        to_blocks : Plain text blocks.
+        rotifer.pandas.yaml_blocks.read_yaml : Reads the document back into a frame.
+        """
+        import rotifer.pandas.yaml_blocks
+        from rotifer.genome.blocks import NEIGHBORHOOD_YAML
+        return rotifer.pandas.yaml_blocks.to_yaml(self, **{**NEIGHBORHOOD_YAML, **kwargs})
+
+    def to_network(self, target='pfam', *, strand=True, ftype='CDS', interaction=True,
+                   ignore=None, separator='+', separator_regex=False, replace=None,
+                   replace_regex=False, stats=None):
+        """
+        List the edges between features that are adjacent in each block.
+
+        Calls :func:`rotifer.graph.network.adjacency_edges` on the
+        neighborhood table. With ``strand=True`` the table is first reduced
+        to the query rows and the neighbours on the same strand, ordered so
+        that every block reads in the direction of its query (blocks of a
+        minus-strand query are reversed). With ``strand=False`` the table is
+        used in its current row order, and neighbour edges are made
+        undirected (``orient=True``).
+
+        Parameters
+        ----------
+        target : str or list of str, default 'pfam'
+            Column or columns that label each feature.
+        strand : bool, default True
+            Keep only features on the strand of the query and orient every
+            block along it. With False, the frame is used in its current
+            row order and neighbor edges are made undirected (the smaller
+            label is ``source``); fusion edges keep the N to C order.
+        ftype : str or list of str, default 'CDS'
+            Values of the ``type`` column to keep.
+        interaction : bool, default True
+            Tell fusions from neighbours and count each kind separately.
+        ignore : iterable of str, optional
+            Labels to remove before the edges are made. A single string is
+            one label.
+        separator : str or None, default '+'
+            Splits each label into one label per domain. None keeps each
+            label whole.
+        separator_regex : bool, default False
+            Read ``separator`` as a regular expression.
+        replace : mapping, optional
+            Renames labels, after splitting.
+        replace_regex : bool, default False
+            Read the keys of ``replace`` as regular expressions.
+        stats : dict, optional
+            Named aggregations, as ``{name: (column, function)}``. Defaults
+            to the number of rows (``weight``) and of distinct blocks
+            (``blocks``) with each edge.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per distinct edge, with the columns described in
+            :func:`rotifer.graph.network.adjacency_edges`. ``self`` is not
+            modified.
+
+        Raises
+        ------
+        ImportError
+            If :mod:`rotifer.graph.network` cannot be imported. Install
+            the ``graph`` extra with ``pip install rotifer[graph]``.
+        KeyError
+            If ``block_id``, ``pid``, ``type`` or a ``target`` column is
+            missing.
+
+        See Also
+        --------
+        rotifer.graph.network.adjacency_edges : The function this method calls.
+        rotifer.graph.network.get_relations : Relates every pair of domains in a
+            block instead of adjacent ones.
+
+        Notes
+        -----
+        The graph module is imported when the method is called, so
+        :mod:`rotifer.genome.data` can be used without the ``graph`` extra.
+        """
+        try:
+            from rotifer.graph.network import adjacency_edges
+        except ImportError as exc:
+            raise ImportError(
+                "NeighborhoodDF.to_network needs the graph extra: pip install rotifer[graph]"
+            ) from exc
+        if strand:
+            w = self.neighbors(before=len(self), after=len(self), strand='same')
+            w['rid'] = range(1, len(w) + 1)
+            w['rid'] = w['rid'] * w['strand']
+            w = w.sort_values(['rid'])
+        else:
+            w = self
+        return adjacency_edges(w, target, ftype=ftype, interaction=interaction,
+                               ignore=ignore, separator=separator,
+                               separator_regex=separator_regex, replace=replace,
+                               replace_regex=replace_regex, orient=not strand,
+                               stats=stats)

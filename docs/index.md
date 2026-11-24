@@ -15,6 +15,8 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+graph/index
+pandas/index
 api/index
 changelog
 adr/index

@@ -86,49 +86,61 @@ def extract_envelope(df, seqobj=None, start='estart', end='eend', expand=10, loc
     return seqobj
 
 def to_network(df, target=['pfam'], ftype=['CDS'], interaction=True, ignore = [], strand = True):
-    if isinstance(ftype, str):
-        ftype = [ftype]
-    if isinstance(target, str):
-        itarget = [target]
+    """
+    List the edges between adjacent features of a neighborhood table.
 
-    w = df.copy()
-    if strand:
-        w = df.neighbors(strand='same')
-        w['rid'] = list(range(1,len(w)+1))
-        w.rid = w.rid * w.strand
-        w.sort_values(['rid'], inplace=True)
+    .. deprecated::
+       Will be removed on 2026-11-30. Use
+       :meth:`rotifer.genome.data.NeighborhoodDF.to_network` instead.
 
-    # Building the source column
-    w = w.query(f'type == "{ftype}"').block_id.reset_index().drop('index', axis=1)
-    w['source'] = df[target[0]]
-    for col in target[1:]:
-        w['source'] = np.where(w['source'].isna(), df[df.type == ftype][col], w['source'])
-    w['source'] = w['source'].fillna("?").str.split('+')
-    w = w.explode(column='source')
-    if ignore:
-        w = w[~w.source.isin(ignore)].copy()
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Neighborhood table. A plain frame is converted to
+        :class:`rotifer.genome.data.NeighborhoodDF` first.
+    target : str or list of str, default ['pfam']
+        Column or columns that label each feature.
+    ftype : str or list of str, default ['CDS']
+        Values of the ``type`` column to keep.
+    interaction : bool, default True
+        Tell fusions from neighbours and count each kind separately.
+    ignore : list of str, default []
+        Labels to remove. An empty list removes nothing.
+    strand : bool, default True
+        Keep only same-strand features and read every block in the
+        direction of the query. With False, the frame is used in its
+        current row order and neighbor edges are made undirected (the
+        smaller label is ``source``); fusion edges keep the N to C order.
 
-    # Building target data
-    w['tblock_id'] = w['block_id'].shift(-1)
-    w['target'] = w['source'].shift(-1)
+    Returns
+    -------
+    pandas.DataFrame
+        One row per distinct edge, as returned by
+        :meth:`rotifer.genome.data.NeighborhoodDF.to_network`.
 
-    # Selecting same block rows
-    w = w[w.block_id == w.tblock_id.shift(1)].copy()
+    Warns
+    -----
+    FutureWarning
+        Always, on every call.
 
-    # Fix source target order when not restricted to the same strand
-    sameprotein = (w.index.to_series() == w.index.to_series().shift(1))
-    if not strand:
-        reverse = (~sameprotein) & (w.source > w.target)
-        w.loc[reverse,['source','target']] = w.loc[reverse, ['target', 'source']].values
+    See Also
+    --------
+    rotifer.genome.data.NeighborhoodDF.to_network : Replacement.
+    """
+    import warnings
+    from rotifer.genome.data import NeighborhoodDF
 
-    if interaction:
-        w['interaction'] = np.where(sameprotein, 'fusion', 'neighbor')
-        w = w.groupby(['source', 'target', 'interaction'])
-    else:
-        w = w.groupby(['source', 'target'])
+    warnings.warn(
+        "rotifer.devel.alpha.epsoares.to_network is deprecated and will be removed on 2026-11-30 (issue #160); "
+        "use NeighborhoodDF.to_network instead",
+        FutureWarning,
+        stacklevel=2,
+    )
+    if not isinstance(df, NeighborhoodDF):
+        df = NeighborhoodDF(df)
+    return df.to_network(target, strand=strand, ftype=ftype, interaction=interaction,
+                         ignore=ignore or None)
 
-    w = w.agg(weight=('block_id', 'count'), blocks=('block_id', 'nunique')).reset_index()
-    return w
 
 def make_palette(categories):
     """

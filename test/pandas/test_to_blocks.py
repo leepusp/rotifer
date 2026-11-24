@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for rotifer.pandas.to_blocks headers and rotifer.pandas._resolve_stats.
+"""Tests for rotifer.pandas.to_blocks headers and the statistics they carry.
 
 Block headers have the form
 
@@ -19,7 +19,6 @@ import pandas as pd
 import pytest
 
 import rotifer.pandas as rp
-from rotifer.pandas import _resolve_stats
 
 
 def frame():
@@ -97,21 +96,24 @@ def test_missing_stats_column_raises():
                      stats={('lineage',): 'nunique'})
 
 
-def test_resolve_stats_aggregations():
-    df = pd.DataFrame({'organism': ['E. coli', 'X'], 'lineage': ['L1', 'L2'], 'n': [1, 2]})
-    assert _resolve_stats(df, {'lineage': 'nunique'}) == {'lineage': 2}
-    assert _resolve_stats(df, {'n': 'size'}) == {'n': 2}     # a property, not a method
-    assert _resolve_stats(df, {'n': 7}) == {'n': 7}          # value supplied directly
+def stats_header(df, stats):
+    return rp.to_blocks(df, groupby='g', columns=['n'], stats=stats, sortrows={}).splitlines()[1]
 
 
-def test_resolve_stats_is_idempotent_for_string_valued_aggregations():
-    """_resolve_stats runs twice per block (default_block_rows, then default_header).
-    An aggregation may itself return a string, which the second pass must not try
-    to re-resolve."""
-    df = pd.DataFrame({'organism': ['E. coli', 'X']})
-    once = _resolve_stats(df, {'organism': 'max'})
-    assert once == {'organism': 'X'}
-    assert _resolve_stats(df, once) == once
+def test_stats_aggregations():
+    df = pd.DataFrame({'g': ['A', 'A'], 'organism': ['E. coli', 'X'],
+                       'lineage': ['L1', 'L2'], 'n': [1, 2]})
+    assert stats_header(df, {'lineage': 'nunique'}) == '# g=A; lineage=2'
+    assert stats_header(df, {'n': 'size'}) == '# g=A; n=2'    # a property, not a method
+    assert stats_header(df, {'n': 7}) == '# g=A; n=7'          # value supplied directly
+
+
+def test_stats_are_idempotent_for_string_valued_aggregations():
+    """Statistics are resolved twice per block (block rows, then header). An
+    aggregation may itself return a string, which the second pass must not try to
+    re-resolve."""
+    df = pd.DataFrame({'g': ['A', 'A'], 'organism': ['E. coli', 'X'], 'n': [1, 2]})
+    assert stats_header(df, {'organism': 'max'}) == '# g=A; organism=X'
 
 
 if __name__ == '__main__':
