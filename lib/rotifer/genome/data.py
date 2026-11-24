@@ -893,35 +893,333 @@ class NeighborhoodDF(pd.DataFrame, rotifer.pipeline.Annotatable):
         # Return
         return copy
 
-###### New functions added 03/12/2021 Gian
-    def jaccard(self, min_c80e3=3):
-        import community
-        import networkx as nx
-        df = self.copy()
-        viz = df.groupby('block_id').agg(vizi = ('c80e3', lambda x: set(pd.Series(x).dropna().drop_duplicates().sort_values().to_list())), vc = ('c80e3', 'nunique')).reset_index()
-        viz2 = viz.query('vc >= @min_c80e3')
-        viz2 = viz2[~viz2.vizi.astype(str).duplicated(keep='first')]
-        viz2['t'] = 1
-        t2 = viz2.merge(viz2, on='t')
-        t2.block_id_x, t2.block_id_y = np.where(t2.block_id_x > t2.block_id_y , [t2.block_id_x, t2.block_id_y], [t2.block_id_y, t2.block_id_x])
-        t2 = t2.drop_duplicates(['block_id_x', 'block_id_y'])
-        logger.info(f'tamanho t2 depois da ordenacao:  {len(t2)}')
-        t2 = t2[t2.block_id_x != t2.block_id_y]
-        t2['uni'] = t2.apply(lambda x: x.vizi_x.union(x.vizi_y), axis=1)
-        t2['inter'] = t2.apply(lambda x: x.vizi_x.intersection(x.vizi_y), axis=1)
-        t2['Jaccard_index'] = t2.apply(lambda x: len(x.inter)/len(x.uni), axis=1)
-        t2 = t2.sort_values('Jaccard_index')
-        t3 = t2[['block_id_x', 'block_id_y', 'Jaccard_index']].rename({'block_id_x': 'source', 'block_id_y':'target', 'Jaccard_index':'ji'}, axis=1)
-        G2 = nx.from_pandas_edgelist(t3[['source', 'target', 'ji']].query('ji >= 0.3'), edge_attr='ji')
-        partition = community.best_partition(G2,weight='ji')
-        c = pd.DataFrame.from_dict(partition,orient='index').reset_index().rename(
-            {'index': 'block_id', 0: 'nei_c'}, axis=1)
-        viz.vizi = viz.vizi.astype('str')
-        v3 = viz.merge(c)
-        v3.vizi = v3.vizi.astype('str')
-        cc = [c  for c in sorted(nx.connected_components(G2), key=len, reverse=True)]
-        ncc = pd.Series(cc).reset_index().explode([0]).rename({'index':'ncc', 0: 'block_id'}, axis=1)
-        v4 = v3.merge(ncc, how='left')
-        v5 = viz.merge(v4[['vizi', 'nei_c', 'ncc']], how='left')
-        return v5
+    def jaccard(self, column='c80e3', *, min_members=3, min_jaccard=0.3, seed=0):
+        """
+        Group neighbourhoods that share protein clusters.
 
+        Each block is described by the set of distinct values of ``column``
+        found in it, by default its ``c80e3`` protein clusters. Blocks are
+        joined when the Jaccard index of their sets reaches ``min_jaccard``,
+        and the graph made by those joins is split into Louvain communities
+        [1]_ and into connected components.
+
+        Parameters
+        ----------
+        column : str, default 'c80e3'
+            Column whose distinct values describe a block. Missing values
+            are ignored.
+        min_members : int, default 3
+            Blocks with fewer distinct values than this are kept in the
+            output but left out of the graph, so their ``community`` and
+            ``component`` are missing.
+        min_jaccard : float, default 0.3
+            Lowest Jaccard index, from 0 to 1, at which two blocks are
+            joined. A pair exactly at the threshold is joined.
+        seed : int or None, default 0
+            Random seed for Louvain, so a rerun gives the same communities.
+            None gives an unseeded run.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per block, in the order in which blocks first appear in
+            the table, with the columns:
+
+            - ``block_id``: the block.
+            - ``members``: the distinct values of ``column`` in the block,
+              as a sorted tuple (empty when all are missing).
+            - ``n_members``: the length of ``members``.
+            - ``community``: the block's Louvain community (Int64).
+            - ``component``: the block's connected component (Int64).
+
+            Communities and components are numbered by size, 0 being the
+            largest; ties go to the one whose earliest block comes first in
+            the table. Both are missing (``<NA>``) for a block that is not in
+            the graph: it has fewer than ``min_members`` values, or no other
+            block reaches ``min_jaccard`` with it. ``self`` is not modified.
+
+        Raises
+        ------
+        ImportError
+            If :mod:`rotifer.graph.network` cannot be imported. Install
+            the ``graph`` extra with ``pip install rotifer[graph]``.
+        KeyError
+            If ``block_id`` or ``column`` is missing.
+        ValueError
+            If ``min_members`` is lower than 1 or ``min_jaccard`` is not
+            between 0 and 1.
+
+        See Also
+        --------
+        rotifer.graph.network.overlap_edges : Computes the Jaccard index
+            between blocks.
+        rotifer.graph.network.get_network_community : Louvain and Leiden
+            communities of a domain network.
+
+        Notes
+        -----
+        Blocks with the same set of values are scored once, as one node,
+        and all get that node's community and component. This keeps the
+        number of pairs down when many blocks are identical, and it never
+        changes the result, since identical blocks have a Jaccard index
+        of 1.
+
+        Louvain maximises modularity with a random node order, so another
+        ``seed`` can give another partition on graphs with weak community
+        structure. Components do not depend on the seed.
+
+        References
+        ----------
+        .. [1] Blondel, V. D., Guillaume, J.-L., Lambiotte, R. & Lefebvre, E.
+           "Fast unfolding of communities in large networks." J. Stat. Mech.
+           P10008 (2008). https://doi.org/10.1088/1742-5468/2008/10/P10008
+
+        Examples
+        --------
+        >>> ndf = NeighborhoodDF(pd.DataFrame({
+        ...     'block_id': ['b1'] * 3 + ['b2'] * 3 + ['b3'] * 3 + ['b4'],
+        ...     'c80e3': ['A', 'B', 'C', 'A', 'B', 'D', 'X', 'Y', 'Z', 'A']}))
+        >>> ndf.jaccard()
+          block_id    members  n_members  community  component
+        0       b1  (A, B, C)          3          0          0
+        1       b2  (A, B, D)          3          0          0
+        2       b3  (X, Y, Z)          3       <NA>       <NA>
+        3       b4       (A,)          1       <NA>       <NA>
+        """
+        try:
+            from rotifer.graph.network import overlap_edges
+            import networkx as nx
+        except ImportError as exc:
+            raise ImportError(
+                "NeighborhoodDF.jaccard needs the graph extra: "
+                "pip install rotifer[graph]") from exc
+
+        missing = [c for c in ('block_id', column) if c not in self.columns]
+        if missing:
+            raise KeyError(f"columns missing from the table: {missing}")
+        if min_members < 1:
+            raise ValueError(f"min_members must be at least 1, got {min_members}")
+        if not 0 <= min_jaccard <= 1:
+            raise ValueError(f"min_jaccard must be between 0 and 1, got {min_jaccard}")
+
+        cols = ['block_id', 'members', 'n_members', 'community', 'component']
+        sets = {}
+        for bid, values in self[['block_id', column]].groupby('block_id', sort=False)[column]:
+            sets[bid] = tuple(sorted(values.dropna().unique()))
+        out = pd.DataFrame({
+            'block_id': list(sets),
+            'members': pd.Series(list(sets.values()), dtype=object),
+            'n_members': pd.Series([len(m) for m in sets.values()], dtype='int64'),
+        })
+        out['community'] = pd.array([pd.NA] * len(out), dtype='Int64')
+        out['component'] = pd.array([pd.NA] * len(out), dtype='Int64')
+        if out.empty:
+            return out[cols]
+
+        eligible = out.n_members >= min_members
+        set_id = {}
+        block_set = [None] * len(out)
+        for i, (m, ok) in enumerate(zip(out.members, eligible)):
+            if ok:
+                block_set[i] = set_id.setdefault(m, len(set_id))
+        if not set_id:
+            return out[cols]
+        long = pd.DataFrame(
+            [(sid, v) for m, sid in set_id.items() for v in m],
+            columns=['set_id', 'member'])
+        edges = overlap_edges(long, 'set_id', 'member', metric='jaccard',
+                              min_weight=min_jaccard)
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            zip(edges.source, edges.target, edges.weight), weight='weight')
+        # Blocks with identical sets have a Jaccard index of 1 with each
+        # other, so a set held by two or more blocks is a node even when no
+        # other set is joined to it.
+        counts = pd.Series([s for s in block_set if s is not None]).value_counts()
+        G.add_nodes_from(counts.index[counts > 1])
+        if G.number_of_nodes() == 0:
+            return out[cols]
+
+        n_blocks, first = {}, {}
+        for pos, sid in enumerate(block_set):
+            if sid is not None and sid in G:
+                n_blocks[sid] = n_blocks.get(sid, 0) + 1
+                first.setdefault(sid, pos)
+
+        def number(groups):
+            keyed = []
+            for g in groups:
+                g = set(g)
+                keyed.append((-sum(n_blocks[s] for s in g),
+                              min(first[s] for s in g), g))
+            keyed.sort(key=lambda t: t[:2])
+            return {s: rank for rank, (_, _, g) in enumerate(keyed) for s in g}
+
+        comm = number(nx.community.louvain_communities(G, weight='weight', seed=seed))
+        comp = number(nx.connected_components(G))
+        out['community'] = pd.array([comm.get(s, pd.NA) if s is not None else pd.NA
+                                     for s in block_set], dtype='Int64')
+        out['component'] = pd.array([comp.get(s, pd.NA) if s is not None else pd.NA
+                                     for s in block_set], dtype='Int64')
+        return out[cols]
+
+    def to_blocks(self, **kwargs):
+        """
+        Render the neighborhood as text blocks, one per c80e3 cluster.
+
+        Applies :data:`rotifer.genome.blocks.NEIGHBORHOOD_BLOCKS` to
+        :func:`rotifer.pandas.to_blocks`. The preset groups by ``c80e3``,
+        shows the columns ``pid``, ``c80i70``, ``c100i100``, ``plen``,
+        ``pfam``, ``aravind``, ``product``, ``organism``, ``lineage`` and
+        ``classification``, sorts the rows by ``lineage``,
+        ``classification`` and ``organism``, and summarises each block by
+        the number of distinct ``lineage``, ``block_id``, ``c80i70`` and
+        ``pid`` values.
+
+        Parameters
+        ----------
+        **kwargs
+            Any argument of :func:`rotifer.pandas.to_blocks`. A keyword
+            that is also a preset entry (``groupby``, ``columns``,
+            ``stats``, ``sortrows``) replaces that entry.
+
+        Returns
+        -------
+        str or None
+            The text, or None when ``buf`` is given.
+
+        See Also
+        --------
+        to_yaml : Same blocks as a YAML document of markdown tables.
+        rotifer.pandas.to_blocks : The function this method calls.
+        """
+        import rotifer.pandas
+        from rotifer.genome.blocks import NEIGHBORHOOD_BLOCKS
+        return rotifer.pandas.to_blocks(self, **{**NEIGHBORHOOD_BLOCKS, **kwargs})
+
+    def to_yaml(self, **kwargs):
+        """
+        Write the neighborhood as a YAML document of markdown tables.
+
+        Applies :data:`rotifer.genome.blocks.NEIGHBORHOOD_YAML` to
+        :func:`rotifer.pandas.yaml_blocks.to_yaml`. The preset groups by
+        ``c80e3`` and shows the same columns as :meth:`to_blocks`. It sorts
+        rows by ``superkingdom``, ``phylum``, ``lineage``,
+        ``classification`` and ``c80i70`` in ascending order, and sorts
+        blocks by ``phylum`` and ``c80i70`` in descending order. Each block gets an
+        annotation table holding the most frequent ``pfam``, a ``stats``
+        table with the number of distinct ``superkingdom``, ``lineage``,
+        ``phylum``, ``taxid``, ``c80i70`` and ``pid`` values, and a
+        ``dist`` table with the number of distinct ``c80i70`` per ``pfam``.
+
+        Parameters
+        ----------
+        **kwargs
+            Any argument of :func:`rotifer.pandas.yaml_blocks.to_yaml`. A
+            keyword that is also a preset entry (``groupby``,
+            ``columns``, ``sortrows``, ``sortblocks``, ``annotation``,
+            ``stats``, ``dist``) replaces that entry.
+
+        Returns
+        -------
+        str or None
+            The text, or None when ``buf`` is given.
+
+        See Also
+        --------
+        to_blocks : Plain text blocks.
+        rotifer.pandas.yaml_blocks.read_yaml : Reads the document back into a frame.
+        """
+        import rotifer.pandas.yaml_blocks
+        from rotifer.genome.blocks import NEIGHBORHOOD_YAML
+        return rotifer.pandas.yaml_blocks.to_yaml(self, **{**NEIGHBORHOOD_YAML, **kwargs})
+
+    def to_network(self, target='pfam', *, strand=True, ftype='CDS', interaction=True,
+                   ignore=None, separator='+', separator_regex=False, replace=None,
+                   replace_regex=False, stats=None):
+        """
+        List the edges between features that are adjacent in each block.
+
+        Calls :func:`rotifer.graph.network.adjacency_edges` on the
+        neighborhood table. With ``strand=True`` the table is first reduced
+        to the query rows and the neighbours on the same strand, ordered so
+        that every block reads in the direction of its query (blocks of a
+        minus-strand query are reversed). With ``strand=False`` the table is
+        used in its current row order, and neighbour edges are made
+        undirected (``orient=True``).
+
+        Parameters
+        ----------
+        target : str or list of str, default 'pfam'
+            Column or columns that label each feature.
+        strand : bool, default True
+            Keep only features on the strand of the query and orient every
+            block along it. With False, the frame is used in its current
+            row order and neighbor edges are made undirected (the smaller
+            label is ``source``); fusion edges keep the N to C order.
+        ftype : str or list of str, default 'CDS'
+            Values of the ``type`` column to keep.
+        interaction : bool, default True
+            Tell fusions from neighbours and count each kind separately.
+        ignore : iterable of str, optional
+            Labels to remove before the edges are made. A single string is
+            one label.
+        separator : str or None, default '+'
+            Splits each label into one label per domain. None keeps each
+            label whole.
+        separator_regex : bool, default False
+            Read ``separator`` as a regular expression.
+        replace : mapping, optional
+            Renames labels, after splitting.
+        replace_regex : bool, default False
+            Read the keys of ``replace`` as regular expressions.
+        stats : dict, optional
+            Named aggregations, as ``{name: (column, function)}``. Defaults
+            to the number of rows (``weight``) and of distinct blocks
+            (``blocks``) with each edge.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per distinct edge, with the columns described in
+            :func:`rotifer.graph.network.adjacency_edges`. ``self`` is not
+            modified.
+
+        Raises
+        ------
+        ImportError
+            If :mod:`rotifer.graph.network` cannot be imported. Install
+            the ``graph`` extra with ``pip install rotifer[graph]``.
+        KeyError
+            If ``block_id``, ``pid``, ``type`` or a ``target`` column is
+            missing.
+
+        See Also
+        --------
+        rotifer.graph.network.adjacency_edges : The function this method calls.
+        rotifer.graph.network.get_relations : Relates every pair of domains in a
+            block instead of adjacent ones.
+
+        Notes
+        -----
+        The graph module is imported when the method is called, so
+        :mod:`rotifer.genome.data` can be used without the ``graph`` extra.
+        """
+        try:
+            from rotifer.graph.network import adjacency_edges
+        except ImportError as exc:
+            raise ImportError(
+                "NeighborhoodDF.to_network needs the graph extra: pip install rotifer[graph]"
+            ) from exc
+        if strand:
+            w = self.neighbors(before=len(self), after=len(self), strand='same')
+            w['rid'] = range(1, len(w) + 1)
+            w['rid'] = w['rid'] * w['strand']
+            w = w.sort_values(['rid'])
+        else:
+            w = self
+        return adjacency_edges(w, target, ftype=ftype, interaction=interaction,
+                               ignore=ignore, separator=separator,
+                               separator_regex=separator_regex, replace=replace,
+                               replace_regex=replace_regex, orient=not strand,
+                               stats=stats)

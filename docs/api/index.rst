@@ -60,6 +60,7 @@ Genomes and annotation
    :toctree: generated
 
    rotifer.genome
+   rotifer.genome.blocks
    rotifer.genome.data
    rotifer.genome.database
    rotifer.genome.db.clickhouse
@@ -79,13 +80,32 @@ Sequence and interval utilities
    rotifer.io.fileinput
    rotifer.io.hhsuite
 
+Graphs and networks
+-------------------
+
+The :doc:`graphs section </graph/index>` is the curated entry point for
+``rotifer.graph`` and ``rotifer.view.network``.
+
+.. autosummary::
+   :toctree: generated
+
+   rotifer.graph
+   rotifer.graph.network
+   rotifer.view.network
+
 Data manipulation and taxonomy
 ------------------------------
+
+The :doc:`pandas section </pandas/index>` is the curated entry point for ``rotifer.pandas``.
 
 .. autosummary::
    :toctree: generated
 
    rotifer.pandas
+   rotifer.pandas.text
+   rotifer.pandas.blocks
+   rotifer.pandas.yaml_blocks
+   rotifer.pandas.display
    rotifer.pandas.functions
    rotifer.taxonomy
    rotifer.taxonomy.utils
@@ -99,8 +119,6 @@ Other subpackages
    rotifer.alchemy
    rotifer.alchemy.connect
    rotifer.alchemy.db_classes
-   rotifer.cluster
-   rotifer.cluster.cluster
    rotifer.pipeline
    rotifer.view
    rotifer.view.functions
