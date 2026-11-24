@@ -82,6 +82,9 @@ Sequence and interval utilities
 Data manipulation and taxonomy
 ------------------------------
 
+The :doc:`taxonomy section </taxonomy/index>` is the curated entry point
+for ``rotifer.taxonomy``.
+
 .. autosummary::
    :toctree: generated
 

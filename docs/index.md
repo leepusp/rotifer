@@ -15,6 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+taxonomy/index
 api/index
 changelog
 adr/index
