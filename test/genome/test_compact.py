@@ -79,6 +79,67 @@ def test_empty_input_matches_normal_schema():
         assert list(r.columns) == list(normal.columns), strand
 
 
+def test_only_query_1_is_a_query():
+    # B (query=2) and C (query=NaN) are neither marked nor used for orientation,
+    # and with strand=True C's run has no query, so it is left out.
+    df = neighborhood([
+        dict(block_id=1, pid='p1', cluster='A', strand=1,  query=1),
+        dict(block_id=1, pid='p2', cluster='B', strand=1,  query=2),
+        dict(block_id=1, pid='p3', cluster='C', strand=-1, query=None),
+    ])
+    assert compact(df).compact.to_dict() == {1: '*A->B->|<-C'}
+    assert compact(df, strand=True).compact.to_dict() == {1: '*A->B->'}
+
+
+def test_missing_query_names_the_blocks():
+    rows = [dict(block_id=b, pid=f'p{b}', cluster='A', strand=1, query=int(b == 1))
+            for b in range(1, 14)]
+    try:
+        compact(neighborhood(rows))
+    except NameError as e:
+        assert str(e) == ('Query_Missing: no query in block_id(s) '
+                          '2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 2 more'), str(e)
+    else:
+        raise AssertionError('expected NameError')
+    try:
+        compact(neighborhood(rows[:3]))
+    except NameError as e:
+        assert str(e) == 'Query_Missing: no query in block_id(s) 2, 3', str(e)
+    else:
+        raise AssertionError('expected NameError')
+
+
+def test_split_block_gives_the_same_lines():
+    # Block 1's rows are split by block 2's. A and B are on the same strand,
+    # so there must be no '|' between them, and strand=True keeps them in
+    # one row.
+    block1 = [dict(block_id=1, pid='p1', cluster='A', strand=1,  query=1),
+              dict(block_id=1, pid='p2', cluster='B', strand=1,  query=0),
+              dict(block_id=1, pid='p3', cluster='C', strand=-1, query=0)]
+    block2 = [dict(block_id=2, pid='p4', cluster='D', strand=-1, query=1)]
+    contiguous = neighborhood(block1 + block2)
+    split = neighborhood(block1[:1] + block2 + block1[1:])
+    for strand in (False, True):
+        expected = compact(contiguous, strand=strand)
+        actual = compact(split, strand=strand)
+        assert actual.sort_index().equals(expected.sort_index()), (strand, actual, expected)
+    assert compact(split).compact.to_dict() == {1: '*A->B->|<-C', 2: '*D->'}
+    assert compact(split, strand=True).compact.to_dict() == {1: '*A->B->', 2: '*D->'}
+
+
+def test_missing_values_show_as_question_mark():
+    df = neighborhood([
+        dict(block_id=1, pid='p1', cluster='A',  strand=1, query=1),
+        dict(block_id=1, pid=None, cluster=None, strand=1, query=0),
+        dict(block_id=1, pid='p3', cluster='C',  strand=1, query=0),
+    ])
+    df.loc[df.pid == 'p3', 'type'] = None
+    # No type: '?' in both strings. Empty fill_unk value: '?'.
+    assert compact(df).compact.to_dict() == {1: '*A->?->?->'}
+    assert compact(df).pid_compact.to_dict() == {1: '*p1->?->?->'}
+    assert compact(df, fill_unk='pid').compact.to_dict() == {1: '*A->?->?->'}
+
+
 if __name__ == '__main__':
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith('test_') and callable(f)]
     failed = 0
