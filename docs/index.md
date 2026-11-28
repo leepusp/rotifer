@@ -15,6 +15,7 @@ layout: rotifer-landing
 Documentation <overview>
 install
 db/index
+core/session
 api/index
 changelog
 adr/index

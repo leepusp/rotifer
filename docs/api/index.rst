@@ -39,6 +39,8 @@ Data access (rotifer.db)
 Core infrastructure
 -------------------
 
+The :doc:`session page </core/session>` is the curated entry point for ``rotifer.core.session``.
+
 .. autosummary::
    :toctree: generated
 
@@ -52,6 +54,7 @@ Core infrastructure
    rotifer.core.logger
    rotifer.core.methods
    rotifer.core.time
+   rotifer.core.session
 
 Genomes and annotation
 ----------------------
